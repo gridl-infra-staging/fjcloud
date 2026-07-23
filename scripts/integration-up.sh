@@ -294,6 +294,11 @@ else
         log "Flapjack provenance: $(flapjack_source_provenance_summary)"
     fi
 fi
+if [ -n "$FLAPJACK_BIN" ] && [ -x "$FLAPJACK_BIN" ]; then
+    flapjack_export_required_runtime_identity "$FLAPJACK_BIN" \
+        || die_with_reason "flapjack_source_resolution_failed" \
+            "selected Flapjack binary could not export runtime identity: $FLAPJACK_BIN"
+fi
 
 # ---------------------------------------------------------------------------
 # 3. Start services
@@ -312,7 +317,9 @@ INTEGRATION_FLAPJACK_ADMIN_KEY="$(env_or_repo_value FLAPJACK_ADMIN_KEY "$DEFAULT
 if [ -n "$FLAPJACK_BIN" ] && [ -x "$FLAPJACK_BIN" ]; then
     check_port_available "$FLAPJACK_PORT" "flapjack" \
         || die_with_reason "port_in_use" "port $FLAPJACK_PORT is already in use (needed for flapjack)"
-    rm -rf "$FLAPJACK_DATA_DIR"
+    if [ "${FJCLOUD_INTEGRATION_PRESERVE_DB:-}" != "1" ]; then
+        rm -rf "$FLAPJACK_DATA_DIR"
+    fi
     mkdir -p "$FLAPJACK_DATA_DIR"
     log "Starting flapjack on port $FLAPJACK_PORT..."
     FLAPJACK_PORT="$FLAPJACK_PORT" \
@@ -345,6 +352,11 @@ DATABASE_URL="$INTEGRATION_RUNTIME_DB_URL" \
     LISTEN_ADDR="127.0.0.1:${API_PORT}" \
     S3_LISTEN_ADDR="127.0.0.1:${INTEGRATION_S3_PORT}" \
     ENGINE_INDEX_IDENTITY_PROBE_RECOVERY_SEAMS="${FJCLOUD_INTEGRATION_API_RECOVERY_SEAMS:-${ENGINE_INDEX_IDENTITY_PROBE_RECOVERY_SEAMS:-}}" \
+    FJCLOUD_FLAPJACK_VERSION="$FJCLOUD_FLAPJACK_VERSION" \
+    FJCLOUD_FLAPJACK_REQUIRED_REVISION="${FJCLOUD_FLAPJACK_REQUIRED_REVISION:-}" \
+    FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID="${FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID:-}" \
+    FJCLOUD_FLAPJACK_REQUIRED_SHA256="${FJCLOUD_FLAPJACK_REQUIRED_SHA256:-}" \
+    FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY="${FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY:-}" \
     JWT_SECRET="$INTEGRATION_JWT_SECRET" \
     ADMIN_KEY="$INTEGRATION_API_ADMIN_KEY" \
     INTERNAL_AUTH_TOKEN="$INTEGRATION_INTERNAL_AUTH_TOKEN" \

@@ -59,6 +59,33 @@ async fn hard_erase_soft_deleted_customer_returns_204_and_removes_row() {
 }
 
 #[tokio::test]
+async fn hard_erase_never_translates_privacy_work_into_engine_cancel() {
+    let customer_repo = crate::common::mock_repo();
+    let customer =
+        customer_repo.seed_deleted("Erase Without Cancel", "erase-no-cancel@example.com");
+    let (http, _secrets, proxy) = crate::common::flapjack_proxy_test_support::setup().await;
+    let app = crate::common::TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_flapjack_proxy(std::sync::Arc::new(proxy))
+        .build_app();
+
+    let response = app
+        .oneshot(hard_erase_request(customer.id))
+        .await
+        .expect("dispatch hard-erase");
+
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    assert!(
+        http.take_requests().is_empty(),
+        "privacy hard erase must not invoke the cooperative migration cancel route"
+    );
+    assert!(
+        http.take_sensitive_requests().is_empty(),
+        "privacy hard erase must not send Algolia credentials"
+    );
+}
+
+#[tokio::test]
 async fn repeated_hard_erase_returns_404_after_prior_erase() {
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed_deleted("Repeat Erase", "repeat-erase@example.com");

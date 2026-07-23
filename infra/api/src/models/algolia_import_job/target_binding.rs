@@ -52,6 +52,18 @@ impl AlgoliaImportTargetBinding {
         self.mode
     }
 
+    pub fn customer_id(&self) -> Uuid {
+        self.customer_id
+    }
+
+    pub fn logical_target(&self) -> &str {
+        &self.logical_target
+    }
+
+    pub fn region(&self) -> &str {
+        &self.region
+    }
+
     fn validate(
         &self,
         customer_id: Uuid,

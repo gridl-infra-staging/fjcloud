@@ -16,17 +16,17 @@
 | Directory | Summary |
 | --- | --- |
 | analytics | — |
-| api | This directory contains the frontend API client library, including shared base classes for HTTP communication, type definitions for API requests and responses matching the backend Axum server, error handling, and utilities for client data normalization. |
-| api-logs | Browser-side API logging utilities that capture, store, sanitize, and export HTTP request data using session storage. |
+| api | This directory contains the web frontend's API client library, including the base client class, request/response type definitions that match the Axum backend API, error handling, and utilities for normalizing API responses. |
+| api-logs | API-logs provides browser-based API request logging infrastructure with a session-storage-backed store, instrumentation helpers for dashboards, and sanitization/export capabilities. |
 | auth | — |
-| components | This components directory contains UI and utility modules for a web application's core features, including editor dialog logic for normalization and validation, data migration eligibility and job management, and client-side search functionality with analytics tracking and state persistence. |
-| error-boundary | The error-boundary directory contains client-side error handling logic with a runtime component for managing errors on the client and a recovery mechanism for copying or restoring state during error scenarios. |
-| events | The eventBuckets module provides utilities to aggregate debug events into time-based buckets with adaptive sizing based on the viewing window, tracking total events and counts of successful versus error responses for charting purposes. |
-| http | This directory contains HTTP utility functions, with retry_after.ts handling retry timing and backoff logic based on HTTP response headers. |
-| recommendations | The recommendations directory contains configuration code, with a config.ts module providing setup and configuration for the recommendations feature. |
+| components | The components directory provides UI utilities for form editing, data migration workflows, and client-side search operations, including dialog normalization/validation, migration eligibility logic, and search analytics with state persistence. |
+| error-boundary | The error-boundary directory provides client-side error handling and recovery mechanisms, with client-runtime managing error boundaries in the runtime environment and recovery-copy handling fallback messaging during error states. |
+| events | The events directory provides time-series bucketing for debug events, grouping them into adaptive time buckets (ranging from 15-second to 1-hour granularity) and counting total, successful (HTTP 200), and error responses within each bucket. |
+| http | The http directory contains utilities for parsing and handling the Retry-After HTTP header, including functions to extract retry-after seconds from response headers and validate/normalize retry-after values. |
+| recommendations | The recommendations directory provides configuration and validation utilities for Algolia-based product recommendations in the customer dashboard, supporting five models (related products, bought together, trending items, trending facets, and looking similar). |
 | rules | — |
 | search_templates | — |
-| server | Server-side utilities for authentication, session management, and authorization, including error mapping for login failures, impersonation helpers for access validation, and transient API retry logic. |
+| server | This directory contains authentication and session management utilities, including error mapping for login failures, impersonation helpers with return-path validation, and retry logic for transient API calls. |
 | synonyms | — |
-| utils | This utils directory contains focus management utilities for modal and trap focus patterns. |
+| utils | The utils directory contains a focus_trap.ts module that provides focus trapping functionality, likely for managing keyboard focus within UI components for accessibility purposes. |
 <!-- [scrai:end] -->

@@ -5,8 +5,9 @@ use api::models::algolia_import_job::{
     AlgoliaImportSummary, EngineResumeMirror, NewAlgoliaImportJob, NewAlgoliaReplaceImportJob,
 };
 use api::repos::{
-    AlgoliaImportJobRepo, AlgoliaImportTransitionDisposition, AlgoliaLifecycleError,
-    CustomerHardDeleteKind, CustomerRepo, PgAlgoliaImportJobRepo, PgCustomerRepo, RepoError,
+    AlgoliaImportDispatchAdmission, AlgoliaImportJobRepo, AlgoliaImportReconciliationWriteOutcome,
+    AlgoliaImportTransitionDisposition, AlgoliaLifecycleError, CustomerHardDeleteKind,
+    CustomerRepo, PgAlgoliaImportJobRepo, PgCustomerRepo, RepoError,
 };
 use chrono::{DateTime, Duration, Utc};
 use serde_json::json;
@@ -43,6 +44,26 @@ fn replace_job(customer_id: Uuid, target: &str, key: &str) -> NewAlgoliaReplaceI
         ),
         key,
     )
+}
+
+async fn admit_create_dispatch(
+    repo: &PgAlgoliaImportJobRepo,
+    job: NewAlgoliaImportJob,
+) -> AlgoliaImportJob {
+    repo.admit_dispatch(AlgoliaImportDispatchAdmission::Create(job))
+        .await
+        .expect("admit create dispatch fixture")
+        .into_job()
+}
+
+async fn admit_replace_dispatch(
+    repo: &PgAlgoliaImportJobRepo,
+    job: NewAlgoliaReplaceImportJob,
+) -> AlgoliaImportJob {
+    repo.admit_dispatch(AlgoliaImportDispatchAdmission::Replace(job))
+        .await
+        .expect("admit replace dispatch fixture")
+        .into_job()
 }
 
 async fn seed_replace_target(pool: &PgPool, customer_id: Uuid, target: &str) {
@@ -157,6 +178,20 @@ async fn import_job_exists(pool: &PgPool, id: Uuid) -> bool {
         .expect("check import job presence")
 }
 
+async fn has_active_reservation(pool: &PgPool, id: Uuid) -> bool {
+    sqlx::query_scalar(&format!(
+        "SELECT EXISTS(
+            SELECT 1 FROM algolia_import_jobs
+            WHERE id = $1 AND {}
+         )",
+        PgAlgoliaImportJobRepo::active_reservation_predicate_for_contract_tests()
+    ))
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .expect("evaluate the canonical reservation predicate")
+}
+
 async fn hard_erase_customer(pool: &PgPool, customer_id: Uuid) {
     soft_delete_customer(pool, customer_id).await;
     PgCustomerRepo::new(pool.clone())
@@ -177,13 +212,14 @@ async fn seed_schema_056_tombstone(
     let repo = PgAlgoliaImportJobRepo::new(pool.clone());
     let customer_id = Uuid::new_v4();
     insert_active_customer(pool, customer_id, 1).await;
-    let created = repo
-        .create(new_job(
+    let created = admit_create_dispatch(
+        &repo,
+        new_job(
             customer_id,
             &format!("schema-056-tombstone-{}", Uuid::new_v4()),
-        ))
-        .await
-        .expect("create public import before tombstone fixture");
+        ),
+    )
+    .await;
     let engine_job_id = Uuid::new_v4();
     repo.record_dispatch_intent_committed(created.id, engine_job_id)
         .await
@@ -260,33 +296,7 @@ async fn wait_until_customer_row_locked(pool: &PgPool, customer_id: Uuid) {
 }
 
 fn persisted_state(job: &AlgoliaImportJob) -> AlgoliaImportJobState {
-    let resume_mirror = match (
-        job.resume_checkpoint.clone(),
-        job.resume_status_observed_at,
-        job.resume_deadline,
-    ) {
-        (Some(checkpoint), Some(observed_at), Some(deadline)) => {
-            Some(EngineResumeMirror::new(checkpoint, observed_at, deadline).unwrap())
-        }
-        _ => None,
-    };
-    AlgoliaImportJobState {
-        status: job.status,
-        publication_disposition: job.publication_disposition,
-        engine_ack_state: job.engine_ack_state,
-        dispatch_intent_state: job.dispatch_intent_state,
-        engine_job_id: job.engine_job_id,
-        lifecycle_generation: job.lifecycle_generation,
-        retryable: job.retryable,
-        resume_intent_generation: job.resume_intent_generation,
-        resume_mirror,
-        resumable: job.resumable,
-        resume_count: job.resume_count,
-        summary: job.summary.clone(),
-        warnings: job.warnings.clone(),
-        error_code: job.error_code,
-        error_message: job.error_message.clone(),
-    }
+    AlgoliaImportJobState::try_from(job).expect("persisted fixture must contain a complete state")
 }
 
 fn postgres_timestamp(timestamp: DateTime<Utc>) -> DateTime<Utc> {
@@ -344,7 +354,7 @@ async fn create_resumable_job(
 ) -> AlgoliaImportJob {
     let customer_id = Uuid::new_v4();
     insert_active_customer(pool, customer_id, 1).await;
-    let created = repo.create(new_job(customer_id, key)).await.unwrap();
+    let created = admit_create_dispatch(repo, new_job(customer_id, key)).await;
     let engine_job_id = Uuid::new_v4();
     repo.record_dispatch_intent_committed(created.id, engine_job_id)
         .await
@@ -376,10 +386,7 @@ async fn create_resumable_replace_job(
     let customer_id = Uuid::new_v4();
     insert_active_customer(pool, customer_id, 1).await;
     seed_replace_target(pool, customer_id, "products").await;
-    let created = repo
-        .create_replace(replace_job(customer_id, "products", key))
-        .await
-        .unwrap();
+    let created = admit_replace_dispatch(repo, replace_job(customer_id, "products", key)).await;
     let engine_job_id = Uuid::new_v4();
     repo.record_dispatch_intent_committed(created.id, engine_job_id)
         .await
@@ -410,7 +417,7 @@ async fn create_admitted_job(
 
     let customer_id = Uuid::new_v4();
     insert_active_customer(pool, customer_id, 1).await;
-    let created = repo.create(new_job(customer_id, key)).await.unwrap();
+    let created = admit_create_dispatch(repo, new_job(customer_id, key)).await;
     let phases = [
         ValidatingSource,
         CopyingConfiguration,
@@ -481,6 +488,135 @@ fn normal_forward_target(mut from: AlgoliaImportJobState) -> AlgoliaImportJobSta
         from.engine_ack_state = AlgoliaImportEngineAckState::OutboxPending;
     }
     from
+}
+
+fn terminal_state(
+    status: AlgoliaImportJobStatus,
+    publication_disposition: AlgoliaImportPublicationDisposition,
+) -> AlgoliaImportJobState {
+    use AlgoliaImportJobStatus::{Failed, Interrupted};
+    use AlgoliaImportPublicationDisposition::{NotStarted, Unchanged};
+
+    let mut state = admitted_state(status);
+    state.publication_disposition = publication_disposition;
+    state.engine_ack_state = AlgoliaImportEngineAckState::OutboxPending;
+    state.retryable = false;
+    state.error_code = match status {
+        Failed => Some(AlgoliaImportErrorCode::BackendUnavailable),
+        Interrupted => Some(AlgoliaImportErrorCode::Interrupted),
+        _ => None,
+    };
+    if publication_disposition == NotStarted {
+        state.engine_job_id = None;
+        if status == Interrupted {
+            state.engine_ack_state = AlgoliaImportEngineAckState::SealAcknowledged;
+        } else {
+            state.dispatch_intent_state = AlgoliaImportDispatchIntentState::Absent;
+            state.engine_ack_state = AlgoliaImportEngineAckState::NotApplicable;
+        }
+    } else if publication_disposition != Unchanged {
+        state.error_code = None;
+    }
+    state
+}
+
+#[test]
+fn terminal_status_disposition_matrix_is_closed() {
+    use AlgoliaImportJobStatus::{
+        Cancelled, Completed, CompletedWithWarnings, Failed, Interrupted,
+    };
+    use AlgoliaImportPublicationDisposition::{NotStarted, Promoted, Unchanged, Unknown};
+
+    let legal_pairs = [
+        (Completed, Promoted),
+        (CompletedWithWarnings, Promoted),
+        (Cancelled, Unchanged),
+        (Failed, Unchanged),
+        (Failed, NotStarted),
+        (Interrupted, Unchanged),
+        (Interrupted, NotStarted),
+    ];
+    for status in [
+        Completed,
+        CompletedWithWarnings,
+        Cancelled,
+        Failed,
+        Interrupted,
+    ] {
+        for disposition in [NotStarted, Unchanged, Promoted, Unknown] {
+            let expected = legal_pairs.contains(&(status, disposition));
+            assert_eq!(
+                status.is_finally_terminal(false, disposition),
+                expected,
+                "terminal pair {status:?}+{disposition:?}"
+            );
+            assert_eq!(
+                terminal_state(status, disposition).validate().is_ok(),
+                expected,
+                "persisted terminal pair {status:?}+{disposition:?}"
+            );
+        }
+    }
+
+    assert!(!Cancelled.is_finally_terminal(false, Promoted));
+    assert!(!Completed.is_finally_terminal(false, Unchanged));
+    assert!(!Cancelled.is_finally_terminal(false, NotStarted));
+}
+
+#[tokio::test]
+async fn no_dispatch_failure_is_fully_released_without_ack_work() {
+    let Some(db) = connect_and_migrate("algolia_no_dispatch_release").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer_id = Uuid::new_v4();
+    insert_active_customer(&db.pool, customer_id, 1).await;
+    let created = repo
+        .create(new_job(customer_id, "local-rejection"))
+        .await
+        .expect("create local-rejection fixture");
+    sqlx::query(
+        "UPDATE algolia_import_jobs
+         SET worker_claimed_at = NOW(), worker_lease_expires_at = NOW() + INTERVAL '5 minutes'
+         WHERE id = $1",
+    )
+    .bind(created.id)
+    .execute(&db.pool)
+    .await
+    .expect("seed a worker claim before the local rejection");
+
+    let failed = repo
+        .record_no_dispatch_failure(
+            created.id,
+            AlgoliaImportErrorCode::InvalidCredentials,
+            Some("sanitized credential rejection"),
+        )
+        .await
+        .expect("record proven no-dispatch failure");
+
+    assert_eq!(failed.status, AlgoliaImportJobStatus::Failed);
+    assert_eq!(
+        failed.publication_disposition,
+        AlgoliaImportPublicationDisposition::NotStarted
+    );
+    assert_eq!(
+        failed.engine_ack_state,
+        AlgoliaImportEngineAckState::NotApplicable
+    );
+    assert_eq!(
+        failed.dispatch_intent_state,
+        AlgoliaImportDispatchIntentState::Absent
+    );
+    assert!(!failed.retryable);
+    assert_eq!(failed.engine_job_id, None);
+    assert_eq!(failed.worker_claimed_at, None);
+    assert_eq!(failed.worker_lease_expires_at, None);
+
+    assert!(!has_active_reservation(&db.pool, failed.id).await);
+    assert_repo_conflict(
+        repo.mark_engine_acknowledged(failed.id).await,
+        "no-dispatch failure must not create ACK outbox work",
+    );
 }
 
 #[test]
@@ -758,15 +894,34 @@ async fn algolia_import_job_domain_cancel_intent_is_atomic_and_idempotent() {
         first_repo.request_cancel(created.id),
         second_repo.request_cancel(created.id)
     );
-    let mut outcomes = vec![first.unwrap(), second.unwrap()];
-    outcomes.sort_by_key(|outcome| outcome.should_dispatch());
-    let idempotent = outcomes.remove(0);
-    let dispatching = outcomes.remove(0);
-
-    assert!(!idempotent.should_dispatch());
-    assert!(dispatching.should_dispatch());
+    let outcomes = [first.unwrap(), second.unwrap()];
+    assert_eq!(
+        outcomes
+            .iter()
+            .filter(|outcome| outcome.was_accepted())
+            .count(),
+        1
+    );
+    assert!(outcomes.iter().all(|outcome| outcome.should_dispatch()));
+    let dispatching = outcomes
+        .iter()
+        .find(|outcome| outcome.was_accepted())
+        .unwrap();
+    let retrying = outcomes
+        .iter()
+        .find(|outcome| !outcome.was_accepted())
+        .unwrap();
     assert_eq!(dispatching.job.status, AlgoliaImportJobStatus::Cancelling);
     assert!(dispatching.job.cancel_requested_at.is_some());
+    assert_eq!(
+        retrying.job.cancel_requested_at,
+        dispatching.job.cancel_requested_at
+    );
+    assert_eq!(
+        dispatching.dispatch.as_ref().unwrap().engine_job_id,
+        engine_job_id
+    );
+    assert_eq!(retrying.dispatch, dispatching.dispatch);
     assert_eq!(dispatching.job.cloud_job_id, created.cloud_job_id);
     assert_eq!(dispatching.job.engine_job_id, Some(engine_job_id));
     assert_eq!(dispatching.job.destination_vm_id, created.destination_vm_id);
@@ -784,7 +939,7 @@ async fn algolia_import_job_domain_cancel_intent_is_atomic_and_idempotent() {
     );
 
     let repeat = repo.request_cancel(created.id).await.unwrap();
-    assert!(!repeat.should_dispatch());
+    assert!(repeat.should_dispatch());
     assert_eq!(
         repeat.job.cancel_requested_at,
         dispatching.job.cancel_requested_at
@@ -957,10 +1112,7 @@ async fn stale_customer_generation_blocks_state_adoption_and_resume_acceptance()
     let customer_id = Uuid::new_v4();
     insert_active_customer(&db.pool, customer_id, 1).await;
     let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
-    let created = repo
-        .create(new_job(customer_id, "stale-state"))
-        .await
-        .expect("admit import");
+    let created = admit_create_dispatch(&repo, new_job(customer_id, "stale-state")).await;
     let admitted = repo
         .record_dispatch_intent_committed(created.id, Uuid::new_v4())
         .await
@@ -1246,10 +1398,7 @@ async fn stale_customer_generation_blocks_terminal_ack_and_retention_gc() {
     let customer_id = Uuid::new_v4();
     insert_active_customer(&db.pool, customer_id, 1).await;
     let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
-    let created = repo
-        .create(new_job(customer_id, "stale-ack-gc"))
-        .await
-        .expect("admit import");
+    let created = admit_create_dispatch(&repo, new_job(customer_id, "stale-ack-gc")).await;
     let admitted = repo
         .record_dispatch_intent_committed(created.id, Uuid::new_v4())
         .await
@@ -1312,10 +1461,7 @@ async fn soft_deleted_customer_retains_terminal_ack_and_gc_evidence() {
     let customer_id = Uuid::new_v4();
     insert_active_customer(&db.pool, customer_id, 1).await;
     let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
-    let created = repo
-        .create(new_job(customer_id, "deleted-ack-gc"))
-        .await
-        .expect("admit import");
+    let created = admit_create_dispatch(&repo, new_job(customer_id, "deleted-ack-gc")).await;
     repo.record_dispatch_intent_committed(created.id, Uuid::new_v4())
         .await
         .expect("commit dispatch before terminal fixture");
@@ -1360,10 +1506,8 @@ async fn retention_gc_collects_current_generation_at_exact_boundary() {
     let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
     let gc_customer_id = Uuid::new_v4();
     insert_active_customer(&db.pool, gc_customer_id, 1).await;
-    let gc_job = repo
-        .create(new_job(gc_customer_id, "exact-retention-boundary"))
-        .await
-        .expect("admit retained history job");
+    let gc_job =
+        admit_create_dispatch(&repo, new_job(gc_customer_id, "exact-retention-boundary")).await;
     repo.record_dispatch_intent_committed(gc_job.id, Uuid::new_v4())
         .await
         .expect("commit retained history dispatch");
@@ -1570,10 +1714,11 @@ async fn soft_deleted_customer_selector_exclusions_preserve_all_import_evidence(
 
     let terminal_customer = Uuid::new_v4();
     insert_active_customer(&db.pool, terminal_customer, 1).await;
-    let terminal = repo
-        .create(new_job(terminal_customer, "deleted-selector-terminal"))
-        .await
-        .expect("create terminal fixture");
+    let terminal = admit_create_dispatch(
+        &repo,
+        new_job(terminal_customer, "deleted-selector-terminal"),
+    )
+    .await;
     repo.record_dispatch_intent_committed(terminal.id, Uuid::new_v4())
         .await
         .expect("commit terminal fixture dispatch");
@@ -1661,10 +1806,8 @@ async fn erased_tombstone_ack_release_compacts_exactly_once() {
 
     let stale_customer = Uuid::new_v4();
     insert_active_customer(&db.pool, stale_customer, 1).await;
-    let stale_public = repo
-        .create(new_job(stale_customer, "erased-ack-stale-public"))
-        .await
-        .expect("admit stale public ACK fence");
+    let stale_public =
+        admit_create_dispatch(&repo, new_job(stale_customer, "erased-ack-stale-public")).await;
     repo.record_dispatch_intent_committed(stale_public.id, Uuid::new_v4())
         .await
         .expect("commit stale public dispatch");
@@ -1759,10 +1902,8 @@ async fn erased_tombstone_terminal_gc_preserves_reconciliation_truth() {
 
     let current_customer = Uuid::new_v4();
     insert_active_customer(&db.pool, current_customer, 1).await;
-    let current = repo
-        .create(new_job(current_customer, "erased-gc-current"))
-        .await
-        .expect("admit current-generation GC control");
+    let current =
+        admit_create_dispatch(&repo, new_job(current_customer, "erased-gc-current")).await;
     repo.record_dispatch_intent_committed(current.id, Uuid::new_v4())
         .await
         .expect("commit current-generation GC control");
@@ -1780,10 +1921,8 @@ async fn erased_tombstone_terminal_gc_preserves_reconciliation_truth() {
 
     let stale_customer = Uuid::new_v4();
     insert_active_customer(&db.pool, stale_customer, 1).await;
-    let stale_public = repo
-        .create(new_job(stale_customer, "erased-gc-stale-public"))
-        .await
-        .expect("admit stale GC control");
+    let stale_public =
+        admit_create_dispatch(&repo, new_job(stale_customer, "erased-gc-stale-public")).await;
     repo.record_dispatch_intent_committed(stale_public.id, Uuid::new_v4())
         .await
         .expect("commit stale GC control");
@@ -2041,6 +2180,197 @@ async fn algolia_import_job_domain_deadline_claim_reuses_expired_worker_lease() 
         claimed.worker_lease_expires_at,
         Some(postgres_timestamp(now + Duration::minutes(10)))
     );
+}
+
+#[tokio::test]
+async fn reconciliation_claim_is_exclusive_and_skips_an_active_lease() {
+    let Some(db) = connect_and_migrate("algolia_reconcile_claim_exclusive").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let job = create_admitted_job(
+        &db.pool,
+        &repo,
+        "reconcile-exclusive",
+        AlgoliaImportJobStatus::CopyingDocuments,
+    )
+    .await;
+    let now = postgres_timestamp(Utc::now());
+    let lease_expires_at = now + Duration::minutes(5);
+    let first_repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let second_repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+
+    let (first, second) = tokio::join!(
+        first_repo.claim_reconciliation_jobs(now, lease_expires_at, 1),
+        second_repo.claim_reconciliation_jobs(now, lease_expires_at, 1),
+    );
+    let claims = first
+        .expect("first reconciliation claim")
+        .into_iter()
+        .chain(second.expect("second reconciliation claim"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(claims.len(), 1);
+    assert_eq!(claims[0].job.id, job.id);
+    assert_eq!(claims[0].lease.job_id, job.id);
+    assert_eq!(
+        claims[0].lease.lifecycle_generation,
+        job.lifecycle_generation
+    );
+    assert_eq!(claims[0].lease.claimed_at, now);
+    assert_eq!(claims[0].lease.expires_at, lease_expires_at);
+    assert!(repo
+        .claim_reconciliation_jobs(now + Duration::seconds(1), lease_expires_at, 1)
+        .await
+        .expect("active lease replay")
+        .is_empty());
+}
+
+#[tokio::test]
+async fn reconciliation_takeover_fences_stale_observation_writes() {
+    let Some(db) = connect_and_migrate("algolia_reconcile_takeover_fence").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let job = create_admitted_job(
+        &db.pool,
+        &repo,
+        "reconcile-takeover",
+        AlgoliaImportJobStatus::CopyingDocuments,
+    )
+    .await;
+    let first_claimed_at = postgres_timestamp(Utc::now());
+    let first_expires_at = first_claimed_at + Duration::minutes(5);
+    let first = repo
+        .claim_reconciliation_jobs(first_claimed_at, first_expires_at, 1)
+        .await
+        .expect("first reconciliation claim")
+        .pop()
+        .expect("first worker owns the job");
+
+    let takeover_expires_at = first_expires_at + Duration::minutes(5);
+    let second = repo
+        .claim_reconciliation_jobs(first_expires_at, takeover_expires_at, 1)
+        .await
+        .expect("expired reconciliation lease takeover")
+        .pop()
+        .expect("second worker reclaims the expired lease");
+    assert_ne!(first.lease, second.lease);
+
+    let mut observation = persisted_state(&second.job);
+    observation.status = AlgoliaImportJobStatus::Verifying;
+    let observed_at = first_expires_at + Duration::seconds(1);
+    assert!(matches!(
+        repo.record_reconciliation_observation(&first.lease, observed_at, observation.clone())
+            .await
+            .expect("stale observation write is a typed no-op"),
+        AlgoliaImportReconciliationWriteOutcome::LeaseLost
+    ));
+
+    let after_stale_write = repo.get(job.id).await.unwrap().unwrap();
+    assert_eq!(
+        after_stale_write.status,
+        AlgoliaImportJobStatus::CopyingDocuments
+    );
+    assert_eq!(after_stale_write.worker_claimed_at, Some(first_expires_at));
+    assert_eq!(
+        after_stale_write.worker_lease_expires_at,
+        Some(takeover_expires_at)
+    );
+
+    let applied = repo
+        .record_reconciliation_observation(&second.lease, observed_at, observation)
+        .await
+        .expect("current lease writes the observation");
+    let AlgoliaImportReconciliationWriteOutcome::Applied {
+        unavailable_state_changed,
+    } = applied
+    else {
+        panic!("current reconciliation lease must remain valid");
+    };
+    let updated = repo
+        .get(job.id)
+        .await
+        .expect("read applied reconciliation observation")
+        .expect("reconciled job remains retained");
+    assert_eq!(updated.status, AlgoliaImportJobStatus::Verifying);
+    assert!(!unavailable_state_changed);
+    assert_eq!(updated.worker_claimed_at, None);
+    assert_eq!(updated.worker_lease_expires_at, None);
+}
+
+#[tokio::test]
+async fn reconciliation_claim_excludes_private_or_unlinked_jobs_without_releasing_them() {
+    let Some(db) = connect_and_migrate("algolia_reconcile_claim_scope").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let live = create_admitted_job(
+        &db.pool,
+        &repo,
+        "reconcile-live",
+        AlgoliaImportJobStatus::CopyingDocuments,
+    )
+    .await;
+    let stale = create_admitted_job(
+        &db.pool,
+        &repo,
+        "reconcile-stale-generation",
+        AlgoliaImportJobStatus::CopyingDocuments,
+    )
+    .await;
+    sqlx::query("UPDATE customers SET lifecycle_generation = lifecycle_generation + 1 WHERE id=$1")
+        .bind(stale.customer_id)
+        .execute(&db.pool)
+        .await
+        .expect("advance customer generation");
+
+    let erased = create_admitted_job(
+        &db.pool,
+        &repo,
+        "reconcile-erased",
+        AlgoliaImportJobStatus::CopyingDocuments,
+    )
+    .await;
+    hard_erase_customer(&db.pool, erased.customer_id).await;
+
+    let ambiguous_customer = Uuid::new_v4();
+    insert_active_customer(&db.pool, ambiguous_customer, 1).await;
+    let ambiguous = admit_create_dispatch(
+        &repo,
+        new_job(ambiguous_customer, "reconcile-ambiguous-unlinked"),
+    )
+    .await;
+    let committed_customer = Uuid::new_v4();
+    insert_active_customer(&db.pool, committed_customer, 1).await;
+    let committed = admit_create_dispatch(
+        &repo,
+        new_job(committed_customer, "reconcile-committed-unlinked"),
+    )
+    .await;
+    sqlx::query("UPDATE algolia_import_jobs SET dispatch_intent_state='committed' WHERE id=$1")
+        .bind(committed.id)
+        .execute(&db.pool)
+        .await
+        .expect("seed committed intent without engine linkage");
+
+    let now = postgres_timestamp(Utc::now());
+    let claims = repo
+        .claim_reconciliation_jobs(now, now + Duration::minutes(5), 10)
+        .await
+        .expect("claim pollable reconciliation jobs");
+
+    assert_eq!(
+        claims.iter().map(|claim| claim.job.id).collect::<Vec<_>>(),
+        vec![live.id]
+    );
+    assert!(has_active_reservation(&db.pool, ambiguous.id).await);
+    assert!(has_active_reservation(&db.pool, committed.id).await);
+    for excluded in [stale.id, ambiguous.id, committed.id] {
+        let job = repo.get(excluded).await.unwrap().unwrap();
+        assert_eq!(job.worker_claimed_at, None);
+        assert_eq!(job.worker_lease_expires_at, None);
+    }
 }
 
 // ---------------------------------------------------------------------------

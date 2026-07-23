@@ -21,21 +21,22 @@ management API. |
 bootstrap, called in sequence by main(). |
 | startup_env.rs | Stub summary for startup_env.rs. |
 | startup_repos.rs | Repository initialization extracted from main startup. |
+| state.rs | Stub summary for infra/api/src/state.rs. |
 | usage.rs | Stub summary for usage.rs. |
 
 | Directory | Summary |
 | --- | --- |
 | auth | — |
-| dns | This directory contains DNS infrastructure operations code with Cloudflare integration for managing DNS records and services. |
+| dns | — |
 | invoicing | Constructs invoice line items for billing, with specialized handling for object storage egress charges that carries forward fractional cents to the next billing cycle. |
 | middleware | — |
 | models | The models directory contains database entity definitions and API conversion layers for the fjcloud platform, including representations for customers, API keys, rate cards, index replicas, migrations, and Algolia import operations. |
 | provisioner | The provisioner directory contains cloud infrastructure provisioning implementations for multiple vendors (AWS, GCP, OCI, Hetzner) along with shared utilities for environment configuration parsing. |
 | repos | This directory contains repository/data access layer implementations for the fjcloud backend, primarily PostgreSQL-backed modules handling customer accounts, billing (invoices, disputes), usage metering, VM infrastructure, webhooks, and Algolia search integration. |
 | router | The router module composes the HTTP API structure by assembling Axum middleware (security headers, rate limiting, CORS, S3 authentication) and route definitions across auth, billing, indexes, analytics, migrations, and tenant management. |
-| routes | The routes directory contains HTTP API endpoint handlers organized by domain, including authentication, billing, account management, search index operations, storage, migrations, webhooks, and administrative functions. |
-| secrets | The secrets directory contains AWS credential and secret management code. |
-| services | The services module contains background services and integrations for the fjcloud platform, including email delivery, search engine proxies, webhook management, infrastructure provisioning across cloud providers, automated index archival, resource scheduling and migration, and audit logging for administrative operations. |
+| routes | — |
+| secrets | — |
+| services | — |
 | startup | A Stripe configuration module providing a stub service that returns `NotConfigured` for all operations when the `STRIPE_SECRET_KEY` is not set, allowing the API to bootstrap and handle Stripe-dependent requests gracefully. |
 | stripe | — |
 <!-- [scrai:end] -->

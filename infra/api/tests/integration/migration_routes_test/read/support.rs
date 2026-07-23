@@ -1,4 +1,5 @@
 use super::super::*;
+use crate::common::mock_vm_inventory_repo;
 
 pub(super) async fn setup_algolia_cloud_job_read_app(
     pool: PgPool,
@@ -60,6 +61,70 @@ pub(super) async fn setup_algolia_cloud_job_lifecycle_app(
     (app, create_test_jwt(customer.id), customer.id)
 }
 
+pub(super) async fn setup_algolia_cancel_dispatch_app(
+    pool: PgPool,
+    algolia_migration_enabled: bool,
+    source_service: Arc<dyn AlgoliaSourceLister>,
+) -> (
+    axum::Router,
+    String,
+    Uuid,
+    Uuid,
+    Arc<MockFlapjackHttpClient>,
+    Arc<MockAlertService>,
+) {
+    let customer_repo = mock_repo();
+    let customer = customer_repo.seed_verified_free_customer("Alice", "alice@example.com");
+    insert_active_customer(&pool, customer.id, 1).await;
+
+    let vm_repo = mock_vm_inventory_repo();
+    let vm = vm_repo.seed("us-east-1", "https://algolia-cancel-engine.test");
+    insert_vm_with_id(&pool, vm.id, &vm.hostname, "active").await;
+
+    let http = Arc::new(MockFlapjackHttpClient::default());
+    let secrets = Arc::new(MockNodeSecretManager::new());
+    secrets
+        .create_node_api_key(vm.node_secret_id(), &vm.region)
+        .await
+        .expect("seed VM admin key");
+    let proxy = Arc::new(FlapjackProxy::with_http_client(http.clone(), secrets));
+    let import_service = Arc::new(api::services::algolia_import::AlgoliaImportService::new(
+        proxy,
+    ));
+    let alerts = Arc::new(MockAlertService::new());
+    let state = TestStateBuilder::new()
+        .with_pool(pool)
+        .with_customer_repo(customer_repo)
+        .with_algolia_source_service(source_service)
+        .with_algolia_migration_enabled(algolia_migration_enabled)
+        .with_vm_inventory_repo(vm_repo)
+        .with_algolia_import_service(import_service)
+        .with_alert_service(alerts.clone())
+        .build();
+    let app = axum::Router::new()
+        .route(
+            "/migration/algolia/jobs",
+            axum::routing::get(api::routes::migration::list_algolia_import_jobs),
+        )
+        .route(
+            "/migration/algolia/jobs/:id",
+            axum::routing::get(api::routes::migration::get_algolia_import_job),
+        )
+        .route(
+            "/migration/algolia/jobs/:id/cancel",
+            axum::routing::post(api::routes::migration::cancel_algolia_import_job),
+        )
+        .with_state(state);
+    (
+        app,
+        create_test_jwt(customer.id),
+        customer.id,
+        vm.id,
+        http,
+        alerts,
+    )
+}
+
 pub(super) async fn seed_retained_job_with_internals(
     pool: &PgPool,
     customer_id: Uuid,
@@ -116,6 +181,15 @@ pub(super) async fn seed_retained_job_with_status(
              engine_ack_state = $6,
              error_code = $7,
              resumable = FALSE,
+             cancel_requested_at = CASE
+                 WHEN $2 = 'cancelled' THEN COALESCE(cancel_requested_at, NOW())
+                 ELSE cancel_requested_at
+             END,
+             terminal_at = CASE
+                 WHEN $2 IN ('completed', 'completed_with_warnings', 'cancelled', 'failed', 'interrupted')
+                     THEN NOW()
+                 ELSE NULL
+             END,
              updated_at = NOW()
          WHERE id = $1",
     )
@@ -161,6 +235,39 @@ pub(super) async fn seed_retained_job_with_status(
     };
     query.execute(pool).await.expect("seed retained job status");
     id
+}
+
+pub(super) async fn seed_engine_linked_cancel_job(
+    pool: &PgPool,
+    customer_id: Uuid,
+    destination_vm_id: Uuid,
+    key: &str,
+) -> (Uuid, Uuid) {
+    let id = Uuid::new_v4();
+    let engine_job_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO algolia_import_jobs
+         (id, customer_id, tenant_id, algolia_app_id, destination_kind, logical_target,
+          destination_region, destination_vm_id, physical_uid, routing_identity,
+          source_name, idempotency_key, canonical_fingerprint, source_size_bytes,
+          lifecycle_generation, dispatch_intent_state, engine_job_id, status,
+          publication_disposition, engine_ack_state, reserved_index_count,
+          reserved_customer_storage_bytes, reserved_node_transient_bytes, created_at, updated_at)
+         VALUES ($1, $2, $4, 'TESTAPP123', 'create', $4,
+                 'us-east-1', $3, 'phys-secret-uid', 'routing-secret-id',
+                 'source_products', 'idem-secret-' || $4, 'sha256:secret-fingerprint', 4096,
+                 1, 'committed', $5, 'copying_documents', 'unchanged', 'pending',
+                 1, 100, 0, NOW(), NOW())",
+    )
+    .bind(id)
+    .bind(customer_id)
+    .bind(destination_vm_id)
+    .bind(key)
+    .bind(engine_job_id)
+    .execute(pool)
+    .await
+    .expect("seed engine-linked cancel job");
+    (id, engine_job_id)
 }
 
 pub(super) async fn seed_resumable_retained_job(
@@ -290,7 +397,7 @@ pub(super) async fn serialized_job_row(pool: &PgPool, id: Uuid) -> String {
     .to_string()
 }
 
-pub(super) async fn get_json(
+pub(in super::super) async fn get_json(
     app: &axum::Router,
     jwt: &str,
     uri: &str,

@@ -1,0 +1,87 @@
+{
+  "pinned_engine_sha": "a025a5eb43025b0680cfc78e5e07ec6c052695a4",
+  "openapi_artifacts": [
+    {
+      "path": "engine/docs2/openapi.json",
+      "sha256": "a17c29c127813a4ad8e8c7a80667eb44edff63a7f05feb700bd077b88833d637"
+    },
+    {
+      "path": "engine/demo-dualclient/public/openapi.json",
+      "sha256": "a17c29c127813a4ad8e8c7a80667eb44edff63a7f05feb700bd077b88833d637"
+    }
+  ],
+  "routes": {
+    "submit": {
+      "method": "POST",
+      "path": "/1/migrations/algolia"
+    },
+    "status": {
+      "method": "GET",
+      "path": "/1/migrations/algolia/{job_id}"
+    },
+    "cancel": {
+      "method": "POST",
+      "path": "/1/migrations/algolia/{job_id}/cancel"
+    }
+  },
+  "request": {
+    "required_fields": [
+      "apiKey",
+      "appId",
+      "sourceIndex"
+    ],
+    "optional_fields": [
+      "overwrite",
+      "targetIndex"
+    ]
+  },
+  "status": {
+    "required_fields": [
+      "createdAt",
+      "disposition",
+      "jobId",
+      "phase",
+      "updatedAt"
+    ],
+    "optional_fields": [
+      "exportProgress",
+      "terminalAt"
+    ]
+  },
+  "progress": {
+    "required_fields": [
+      "completed",
+      "total"
+    ],
+    "optional_fields": []
+  },
+  "enums": {
+    "phase": [
+      "submitted",
+      "exporting",
+      "preparing",
+      "staging",
+      "activating"
+    ],
+    "disposition": [
+      "running",
+      "succeeded",
+      "failed",
+      "cancelled"
+    ]
+  },
+  "errors": {
+    "migration_ha_unsupported": {
+      "http_status": 503
+    },
+    "migration_capacity_exhausted": {
+      "http_status": 503
+    },
+    "migration_job_not_found": {
+      "http_status": 404
+    },
+    "cancel_too_late": {
+      "http_status": 409
+    }
+  }
+}

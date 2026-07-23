@@ -2,7 +2,9 @@ use api::models::algolia_import_job::{
     AlgoliaImportCreateDestination, AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportSource,
     AlgoliaImportSourceMetadata, NewAlgoliaImportJob, NewAlgoliaReplaceImportJob,
 };
+use api::repos::{AlgoliaImportDispatchAdmission, AlgoliaImportDispatchAdmissionOutcome};
 use api::repos::{AlgoliaImportJobAdmissionError, AlgoliaImportJobRepo, PgAlgoliaImportJobRepo};
+use chrono::{Duration, Utc};
 use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -194,6 +196,148 @@ async fn reservation_tuple(pool: &PgPool, job_id: Uuid) -> (i64, i64, i64) {
     .expect("fetch reservation tuple")
 }
 
+async fn active_reservation_count(pool: &PgPool) -> i64 {
+    let sql = format!(
+        "SELECT COUNT(*) FROM algolia_import_jobs WHERE {}",
+        PgAlgoliaImportJobRepo::active_reservation_predicate_for_contract_tests()
+    );
+    sqlx::query_scalar(&sql)
+        .fetch_one(pool)
+        .await
+        .expect("count active reservations")
+}
+
+struct ReservationPredicateCase {
+    status: &'static str,
+    disposition: &'static str,
+    ack: &'static str,
+    dispatch_intent: &'static str,
+    engine_linked: bool,
+}
+
+impl ReservationPredicateCase {
+    fn engine(status: &'static str, disposition: &'static str, ack: &'static str) -> Self {
+        Self {
+            status,
+            disposition,
+            ack,
+            dispatch_intent: "committed",
+            engine_linked: true,
+        }
+    }
+
+    fn local(
+        status: &'static str,
+        disposition: &'static str,
+        ack: &'static str,
+        dispatch_intent: &'static str,
+    ) -> Self {
+        Self {
+            status,
+            disposition,
+            ack,
+            dispatch_intent,
+            engine_linked: false,
+        }
+    }
+}
+
+async fn reservation_predicate_is_active(pool: &PgPool, case: &ReservationPredicateCase) -> bool {
+    let sql = format!(
+        "SELECT ({})
+         FROM (SELECT $1::text AS status,
+                      $2::text AS publication_disposition,
+                      $3::text AS engine_ack_state,
+                      $4::text AS dispatch_intent_state,
+                      CASE WHEN $5 THEN gen_random_uuid() ELSE NULL::uuid END AS engine_job_id,
+                      FALSE AS resumable,
+                      NULL::timestamptz AS erased_at) AS candidate",
+        PgAlgoliaImportJobRepo::active_reservation_predicate_for_contract_tests()
+    );
+    sqlx::query_scalar(&sql)
+        .bind(case.status)
+        .bind(case.disposition)
+        .bind(case.ack)
+        .bind(case.dispatch_intent)
+        .bind(case.engine_linked)
+        .fetch_one(pool)
+        .await
+        .expect("evaluate active reservation contract case")
+}
+
+async fn assert_reservation_predicate(
+    pool: &PgPool,
+    case: ReservationPredicateCase,
+    expected_active: bool,
+) {
+    assert_eq!(
+        reservation_predicate_is_active(pool, &case).await,
+        expected_active,
+        "reservation predicate mismatch for {}+{}+{}",
+        case.status,
+        case.disposition,
+        case.ack
+    );
+}
+
+#[tokio::test]
+async fn active_reservation_predicate_releases_only_canonical_confirmed_terminal_origins() {
+    let Some(db) = connect_and_migrate("algolia_reservation_predicate_contract").await else {
+        return;
+    };
+    let engine_terminal_pairs = [
+        ("completed", "promoted"),
+        ("completed_with_warnings", "promoted"),
+        ("cancelled", "unchanged"),
+        ("failed", "unchanged"),
+        ("failed", "not_started"),
+        ("interrupted", "unchanged"),
+    ];
+
+    for (status, disposition) in engine_terminal_pairs {
+        for ack in ["pending", "outbox_pending"] {
+            assert_reservation_predicate(
+                &db.pool,
+                ReservationPredicateCase::engine(status, disposition, ack),
+                true,
+            )
+            .await;
+        }
+        assert_reservation_predicate(
+            &db.pool,
+            ReservationPredicateCase::engine(status, disposition, "acknowledged"),
+            false,
+        )
+        .await;
+    }
+
+    for case in [
+        ReservationPredicateCase::local("failed", "not_started", "not_applicable", "absent"),
+        ReservationPredicateCase::local(
+            "interrupted",
+            "not_started",
+            "seal_acknowledged",
+            "ambiguous",
+        ),
+    ] {
+        assert_reservation_predicate(&db.pool, case, false).await;
+    }
+
+    for (status, disposition) in [
+        ("completed", "unchanged"),
+        ("cancelled", "not_started"),
+        ("completed", "unknown"),
+        ("interrupted", "not_started"),
+    ] {
+        assert_reservation_predicate(
+            &db.pool,
+            ReservationPredicateCase::engine(status, disposition, "acknowledged"),
+            true,
+        )
+        .await;
+    }
+}
+
 #[tokio::test]
 async fn create_reservation_counts_future_index_and_source_bytes() {
     let Some(db) = connect_and_migrate("algolia_reserve_create_bytes").await else {
@@ -209,6 +353,158 @@ async fn create_reservation_counts_future_index_and_source_bytes() {
         .expect("create import job");
 
     assert_eq!(reservation_tuple(&db.pool, job.id).await, (1, 2_000, 0));
+}
+
+#[tokio::test]
+async fn ambiguous_dispatch_admission_remains_an_active_reservation() {
+    let Some(db) = connect_and_migrate("algolia_reserve_ambiguous_dispatch").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer = Uuid::new_v4();
+    insert_customer(&db.pool, customer).await;
+
+    let admitted = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Create(create_job_sized(
+            customer,
+            "products",
+            "ambiguous-reservation",
+            2_000,
+        )))
+        .await
+        .expect("dispatch admission");
+    let AlgoliaImportDispatchAdmissionOutcome::New(job) = admitted else {
+        panic!("first dispatch admission must create a retained reservation");
+    };
+
+    assert_eq!(reservation_tuple(&db.pool, job.id).await, (1, 2_000, 0));
+    assert_eq!(active_reservation_count(&db.pool).await, 1);
+}
+
+#[tokio::test]
+async fn committed_dispatch_admission_remains_an_active_reservation_without_engine_status() {
+    let Some(db) = connect_and_migrate("algolia_reserve_committed_dispatch").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer = Uuid::new_v4();
+    insert_customer(&db.pool, customer).await;
+    let admitted = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Create(create_job_sized(
+            customer,
+            "products",
+            "committed-reservation",
+            2_000,
+        )))
+        .await
+        .expect("dispatch admission");
+    let AlgoliaImportDispatchAdmissionOutcome::New(job) = admitted else {
+        panic!("first dispatch admission must create a retained reservation");
+    };
+
+    repo.record_dispatch_intent_committed(job.id, Uuid::new_v4())
+        .await
+        .expect("commit engine linkage");
+
+    assert_eq!(reservation_tuple(&db.pool, job.id).await, (1, 2_000, 0));
+    assert_eq!(active_reservation_count(&db.pool).await, 1);
+}
+
+#[tokio::test]
+async fn ambiguous_and_committed_reservations_survive_worker_claim_expiry_and_api_outage() {
+    let Some(db) = connect_and_migrate("algolia_reserve_claim_expiry").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer = Uuid::new_v4();
+    insert_customer(&db.pool, customer).await;
+    let ambiguous = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Create(create_job_sized(
+            customer,
+            "products-ambiguous",
+            "ambiguous-claim-expiry",
+            2_000,
+        )))
+        .await
+        .expect("ambiguous dispatch admission");
+    let AlgoliaImportDispatchAdmissionOutcome::New(ambiguous) = ambiguous else {
+        panic!("first ambiguous admission must create a retained reservation");
+    };
+    let committed = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Create(create_job_sized(
+            customer,
+            "products-committed",
+            "committed-claim-expiry",
+            3_000,
+        )))
+        .await
+        .expect("committed dispatch admission");
+    let AlgoliaImportDispatchAdmissionOutcome::New(committed) = committed else {
+        panic!("first committed admission must create a retained reservation");
+    };
+    repo.record_dispatch_intent_committed(committed.id, Uuid::new_v4())
+        .await
+        .expect("commit engine linkage");
+    let stale_claimed_at = Utc::now() - Duration::hours(2);
+    let stale_lease_expires_at = Utc::now() - Duration::hours(1);
+
+    sqlx::query(
+        "UPDATE algolia_import_jobs
+         SET worker_claimed_at = $1, worker_lease_expires_at = $2
+         WHERE id IN ($3, $4)",
+    )
+    .bind(stale_claimed_at)
+    .bind(stale_lease_expires_at)
+    .bind(ambiguous.id)
+    .bind(committed.id)
+    .execute(&db.pool)
+    .await
+    .expect("simulate stale worker claims and a long API outage");
+
+    assert_eq!(
+        reservation_tuple(&db.pool, ambiguous.id).await,
+        (1, 2_000, 0)
+    );
+    assert_eq!(
+        reservation_tuple(&db.pool, committed.id).await,
+        (1, 3_000, 0)
+    );
+    assert_eq!(active_reservation_count(&db.pool).await, 2);
+}
+
+#[tokio::test]
+async fn dispatch_admitted_replace_reservation_uses_final_key_metadata() {
+    let Some(db) = connect_and_migrate("algolia_reserve_dispatch_replace_final").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer = Uuid::new_v4();
+    insert_replace_target_sized(
+        &db.pool,
+        customer,
+        "products",
+        1_000,
+        json!({ "max_indexes": 10, "max_storage_bytes": 10_000 }),
+        20_000,
+        1_000,
+    )
+    .await;
+
+    let admitted = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Replace(replace_job_sized(
+            customer,
+            "products",
+            "dispatch-replace-final-size",
+            1_700,
+        )))
+        .await
+        .expect("dispatch replace admission");
+    let AlgoliaImportDispatchAdmissionOutcome::New(job) = admitted else {
+        panic!("first dispatch replace admission must create a retained reservation");
+    };
+
+    assert_eq!(reservation_tuple(&db.pool, job.id).await, (0, 700, 3_700));
+    assert_eq!(active_reservation_count(&db.pool).await, 1);
 }
 
 #[tokio::test]

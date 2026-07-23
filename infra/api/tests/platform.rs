@@ -21,6 +21,8 @@ mod algolia_import_job_domain_reservation;
 mod algolia_import_job_domain_reservation_accounting;
 #[path = "integration/algolia_import_job_domain_transitions.rs"]
 mod algolia_import_job_domain_transitions;
+#[path = "integration/algolia_migration_engine_contract_test.rs"]
+mod algolia_migration_engine_contract_test;
 #[path = "integration/api_key_endpoints_test.rs"]
 mod api_key_endpoints_test;
 #[path = "integration/api_key_repo_test.rs"]
@@ -119,6 +121,8 @@ mod migration_054_password_reset_resend_cooldown_test;
 mod migration_058_deployment_failure_reason_test;
 #[path = "integration/migration_059_vm_inventory_reference_guard_test.rs"]
 mod migration_059_vm_inventory_reference_guard_test;
+#[path = "integration/migration_062_algolia_erased_vm_retirement_blocker_test.rs"]
+mod migration_062_algolia_erased_vm_retirement_blocker_test;
 #[path = "integration/migration_routes_test.rs"]
 mod migration_routes_test;
 #[path = "integration/migration_test.rs"]

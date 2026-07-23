@@ -9,7 +9,7 @@ use aws_sdk_ssm::operation::get_parameter::GetParameterError;
 const NODE_PARAMETER_PREFIX: &str = "/fjcloud/";
 const NODE_KEY_SUFFIX: &str = "/api-key";
 const PREVIOUS_NODE_KEY_SUFFIX: &str = "/api-key-previous";
-const SSM_LIST_PAGE_SIZE: i32 = 50;
+const SSM_LIST_PAGE_SIZE: i32 = 10;
 
 /// AWS SSM Parameter Store implementation of `NodeSecretManager`.
 ///
@@ -259,12 +259,6 @@ impl NodeSecretManager for SsmNodeSecretManager {
     }
 
     async fn list_node_api_keys(&self) -> Result<Vec<NodeSecretRecord>, NodeSecretError> {
-        let name_filter = aws_sdk_ssm::types::ParameterStringFilter::builder()
-            .key("Name")
-            .option("BeginsWith")
-            .values(NODE_PARAMETER_PREFIX)
-            .build()
-            .map_err(|error| NodeSecretError::Api(format!("invalid SSM list filter: {error}")))?;
         let mut records = Vec::new();
         let mut next_token: Option<String> = None;
         let mut seen_tokens = HashSet::new();
@@ -272,14 +266,16 @@ impl NodeSecretManager for SsmNodeSecretManager {
         loop {
             let output = self
                 .client
-                .describe_parameters()
-                .parameter_filters(name_filter.clone())
+                .get_parameters_by_path()
+                .path(NODE_PARAMETER_PREFIX)
+                .recursive(true)
+                .with_decryption(false)
                 .max_results(SSM_LIST_PAGE_SIZE)
                 .set_next_token(next_token.clone())
                 .send()
                 .await
                 .map_err(|error| {
-                    NodeSecretError::Api(format!("SSM DescribeParameters failed: {error}"))
+                    NodeSecretError::Api(format!("SSM GetParametersByPath failed: {error}"))
                 })?;
 
             for parameter in output.parameters() {
@@ -316,7 +312,7 @@ impl NodeSecretManager for SsmNodeSecretManager {
             };
             if !seen_tokens.insert(token.clone()) {
                 return Err(NodeSecretError::Api(
-                    "SSM DescribeParameters repeated a pagination token".to_string(),
+                    "SSM GetParametersByPath repeated a pagination token".to_string(),
                 ));
             }
             next_token = Some(token);
@@ -331,7 +327,7 @@ mod tests {
     use aws_sdk_ssm::types::error::ParameterNotFound;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
-    use wiremock::matchers::method;
+    use wiremock::matchers::{body_partial_json, header, method};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     async fn ssm_client_for_mock_server(server: &MockServer) -> aws_sdk_ssm::Client {
@@ -397,6 +393,12 @@ mod tests {
         let calls = Arc::new(AtomicUsize::new(0));
         let responder_calls = calls.clone();
         Mock::given(method("POST"))
+            .and(header("x-amz-target", "AmazonSSM.GetParametersByPath"))
+            .and(body_partial_json(serde_json::json!({
+                "Path": "/fjcloud/",
+                "Recursive": true,
+                "WithDecryption": false
+            })))
             .respond_with(move |_request: &wiremock::Request| {
                 let page = responder_calls.fetch_add(1, Ordering::SeqCst);
                 match page {

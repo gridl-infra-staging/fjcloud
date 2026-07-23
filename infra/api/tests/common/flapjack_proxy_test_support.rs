@@ -11,6 +11,7 @@ use api::secrets::mock::MockNodeSecretManager;
 use api::secrets::NodeSecretManager;
 use api::services::flapjack_proxy::{
     FlapjackHttpClient, FlapjackHttpRequest, FlapjackHttpResponse, FlapjackProxy, ProxyError,
+    SensitiveFlapjackHttpRequest,
 };
 use async_trait::async_trait;
 
@@ -19,14 +20,35 @@ type SendBoundaryHook = Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + Se
 #[derive(Default)]
 pub struct MockFlapjackHttpClient {
     requests: Mutex<Vec<FlapjackHttpRequest>>,
+    sensitive_requests: Mutex<Vec<SensitiveRequestObservation>>,
+    expected_sensitive_bodies: Mutex<VecDeque<String>>,
     responses: Mutex<VecDeque<Result<FlapjackHttpResponse, ProxyError>>>,
+    sensitive_responses: Mutex<VecDeque<Result<FlapjackHttpResponse, ProxyError>>>,
     before_next_send: Mutex<Option<SendBoundaryHook>>,
     after_next_send: Mutex<Option<SendBoundaryHook>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SensitiveRequestObservation {
+    pub method: reqwest::Method,
+    pub url: String,
+    pub api_key: String,
 }
 
 impl MockFlapjackHttpClient {
     pub fn push_json_response(&self, status: u16, body: serde_json::Value) {
         self.responses
+            .lock()
+            .unwrap()
+            .push_back(Ok(FlapjackHttpResponse {
+                status,
+                body: body.to_string(),
+                request_api_key: String::new(),
+            }));
+    }
+
+    pub fn push_sensitive_json_response(&self, status: u16, body: serde_json::Value) {
+        self.sensitive_responses
             .lock()
             .unwrap()
             .push_back(Ok(FlapjackHttpResponse {
@@ -51,8 +73,23 @@ impl MockFlapjackHttpClient {
         self.responses.lock().unwrap().push_back(Err(error));
     }
 
+    pub fn clear_responses(&self) {
+        self.responses.lock().unwrap().clear();
+    }
+
     pub fn take_requests(&self) -> Vec<FlapjackHttpRequest> {
         self.requests.lock().unwrap().clone()
+    }
+
+    pub fn expect_sensitive_json_body(&self, body: &str) {
+        self.expected_sensitive_bodies
+            .lock()
+            .unwrap()
+            .push_back(body.to_string());
+    }
+
+    pub fn take_sensitive_requests(&self) -> Vec<SensitiveRequestObservation> {
+        self.sensitive_requests.lock().unwrap().clone()
     }
 
     pub fn request_count(&self) -> usize {
@@ -105,6 +142,40 @@ impl FlapjackHttpClient for MockFlapjackHttpClient {
         Self::run_boundary_hook(&self.after_next_send).await;
         let mut response = response?;
         response.request_api_key = request_api_key;
+        Ok(response)
+    }
+
+    async fn send_sensitive(
+        &self,
+        request: SensitiveFlapjackHttpRequest<'_>,
+    ) -> Result<FlapjackHttpResponse, ProxyError> {
+        Self::run_boundary_hook(&self.before_next_send).await;
+        let expected_body = self
+            .expected_sensitive_bodies
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("sensitive requests require an exact expected body");
+        assert_eq!(request.json_body, expected_body);
+        self.sensitive_requests
+            .lock()
+            .unwrap()
+            .push(SensitiveRequestObservation {
+                method: request.method,
+                url: request.url.to_string(),
+                api_key: request.api_key.to_string(),
+            });
+
+        let response = self
+            .sensitive_responses
+            .lock()
+            .unwrap()
+            .pop_front()
+            .or_else(|| self.responses.lock().unwrap().pop_front())
+            .expect("test response must be configured");
+        Self::run_boundary_hook(&self.after_next_send).await;
+        let mut response = response?;
+        response.request_api_key = request.api_key.to_string();
         Ok(response)
     }
 }

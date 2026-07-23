@@ -140,6 +140,32 @@ def load_tsv(bundle: Path) -> list[dict[str, str]]:
     return rows
 
 
+def resolve_log_path(bundle: Path, bundle_resolved: Path, probe_id: str,
+                     raw_log_path: str) -> Path:
+    """Resolve a probe log path without making relocated bundles unbankable.
+
+    Current bundles are expected to point inside the bundle. Older runner output
+    recorded absolute paths from the source checkout; when such a path names the
+    expected probe log, validate the local copied log instead of the stale
+    absolute source path, even if the copied bundle directory has been renamed.
+    """
+    log_path = Path(raw_log_path)
+    log_path_resolved = log_path.resolve()
+    if bundle_resolved in (log_path_resolved, *log_path_resolved.parents):
+        return log_path_resolved
+
+    expected_name = f"{probe_id}.log"
+    relocated_path = (bundle / expected_name).resolve()
+    if (
+        log_path.is_absolute()
+        and log_path.name == expected_name
+        and bundle_resolved in (relocated_path, *relocated_path.parents)
+    ):
+        return relocated_path
+
+    fail(f"{probe_id} log_path escapes bundle: {log_path}")
+
+
 def detect_from_log(probe_id: str, log_text: str) -> tuple[bool, dict[str, object]]:
     """Detect pass/fail for a probe by inspecting its saved log output.
 
@@ -239,9 +265,8 @@ def main() -> int:
     for row in rows:
         probe_id = row["probe_id"]
         log_path = Path(row["log_path"])
-        log_path_resolved = log_path.resolve()
-        if bundle_resolved not in (log_path_resolved, *log_path_resolved.parents):
-            fail(f"{probe_id} log_path escapes bundle: {log_path}")
+        log_path_resolved = resolve_log_path(
+            bundle, bundle_resolved, probe_id, row["log_path"])
         if not log_path_resolved.exists():
             fail(f"{probe_id} log_path missing: {log_path}")
         if log_path_resolved.stat().st_size == 0:

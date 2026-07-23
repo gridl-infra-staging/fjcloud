@@ -44,8 +44,10 @@ fn seal_scrub_work_serializes_only_opaque_reconciliation_identifiers() {
 }
 use api::provisioner::region_map::RegionConfig;
 use api::repos::{
-    AlgoliaImportJobAdmissionError, AlgoliaImportJobRepo, CustomerRepo, PgAlgoliaImportJobRepo,
-    PgCustomerRepo, PgTenantRepo, RepoError, TenantRepo, VmInventoryRepo,
+    AlgoliaImportDispatchAdmission, AlgoliaImportDispatchAdmissionOutcome,
+    AlgoliaImportJobAdmissionError, AlgoliaImportJobRepo, CustomerHardDeleteKind,
+    CustomerHardDeleteOutcome, CustomerRepo, PgAlgoliaImportJobRepo, PgCustomerRepo, PgTenantRepo,
+    RepoError, TenantRepo, VmInventoryRepo,
 };
 use chrono::{Duration, Utc};
 use serde_json::json;
@@ -53,7 +55,9 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::common::flapjack_proxy_test_support::MockFlapjackHttpClient;
-use crate::common::support::pg_schema_harness::{connect_and_migrate, insert_active_customer};
+use crate::common::support::pg_schema_harness::{
+    connect_and_migrate, insert_active_customer, pool_in_schema,
+};
 use crate::common::vm_inventory_reference_guard_fixtures::insert_vm_with_id;
 
 static FLAPJACK_IDENTITY_ENV_LOCK: Mutex<()> = Mutex::new(());
@@ -499,22 +503,28 @@ async fn record_dispatch_intent_commits_intent_and_first_epoch_atomically() {
     let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
     let customer_id = Uuid::new_v4();
     insert_active_customer(&db.pool, customer_id, 1).await;
-    let created = repo
-        .create(new_job(customer_id, "dispatch-intent"))
+    let admitted = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Create(new_job(
+            customer_id,
+            "dispatch-intent",
+        )))
         .await
         .unwrap();
+    let AlgoliaImportDispatchAdmissionOutcome::New(created) = admitted else {
+        panic!("first dispatch admission must create a retained job");
+    };
     let engine_job_id = Uuid::new_v4();
 
-    let admitted = repo
+    let committed = repo
         .record_dispatch_intent_committed(created.id, engine_job_id)
         .await
         .expect("record dispatch intent");
 
     assert_eq!(
-        admitted.dispatch_intent_state,
+        committed.dispatch_intent_state,
         AlgoliaImportDispatchIntentState::Committed
     );
-    assert_eq!(admitted.engine_job_id, Some(engine_job_id));
+    assert_eq!(committed.engine_job_id, Some(engine_job_id));
     let epoch: String =
         sqlx::query_scalar("SELECT rollback_epoch FROM algolia_import_environment_contract")
             .fetch_one(&db.pool)
@@ -535,6 +545,206 @@ async fn record_dispatch_intent_commits_intent_and_first_epoch_atomically() {
 }
 
 #[tokio::test]
+async fn dispatch_admission_records_ambiguous_intent_and_replays_without_mutation() {
+    let Some(db) = connect_and_migrate("algolia_dispatch_admission").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer_id = Uuid::new_v4();
+    insert_active_customer(&db.pool, customer_id, 5).await;
+    let request = new_job(customer_id, "dispatch-admit-replay");
+
+    let admitted = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Create(request.clone()))
+        .await
+        .expect("admit dispatch");
+    let AlgoliaImportDispatchAdmissionOutcome::New(created) = admitted else {
+        panic!("first admission must be new");
+    };
+    assert_eq!(created.status, AlgoliaImportJobStatus::Queued);
+    assert_eq!(
+        created.dispatch_intent_state,
+        AlgoliaImportDispatchIntentState::Ambiguous
+    );
+    assert_eq!(created.engine_job_id, None);
+    assert_eq!(created.lifecycle_generation, 5);
+    assert_eq!(created.idempotency_key, "dispatch-admit-replay");
+    assert_eq!(created.algolia_app_id, "AB12CD34EF");
+    assert_eq!(created.source_size_bytes, 12_345);
+    assert_eq!(created.reserved_index_count, 1);
+    assert_eq!(created.reserved_customer_storage_bytes, 12_345);
+    assert_ne!(created.cloud_job_id, Uuid::nil());
+    let epoch: String =
+        sqlx::query_scalar("SELECT rollback_epoch FROM algolia_import_environment_contract")
+            .fetch_one(&db.pool)
+            .await
+            .expect("read rollback epoch");
+    assert_eq!(epoch, "migration_aware_required");
+    let retained_before = serialized_import_job_row(&db.pool, created.id).await;
+
+    let replayed = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Create(request))
+        .await
+        .expect("same-fingerprint replay");
+    let AlgoliaImportDispatchAdmissionOutcome::Replay(retained) = replayed else {
+        panic!("same-fingerprint replay must be typed Replay");
+    };
+    assert_eq!(retained.id, created.id);
+    assert_eq!(
+        serialized_import_job_row(&db.pool, created.id).await,
+        retained_before
+    );
+}
+
+#[tokio::test]
+async fn dispatch_admission_rolls_back_job_and_epoch_when_ambiguous_intent_fails() {
+    let Some(db) = connect_and_migrate("algolia_dispatch_admission_rollback").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer_id = Uuid::new_v4();
+    insert_active_customer(&db.pool, customer_id, 1).await;
+
+    sqlx::query(
+        "CREATE FUNCTION fail_dispatch_ambiguous_intent()
+         RETURNS trigger
+         LANGUAGE plpgsql
+         AS $$
+         BEGIN
+             IF NEW.dispatch_intent_state = 'ambiguous' THEN
+                 RAISE EXCEPTION 'injected ambiguous dispatch failure';
+             END IF;
+             RETURN NEW;
+         END;
+         $$",
+    )
+    .execute(&db.pool)
+    .await
+    .expect("install failure trigger function");
+    sqlx::query(
+        "CREATE TRIGGER fail_dispatch_ambiguous_intent
+         BEFORE UPDATE OF dispatch_intent_state ON algolia_import_jobs
+         FOR EACH ROW EXECUTE FUNCTION fail_dispatch_ambiguous_intent()",
+    )
+    .execute(&db.pool)
+    .await
+    .expect("install failure trigger");
+
+    let result = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Create(new_job(
+            customer_id,
+            "rollback-dispatch-admit",
+        )))
+        .await;
+
+    assert!(
+        matches!(result, Err(AlgoliaImportJobAdmissionError::Repository(_))),
+        "injected trigger failure must surface as repository admission failure: {result:?}"
+    );
+    let retained_jobs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM algolia_import_jobs")
+        .fetch_one(&db.pool)
+        .await
+        .expect("count retained jobs after rollback");
+    assert_eq!(retained_jobs, 0);
+    let epoch: String =
+        sqlx::query_scalar("SELECT rollback_epoch FROM algolia_import_environment_contract")
+            .fetch_one(&db.pool)
+            .await
+            .expect("read rollback epoch after failed admission");
+    assert_eq!(epoch, "pre_admission");
+}
+
+#[tokio::test]
+async fn concurrent_dispatch_admissions_for_one_client_key_create_once_then_replay() {
+    let Some(db) = connect_and_migrate("algolia_dispatch_admission_concurrent").await else {
+        return;
+    };
+    let pool = pool_in_schema(&db.schema, 4).await;
+    let repo = PgAlgoliaImportJobRepo::new(pool.clone());
+    let customer_id = Uuid::new_v4();
+    insert_active_customer(&pool, customer_id, 1).await;
+    let request = new_job(customer_id, "concurrent-dispatch-key");
+    let barrier = Arc::new(tokio::sync::Barrier::new(3));
+
+    let first_repo = repo.clone();
+    let first_request = request.clone();
+    let first_barrier = Arc::clone(&barrier);
+    let first = tokio::spawn(async move {
+        first_barrier.wait().await;
+        first_repo
+            .admit_dispatch(AlgoliaImportDispatchAdmission::Create(first_request))
+            .await
+    });
+    let second_repo = repo.clone();
+    let second_barrier = Arc::clone(&barrier);
+    let second = tokio::spawn(async move {
+        second_barrier.wait().await;
+        second_repo
+            .admit_dispatch(AlgoliaImportDispatchAdmission::Create(request))
+            .await
+    });
+
+    barrier.wait().await;
+    let outcomes = [
+        first.await.expect("first concurrent task joins"),
+        second.await.expect("second concurrent task joins"),
+    ];
+    let new_count = outcomes
+        .iter()
+        .filter(|outcome| matches!(outcome, Ok(AlgoliaImportDispatchAdmissionOutcome::New(_))))
+        .count();
+    let replay_count = outcomes
+        .iter()
+        .filter(|outcome| {
+            matches!(
+                outcome,
+                Ok(AlgoliaImportDispatchAdmissionOutcome::Replay(_))
+            )
+        })
+        .count();
+    assert_eq!(new_count, 1, "exactly one concurrent admission creates");
+    assert_eq!(replay_count, 1, "the loser must resolve as typed replay");
+    let retained_jobs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM algolia_import_jobs")
+        .fetch_one(&pool)
+        .await
+        .expect("count retained jobs");
+    assert_eq!(retained_jobs, 1);
+}
+
+#[tokio::test]
+async fn replace_dispatch_admission_records_authenticated_ambiguous_intent() {
+    let Some(db) = connect_and_migrate("algolia_replace_dispatch_admit").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer_id = Uuid::new_v4();
+    let (deployment_id, vm_id) = insert_replace_target(&db.pool, customer_id, "products").await;
+
+    let admitted = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Replace(replace_request(
+            customer_id,
+            "products",
+            "replace-dispatch-admit",
+        )))
+        .await
+        .expect("admit replace dispatch");
+    let AlgoliaImportDispatchAdmissionOutcome::New(job) = admitted else {
+        panic!("first replace admission must be new");
+    };
+
+    assert_eq!(
+        job.dispatch_intent_state,
+        AlgoliaImportDispatchIntentState::Ambiguous
+    );
+    assert_eq!(job.engine_job_id, None);
+    assert_eq!(job.destination_deployment_id, Some(deployment_id));
+    assert_eq!(job.destination_vm_id, Some(vm_id));
+    assert_eq!(job.reserved_index_count, 0);
+    assert_eq!(job.reserved_customer_storage_bytes, 12_345);
+    assert!(job.routing_identity.is_some());
+}
+
+#[tokio::test]
 async fn stale_customer_generation_cannot_commit_dispatch_intent() {
     let Some(db) = connect_and_migrate("algolia_stale_dispatch_generation").await else {
         return;
@@ -542,10 +752,16 @@ async fn stale_customer_generation_cannot_commit_dispatch_intent() {
     let customer_id = Uuid::new_v4();
     insert_active_customer(&db.pool, customer_id, 4).await;
     let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
-    let created = repo
-        .create(new_job(customer_id, "stale-dispatch"))
+    let admitted = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Create(new_job(
+            customer_id,
+            "stale-dispatch",
+        )))
         .await
         .expect("admit import against active generation");
+    let AlgoliaImportDispatchAdmissionOutcome::New(created) = admitted else {
+        panic!("first dispatch admission must create a retained job");
+    };
     assert_eq!(created.lifecycle_generation, 4);
 
     sqlx::query(
@@ -557,6 +773,200 @@ async fn stale_customer_generation_cannot_commit_dispatch_intent() {
     .execute(&db.pool)
     .await
     .expect("advance customer lifecycle generation");
+
+    assert!(matches!(
+        repo.record_dispatch_intent_committed(created.id, Uuid::new_v4())
+            .await,
+        Err(RepoError::Conflict(_))
+    ));
+    let unchanged = repo.get(created.id).await.unwrap().unwrap();
+    assert_eq!(
+        unchanged.dispatch_intent_state,
+        AlgoliaImportDispatchIntentState::Ambiguous
+    );
+    assert_eq!(unchanged.engine_job_id, None);
+}
+
+#[tokio::test]
+async fn dispatch_guard_requires_current_ambiguous_generation() {
+    let Some(db) = connect_and_migrate("algolia_dispatch_guard").await else {
+        return;
+    };
+    let customer_id = Uuid::new_v4();
+    insert_active_customer(&db.pool, customer_id, 2).await;
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let admitted = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Create(new_job(
+            customer_id,
+            "guarded-dispatch",
+        )))
+        .await
+        .expect("admit guarded import");
+    let AlgoliaImportDispatchAdmissionOutcome::New(job) = admitted else {
+        panic!("first admission must create a retained job");
+    };
+
+    let guard = repo
+        .acquire_dispatch_guard(job.id)
+        .await
+        .expect("ambiguous active job acquires dispatch guard");
+    assert_eq!(guard.job_id, job.id);
+    assert_eq!(guard.cloud_job_id, job.cloud_job_id);
+    assert_eq!(guard.lifecycle_generation, 2);
+    repo.release_dispatch_guard(guard)
+        .await
+        .expect("release dispatch guard");
+
+    soft_delete_customer(&db.pool, customer_id).await;
+    assert!(matches!(
+        repo.acquire_dispatch_guard(job.id).await,
+        Err(RepoError::Conflict(_))
+    ));
+}
+
+#[tokio::test]
+async fn dispatch_guard_blocks_soft_delete_until_the_single_send_window_releases() {
+    let Some(db) = connect_and_migrate("algolia_dispatch_guard_soft_delete").await else {
+        return;
+    };
+    let pool = pool_in_schema(&db.schema, 3).await;
+    let customer_id = Uuid::new_v4();
+    insert_active_customer(&pool, customer_id, 2).await;
+    let repo = PgAlgoliaImportJobRepo::new(pool.clone());
+    let admitted = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Create(new_job(
+            customer_id,
+            "guard-blocks-soft-delete",
+        )))
+        .await
+        .expect("admit guarded import");
+    let AlgoliaImportDispatchAdmissionOutcome::New(job) = admitted else {
+        panic!("first admission must create a retained job");
+    };
+    let guard = repo
+        .acquire_dispatch_guard(job.id)
+        .await
+        .expect("guard holds customer generation lock");
+    let customer_repo = PgCustomerRepo::new(pool.clone());
+    let mut soft_delete = tokio::spawn(async move { customer_repo.soft_delete(customer_id).await });
+
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(100), &mut soft_delete)
+            .await
+            .is_err(),
+        "soft-delete must wait while dispatch guard covers the credential send window"
+    );
+
+    repo.release_dispatch_guard(guard)
+        .await
+        .expect("release dispatch guard");
+    let soft_deleted = tokio::time::timeout(std::time::Duration::from_secs(2), soft_delete)
+        .await
+        .expect("soft-delete completes after guard release")
+        .expect("soft-delete task joins")
+        .expect("soft-delete result");
+    assert!(soft_deleted);
+    assert!(matches!(
+        repo.acquire_dispatch_guard(job.id).await,
+        Err(RepoError::Conflict(_))
+    ));
+}
+
+#[tokio::test]
+async fn dispatch_guard_blocks_hard_erase_until_the_single_send_window_releases() {
+    let Some(db) = connect_and_migrate("algolia_dispatch_guard_hard_erase").await else {
+        return;
+    };
+    let pool = pool_in_schema(&db.schema, 3).await;
+    let customer_id = Uuid::new_v4();
+    insert_active_customer(&pool, customer_id, 2).await;
+    let repo = PgAlgoliaImportJobRepo::new(pool.clone());
+    let admitted = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Create(new_job(
+            customer_id,
+            "guard-blocks-hard-erase",
+        )))
+        .await
+        .expect("admit guarded import");
+    let AlgoliaImportDispatchAdmissionOutcome::New(job) = admitted else {
+        panic!("first admission must create a retained job");
+    };
+    let guard = repo
+        .acquire_dispatch_guard(job.id)
+        .await
+        .expect("guard holds customer generation lock");
+    let customer_repo = PgCustomerRepo::new(pool.clone());
+    let mut hard_erase = tokio::spawn(async move {
+        customer_repo
+            .hard_delete(customer_id, CustomerHardDeleteKind::RegistrationRollback)
+            .await
+    });
+
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(100), &mut hard_erase)
+            .await
+            .is_err(),
+        "hard erase must wait while dispatch guard covers the credential send window"
+    );
+
+    repo.release_dispatch_guard(guard)
+        .await
+        .expect("release dispatch guard");
+    let erased = tokio::time::timeout(std::time::Duration::from_secs(2), hard_erase)
+        .await
+        .expect("hard erase completes after guard release")
+        .expect("hard erase task joins")
+        .expect("hard erase result");
+    assert!(matches!(erased, CustomerHardDeleteOutcome::Erased { .. }));
+    assert!(matches!(
+        repo.acquire_dispatch_guard(job.id).await,
+        Err(RepoError::NotFound)
+    ));
+}
+
+#[tokio::test]
+async fn hard_erase_that_wins_before_dispatch_guard_prevents_send() {
+    let Some(db) = connect_and_migrate("algolia_hard_erase_wins_guard").await else {
+        return;
+    };
+    let customer_id = Uuid::new_v4();
+    insert_active_customer(&db.pool, customer_id, 2).await;
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let admitted = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Create(new_job(
+            customer_id,
+            "hard-erase-wins-guard",
+        )))
+        .await
+        .expect("admit guarded import");
+    let AlgoliaImportDispatchAdmissionOutcome::New(job) = admitted else {
+        panic!("first admission must create a retained job");
+    };
+
+    let erased = PgCustomerRepo::new(db.pool.clone())
+        .hard_delete(customer_id, CustomerHardDeleteKind::RegistrationRollback)
+        .await
+        .expect("hard erase customer");
+
+    assert!(matches!(erased, CustomerHardDeleteOutcome::Erased { .. }));
+    assert!(matches!(
+        repo.acquire_dispatch_guard(job.id).await,
+        Err(RepoError::NotFound)
+    ));
+}
+
+#[tokio::test]
+async fn committed_linkage_requires_ambiguous_pre_send_proof() {
+    let Some(db) = connect_and_migrate("algolia_commit_requires_ambiguous").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer_id = Uuid::new_v4();
+    insert_active_customer(&db.pool, customer_id, 1).await;
+    let created = repo
+        .create(new_job(customer_id, "absent-proof"))
+        .await
+        .expect("legacy create keeps absent proof");
 
     assert!(matches!(
         repo.record_dispatch_intent_committed(created.id, Uuid::new_v4())
@@ -601,6 +1011,68 @@ async fn soft_deleted_customer_refuses_create_admission_and_replay_without_mutat
     assert_eq!(
         import_job_count_for_customer(&db.pool, customer_id).await,
         1
+    );
+    assert_eq!(
+        serialized_import_job_row(&db.pool, retained.id).await,
+        retained_before
+    );
+}
+
+#[tokio::test]
+async fn suspended_then_reactivated_customer_refuses_stale_dispatch_admission_replay() {
+    let Some(db) = connect_and_migrate("algolia_reactivated_dispatch_fence").await else {
+        return;
+    };
+    let customer_id = Uuid::new_v4();
+    insert_active_customer(&db.pool, customer_id, 11).await;
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let original_request = new_job(customer_id, "reactivated-dispatch-replay");
+    let retained = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Create(
+            original_request.clone(),
+        ))
+        .await
+        .expect("admit active-generation import");
+    let AlgoliaImportDispatchAdmissionOutcome::New(retained) = retained else {
+        panic!("first dispatch admission must create a retained job");
+    };
+    assert_eq!(retained.lifecycle_generation, 11);
+    let retained_before = serialized_import_job_row(&db.pool, retained.id).await;
+    let customer_repo = PgCustomerRepo::new(db.pool.clone());
+
+    assert!(customer_repo
+        .suspend(customer_id)
+        .await
+        .expect("suspend customer"));
+    assert!(customer_repo
+        .reactivate(customer_id)
+        .await
+        .expect("reactivate customer"));
+
+    let current_generation: i64 =
+        sqlx::query_scalar("SELECT lifecycle_generation FROM customers WHERE id = $1")
+            .bind(customer_id)
+            .fetch_one(&db.pool)
+            .await
+            .expect("read reactivated customer generation");
+    assert_eq!(
+        current_generation, 12,
+        "reactivation must stale pre-suspension dispatch admissions"
+    );
+    assert_destination_changed_admission(
+        repo.admit_dispatch(AlgoliaImportDispatchAdmission::Create(original_request))
+            .await
+            .map(AlgoliaImportDispatchAdmissionOutcome::into_job),
+        "same-key dispatch replay after reactivation",
+    );
+    assert_destination_changed_admission(
+        repo.admit_dispatch(AlgoliaImportDispatchAdmission::Create(new_job(
+            customer_id,
+            "reactivated-dispatch-new-key",
+        )))
+        .await
+        .map(AlgoliaImportDispatchAdmissionOutcome::into_job),
+        "new dispatch admission after reactivation with active reservation",
     );
     assert_eq!(
         serialized_import_job_row(&db.pool, retained.id).await,
@@ -1933,7 +2405,16 @@ async fn repository_owns_idempotency_and_canonical_updates() {
     let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
     let customer_id = Uuid::new_v4();
     insert_active_customer(&db.pool, customer_id, 1).await;
-    let created = repo.create(new_job(customer_id, "same-key")).await.unwrap();
+    let admitted = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Create(new_job(
+            customer_id,
+            "same-key",
+        )))
+        .await
+        .unwrap();
+    let AlgoliaImportDispatchAdmissionOutcome::New(created) = admitted else {
+        panic!("first dispatch admission must create a retained job");
+    };
     assert_eq!(created.status, AlgoliaImportJobStatus::Queued);
     assert_eq!(created.tenant_id, "products");
     assert_eq!(created.resume_intent_generation, 0);
@@ -2121,6 +2602,24 @@ fn algolia_domain_does_not_copy_lifecycle_quota_placement_or_uid_logic() {
     assert!(lifecycle.contains("resolve_customer_quota("));
     assert!(lifecycle.contains("validate_index_name("));
     assert!(shared_vm.contains("place_index("));
+}
+
+#[test]
+fn migration_jobs_route_does_not_own_async_engine_transport_or_reconciliation_loop() {
+    let route = include_str!("../../src/routes/migration/jobs.rs");
+    for forbidden in [
+        "submit_algolia_migration(",
+        "algolia_migration_status(",
+        "cancel_algolia_migration(",
+        "/1/migrations/algolia",
+        "loop {",
+        "tokio::time::sleep",
+    ] {
+        assert!(
+            !route.contains(forbidden),
+            "migration jobs route must stay thin and delegate async engine work; found {forbidden}"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------

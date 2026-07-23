@@ -8,6 +8,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| fixtures | The fixtures directory contains test utilities and helper modules for the test suite, including catalog lifecycle and inventory mutation fixtures used in integration testing. |
-| lib | This directory contains shared shell script test helpers and harnesses that provide assertions, mocks, and infrastructure for testing various subsystems including chaos testing, integration tests, cargo mocking, billing rehearsals, and budget guardrails. |
+| fixtures | This fixtures directory contains test utilities for catalog lifecycle and inventory mutation testing, specifically providing mock or test data fixtures for simulating inventory state changes during catalog operations. |
+| lib | This directory contains shared shell script test helpers and harnesses that provide reusable utilities for various integration and acceptance tests, including assertions, mocking, environment management, and test-specific setup. |
 <!-- [scrai:end] -->

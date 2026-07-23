@@ -24,6 +24,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| experiments | The experiments directory contains SvelteKit route handlers and components for displaying individual experiment details, with server-side logic, UI rendering, and corresponding unit tests. |
+| experiments | This directory contains SvelteKit route handlers for experiment management, with a dynamic `[experimentId]` route that serves a detail page for individual experiments. |
 | tabs | — |
 <!-- [scrai:end] -->

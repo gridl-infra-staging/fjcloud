@@ -22,5 +22,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| pg_customer_repo | Postgres-backed customer repository module providing data access operations for customer management, including billing, lifecycle, hard deletion, and data projection functionality. |
+| pg_customer_repo | pg_customer_repo is a Postgres-backed repository implementation for managing customer data, with specialized modules for billing operations, lifecycle management, data projections, and hard delete functionality. |
 <!-- [scrai:end] -->

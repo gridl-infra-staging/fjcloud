@@ -102,6 +102,13 @@ fn blocking_reference_count(blockers: &[VmRetirementBlocker]) -> i64 {
     blockers.iter().map(|blocker| blocker.count).sum()
 }
 
+fn unique_provider_vm_id(provider_ids: impl IntoIterator<Item = String>) -> Option<String> {
+    let provider_ids = provider_ids.into_iter().collect::<BTreeSet<_>>();
+    (provider_ids.len() == 1)
+        .then(|| provider_ids.into_iter().next())
+        .flatten()
+}
+
 fn retirement_conflict_error(conflict: VmRetirementConflict) -> ApiError {
     match conflict {
         VmRetirementConflict::UnknownVm { vm_id } => {
@@ -293,31 +300,27 @@ async fn provider_vm_id_from_tenants(
             }
         }
     }
-    if provider_ids.len() == 1 {
-        Ok(provider_ids.into_iter().next())
-    } else {
-        Ok(None)
-    }
+    Ok(unique_provider_vm_id(provider_ids))
 }
 
 /// Fallback: resolve provider VM ID from all active deployments in the fleet.
 ///
-/// Searches for the first active deployment matching the VM's provider and
-/// flapjack_url. Used when tenant-based lookup yields no result.
+/// Returns an ID only when all matching active deployments agree on one unique
+/// provider identity. Ambiguous state must fall through to the provider's
+/// hostname lookup instead of selecting an arbitrary destructive target.
 async fn provider_vm_id_from_fleet(
     state: &AppState,
     vm: &VmInventory,
 ) -> Result<Option<String>, ApiError> {
     let deployments = state.deployment_repo.list_active().await?;
-    let provider_vm_id = deployments
+    let provider_vm_ids = deployments
         .into_iter()
-        .find(|d| {
+        .filter(|d| {
             d.vm_provider == vm.provider
                 && d.flapjack_url.as_deref() == Some(vm.flapjack_url.as_str())
-                && d.provider_vm_id.is_some()
         })
-        .and_then(|d| d.provider_vm_id);
-    Ok(provider_vm_id)
+        .filter_map(|d| d.provider_vm_id);
+    Ok(unique_provider_vm_id(provider_vm_ids))
 }
 
 async fn retirement_instance_target(
@@ -724,6 +727,23 @@ fn kill_process_on_port(port: u16) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unique_provider_vm_id_rejects_ambiguous_destructive_targets() {
+        assert_eq!(unique_provider_vm_id(Vec::<String>::new()), None);
+        assert_eq!(
+            unique_provider_vm_id(vec!["aws:i-one".to_string()]),
+            Some("aws:i-one".to_string())
+        );
+        assert_eq!(
+            unique_provider_vm_id(vec!["aws:i-one".to_string(), "aws:i-one".to_string()]),
+            Some("aws:i-one".to_string())
+        );
+        assert_eq!(
+            unique_provider_vm_id(vec!["aws:i-one".to_string(), "aws:i-two".to_string()]),
+            None
+        );
+    }
 
     // -- is_localhost_url: valid loopback addresses --
 

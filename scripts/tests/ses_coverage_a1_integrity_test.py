@@ -409,6 +409,48 @@ class TestErrorConditions(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("escapes bundle", result.stderr)
 
+    def test_relocated_absolute_log_paths_use_copied_bundle_logs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle = _build_green_bundle(Path(tmp))
+            original_bundle_name = bundle.name
+            relocated_bundle = Path(tmp) / "archived_bundle"
+            bundle.rename(relocated_bundle)
+            bundle = relocated_bundle
+            stale_root = Path(tmp) / "old_checkout"
+            stale_bundle = stale_root / original_bundle_name
+            replacements = {}
+            for probe_id in [
+                "verify_email_clickthrough",
+                "password_reset_clickthrough",
+                "dunning_email_inbox",
+                "ses_bounce",
+                "ses_complaint",
+                "staging_dunning_delivery",
+            ]:
+                replacements[str(bundle / f"{probe_id}.log")] = str(
+                    stale_bundle / f"{probe_id}.log")
+
+            tsv = bundle / "probe_results.tsv"
+            tsv_text = tsv.read_text()
+            for original, stale in replacements.items():
+                tsv_text = tsv_text.replace(original, stale)
+            tsv.write_text(tsv_text)
+
+            for probe_id in replacements:
+                sidecar = Path(probe_id).with_suffix(".json").name
+                sidecar_path = bundle / sidecar
+                sidecar_text = sidecar_path.read_text()
+                for original, stale in replacements.items():
+                    sidecar_text = sidecar_text.replace(original, stale)
+                sidecar_path.write_text(sidecar_text)
+
+            result = subprocess.run(
+                [sys.executable, str(LIB_PATH), str(bundle)],
+                capture_output=True, text=True)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("all_green=1", result.stdout)
+
     def test_no_args_exits_1(self):
         result = subprocess.run(
             [sys.executable, str(LIB_PATH)],

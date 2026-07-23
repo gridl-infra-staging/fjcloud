@@ -115,6 +115,7 @@ with the command's status. |
 This owner validates only Debbie's advertised top-level scope and exclusions.
 Debbie remains responsible for directory enumeration and exclude matching. |
 | validate_launch_closeout.py | Fail-closed anti-drift validator for the Wave 3 launch closeout receipt. |
+| verify_e2e_deployed_gate.sh | Stub summary for scripts/launch/verify_e2e_deployed_gate.sh. |
 | wait_for_pages_parity.sh | wait_for_pages_parity.sh — Poll served Cloudflare Pages bytes until
 PAGES_ALIAS_URL/_app/version.json reports the target git SHA, then mark
 `ready=true` for the GitHub Actions step output.

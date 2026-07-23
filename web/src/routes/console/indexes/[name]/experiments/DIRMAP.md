@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [experimentId] | I need the actual file path or content to provide a meaningful summary. |
+| [experimentId] | This directory contains a SvelteKit route handler for a dynamic experiment detail page. |
 <!-- [scrai:end] -->

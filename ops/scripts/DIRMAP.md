@@ -75,6 +75,6 @@ Prerequisites checked:
 
 | Directory | Summary |
 | --- | --- |
-| lib | This lib directory contains shared deployment automation utilities: pre-deployment validation, SSM parameter-to-environment-file generation for systemd services, RDS restore operations, and GitHub Actions release artifact publishing helpers. |
-| tests | The tests directory contains a shell script for capturing Cloudflare zone fixtures as a one-shot operation. |
+| lib | This lib directory contains deployment and infrastructure automation utilities: pre-deployment validation, SSM parameter-to-environment variable mapping, RDS restoration, and GitHub Actions release artifact publishing helpers that support the deployment pipeline and operational workflows. |
+| tests | The tests directory contains fixture capture tooling, specifically a shell script for one-shot Cloudflare zone fixture capture. |
 <!-- [scrai:end] -->

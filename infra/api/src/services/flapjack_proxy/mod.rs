@@ -24,9 +24,12 @@ mod recommendations;
 mod rules;
 mod search;
 mod security_sources;
+mod sensitive_request;
 mod settings;
 mod suggestions;
 mod synonyms;
+
+pub use sensitive_request::SensitiveFlapjackHttpRequest;
 
 /// Default time-to-live for cached admin keys. On cache miss, the key is fetched
 /// from SSM and stored for this duration to avoid per-request SSM reads.
@@ -138,9 +141,7 @@ impl FlapjackEngineRequirements {
     }
 
     fn exact_identity_required(&self) -> bool {
-        self.required_revision.is_some()
-            || self.required_build_id.is_some()
-            || self.required_sha256.is_some()
+        self.required_revision.is_some() || self.required_build_id.is_some()
     }
 }
 
@@ -239,6 +240,15 @@ pub struct FlapjackHttpResponse {
 pub trait FlapjackHttpClient: Send + Sync {
     async fn send(&self, request: FlapjackHttpRequest) -> Result<FlapjackHttpResponse, ProxyError>;
 
+    async fn send_sensitive(
+        &self,
+        _request: SensitiveFlapjackHttpRequest<'_>,
+    ) -> Result<FlapjackHttpResponse, ProxyError> {
+        Err(ProxyError::Unreachable(
+            "flapjack transport does not support sensitive request bodies".to_string(),
+        ))
+    }
+
     async fn send_unauthenticated_get(
         &self,
         url: String,
@@ -302,6 +312,13 @@ impl FlapjackHttpClient for ReqwestFlapjackHttpClient {
             body,
             request_api_key: request.api_key,
         })
+    }
+
+    async fn send_sensitive(
+        &self,
+        request: SensitiveFlapjackHttpRequest<'_>,
+    ) -> Result<FlapjackHttpResponse, ProxyError> {
+        sensitive_request::send(&self.client, request).await
     }
 
     async fn send_unauthenticated_get(
@@ -464,6 +481,25 @@ impl FlapjackProxy {
             .await
     }
 
+    async fn send_authenticated_sensitive_request(
+        &self,
+        method: reqwest::Method,
+        url: &str,
+        api_key: &str,
+        json_body: &str,
+    ) -> Result<FlapjackHttpResponse, ProxyError> {
+        self.http_client
+            .send_sensitive(SensitiveFlapjackHttpRequest {
+                method,
+                url,
+                api_key,
+                json_body,
+                #[cfg(test)]
+                body_drop_probe: None,
+            })
+            .await
+    }
+
     pub async fn check_engine_compatibility(
         &self,
         flapjack_base_url: &str,
@@ -552,13 +588,14 @@ fn classify_flapjack_health(
 
 /// Build the observed identity for a parsed health payload.
 ///
-/// Immutable build/capability fields (`version`, `revision`, `build_id`,
-/// `binary_sha`, `dirty`, `capabilities`) are resolved exactly as before and
-/// remain authoritative for compatibility decisions. The `runtime_security`
-/// seam is resolved the same way `capabilities` is (build object first, then
-/// the top-level health object) but is *forward-compatible only*: it carries
-/// non-build runtime security observations and is never consulted by
-/// `classify_flapjack_identity`.
+/// Runtime identity is anchored on the fields Flapjack actually self-reports:
+/// version, revision, build_id, dirty, and capabilities. The configured binary
+/// SHA is verified by source/launch tooling before API startup; if a runtime
+/// health payload does report a SHA, this classifier still checks it for drift.
+/// The `runtime_security` seam is resolved the same way `capabilities` is
+/// (build object first, then the top-level health object) but is
+/// *forward-compatible only*: it carries non-build runtime security
+/// observations and is never consulted by `classify_flapjack_identity`.
 fn observed_identity<'a>(
     build: &'a serde_json::Map<String, serde_json::Value>,
     health: &'a serde_json::Map<String, serde_json::Value>,
@@ -676,7 +713,7 @@ fn classify_flapjack_identity(
     if requirements
         .required_sha256
         .as_deref()
-        .is_some_and(|expected| observed.binary_sha != Some(expected))
+        .is_some_and(|expected| observed.binary_sha.is_some_and(|actual| actual != expected))
     {
         return FlapjackRuntimeIdentityReason::ChecksumMismatch;
     }
@@ -684,9 +721,7 @@ fn classify_flapjack_identity(
         return FlapjackRuntimeIdentityReason::MissingCapability;
     }
     if requirements.exact_identity_required()
-        && !(observed.revision.is_some()
-            && observed.build_id.is_some()
-            && observed.binary_sha.is_some())
+        && !(observed.revision.is_some() && observed.build_id.is_some())
     {
         return FlapjackRuntimeIdentityReason::LegacyMalformedHealth;
     }
@@ -699,7 +734,6 @@ fn missing_required_identity_field(
 ) -> bool {
     (requirements.required_revision.is_some() && observed.revision.is_none())
         || (requirements.required_build_id.is_some() && observed.build_id.is_none())
-        || (requirements.required_sha256.is_some() && observed.binary_sha.is_none())
 }
 
 fn required_capability_present(

@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { isActionFailure } from '@sveltejs/kit';
+import type { ActionFailure } from '@sveltejs/kit';
 import type { VmHostMetricsResponse } from '$lib/admin-client';
 import { FLEET_FIXTURES, REPLICA_FIXTURES, VM_FIXTURES } from './admin_fleet_fixtures';
 
@@ -26,6 +28,12 @@ function requestPath(input: string | URL | Request): string {
 
 function countRequests(paths: string[], suffix: string): number {
 	return paths.filter((path) => path.endsWith(suffix)).length;
+}
+
+function expectActionFailure<T extends Record<string, unknown>>(
+	result: unknown
+): asserts result is ActionFailure<T> {
+	expect(isActionFailure(result)).toBe(true);
 }
 
 beforeEach(() => {
@@ -265,9 +273,7 @@ describe('Fleet page server actions', () => {
 			fetch: fetchSpy
 		} as never);
 
-		if (!result || !('status' in result) || !('data' in result)) {
-			throw new Error('killVm should return a validation failure');
-		}
+		expectActionFailure<{ error: string }>(result);
 		expect(result.status).toBe(400);
 		expect(result.data).toEqual({ error: 'Invalid vmId' });
 		expect(fetchSpy).not.toHaveBeenCalled();

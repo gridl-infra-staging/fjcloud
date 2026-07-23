@@ -1,0 +1,73 @@
+{
+  "schema_version": "1",
+  "source_sha": "9d521e1c9e873b777a4833b7de0dade01b49a3a8",
+  "billing_month": "2026-07",
+  "tree_digest": "9d521e1c9e873b777a4833b7de0dade01b49a3a8",
+  "archive_digest": "d68eba226ade9bce87d7df57bda54b788de149d778673162c88af19b65158315",
+  "bundle_path": "/private/tmp/fjcloud_s1_9d521e1c9e873b777a4833b7de0dade01b49a3a8_20260722T195420Z/docs/runbooks/evidence/ses-coverage-a1/20260722T204849Z_jul16_10am_s1_rerun",
+  "instance_id": "i-0fbc6d6bbbc8bdc6d",
+  "n": 6,
+  "all_green": false,
+  "probes": [
+    {
+      "probe_id": "verify_email_clickthrough",
+      "pass": true,
+      "rc": 0,
+      "log_path": "/private/tmp/fjcloud_s1_9d521e1c9e873b777a4833b7de0dade01b49a3a8_20260722T195420Z/docs/runbooks/evidence/ses-coverage-a1/20260722T204849Z_jul16_10am_s1_rerun/verify_email_clickthrough.log",
+      "detect_kind": "terminus_email_verified"
+    },
+    {
+      "probe_id": "password_reset_clickthrough",
+      "pass": true,
+      "rc": 0,
+      "log_path": "/private/tmp/fjcloud_s1_9d521e1c9e873b777a4833b7de0dade01b49a3a8_20260722T195420Z/docs/runbooks/evidence/ses-coverage-a1/20260722T204849Z_jul16_10am_s1_rerun/password_reset_clickthrough.log",
+      "detect_kind": "terminus_password_reset_login"
+    },
+    {
+      "probe_id": "dunning_email_inbox",
+      "pass": false,
+      "rc": 1,
+      "log_path": "/private/tmp/fjcloud_s1_9d521e1c9e873b777a4833b7de0dade01b49a3a8_20260722T195420Z/docs/runbooks/evidence/ses-coverage-a1/20260722T204849Z_jul16_10am_s1_rerun/dunning_email_inbox.log",
+      "detect_kind": "terminus_and_result_json",
+      "classification": "rehearsal_failed",
+      "classification_category": "setup_infra"
+    },
+    {
+      "probe_id": "ses_bounce",
+      "pass": true,
+      "rc": 0,
+      "log_path": "/private/tmp/fjcloud_s1_9d521e1c9e873b777a4833b7de0dade01b49a3a8_20260722T195420Z/docs/runbooks/evidence/ses-coverage-a1/20260722T204849Z_jul16_10am_s1_rerun/ses_bounce.log",
+      "detect_kind": "final_json_passed_true"
+    },
+    {
+      "probe_id": "ses_complaint",
+      "pass": true,
+      "rc": 0,
+      "log_path": "/private/tmp/fjcloud_s1_9d521e1c9e873b777a4833b7de0dade01b49a3a8_20260722T195420Z/docs/runbooks/evidence/ses-coverage-a1/20260722T204849Z_jul16_10am_s1_rerun/ses_complaint.log",
+      "detect_kind": "final_json_passed_true"
+    },
+    {
+      "probe_id": "staging_dunning_delivery",
+      "pass": false,
+      "rc": 1,
+      "log_path": "/private/tmp/fjcloud_s1_9d521e1c9e873b777a4833b7de0dade01b49a3a8_20260722T195420Z/docs/runbooks/evidence/ses-coverage-a1/20260722T204849Z_jul16_10am_s1_rerun/staging_dunning_delivery.log",
+      "detect_kind": "final_json_result_passed",
+      "classification": "rehearsal_failed",
+      "classification_category": "setup_infra"
+    }
+  ],
+  "deployable_currency": {
+    "schema_version": "1",
+    "source_sha": "9d521e1c9e873b777a4833b7de0dade01b49a3a8",
+    "dev_sha": "9d521e1c9e873b777a4833b7de0dade01b49a3a8",
+    "deployable_drift": false,
+    "doc_only_ahead": false
+  },
+  "integrity_status": "validated",
+  "hygiene_status": "clean",
+  "cleanup_status": "clean",
+  "integrity_library_source": "scripts/lib/ses_coverage_a1_integrity.py",
+  "owner_digests": {
+    "integrity_library": "5d019e6e581295fee61e50ac4b012669df31cd3aed2271a52a93843bf53dbab8"
+  }
+}

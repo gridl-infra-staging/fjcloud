@@ -4,11 +4,39 @@ use sqlx::{Postgres, Transaction};
 use tokio::sync::OwnedMutexGuard;
 use uuid::Uuid;
 
+use crate::models::algolia_import_job::AlgoliaImportDestinationKind;
 use crate::models::{
     AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportJobState, NewAlgoliaImportJob,
     NewAlgoliaReplaceImportJob,
 };
 use crate::repos::RepoError;
+
+/// Credential-free identity of a dispatch request, used to short-circuit an
+/// exact idempotent replay from persisted state before any credential-bearing
+/// source inspection or fresh placement admission runs. It carries only the
+/// non-secret request fields (never the temporary key) that a retained job must
+/// match for a replay to be exact; a mismatch is inconclusive and falls through
+/// to the full transactional admission path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlgoliaImportDispatchReplayIdentity {
+    pub app_id: String,
+    pub source_name: String,
+    pub kind: AlgoliaImportDestinationKind,
+    pub logical_target: String,
+    pub region: String,
+}
+
+impl AlgoliaImportDispatchReplayIdentity {
+    /// True when a retained job is the exact same logical request: same app id,
+    /// source index, destination kind, logical target, and region.
+    pub fn matches(&self, job: &AlgoliaImportJob) -> bool {
+        self.app_id == job.algolia_app_id
+            && self.source_name == job.source_name
+            && self.kind == job.destination_kind
+            && self.logical_target == job.logical_target
+            && self.region == job.destination_region
+    }
+}
 
 /// Default retained-list page size when the client requests none.
 pub const ALGOLIA_IMPORT_JOB_LIST_DEFAULT_LIMIT: i64 = 50;
@@ -78,7 +106,7 @@ impl From<RepoError> for AlgoliaLifecycleError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlgoliaImportCancelDispatch {
-    pub job_id: Uuid,
+    pub engine_job_id: Uuid,
 }
 
 #[derive(Debug, Clone)]
@@ -124,6 +152,39 @@ impl AlgoliaImportResumeOutcome {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum AlgoliaImportDispatchAdmission {
+    Create(NewAlgoliaImportJob),
+    Replace(NewAlgoliaReplaceImportJob),
+}
+
+#[derive(Debug, Clone)]
+pub enum AlgoliaImportDispatchAdmissionOutcome {
+    New(AlgoliaImportJob),
+    Replay(AlgoliaImportJob),
+}
+
+impl AlgoliaImportDispatchAdmissionOutcome {
+    pub fn job(&self) -> &AlgoliaImportJob {
+        match self {
+            Self::New(job) | Self::Replay(job) => job,
+        }
+    }
+
+    pub fn into_job(self) -> AlgoliaImportJob {
+        match self {
+            Self::New(job) | Self::Replay(job) => job,
+        }
+    }
+}
+
+pub struct AlgoliaImportDispatchGuard {
+    pub(crate) tx: Transaction<'static, Postgres>,
+    pub job_id: Uuid,
+    pub cloud_job_id: Uuid,
+    pub lifecycle_generation: i64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlgoliaImportResumeDeadlineClaim {
     pub job_id: Uuid,
@@ -134,6 +195,32 @@ pub struct AlgoliaImportResumeDeadlineClaim {
     pub resume_deadline: DateTime<Utc>,
     pub worker_claimed_at: DateTime<Utc>,
     pub worker_lease_expires_at: DateTime<Utc>,
+}
+
+/// Exact identity of one post-dispatch reconciliation lease. The pair of
+/// timestamps is written atomically by the claim query and acts as the lease
+/// token; a takeover necessarily replaces both values, fencing the old worker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AlgoliaImportReconciliationLease {
+    pub job_id: Uuid,
+    pub lifecycle_generation: i64,
+    pub claimed_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+}
+
+/// Credential-free job snapshot returned by the bounded reconciliation claim.
+#[derive(Debug, Clone)]
+pub struct AlgoliaImportReconciliationClaim {
+    pub job: AlgoliaImportJob,
+    pub lease: AlgoliaImportReconciliationLease,
+}
+
+/// Result of a fenced observation write. Losing the lease is an expected race,
+/// not a repository failure, and never mutates the retained row.
+#[derive(Debug, Clone)]
+pub enum AlgoliaImportReconciliationWriteOutcome {
+    Applied { unavailable_state_changed: bool },
+    LeaseLost,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -236,6 +323,23 @@ pub trait AlgoliaImportJobRepo {
         &self,
         job: NewAlgoliaReplaceImportJob,
     ) -> Result<AlgoliaImportJob, AlgoliaImportJobAdmissionError>;
+    async fn admit_dispatch(
+        &self,
+        admission: AlgoliaImportDispatchAdmission,
+    ) -> Result<AlgoliaImportDispatchAdmissionOutcome, AlgoliaImportJobAdmissionError>;
+    /// Return a retained job as an exact idempotent replay under a locked active
+    /// customer generation, without any credential-bearing work. Errors
+    /// (mapped to `DestinationChanged`) when the customer is not active so a
+    /// replay against a deleted customer is refused before source inspection.
+    /// Returns `Ok(None)` when there is no retained job, or when the retained
+    /// job's generation or identity does not match — those inconclusive cases
+    /// fall through to the full transactional admission path.
+    async fn find_active_dispatch_replay(
+        &self,
+        customer_id: Uuid,
+        idempotency_key: &str,
+        identity: &AlgoliaImportDispatchReplayIdentity,
+    ) -> Result<Option<AlgoliaImportJob>, AlgoliaImportJobAdmissionError>;
     async fn get(&self, id: Uuid) -> Result<Option<AlgoliaImportJob>, RepoError>;
     /// Tenant-scoped read: returns the job only when it is owned by
     /// `customer_id` and not erased, so HTTP authorization is enforced in SQL
@@ -282,6 +386,14 @@ pub trait AlgoliaImportJobRepo {
         id: Uuid,
         engine_job_id: Uuid,
     ) -> Result<AlgoliaImportJob, RepoError>;
+    async fn acquire_dispatch_guard(
+        &self,
+        id: Uuid,
+    ) -> Result<AlgoliaImportDispatchGuard, RepoError>;
+    async fn release_dispatch_guard(
+        &self,
+        guard: AlgoliaImportDispatchGuard,
+    ) -> Result<(), RepoError>;
     async fn record_no_dispatch_failure(
         &self,
         id: Uuid,
@@ -326,6 +438,23 @@ pub trait AlgoliaImportJobRepo {
         now: DateTime<Utc>,
         limit: i64,
     ) -> Result<Vec<Uuid>, RepoError>;
+    /// Claim a bounded batch of active-generation, engine-linked jobs for
+    /// credential-free status polling. Rows with a live worker lease are
+    /// skipped and concurrent replicas use `SKIP LOCKED` rather than waiting.
+    async fn claim_reconciliation_jobs(
+        &self,
+        now: DateTime<Utc>,
+        lease_expires_at: DateTime<Utc>,
+        limit: i64,
+    ) -> Result<Vec<AlgoliaImportReconciliationClaim>, RepoError>;
+    /// Persist a sanitized monotonic observation only while `lease` still owns
+    /// the active customer generation, then release that worker lease.
+    async fn record_reconciliation_observation(
+        &self,
+        lease: &AlgoliaImportReconciliationLease,
+        observed_at: DateTime<Utc>,
+        state: AlgoliaImportJobState,
+    ) -> Result<AlgoliaImportReconciliationWriteOutcome, RepoError>;
     async fn claim_elapsed_resume_deadlines(
         &self,
         now: DateTime<Utc>,

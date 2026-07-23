@@ -4,8 +4,8 @@ use api::models::{
     AlgoliaImportTombstoneCleanupPhase, Customer, IngestQuotaWarningMetric,
 };
 use api::repos::{
-    CustomerHardDeleteKind, CustomerHardDeleteOutcome, CustomerRepo, PgCustomerRepo,
-    ResendVerificationOutcome,
+    AlgoliaImportJobRepo, CustomerHardDeleteKind, CustomerHardDeleteOutcome, CustomerRepo,
+    PgAlgoliaImportJobRepo, PgCustomerRepo, ResendVerificationOutcome,
 };
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -2948,6 +2948,15 @@ async fn hard_delete_scrubs_algolia_jobs_and_retains_reconciliation_tombstone_ma
         "seal/scrub work must not duplicate erasure handles"
     );
 
+    let public_jobs = PgAlgoliaImportJobRepo::new(pool.clone())
+        .list_for_customer(customer.id, None, 200)
+        .await
+        .expect("list customer imports after hard erasure");
+    assert!(
+        public_jobs.jobs.is_empty(),
+        "hard-erased reconciliation tombstones must be excluded from customer reads"
+    );
+
     let seeded_ids: Vec<Uuid> = seeded_cases.iter().map(|case| case.id).collect();
     let tombstone_rows = sqlx::query_as::<_, AlgoliaHardDeleteTombstoneRow>(
         "SELECT id, erasure_handle, engine_job_id, destination_vm_id, publication_disposition,
@@ -3138,6 +3147,26 @@ async fn hard_delete_scrubs_algolia_jobs_and_retains_reconciliation_tombstone_ma
             "{} seal/scrub cleanup_phase mismatch",
             expected.name
         );
+
+        if matches!(expected.name, "committed" | "ambiguous") {
+            assert_eq!(
+                scrub_work.cleanup_phase,
+                AlgoliaImportTombstoneCleanupPhase::ExactTargetAbsenceRequired,
+                "{} dispatch uncertainty must remain pending exact-target scrub",
+                expected.name
+            );
+            assert_eq!(
+                scrub_work.engine_ack_state,
+                AlgoliaImportEngineAckState::Pending,
+                "{} hard erasure must not invent engine acknowledgement",
+                expected.name
+            );
+            assert_eq!(
+                tombstone.tombstone_compacted_at, None,
+                "{} exact-target work must remain non-compactable",
+                expected.name
+            );
+        }
     }
 
     let compactable_tombstone = tombstone_rows

@@ -1,7 +1,7 @@
 use super::*;
 
 mod lifecycle;
-mod support;
+pub(super) mod support;
 
 use support::{get_json, seed_retained_job_with_internals, setup_algolia_cloud_job_read_app};
 

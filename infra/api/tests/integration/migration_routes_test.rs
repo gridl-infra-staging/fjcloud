@@ -1,24 +1,42 @@
 use crate::common::indexes_route_test_support::response_json;
 use crate::common::{create_test_jwt, mock_repo, TestStateBuilder};
 use api::models::algolia_import_job::{
-    AlgoliaImportJobStatus, AlgoliaImportSource, AlgoliaImportSourceMetadata,
+    AlgoliaImportCreatePlacement, AlgoliaImportJob, AlgoliaImportJobState, AlgoliaImportJobStatus,
+    AlgoliaImportSource, AlgoliaImportSourceMetadata, AlgoliaImportTargetBinding,
+    NewAlgoliaImportJob, NewAlgoliaReplaceImportJob,
 };
 use api::models::vm_inventory::NewVmInventory;
-use api::models::AlgoliaImportErrorCode;
-use api::repos::{CustomerRepo, PgCustomerRepo, VmInventoryRepo};
+use api::models::{AlgoliaImportErrorCode, AlgoliaImportSummary};
+use api::repos::algolia_import_job_repo::{
+    AlgoliaImportEngineAckOutcome, AlgoliaImportResumeDeadlineClaim,
+};
+use api::repos::{
+    AlgoliaImportCancelOutcome, AlgoliaImportDispatchAdmission,
+    AlgoliaImportDispatchAdmissionOutcome, AlgoliaImportDispatchGuard,
+    AlgoliaImportDispatchReplayIdentity, AlgoliaImportJobAdmissionError,
+    AlgoliaImportJobListCursor, AlgoliaImportJobListPage, AlgoliaImportJobRepo,
+    AlgoliaImportReconciliationClaim, AlgoliaImportReconciliationLease,
+    AlgoliaImportReconciliationWriteOutcome, AlgoliaImportResumeOutcome, AlgoliaLifecycleError,
+    CatalogLifecycleTargetGuard, CatalogLifecycleTargetIdentity, CustomerRepo,
+    DestinationEligibilityError, DestinationEligibilitySnapshot, PgAlgoliaImportJobRepo,
+    PgCustomerRepo, RepoError, VmInventoryRepo,
+};
 use api::routes::migration::ListAlgoliaIndexesRequest;
 use api::secrets::mock::MockNodeSecretManager;
 use api::secrets::NodeSecretManager;
+use api::services::algolia_import::{AlgoliaImportAdmissionOutcome, AlgoliaImportAdmissionRequest};
 use api::services::algolia_source::{
     AlgoliaClientError, AlgoliaClientRequest, AlgoliaClientResponse, AlgoliaIndexMetadata,
     AlgoliaSourceClient, AlgoliaSourceError, AlgoliaSourceInspectRequest, AlgoliaSourceListRequest,
     AlgoliaSourceListResponse, AlgoliaSourceLister, AlgoliaSourceService,
 };
-use api::services::flapjack_proxy::FlapjackProxy;
+use api::services::flapjack_proxy::{FlapjackProxy, ProxyError};
+use api::state::AppState;
 use async_trait::async_trait;
 use axum::body::Body;
 use axum::http::{self, Request, StatusCode};
 use axum::routing::post;
+use chrono::DateTime;
 use chrono::{TimeZone, Utc};
 use serde_json::json;
 use sqlx::PgPool;
@@ -35,6 +53,7 @@ use crate::common::integration_helpers::tracing_test_lock;
 use crate::common::support::pg_schema_harness::{connect_and_migrate, insert_active_customer};
 use crate::common::vm_inventory_reference_guard_fixtures::insert_vm_with_id;
 use api::router::build_router;
+use api::services::alerting::MockAlertService;
 
 #[derive(Clone)]
 struct CapturedTraceWriter(Arc<Mutex<Vec<u8>>>);
@@ -159,6 +178,253 @@ impl AlgoliaSourceClient for FailingAlgoliaSourceClient {
     }
 }
 
+/// Repository wrapper that delegates every operation to a real
+/// `PgAlgoliaImportJobRepo` but forces `record_dispatch_intent_committed` to
+/// fail. This is the deterministic linkage-failure seam: it lets a test drive
+/// the full admit → guard → engine-send path and then fail committed-linkage
+/// recording *after the guard has released*, without racing a lifecycle
+/// mutation against the customer row lock the guard holds (which would
+/// deadlock).
+struct RecordCommitFailingRepo {
+    inner: PgAlgoliaImportJobRepo,
+}
+
+impl RecordCommitFailingRepo {
+    fn new(inner: PgAlgoliaImportJobRepo) -> Self {
+        Self { inner }
+    }
+}
+
+#[async_trait]
+impl AlgoliaImportJobRepo for RecordCommitFailingRepo {
+    async fn record_dispatch_intent_committed(
+        &self,
+        _id: Uuid,
+        _engine_job_id: Uuid,
+    ) -> Result<AlgoliaImportJob, RepoError> {
+        // The one behaviour under test: committed-linkage recording fails after
+        // a valid engine 202, leaving the retained job ambiguous. The wrapper
+        // never touches the row, so no mutation escapes.
+        Err(RepoError::Other(
+            "injected committed-linkage failure after engine acceptance".into(),
+        ))
+    }
+
+    async fn create(
+        &self,
+        job: NewAlgoliaImportJob,
+    ) -> Result<AlgoliaImportJob, AlgoliaImportJobAdmissionError> {
+        self.inner.create(job).await
+    }
+
+    async fn create_replace(
+        &self,
+        job: NewAlgoliaReplaceImportJob,
+    ) -> Result<AlgoliaImportJob, AlgoliaImportJobAdmissionError> {
+        self.inner.create_replace(job).await
+    }
+
+    async fn admit_dispatch(
+        &self,
+        admission: AlgoliaImportDispatchAdmission,
+    ) -> Result<AlgoliaImportDispatchAdmissionOutcome, AlgoliaImportJobAdmissionError> {
+        self.inner.admit_dispatch(admission).await
+    }
+
+    async fn find_active_dispatch_replay(
+        &self,
+        customer_id: Uuid,
+        idempotency_key: &str,
+        identity: &AlgoliaImportDispatchReplayIdentity,
+    ) -> Result<Option<AlgoliaImportJob>, AlgoliaImportJobAdmissionError> {
+        self.inner
+            .find_active_dispatch_replay(customer_id, idempotency_key, identity)
+            .await
+    }
+
+    async fn get(&self, id: Uuid) -> Result<Option<AlgoliaImportJob>, RepoError> {
+        self.inner.get(id).await
+    }
+
+    async fn get_for_customer(
+        &self,
+        customer_id: Uuid,
+        id: Uuid,
+    ) -> Result<Option<AlgoliaImportJob>, RepoError> {
+        self.inner.get_for_customer(customer_id, id).await
+    }
+
+    async fn list_for_customer(
+        &self,
+        customer_id: Uuid,
+        after: Option<AlgoliaImportJobListCursor>,
+        limit: i64,
+    ) -> Result<AlgoliaImportJobListPage, RepoError> {
+        self.inner
+            .list_for_customer(customer_id, after, limit)
+            .await
+    }
+
+    async fn snapshot_replace_target_eligibility(
+        &self,
+        customer_id: Uuid,
+        logical_target: &str,
+    ) -> Result<DestinationEligibilitySnapshot, DestinationEligibilityError> {
+        self.inner
+            .snapshot_replace_target_eligibility(customer_id, logical_target)
+            .await
+    }
+
+    async fn find_by_idempotency_key(
+        &self,
+        customer_id: Uuid,
+        key: &str,
+    ) -> Result<Option<AlgoliaImportJob>, RepoError> {
+        self.inner.find_by_idempotency_key(customer_id, key).await
+    }
+
+    async fn update_persisted_state(
+        &self,
+        id: Uuid,
+        state: AlgoliaImportJobState,
+    ) -> Result<AlgoliaImportJob, RepoError> {
+        self.inner.update_persisted_state(id, state).await
+    }
+
+    async fn acquire_dispatch_guard(
+        &self,
+        id: Uuid,
+    ) -> Result<AlgoliaImportDispatchGuard, RepoError> {
+        self.inner.acquire_dispatch_guard(id).await
+    }
+
+    async fn release_dispatch_guard(
+        &self,
+        guard: AlgoliaImportDispatchGuard,
+    ) -> Result<(), RepoError> {
+        self.inner.release_dispatch_guard(guard).await
+    }
+
+    async fn record_no_dispatch_failure(
+        &self,
+        id: Uuid,
+        error_code: AlgoliaImportErrorCode,
+        error_message: Option<&str>,
+    ) -> Result<AlgoliaImportJob, RepoError> {
+        self.inner
+            .record_no_dispatch_failure(id, error_code, error_message)
+            .await
+    }
+
+    async fn request_cancel(&self, id: Uuid) -> Result<AlgoliaImportCancelOutcome, RepoError> {
+        self.inner.request_cancel(id).await
+    }
+
+    async fn prepare_resume(&self, id: Uuid) -> Result<AlgoliaImportResumeOutcome, RepoError> {
+        self.inner.prepare_resume(id).await
+    }
+
+    async fn request_cancel_for_customer(
+        &self,
+        customer_id: Uuid,
+        id: Uuid,
+    ) -> Result<AlgoliaImportCancelOutcome, AlgoliaLifecycleError> {
+        self.inner
+            .request_cancel_for_customer(customer_id, id)
+            .await
+    }
+
+    async fn prepare_resume_for_customer(
+        &self,
+        customer_id: Uuid,
+        id: Uuid,
+        now: DateTime<Utc>,
+    ) -> Result<AlgoliaImportResumeOutcome, AlgoliaLifecycleError> {
+        self.inner
+            .prepare_resume_for_customer(customer_id, id, now)
+            .await
+    }
+
+    async fn record_resume_accepted(
+        &self,
+        id: Uuid,
+        generation: i64,
+        summary: AlgoliaImportSummary,
+    ) -> Result<AlgoliaImportJob, RepoError> {
+        self.inner
+            .record_resume_accepted(id, generation, summary)
+            .await
+    }
+
+    async fn mark_engine_acknowledged(
+        &self,
+        id: Uuid,
+    ) -> Result<AlgoliaImportEngineAckOutcome, RepoError> {
+        self.inner.mark_engine_acknowledged(id).await
+    }
+
+    async fn gc_retained_terminal_history(
+        &self,
+        now: DateTime<Utc>,
+        limit: i64,
+    ) -> Result<Vec<Uuid>, RepoError> {
+        self.inner.gc_retained_terminal_history(now, limit).await
+    }
+
+    async fn claim_reconciliation_jobs(
+        &self,
+        now: DateTime<Utc>,
+        lease_expires_at: DateTime<Utc>,
+        limit: i64,
+    ) -> Result<Vec<AlgoliaImportReconciliationClaim>, RepoError> {
+        self.inner
+            .claim_reconciliation_jobs(now, lease_expires_at, limit)
+            .await
+    }
+
+    async fn record_reconciliation_observation(
+        &self,
+        lease: &AlgoliaImportReconciliationLease,
+        observed_at: DateTime<Utc>,
+        state: AlgoliaImportJobState,
+    ) -> Result<AlgoliaImportReconciliationWriteOutcome, RepoError> {
+        self.inner
+            .record_reconciliation_observation(lease, observed_at, state)
+            .await
+    }
+
+    async fn claim_elapsed_resume_deadlines(
+        &self,
+        now: DateTime<Utc>,
+        lease_expires_at: DateTime<Utc>,
+        limit: i64,
+    ) -> Result<Vec<AlgoliaImportResumeDeadlineClaim>, RepoError> {
+        self.inner
+            .claim_elapsed_resume_deadlines(now, lease_expires_at, limit)
+            .await
+    }
+
+    async fn begin_lifecycle_target_guard(
+        &self,
+        customer_id: Uuid,
+        logical_target: &str,
+    ) -> Result<CatalogLifecycleTargetGuard, RepoError> {
+        self.inner
+            .begin_lifecycle_target_guard(customer_id, logical_target)
+            .await
+    }
+
+    async fn commit_lifecycle_target_guard(
+        &self,
+        guard: CatalogLifecycleTargetGuard,
+        expected_identity: Option<&CatalogLifecycleTargetIdentity>,
+    ) -> Result<(), RepoError> {
+        self.inner
+            .commit_lifecycle_target_guard(guard, expected_identity)
+            .await
+    }
+}
+
 async fn setup_algolia_cloud_discovery_app(
     service: Arc<dyn AlgoliaSourceLister>,
 ) -> (axum::Router, String) {
@@ -270,6 +536,64 @@ async fn setup_algolia_cloud_job_create_app(
     pool: PgPool,
     source_service: Arc<dyn AlgoliaSourceLister>,
 ) -> (axum::Router, String, Uuid, Arc<MockFlapjackHttpClient>) {
+    let (app, jwt, customer_id, flapjack_http, _alert_service) =
+        setup_algolia_cloud_job_create_app_with_alerts(pool, source_service).await;
+    (app, jwt, customer_id, flapjack_http)
+}
+
+/// Collaborators for the Algolia create-admission path, shared between the
+/// full-route tests and the service-level linkage-failure seam test. Exposes
+/// the built `AppState` (which owns the wired `AlgoliaImportService`) plus the
+/// seeded VM id so a service-level test can build a create placement without
+/// replicating the route's destination-preparation logic.
+struct AlgoliaCreateHarness {
+    state: AppState,
+    jwt: String,
+    customer_id: Uuid,
+    vm_id: Uuid,
+    flapjack_http: Arc<MockFlapjackHttpClient>,
+    alert_service: Arc<MockAlertService>,
+}
+
+async fn setup_algolia_cloud_job_create_app_with_alerts(
+    pool: PgPool,
+    source_service: Arc<dyn AlgoliaSourceLister>,
+) -> (
+    axum::Router,
+    String,
+    Uuid,
+    Arc<MockFlapjackHttpClient>,
+    Arc<MockAlertService>,
+) {
+    let harness = setup_algolia_cloud_job_create_harness(pool, source_service).await;
+    let app = axum::Router::new()
+        .route(
+            "/migration/algolia/destination-eligibility",
+            post(api::routes::migration::check_algolia_destination_eligibility),
+        )
+        .route(
+            "/migration/algolia/jobs",
+            post(api::routes::migration::create_algolia_import_job)
+                .get(api::routes::migration::list_algolia_import_jobs),
+        )
+        .route(
+            "/migration/algolia/jobs/:id",
+            axum::routing::get(api::routes::migration::get_algolia_import_job),
+        )
+        .with_state(harness.state);
+    (
+        app,
+        harness.jwt,
+        harness.customer_id,
+        harness.flapjack_http,
+        harness.alert_service,
+    )
+}
+
+async fn setup_algolia_cloud_job_create_harness(
+    pool: PgPool,
+    source_service: Arc<dyn AlgoliaSourceLister>,
+) -> AlgoliaCreateHarness {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed_verified_free_customer("Alice", "alice@example.com");
     insert_active_customer(&pool, customer.id, 1).await;
@@ -301,7 +625,7 @@ async fn setup_algolia_cloud_job_create_app(
 
     let node_secret_manager = Arc::new(MockNodeSecretManager::new());
     node_secret_manager
-        .create_node_api_key(&vm.id.to_string(), "us-east-1")
+        .create_node_api_key(vm.node_secret_id(), "us-east-1")
         .await
         .expect("seed VM admin key");
     let flapjack_http = Arc::new(MockFlapjackHttpClient::default());
@@ -322,48 +646,54 @@ async fn setup_algolia_cloud_job_create_app(
         flapjack_http.clone(),
         node_secret_manager,
     ));
+    let alert_service = Arc::new(MockAlertService::new());
 
     let state = TestStateBuilder::new()
         .with_pool(pool)
         .with_customer_repo(customer_repo)
         .with_vm_inventory_repo(vm_inventory_repo)
         .with_flapjack_proxy(flapjack_proxy)
+        .with_alert_service(alert_service.clone())
         .with_algolia_source_service(source_service)
         .with_algolia_migration_enabled(true)
         .build();
-    let app = axum::Router::new()
-        .route(
-            "/migration/algolia/destination-eligibility",
-            post(api::routes::migration::check_algolia_destination_eligibility),
-        )
-        .route(
-            "/migration/algolia/jobs",
-            post(api::routes::migration::create_algolia_import_job),
-        )
-        .with_state(state);
-    (
-        app,
-        create_test_jwt(customer.id),
-        customer.id,
+    AlgoliaCreateHarness {
+        state,
+        jwt: create_test_jwt(customer.id),
+        customer_id: customer.id,
+        vm_id: vm.id,
         flapjack_http,
-    )
+        alert_service,
+    }
 }
 
 async fn seed_algolia_replace_target(pool: &PgPool, customer_id: Uuid, target: &str) {
-    let vm_id = Uuid::new_v4();
-    sqlx::query(
-        "INSERT INTO vm_inventory
-         (id, region, provider, hostname, flapjack_url, status, capacity, current_load)
-         VALUES ($1, 'us-east-1', 'aws', $2, 'https://replace-target.invalid', 'active',
-                 $3::jsonb, $4::jsonb)",
+    let vm_id = match sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM vm_inventory WHERE status = 'active' ORDER BY created_at, id LIMIT 1",
     )
-    .bind(vm_id)
-    .bind(format!("vm-{vm_id}"))
-    .bind(json!({ "disk_bytes": 10_000_000_000_i64 }))
-    .bind(json!({ "disk_bytes": 0_i64 }))
-    .execute(pool)
+    .fetch_optional(pool)
     .await
-    .expect("seed replace VM");
+    .expect("find existing replace VM")
+    {
+        Some(vm_id) => vm_id,
+        None => {
+            let vm_id = Uuid::new_v4();
+            sqlx::query(
+                "INSERT INTO vm_inventory
+                 (id, region, provider, hostname, flapjack_url, status, capacity, current_load)
+                 VALUES ($1, 'us-east-1', 'aws', $2, 'https://replace-target.invalid', 'active',
+                         $3::jsonb, $4::jsonb)",
+            )
+            .bind(vm_id)
+            .bind(format!("vm-{vm_id}"))
+            .bind(json!({ "disk_bytes": 10_000_000_000_i64 }))
+            .bind(json!({ "disk_bytes": 0_i64 }))
+            .execute(pool)
+            .await
+            .expect("seed replace VM");
+            vm_id
+        }
+    };
 
     let deployment_id = Uuid::new_v4();
     sqlx::query(

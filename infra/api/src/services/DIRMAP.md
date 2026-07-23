@@ -32,6 +32,7 @@ admin write paths whose abuse would be a customer-trust incident
 | restore.rs | Stub summary for infra/api/src/services/restore.rs. |
 | tenant_quota.rs | Stub summary for tenant_quota.rs. |
 | vm_health_rollup.rs | Stub summary for infra/api/src/services/vm_health_rollup.rs. |
+| vm_orphan_reconcile.rs | Stub summary for infra/api/src/services/vm_orphan_reconcile.rs. |
 | webhook_http.rs | Stub summary for webhook_http.rs. |
 | webhook_lag.rs | Stub summary for webhook_lag.rs. |
 
@@ -45,4 +46,5 @@ admin write paths whose abuse would be a customer-trust incident
 | provisioning | Handles automatic provisioning of shared VMs for capacity fallback across multiple cloud providers (AWS, Hetzner, GCP, OCI, bare metal), including VM creation, DNS registration, inventory tracking, health verification, and comprehensive rollback on failure. |
 | scheduler | The scheduler service periodically scrapes Prometheus metrics from all active VMs to monitor resource utilization across CPU, memory, disk, query RPS, and indexing RPS dimensions, then triggers index migrations when sustained overload, underload, or noisy-neighbor quota violations are detected. |
 | storage | — |
+| vm_orphan_reconcile | — |
 <!-- [scrai:end] -->

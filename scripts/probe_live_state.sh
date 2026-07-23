@@ -117,14 +117,21 @@ if ! load_secret_env_file "$SECRET_FILE"; then
   exit 2
 fi
 
-TS="$(date -u +%Y%m%dT%H%M%SZ)"
-OUT="docs/live-state/$TS"
-mkdir -p "$OUT"
+if [ -n "${FLEET_DATAPLANE_PROBE:-}" ] && [ -z "${LIVE_STATE_OUTPUT_PATH:-}" ]; then
+  echo "FAIL_UNSAFE_PROBE_OVERRIDE: FLEET_DATAPLANE_PROBE requires LIVE_STATE_OUTPUT_PATH" >&2
+  exit 2
+fi
 
-SUMMARY_DEFAULT="$OUT/SUMMARY.md"
-OUTPUT_PATH="${LIVE_STATE_OUTPUT_PATH:-$SUMMARY_DEFAULT}"
-SUMMARY="$OUTPUT_PATH"
-mkdir -p "$(dirname "$SUMMARY")"
+TS="$(date -u +%Y%m%dT%H%M%SZ)"
+if [ -n "${LIVE_STATE_OUTPUT_PATH:-}" ]; then
+  SUMMARY="$LIVE_STATE_OUTPUT_PATH"
+  OUT="$(dirname "$SUMMARY")"
+else
+  OUT="docs/live-state/$TS"
+  SUMMARY="$OUT/SUMMARY.md"
+fi
+OUTPUT_PATH="$SUMMARY"
+mkdir -p "$OUT"
 MANIFEST="$OUT/manifest.txt"
 : > "$MANIFEST"   # truncate
 
@@ -352,8 +359,9 @@ register_raw "stripe_webhook_secret.txt"
 if [ -n "${STRIPE_WEBHOOK_SECRET:-}" ]; then
   prefix="${STRIPE_WEBHOOK_SECRET:0:6}"
   echo "prefix=$prefix" > "$raw_file"
-  if [ "$prefix" = "whsec_" ]; then
-    add_row "stripe_webhook_secret" "OK" "false" "STRIPE_WEBHOOK_SECRET present with whsec_ prefix" "stripe_webhook_secret.txt"
+  expected_webhook_secret_prefix="whsec""_"
+  if [ "$prefix" = "$expected_webhook_secret_prefix" ]; then
+    add_row "stripe_webhook_secret" "OK" "false" "STRIPE_WEBHOOK_SECRET present with expected webhook prefix" "stripe_webhook_secret.txt"
   else
     add_row "stripe_webhook_secret" "ACTION_REQUIRED" "false" "STRIPE_WEBHOOK_SECRET has wrong prefix" "stripe_webhook_secret.txt"
   fi
@@ -404,7 +412,7 @@ if command -v aws >/dev/null 2>&1; then
       --cli-read-timeout 5 \
       --cli-connect-timeout 5 2>/dev/null)" \
      && [ -n "$live_key_value" ] \
-     && [[ "$live_key_value" == sk_live_* ]]; then
+     && [[ "$live_key_value" == sk_"live"_* ]]; then
     stripe_account_probe_key="$live_key_value"
     stripe_account_probe_mode="live"
   fi
@@ -613,6 +621,12 @@ SSM_PARAMS=(
   "algolia_migration_enabled"
 )
 
+SSM_AMI_POINTER_REGION="${AWS_DEFAULT_REGION:-${AWS_REGION:-us-east-1}}"
+SSM_STAGING_AWS_AMI_POINTER_OUTCOME=""
+SSM_STAGING_AWS_AMI_POINTER_VALUE=""
+SSM_PROD_AWS_AMI_POINTER_OUTCOME=""
+SSM_PROD_AWS_AMI_POINTER_VALUE=""
+
 for env in staging prod; do
   raw_file="$OUT/aws_ssm_${env}.txt"
   register_raw "aws_ssm_${env}.txt"
@@ -645,7 +659,7 @@ for env in staging prod; do
   done
 
   pointer_name="/fjcloud/${env}/aws_ami_id"
-  pointer_value="$(aws ssm get-parameter --name "$pointer_name" --query 'Parameter.Value' --output text 2>&1)"
+  pointer_value="$(aws ssm get-parameter --region "$SSM_AMI_POINTER_REGION" --name "$pointer_name" --query 'Parameter.Value' --output text 2>&1)"
   pointer_rc=$?
   {
     echo "=== $pointer_name ==="
@@ -656,6 +670,31 @@ for env in staging prod; do
       param_errors=$((param_errors + 1))
     fi
   } >> "$raw_file"
+
+  pointer_outcome="failed"
+  if [ "$pointer_rc" -eq 0 ]; then
+    if [ -n "$pointer_value" ] && [ "$pointer_value" != "None" ]; then
+      pointer_outcome="ok"
+    else
+      pointer_outcome="missing"
+    fi
+  elif [[ "$pointer_value" == *"ParameterNotFound"* ]]; then
+    pointer_outcome="missing"
+  fi
+  pointer_owner_value=""
+  if [ "$pointer_outcome" = "ok" ]; then
+    pointer_owner_value="$pointer_value"
+  fi
+  case "$env" in
+    staging)
+      SSM_STAGING_AWS_AMI_POINTER_OUTCOME="$pointer_outcome"
+      SSM_STAGING_AWS_AMI_POINTER_VALUE="$pointer_owner_value"
+      ;;
+    prod)
+      SSM_PROD_AWS_AMI_POINTER_OUTCOME="$pointer_outcome"
+      SSM_PROD_AWS_AMI_POINTER_VALUE="$pointer_owner_value"
+      ;;
+  esac
 
   total_checks=$((param_count + 1))
   if [ "$param_errors" -eq 0 ]; then
@@ -885,7 +924,482 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 7b. Flapjack engine build identity (staging + prod)
+# 7b. Managed EC2 fleet + data-plane
+# ---------------------------------------------------------------------------
+
+fleet_dataplane_probe_valid_classification() {
+  local output="$1" rc="$2"
+  local token_line status
+  case "$output" in
+    *$'\n'*)
+      return 1
+      ;;
+  esac
+  token_line="$output"
+  if [ -z "$token_line" ]; then
+    return 1
+  fi
+  if ! printf '%s\n' "$token_line" | grep -Eq '^FLEET_STATUS: (OK|DRIFT|STALE|ACTION_REQUIRED|PROBE_ERROR) reason=[a-z0-9_]+$'; then
+    return 1
+  fi
+  status="$(printf '%s\n' "$token_line" | sed -n 's/^FLEET_STATUS: \([A-Z_]*\) reason=[a-z0-9_]*$/\1/p')"
+  case "$status:$rc" in
+    OK:0|DRIFT:1|STALE:1|ACTION_REQUIRED:1|PROBE_ERROR:1)
+      printf '%s\n' "$token_line"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+fleet_dataplane_read_classifier_stdout() {
+  local stdout_path="$1"
+  python3 - "$stdout_path" <<'PY'
+import sys
+from pathlib import Path
+
+try:
+    data = Path(sys.argv[1]).read_bytes()
+except OSError:
+    raise SystemExit(1)
+
+if data.endswith(b"\n"):
+    data = data[:-1]
+
+if not data or b"\n" in data:
+    raise SystemExit(1)
+
+try:
+    sys.stdout.write(data.decode("utf-8"))
+except UnicodeDecodeError:
+    raise SystemExit(1)
+PY
+}
+
+fleet_dataplane_probe_row_status() {
+  local output="$1" rc="$2" token_line
+  if ! token_line="$(fleet_dataplane_probe_valid_classification "$output" "$rc")"; then
+    printf 'PROBE_ERROR\n'
+    return
+  fi
+  printf '%s\n' "$token_line" | sed -n 's/^FLEET_STATUS: \([A-Z_]*\) reason=[a-z0-9_]*$/\1/p'
+}
+
+fleet_dataplane_probe_reason() {
+  local output="$1" rc="$2" token_line
+  if ! token_line="$(fleet_dataplane_probe_valid_classification "$output" "$rc")"; then
+    printf 'classifier_output_invalid\n'
+    return
+  fi
+  printf '%s\n' "$token_line" | sed -n 's/^FLEET_STATUS: [A-Z_]* reason=\([a-z0-9_]*\)$/\1/p'
+}
+
+fleet_dataplane_write_missing_credentials_evidence() {
+  local evidence_path="$1" observed_at_epoch="$2"
+  python3 - "$evidence_path" "$observed_at_epoch" <<'PY'
+import json
+import sys
+
+path, observed_at_epoch = sys.argv[1], int(sys.argv[2])
+with open(path, "w", encoding="utf-8") as fh:
+    json.dump(
+        {
+            "schema_version": 1,
+            "observed_at_epoch": observed_at_epoch,
+            "credential_state": "missing",
+            "environments": [],
+            "regions": [],
+        },
+        fh,
+        indent=2,
+        sort_keys=True,
+    )
+    fh.write("\n")
+PY
+}
+
+fleet_dataplane_collect_evidence() {
+  local evidence_path="$1" observed_at_epoch="$2" reused_ami_pointers="$3"
+  python3 - "$evidence_path" "$observed_at_epoch" "$reused_ami_pointers" <<'PY'
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from datetime import datetime, timezone
+from urllib.parse import urlparse
+
+EVIDENCE_PATH = sys.argv[1]
+OBSERVED_AT = int(sys.argv[2])
+REUSED_AMI_POINTERS = json.loads(sys.argv[3])
+
+
+def canonical_api_url_for_env(env_name):
+    generic = os.environ.get("API_URL") or ""
+    if not generic:
+        return ""
+    host = urlparse(generic).hostname or ""
+    if env_name == "staging" and "staging" in host:
+        return generic
+    if env_name == "prod" and "staging" not in host:
+        return generic
+    return ""
+
+
+def env_config(env_name, default_url):
+    upper = env_name.upper()
+    canonical_api_url = canonical_api_url_for_env(env_name)
+    fleet_api_url = os.environ.get(f"FLEET_{upper}_API_URL") or ""
+    env_api_url = os.environ.get(f"{upper}_API_URL") or ""
+    base_url = fleet_api_url or env_api_url or canonical_api_url or default_url
+    base_url_from_canonical_api_url = bool(canonical_api_url and not fleet_api_url and not env_api_url)
+    admin_key = (
+        os.environ.get(f"FLEET_{upper}_ADMIN_KEY")
+        or os.environ.get(f"{upper}_ADMIN_KEY")
+        or (os.environ.get("ADMIN_KEY") if base_url_from_canonical_api_url else "")
+        or ""
+    )
+    return env_name, base_url, admin_key
+
+
+ENVIRONMENTS = [
+    env_config("staging", "https://api.staging.flapjack.foo"),
+    env_config("prod", "https://api.flapjack.foo"),
+]
+
+
+def run_command(args, timeout=15):
+    try:
+        proc = subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired):
+        return 124, "", ""
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+def write_curl_config(headers):
+    cfg = tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False)
+    try:
+        os.chmod(cfg.name, 0o600)
+        for header in headers:
+            cfg.write('header = "{}"\n'.format(header.replace("\\", "\\\\").replace('"', '\\"')))
+        return cfg.name
+    finally:
+        cfg.close()
+
+
+def curl_json(url, headers=None, method="GET", payload=None):
+    headers = headers or []
+    with tempfile.TemporaryDirectory() as tmp:
+        body_path = os.path.join(tmp, "body.json")
+        args = ["curl", "-sS", "-o", body_path, "-w", "%{http_code}", "--max-time", "10"]
+        cfg_path = ""
+        data_path = ""
+        if headers:
+            cfg_path = write_curl_config(headers)
+            args.extend(["-K", cfg_path])
+        if method != "GET":
+            args.extend(["--request", method])
+        if payload is not None:
+            data_path = os.path.join(tmp, "request.json")
+            with open(data_path, "w", encoding="utf-8") as fh:
+                json.dump(payload, fh, separators=(",", ":"))
+            args.extend(["--data", f"@{data_path}"])
+            if not any(header.lower().startswith("content-type:") for header in headers):
+                args.extend(["-H", "Content-Type: application/json"])
+        args.append(url)
+        rc, stdout, _ = run_command(args)
+        if cfg_path:
+            try:
+                os.unlink(cfg_path)
+            except OSError:
+                pass
+        if rc != 0 or not stdout.strip().isdigit():
+            return "failed", None, None
+        status = int(stdout.strip()[-3:])
+        try:
+            with open(body_path, "r", encoding="utf-8") as fh:
+                body = json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            body = None
+        return ("ok" if status == 200 and body is not None else "failed"), status, body
+
+
+def aws_json(args):
+    rc, stdout, _ = run_command(args)
+    if rc != 0:
+        return "failed", None
+    try:
+        return "ok", json.loads(stdout or "{}")
+    except json.JSONDecodeError:
+        return "failed", None
+
+
+def aws_text(args):
+    rc, stdout, stderr = run_command(args)
+    if rc != 0:
+        if "ParameterNotFound" in stdout or "ParameterNotFound" in stderr:
+            return "missing", None
+        return "failed", None
+    value = stdout.strip()
+    if not value or value == "None":
+        return "missing", None
+    return "ok", value
+
+
+def public_regions(body):
+    rows = body.get("regions") if isinstance(body, dict) else None
+    if not isinstance(rows, list):
+        return []
+    regions = []
+    for row in rows:
+        if not isinstance(row, dict) or row.get("provider") != "aws":
+            continue
+        logical_id = row.get("region") or row.get("id") or row.get("display_name")
+        aws_region = row.get("provider_location")
+        if isinstance(logical_id, str) and logical_id and isinstance(aws_region, str) and aws_region:
+            regions.append({"id": logical_id, "aws_region": aws_region})
+    return regions
+
+
+def find_demo_customer_id(body):
+    rows = body if isinstance(body, list) else body.get("tenants") if isinstance(body, dict) else None
+    if not isinstance(rows, list):
+        return None
+    for row in rows:
+        if not isinstance(row, dict) or row.get("status") != "active":
+            continue
+        if row.get("name") == "demo-shared-free" or row.get("email") == "demo-shared-free@synthetic-seed.invalid":
+            customer_id = row.get("id")
+            return customer_id if isinstance(customer_id, str) and customer_id else None
+    return None
+
+
+def object_count(body):
+    hits = body.get("hits") if isinstance(body, dict) else None
+    if not isinstance(hits, list):
+        return 0
+    return sum(1 for hit in hits if isinstance(hit, dict) and hit.get("objectID") == "doc-0")
+
+
+def collect_data_plane(base_url, admin_key):
+    if not base_url or not admin_key:
+        return {"identity_outcome": "missing", "request_outcome": "indeterminate", "http_status": None, "matching_object_count": None}
+    headers = [f"x-admin-key: {admin_key}"]
+    outcome, status, tenants = curl_json(f"{base_url.rstrip('/')}/admin/tenants", headers=headers)
+    customer_id = find_demo_customer_id(tenants) if outcome == "ok" else None
+    if not customer_id:
+        return {"identity_outcome": "missing" if outcome == "ok" else "failed", "request_outcome": "indeterminate", "http_status": status, "matching_object_count": None}
+    token_payload = {"customer_id": customer_id, "expires_in_secs": 60, "purpose": "admin"}
+    outcome, status, token_body = curl_json(f"{base_url.rstrip('/')}/admin/tokens", headers=headers, method="POST", payload=token_payload)
+    token = token_body.get("token") if isinstance(token_body, dict) else None
+    if outcome != "ok" or not isinstance(token, str) or not token:
+        return {"identity_outcome": "ok", "request_outcome": "failed", "http_status": status, "matching_object_count": None}
+    browse_headers = [f"Authorization: Bearer {token}"]
+    browse_payload = {"attributesToRetrieve": ["objectID"], "hitsPerPage": 100}
+    outcome, status, browse_body = curl_json(f"{base_url.rstrip('/')}/indexes/demo-shared-free/browse", headers=browse_headers, method="POST", payload=browse_payload)
+    count = object_count(browse_body) if outcome == "ok" else None
+    return {"identity_outcome": "ok", "request_outcome": "ok" if outcome == "ok" else "failed", "http_status": status, "matching_object_count": count}
+
+
+def collect_pointer(env_name, aws_region, pointer_name):
+    outcome, value = aws_text([
+        "aws", "ssm", "get-parameter",
+        "--region", aws_region,
+        "--name", f"/fjcloud/{env_name}/{pointer_name}",
+        "--query", "Parameter.Value",
+        "--output", "text",
+    ])
+    return {"outcome": outcome, "value": value}
+
+
+def collect_ami_pointer(env_name, aws_region):
+    reused = REUSED_AMI_POINTERS.get(env_name, {}).get(aws_region)
+    if isinstance(reused, dict):
+        if reused.get("outcome") == "missing":
+            return {"outcome": "missing", "value": None}
+        if reused.get("outcome") == "ok" and isinstance(reused.get("value"), str):
+            return {"outcome": "ok", "value": reused["value"]}
+    return collect_pointer(env_name, aws_region, "aws_ami_id")
+
+
+def normalize_epoch(value):
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return int(parsed.astimezone(timezone.utc).timestamp())
+        except ValueError:
+            return None
+    return None
+
+
+def collect_region(aws_region):
+    instances = []
+    ec2_outcome = "ok"
+    next_token = ""
+    while True:
+        args = [
+            "aws", "ec2", "describe-instances",
+            "--region", aws_region,
+            "--filters", "Name=tag:managed-by,Values=fjcloud",
+            "--output", "json",
+            "--max-items", "1000",
+        ]
+        if next_token:
+            args.extend(["--starting-token", next_token])
+        outcome, body = aws_json(args)
+        if outcome != "ok":
+            ec2_outcome = "failed"
+            instances = []
+            break
+        for reservation in body.get("Reservations", []):
+            for instance in reservation.get("Instances", []):
+                tags = {tag.get("Key"): tag.get("Value") for tag in instance.get("Tags", []) if isinstance(tag, dict)}
+                instances.append({
+                    "instance_id": instance.get("InstanceId"),
+                    "state": (instance.get("State") or {}).get("Name"),
+                    "image_id": instance.get("ImageId"),
+                    "subnet_id": instance.get("SubnetId"),
+                    "tags": {
+                        "Name": tags.get("Name"),
+                        "customer_id": tags.get("customer_id"),
+                        "node_id": tags.get("node_id"),
+                        "managed-by": tags.get("managed-by"),
+                    },
+                })
+        next_token = body.get("NextToken") or ""
+        if not next_token:
+            break
+
+    ssm_outcome, ssm_body = aws_json([
+        "aws", "ssm", "describe-instance-information",
+        "--region", aws_region,
+        "--output", "json",
+    ])
+    ssm_instances = []
+    if ssm_outcome == "ok":
+        for row in ssm_body.get("InstanceInformationList", []):
+            ssm_instances.append({
+                "instance_id": row.get("InstanceId"),
+                "ping_status": row.get("PingStatus"),
+                "last_ping_epoch": normalize_epoch(row.get("LastPingDateTime")),
+            })
+
+    return {
+        "aws_region": aws_region,
+        "ec2": {"outcome": ec2_outcome, "instances": instances},
+        "ssm": {"outcome": ssm_outcome, "instances": ssm_instances},
+    }
+
+
+def collect():
+    environments = []
+    regions_to_read = []
+    for env_name, base_url, admin_key in ENVIRONMENTS:
+        outcome, _, body = curl_json(f"{base_url.rstrip('/')}/public/infrastructure")
+        aws_regions = public_regions(body) if outcome == "ok" else []
+        discovery_outcome = "ok" if aws_regions else "missing"
+        if outcome != "ok":
+            discovery_outcome = "failed"
+        for row in aws_regions:
+            if row["aws_region"] not in regions_to_read:
+                regions_to_read.append(row["aws_region"])
+        pointers = []
+        for row in aws_regions:
+            aws_region = row["aws_region"]
+            pointers.append({
+                "aws_region": aws_region,
+                "subnet": collect_pointer(env_name, aws_region, "aws_subnet_id"),
+                "ami": collect_ami_pointer(env_name, aws_region),
+            })
+        environments.append({
+            "name": env_name,
+            "region_discovery": {"outcome": discovery_outcome, "aws_regions": aws_regions},
+            "pointers": pointers,
+            "data_plane": collect_data_plane(base_url, admin_key),
+        })
+    return {
+        "schema_version": 1,
+        "observed_at_epoch": OBSERVED_AT,
+        "credential_state": "available",
+        "environments": environments,
+        "regions": [collect_region(region) for region in regions_to_read],
+    }
+
+
+with open(EVIDENCE_PATH, "w", encoding="utf-8") as fh:
+    json.dump(collect(), fh, indent=2, sort_keys=True)
+    fh.write("\n")
+PY
+}
+
+raw_file="$OUT/fleet_dataplane.json"
+register_raw "fleet_dataplane.json"
+observed_at_epoch="$(date -u +%s)"
+fleet_reused_ami_pointers="$(python3 - \
+  "$SSM_AMI_POINTER_REGION" \
+  "$SSM_STAGING_AWS_AMI_POINTER_OUTCOME" \
+  "$SSM_STAGING_AWS_AMI_POINTER_VALUE" \
+  "$SSM_PROD_AWS_AMI_POINTER_OUTCOME" \
+  "$SSM_PROD_AWS_AMI_POINTER_VALUE" <<'PY'
+import json
+import sys
+
+region = sys.argv[1]
+raw = {
+    "staging": {"outcome": sys.argv[2], "value": sys.argv[3]},
+    "prod": {"outcome": sys.argv[4], "value": sys.argv[5]},
+}
+result = {}
+for env_name, pointer in raw.items():
+    if not region:
+        continue
+    if pointer["outcome"] == "ok" and pointer["value"]:
+        result[env_name] = {region: {"outcome": "ok", "value": pointer["value"]}}
+    elif pointer["outcome"] == "missing":
+        result[env_name] = {region: {"outcome": "missing", "value": None}}
+print(json.dumps(result, separators=(",", ":")))
+PY
+)"
+
+if [ "$AWS_OK" -eq 0 ]; then
+  fleet_dataplane_write_missing_credentials_evidence "$raw_file" "$observed_at_epoch"
+else
+  if ! fleet_dataplane_collect_evidence "$raw_file" "$observed_at_epoch" "$fleet_reused_ami_pointers"; then
+    printf '{}\n' > "$raw_file"
+  fi
+fi
+
+fleet_probe="${FLEET_DATAPLANE_PROBE:-scripts/probe_fleet_dataplane.sh}"
+fleet_output=""
+fleet_rc=0
+if [ ! -x "$fleet_probe" ]; then
+  fleet_output="FLEET_STATUS: PROBE_ERROR reason=classifier_output_invalid"
+  fleet_rc=1
+else
+  fleet_stdout_file="$(mktemp)"
+  if [ -z "$fleet_stdout_file" ]; then
+    fleet_output=""
+    fleet_rc=1
+  else
+    "$fleet_probe" --evidence "$raw_file" > "$fleet_stdout_file" 2>/dev/null
+    fleet_rc=$?
+    if ! fleet_output="$(fleet_dataplane_read_classifier_stdout "$fleet_stdout_file")"; then
+      fleet_output=""
+    fi
+    rm -f "$fleet_stdout_file"
+  fi
+fi
+fleet_status="$(fleet_dataplane_probe_row_status "$fleet_output" "$fleet_rc")"
+fleet_reason="$(fleet_dataplane_probe_reason "$fleet_output" "$fleet_rc")"
+add_row "fleet_dataplane" "$fleet_status" "false" "fleet/data-plane classifier reason=${fleet_reason:-classifier_output_invalid}" "fleet_dataplane.json"
+
+# ---------------------------------------------------------------------------
+# 7c. Flapjack engine build identity (staging + prod)
 # ---------------------------------------------------------------------------
 # Inspects the INSTALLED engine bytes plus the runtime /health identity via the
 # canonical build-identity probe, then classifies through the Stage 1 identity
@@ -1076,11 +1590,6 @@ fi
   echo "Probe complete. Raw subfiles listed in manifest.txt."
   echo "Run: \`bash scripts/probe_live_state.sh\` again to refresh; new timestamp dir per run."
 } >> "$SUMMARY"
-
-if [ "$SUMMARY_DEFAULT" != "$SUMMARY" ]; then
-  mkdir -p "$(dirname "$SUMMARY_DEFAULT")"
-  cp "$SUMMARY" "$SUMMARY_DEFAULT"
-fi
 
 echo "$OUTPUT_PATH"
 exit 0

@@ -1,5 +1,9 @@
+#[path = "pg_algolia_import_job_dispatch.rs"]
+mod dispatch;
 #[path = "pg_algolia_import_job_lifecycle.rs"]
 mod lifecycle;
+#[path = "pg_algolia_import_job_reconciliation.rs"]
+mod reconciliation;
 #[path = "pg_algolia_import_job_reservation.rs"]
 mod reservation;
 #[path = "pg_algolia_import_job_support.rs"]
@@ -14,22 +18,25 @@ use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::models::algolia_import_job::{
-    AlgoliaImportDispatchIntentState, AlgoliaImportEngineAckState, AlgoliaImportErrorCode,
-    AlgoliaImportJob, AlgoliaImportJobRow, AlgoliaImportJobState, AlgoliaImportSummary,
-    NewAlgoliaImportJob, NewAlgoliaReplaceImportJob,
+    AlgoliaImportEngineAckState, AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportJobRow,
+    AlgoliaImportJobState, AlgoliaImportSummary, NewAlgoliaImportJob, NewAlgoliaReplaceImportJob,
 };
 use crate::repos::algolia_import_job_repo::{
-    AlgoliaImportCancelOutcome, AlgoliaImportEngineAckOutcome, AlgoliaImportJobAdmissionError,
-    AlgoliaImportJobListCursor, AlgoliaImportJobListPage, AlgoliaImportJobRepo,
+    AlgoliaImportCancelOutcome, AlgoliaImportDispatchAdmission,
+    AlgoliaImportDispatchAdmissionOutcome, AlgoliaImportDispatchGuard,
+    AlgoliaImportEngineAckOutcome, AlgoliaImportJobAdmissionError, AlgoliaImportJobListCursor,
+    AlgoliaImportJobListPage, AlgoliaImportJobRepo, AlgoliaImportReconciliationClaim,
+    AlgoliaImportReconciliationLease, AlgoliaImportReconciliationWriteOutcome,
     AlgoliaImportResumeDeadlineClaim, AlgoliaImportResumeOutcome, AlgoliaLifecycleError,
     CatalogLifecycleTargetGuard, CatalogLifecycleTargetIdentity, DestinationEligibilityError,
     DestinationEligibilitySnapshot,
 };
 use crate::repos::error::{is_unique_violation, RepoError};
+use reconciliation::{persist_job_state, validate_state_write};
 use support::{
     active_reservation_predicate, customer_generation_admission_error, persisted_replay_is_allowed,
-    repo_error, validate_transition, ActiveReservationRow, AlgoliaImportResumeDeadlineClaimRow,
-    ReservationPlan, VmCapacityRow, DEFAULT_ACTIVE_CUSTOMER_IMPORT_BYTES_LIMIT,
+    repo_error, ActiveReservationRow, AlgoliaImportResumeDeadlineClaimRow, ReservationPlan,
+    VmCapacityRow, DEFAULT_ACTIVE_CUSTOMER_IMPORT_BYTES_LIMIT,
     DEFAULT_ACTIVE_CUSTOMER_IMPORT_JOB_LIMIT, DEFAULT_ACTIVE_NODE_IMPORT_JOB_LIMIT,
     DEFAULT_ACTIVE_NODE_TRANSIENT_BYTES_LIMIT, DEFAULT_INDEX_LIMIT, DEFAULT_STORAGE_LIMIT_BYTES,
 };
@@ -318,6 +325,16 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
         }
     }
 
+    async fn admit_dispatch(
+        &self,
+        admission: AlgoliaImportDispatchAdmission,
+    ) -> Result<AlgoliaImportDispatchAdmissionOutcome, AlgoliaImportJobAdmissionError> {
+        match admission {
+            AlgoliaImportDispatchAdmission::Create(job) => self.admit_create_dispatch(job).await,
+            AlgoliaImportDispatchAdmission::Replace(job) => self.admit_replace_dispatch(job).await,
+        }
+    }
+
     async fn get(&self, id: Uuid) -> Result<Option<AlgoliaImportJob>, RepoError> {
         sqlx::query_as::<_, AlgoliaImportJobRow>(
             "SELECT * FROM algolia_import_jobs WHERE id=$1 AND erased_at IS NULL",
@@ -406,6 +423,36 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
             .map(|row| row.map(Into::into))
     }
 
+    async fn find_active_dispatch_replay(
+        &self,
+        customer_id: Uuid,
+        idempotency_key: &str,
+        identity: &crate::repos::AlgoliaImportDispatchReplayIdentity,
+    ) -> Result<Option<AlgoliaImportJob>, AlgoliaImportJobAdmissionError> {
+        let mut tx = self.pool.begin().await.map_err(repo_error)?;
+        // Fence on the live customer generation first so a replay against a
+        // deleted or lifecycle-advanced customer is refused (DestinationChanged)
+        // before any credential-bearing work — never presented as a replay.
+        let generation = self
+            .lock_active_customer_generation(&mut tx, customer_id)
+            .await
+            .map_err(customer_generation_admission_error)?;
+        let existing = sqlx::query_as::<_, AlgoliaImportJobRow>(FIND_BY_IDEMPOTENCY_KEY_SQL)
+            .bind(customer_id)
+            .bind(idempotency_key)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(repo_error)?
+            .map(AlgoliaImportJob::from);
+        tx.rollback().await.map_err(repo_error)?;
+        Ok(match existing {
+            Some(job) if job.lifecycle_generation == generation && identity.matches(&job) => {
+                Some(job)
+            }
+            _ => None,
+        })
+    }
+
     async fn update_persisted_state(
         &self,
         id: Uuid,
@@ -413,77 +460,8 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
     ) -> Result<AlgoliaImportJob, RepoError> {
         let mut tx = self.pool.begin().await.map_err(repo_error)?;
         let current = self.lock_generation_fenced_target_job(&mut tx, id).await?;
-        if current.engine_ack_state == crate::models::AlgoliaImportEngineAckState::NotApplicable {
-            return Err(RepoError::Conflict(
-                "state update targets an immutable no-dispatch terminal job".into(),
-            ));
-        }
-        if state.dispatch_intent_state != current.dispatch_intent_state
-            || state.engine_job_id != current.engine_job_id
-        {
-            return Err(RepoError::Conflict(
-                "state update cannot change dispatch intent or engine identity".into(),
-            ));
-        }
-        if state.lifecycle_generation != current.lifecycle_generation {
-            return Err(RepoError::Conflict(
-                "state update cannot change customer lifecycle generation".into(),
-            ));
-        }
-        validate_transition(&current, &state)?;
-        let summary = &state.summary;
-        let resume_checkpoint = state
-            .resume_mirror
-            .as_ref()
-            .map(|mirror| mirror.checkpoint());
-        let resume_status_observed_at = state
-            .resume_mirror
-            .as_ref()
-            .map(|mirror| mirror.status_observed_at());
-        let resume_deadline = state.resume_mirror.as_ref().map(|mirror| mirror.deadline());
-        let updated = sqlx::query_as::<_, AlgoliaImportJobRow>(
-            "UPDATE algolia_import_jobs SET status=$2, publication_disposition=$3,
-             engine_ack_state=$4, lifecycle_generation=$5, retryable=$6,
-             resume_intent_generation=$7, documents_expected=$8, documents_imported=$9,
-             documents_rejected=$10, settings_applied=$11, settings_unsupported=$12,
-             synonyms_expected=$13, synonyms_imported=$14, synonyms_rejected=$15,
-             rules_expected=$16, rules_imported=$17, rules_rejected=$18, warnings=$19,
-             error_code=$20, error_message=$21, updated_at=NOW(),
-             resume_checkpoint=$22, resume_status_observed_at=$23,
-             resume_deadline=$24, resumable=$25, resume_count=$26
-             WHERE id=$1
-             RETURNING *",
-        )
-        .bind(id)
-        .bind(state.status.as_str())
-        .bind(state.publication_disposition.as_str())
-        .bind(state.engine_ack_state.as_str())
-        .bind(state.lifecycle_generation)
-        .bind(state.retryable)
-        .bind(state.resume_intent_generation)
-        .bind(summary.documents_expected)
-        .bind(summary.documents_imported)
-        .bind(summary.documents_rejected)
-        .bind(summary.settings_applied)
-        .bind(summary.settings_unsupported)
-        .bind(summary.synonyms_expected)
-        .bind(summary.synonyms_imported)
-        .bind(summary.synonyms_rejected)
-        .bind(summary.rules_expected)
-        .bind(summary.rules_imported)
-        .bind(summary.rules_rejected)
-        .bind(&state.warnings)
-        .bind(state.error_code.map(AlgoliaImportErrorCode::as_str))
-        .bind(&state.error_message)
-        .bind(resume_checkpoint)
-        .bind(resume_status_observed_at)
-        .bind(resume_deadline)
-        .bind(state.resumable)
-        .bind(state.resume_count)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(repo_error)
-        .map(AlgoliaImportJob::from)?;
+        validate_state_write(&current, &state)?;
+        let updated = persist_job_state(&mut tx, id, &state, false).await?;
         tx.commit().await.map_err(repo_error)?;
         Ok(updated)
     }
@@ -493,66 +471,22 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
         id: Uuid,
         engine_job_id: Uuid,
     ) -> Result<AlgoliaImportJob, RepoError> {
-        let mut tx = self.pool.begin().await.map_err(repo_error)?;
-        let current = self.lock_generation_fenced_target_job(&mut tx, id).await?;
+        self.record_dispatch_intent_committed_inner(id, engine_job_id)
+            .await
+    }
 
-        sqlx::query(
-            "SELECT 1 FROM algolia_import_environment_contract
-             WHERE singleton = TRUE
-             FOR UPDATE",
-        )
-        .execute(&mut *tx)
-        .await
-        .map_err(repo_error)?;
+    async fn acquire_dispatch_guard(
+        &self,
+        id: Uuid,
+    ) -> Result<AlgoliaImportDispatchGuard, RepoError> {
+        self.acquire_dispatch_guard_inner(id).await
+    }
 
-        if current.dispatch_intent_state == AlgoliaImportDispatchIntentState::Committed {
-            if current.engine_job_id == Some(engine_job_id) {
-                tx.commit().await.map_err(repo_error)?;
-                return Ok(current);
-            }
-            return Err(RepoError::Conflict(
-                "dispatch intent already committed for a different engine job".into(),
-            ));
-        }
-        if current.dispatch_intent_state != AlgoliaImportDispatchIntentState::Absent
-            || current.engine_job_id.is_some()
-        {
-            return Err(RepoError::Conflict(
-                "dispatch intent cannot be committed from the current job proof".into(),
-            ));
-        }
-        if current
-            .status
-            .is_finally_terminal(current.resumable, current.publication_disposition)
-        {
-            return Err(RepoError::Conflict(
-                "finally terminal Algolia import job cannot record dispatch intent".into(),
-            ));
-        }
-
-        sqlx::query(
-            "UPDATE algolia_import_environment_contract
-             SET rollback_epoch='migration_aware_required'
-             WHERE singleton = TRUE",
-        )
-        .execute(&mut *tx)
-        .await
-        .map_err(repo_error)?;
-
-        let updated = sqlx::query_as::<_, AlgoliaImportJobRow>(
-            "UPDATE algolia_import_jobs
-             SET dispatch_intent_state='committed', engine_job_id=$2, updated_at=NOW()
-             WHERE id=$1
-             RETURNING *",
-        )
-        .bind(id)
-        .bind(engine_job_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(repo_error)
-        .map(AlgoliaImportJob::from)?;
-        tx.commit().await.map_err(repo_error)?;
-        Ok(updated)
+    async fn release_dispatch_guard(
+        &self,
+        guard: AlgoliaImportDispatchGuard,
+    ) -> Result<(), RepoError> {
+        guard.tx.commit().await.map_err(repo_error)
     }
 
     async fn record_no_dispatch_failure(
@@ -569,9 +503,11 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
         let mut tx = self.pool.begin().await.map_err(repo_error)?;
         self.lock_generation_fenced_target_job(&mut tx, id).await?;
         let result = sqlx::query(
-            "UPDATE algolia_import_jobs SET status='failed', dispatch_intent_state='absent',
-             engine_ack_state='not_applicable', error_code=$2, error_message=$3,
-             retryable=FALSE, updated_at=NOW()
+            "UPDATE algolia_import_jobs
+             SET status='failed', publication_disposition='not_started',
+                 dispatch_intent_state='absent', engine_ack_state='not_applicable',
+                 error_code=$2, error_message=$3, retryable=FALSE,
+                 worker_claimed_at=NULL, worker_lease_expires_at=NULL, updated_at=NOW()
              WHERE id=$1 AND dispatch_intent_state='absent' AND engine_job_id IS NULL",
         )
         .bind(id)
@@ -721,6 +657,26 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
         .map_err(repo_error)?;
         deleted.sort_unstable();
         Ok(deleted)
+    }
+
+    async fn claim_reconciliation_jobs(
+        &self,
+        now: DateTime<Utc>,
+        lease_expires_at: DateTime<Utc>,
+        limit: i64,
+    ) -> Result<Vec<AlgoliaImportReconciliationClaim>, RepoError> {
+        self.claim_reconciliation_jobs_inner(now, lease_expires_at, limit)
+            .await
+    }
+
+    async fn record_reconciliation_observation(
+        &self,
+        lease: &AlgoliaImportReconciliationLease,
+        observed_at: DateTime<Utc>,
+        state: AlgoliaImportJobState,
+    ) -> Result<AlgoliaImportReconciliationWriteOutcome, RepoError> {
+        self.record_reconciliation_observation_inner(lease, observed_at, state)
+            .await
     }
 
     async fn claim_elapsed_resume_deadlines(

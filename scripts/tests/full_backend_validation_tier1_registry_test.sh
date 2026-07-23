@@ -17,6 +17,11 @@ RUN_EXIT_CODE=0
 RUN_STDOUT=""
 RUN_STDERR=""
 
+# Single test-local owner for the expected paid-beta registry cardinality. Stage
+# 2 adds the recurring prod data-plane lifecycle row, so the canonical registry
+# grows from 22 to 23; every count assertion below reads this one owner.
+EXPECTED_PAID_BETA_STEP_COUNT=23
+
 json_step_field() {
     local json="$1" step_name="$2" field_name="$3"
     python3 - "$json" "$step_name" "$field_name" <<'PY' 2>/dev/null || echo ""
@@ -146,13 +151,14 @@ test_list_paid_beta_steps_matches_registry_owner() {
     run_orchestrator bash "$ORCH_SCRIPT" --list-paid-beta-steps
     assert_eq "$RUN_EXIT_CODE" "0" "list-paid-beta-steps should exit 0"
     assert_valid_json "$RUN_STDOUT" "list-paid-beta-steps should emit valid JSON"
-    assert_eq "$(json_step_count "$RUN_STDOUT")" "22" "list-paid-beta-steps should expose the complete paid-beta registry"
+    assert_eq "$(json_step_count "$RUN_STDOUT")" "$EXPECTED_PAID_BETA_STEP_COUNT" "list-paid-beta-steps should expose the complete paid-beta registry"
     assert_eq "$(json_step_field "$RUN_STDOUT" "browser_signup_paid" "section")" "1" "browser_signup_paid should map to section 1"
     assert_eq "$(json_step_field "$RUN_STDOUT" "cargo_workspace_tests" "section")" "2" "cargo_workspace_tests should map to section 2"
     assert_eq "$(json_step_field "$RUN_STDOUT" "ses_readiness" "section")" "3" "ses_readiness should map to section 3"
     assert_eq "$(json_step_field "$RUN_STDOUT" "admin_broadcast" "section")" "4" "admin_broadcast should map to section 4"
     assert_eq "$(json_step_field "$RUN_STDOUT" "billing_health_last_activity" "section")" "4" "billing_health_last_activity should map to section 4"
     assert_eq "$(json_step_field "$RUN_STDOUT" "backend_launch_gate" "section")" "6" "backend_launch_gate should map to section 6"
+    assert_eq "$(json_step_field "$RUN_STDOUT" "prod_full_vm_lifecycle" "section")" "6" "prod_full_vm_lifecycle should map to section 6"
 
     listed_names="$(registry_names_csv "$RUN_STDOUT")"
     expected_names="$(owner_registry_names_csv)"
@@ -292,7 +298,7 @@ test_paid_beta_rc_tier1_registry_and_missing_secret_classification() {
 
     assert_valid_json "$RUN_STDOUT" "tier-1 missing-secret path should emit valid JSON"
     assert_tier1_step_names_present "$RUN_STDOUT"
-    assert_eq "$(json_step_count "$RUN_STDOUT")" "22" "paid-beta-rc should include Stage 1 plus Tier-1 registry rows"
+    assert_eq "$(json_step_count "$RUN_STDOUT")" "$EXPECTED_PAID_BETA_STEP_COUNT" "paid-beta-rc should include Stage 1 plus Tier-1 registry rows"
     assert_eq "$(json_step_status "$RUN_STDOUT" "admin_broadcast")" "external_secret_missing" "db-backed admin_broadcast skip marker should map to external_secret_missing"
     assert_eq "$(json_step_status "$RUN_STDOUT" "billing_health_last_activity")" "external_secret_missing" "db-backed billing health skip marker should map to external_secret_missing"
     assert_eq "$(json_step_status "$RUN_STDOUT" "audit_timeline")" "external_secret_missing" "db-backed audit timeline skip marker should map to external_secret_missing"
@@ -469,6 +475,7 @@ test_paid_beta_rc_tier1_live_evidence_gap_and_browser_promotion() {
     credential_env_file="$tmp_dir/credential.env"
     mkdir -p "$tmp_dir/bin"
     cat > "$credential_env_file" <<'EOF'
+API_URL=https://api.prod.flapjack.foo
 SES_FROM_ADDRESS=ops@example.com
 SES_REGION=us-east-1
 FLAPJACK_ADMIN_KEY=admin-test-key
@@ -504,6 +511,12 @@ if [ -n "${MOCK_CANARY_CUSTOMER_LOOP_OUTPUT:-}" ]; then
     printf "%s\n" "$MOCK_CANARY_CUSTOMER_LOOP_OUTPUT"
 fi
 exit "${MOCK_CANARY_CUSTOMER_LOOP_EXIT_CODE:-0}"'
+    write_mock_script "$tmp_dir/mock_full_vm_lifecycle.sh" '
+if [ "$1" != "data-plane" ]; then
+    echo "prod_full_vm_lifecycle must be delegated in data-plane mode" >&2
+    exit 91
+fi
+exit 0'
     write_mock_script "$tmp_dir/bin/npx" 'exit 0'
 
     run_orchestrator env \
@@ -513,6 +526,7 @@ exit "${MOCK_CANARY_CUSTOMER_LOOP_EXIT_CODE:-0}"'
         STRIPE_SECRET_KEY="sk_test_123" \
         STAGING_CLOUD_URL="https://cloud.staging.flapjack.foo" \
         STAGING_API_URL="https://api.staging.flapjack.foo" \
+        FULL_VALIDATION_FULL_VM_LIFECYCLE_SCRIPT="$tmp_dir/mock_full_vm_lifecycle.sh" \
         PATH="$tmp_dir/bin:$PATH" \
         FULL_VALIDATION_CARGO_BIN="$tmp_dir/mock_cargo.sh" \
         FULL_VALIDATION_BACKEND_GATE_SCRIPT="$tmp_dir/mock_backend_gate.sh" \
@@ -538,7 +552,7 @@ exit "${MOCK_CANARY_CUSTOMER_LOOP_EXIT_CODE:-0}"'
     assert_eq "$(json_step_status "$RUN_STDOUT" "browser_portal_cancel")" "pass" "browser_portal_cancel should pass when delegated browser lane succeeds"
     assert_eq "$(json_step_reason "$RUN_STDOUT" "browser_portal_cancel")" "" "browser_portal_cancel should not expose placeholder critical skip reason"
     assert_json_bool_field "$RUN_STDOUT" "ready" "true" "paid-beta-rc should report ready=true when Tier-1 registry proofs pass"
-    assert_eq "$(json_step_count "$RUN_STDOUT")" "22" "paid-beta-rc should preserve Stage 1 plus Tier-1 registry cardinality"
+    assert_eq "$(json_step_count "$RUN_STDOUT")" "$EXPECTED_PAID_BETA_STEP_COUNT" "paid-beta-rc should preserve Stage 1 plus Tier-1 registry cardinality"
     assert_eq "$(json_step_status "$RUN_STDOUT" "canary_outside_aws")" "pass" "canary_outside_aws zero exit should map to pass"
 }
 
@@ -727,6 +741,178 @@ exit "${MOCK_CANARY_CUSTOMER_LOOP_EXIT_CODE:-0}"'
     rm -rf "$tmp_dir"
 }
 
+test_paid_beta_rc_prod_full_vm_lifecycle_invokes_data_plane_owner() {
+    local tmp_dir artifact_dir credential_env_file lifecycle_marker
+    tmp_dir="$(mktemp -d)"
+    artifact_dir="$tmp_dir/artifacts"
+    credential_env_file="$tmp_dir/credential.env"
+    lifecycle_marker="$tmp_dir/lifecycle_invocation.txt"
+    mkdir -p "$tmp_dir/bin" "$artifact_dir"
+
+    cat > "$credential_env_file" <<'EOF'
+API_URL=https://api.prod.flapjack.foo
+ADMIN_KEY=prod-admin-key
+EOF
+
+    # Mock lifecycle owner records the mode arg, the forwarded secret file, and
+    # the per-step evidence directory it was handed, then succeeds.
+    write_mock_script "$tmp_dir/mock_full_vm_lifecycle.sh" '
+{
+    echo "mode=$1"
+    echo "secret_file=${FJCLOUD_SECRET_FILE:-}"
+    echo "evidence_dir=${STAGE5_EVIDENCE_DIR:-}"
+} >> "$LIFECYCLE_INVOCATION_MARKER"
+exit 0'
+
+    run_orchestrator env \
+        LIFECYCLE_INVOCATION_MARKER="$lifecycle_marker" \
+        PATH="$tmp_dir/bin:$PATH" \
+        FULL_VALIDATION_FULL_VM_LIFECYCLE_SCRIPT="$tmp_dir/mock_full_vm_lifecycle.sh" \
+        bash "$ORCH_SCRIPT" --paid-beta-rc --artifact-dir="$artifact_dir" --credential-env-file="$credential_env_file" --sha=aabbccddee00112233445566778899aabbccddee --billing-month=2026-03 --staging-smoke-api-ami-id=ami-12345678 --staging-smoke-flapjack-ami-id=ami-87654321 --only-steps=prod_full_vm_lifecycle
+
+    assert_eq "$RUN_EXIT_CODE" "0" "prod_full_vm_lifecycle should pass when the delegated data-plane owner succeeds"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "prod_full_vm_lifecycle")" "pass" "prod_full_vm_lifecycle should report pass on delegated success"
+    local marker_contents
+    marker_contents="$(cat "$lifecycle_marker" 2>/dev/null || true)"
+    assert_contains "$marker_contents" "mode=data-plane" "prod_full_vm_lifecycle must invoke the lifecycle owner in data-plane mode"
+    assert_contains "$marker_contents" "secret_file=$credential_env_file" "prod_full_vm_lifecycle must forward the credential env file as FJCLOUD_SECRET_FILE"
+    assert_contains "$marker_contents" "evidence_dir=$artifact_dir/prod_full_vm_lifecycle" "prod_full_vm_lifecycle must place evidence under a per-step RC artifact directory"
+    assert_file_exists "$artifact_dir/prod_full_vm_lifecycle.log" "prod_full_vm_lifecycle should keep using the coordinator per-step log writer"
+
+    rm -rf "$tmp_dir"
+}
+
+test_paid_beta_rc_prod_full_vm_lifecycle_missing_credential_is_external_secret_missing() {
+    local tmp_dir artifact_dir lifecycle_marker
+    tmp_dir="$(mktemp -d)"
+    artifact_dir="$tmp_dir/artifacts"
+    lifecycle_marker="$tmp_dir/lifecycle_invocation.txt"
+    mkdir -p "$artifact_dir"
+
+    write_mock_script "$tmp_dir/mock_full_vm_lifecycle.sh" 'echo "invoked" >> "$LIFECYCLE_INVOCATION_MARKER"; exit 0'
+
+    # No --credential-env-file: a prod-mutating row must classify as
+    # external_secret_missing rather than attempting the live lifecycle owner.
+    run_orchestrator env \
+        LIFECYCLE_INVOCATION_MARKER="$lifecycle_marker" \
+        FULL_VALIDATION_FULL_VM_LIFECYCLE_SCRIPT="$tmp_dir/mock_full_vm_lifecycle.sh" \
+        bash "$ORCH_SCRIPT" --paid-beta-rc --artifact-dir="$artifact_dir" --sha=aabbccddee00112233445566778899aabbccddee --billing-month=2026-03 --staging-smoke-api-ami-id=ami-12345678 --staging-smoke-flapjack-ami-id=ami-87654321 --only-steps=prod_full_vm_lifecycle
+
+    assert_eq "$(json_step_status "$RUN_STDOUT" "prod_full_vm_lifecycle")" "external_secret_missing" "missing credential env file must classify prod_full_vm_lifecycle as external_secret_missing"
+    assert_eq "$(cat "$lifecycle_marker" 2>/dev/null || true)" "" "missing credential env file must not invoke the live lifecycle owner"
+
+    rm -rf "$tmp_dir"
+}
+
+test_paid_beta_rc_prod_full_vm_lifecycle_malformed_credential_is_external_secret_missing() {
+    local tmp_dir artifact_dir credential_env_file lifecycle_marker
+    tmp_dir="$(mktemp -d)"
+    artifact_dir="$tmp_dir/artifacts"
+    credential_env_file="$tmp_dir/credential.env"
+    lifecycle_marker="$tmp_dir/lifecycle_invocation.txt"
+    mkdir -p "$artifact_dir"
+
+    cat > "$credential_env_file" <<'EOF'
+API_URL=https://api.prod.flapjack.foo
+BROKEN LINE
+ADMIN_KEY=prod-admin-key
+EOF
+
+    write_mock_script "$tmp_dir/mock_full_vm_lifecycle.sh" 'echo "invoked" >> "$LIFECYCLE_INVOCATION_MARKER"; exit 0'
+
+    run_orchestrator env \
+        LIFECYCLE_INVOCATION_MARKER="$lifecycle_marker" \
+        FULL_VALIDATION_FULL_VM_LIFECYCLE_SCRIPT="$tmp_dir/mock_full_vm_lifecycle.sh" \
+        bash "$ORCH_SCRIPT" --paid-beta-rc --artifact-dir="$artifact_dir" --credential-env-file="$credential_env_file" --sha=aabbccddee00112233445566778899aabbccddee --billing-month=2026-03 --staging-smoke-api-ami-id=ami-12345678 --staging-smoke-flapjack-ami-id=ami-87654321 --only-steps=prod_full_vm_lifecycle
+
+    assert_eq "$(json_step_status "$RUN_STDOUT" "prod_full_vm_lifecycle")" "external_secret_missing" "malformed credential env file must classify prod_full_vm_lifecycle as external_secret_missing"
+    assert_eq "$(json_step_reason "$RUN_STDOUT" "prod_full_vm_lifecycle")" "credentialed_prod_full_vm_lifecycle_env_file_parse_failed" "malformed credential env file must record the parse-failed reason"
+    assert_eq "$(cat "$lifecycle_marker" 2>/dev/null || true)" "" "malformed credential env file must not invoke the live lifecycle owner"
+
+    rm -rf "$tmp_dir"
+}
+
+test_paid_beta_rc_prod_full_vm_lifecycle_missing_admin_key_is_external_secret_missing() {
+    local tmp_dir artifact_dir credential_env_file lifecycle_marker
+    tmp_dir="$(mktemp -d)"
+    artifact_dir="$tmp_dir/artifacts"
+    credential_env_file="$tmp_dir/credential.env"
+    lifecycle_marker="$tmp_dir/lifecycle_invocation.txt"
+    mkdir -p "$artifact_dir"
+
+    cat > "$credential_env_file" <<'EOF'
+API_URL=https://api.prod.flapjack.foo
+EOF
+
+    write_mock_script "$tmp_dir/mock_full_vm_lifecycle.sh" 'echo "invoked" >> "$LIFECYCLE_INVOCATION_MARKER"; exit 0'
+
+    run_orchestrator env \
+        LIFECYCLE_INVOCATION_MARKER="$lifecycle_marker" \
+        FULL_VALIDATION_FULL_VM_LIFECYCLE_SCRIPT="$tmp_dir/mock_full_vm_lifecycle.sh" \
+        bash "$ORCH_SCRIPT" --paid-beta-rc --artifact-dir="$artifact_dir" --credential-env-file="$credential_env_file" --sha=aabbccddee00112233445566778899aabbccddee --billing-month=2026-03 --staging-smoke-api-ami-id=ami-12345678 --staging-smoke-flapjack-ami-id=ami-87654321 --only-steps=prod_full_vm_lifecycle
+
+    assert_eq "$(json_step_status "$RUN_STDOUT" "prod_full_vm_lifecycle")" "external_secret_missing" "credential env file missing admin credentials must classify prod_full_vm_lifecycle as external_secret_missing"
+    assert_eq "$(json_step_reason "$RUN_STDOUT" "prod_full_vm_lifecycle")" "credentialed_prod_full_vm_lifecycle_admin_key_missing" "credential env file missing admin credentials must record the missing-admin reason"
+    assert_eq "$(cat "$lifecycle_marker" 2>/dev/null || true)" "" "credential env file missing admin credentials must not invoke the live lifecycle owner"
+
+    rm -rf "$tmp_dir"
+}
+
+test_paid_beta_rc_prod_full_vm_lifecycle_accepts_flapjack_admin_key_fallback() {
+    local tmp_dir artifact_dir credential_env_file lifecycle_marker
+    tmp_dir="$(mktemp -d)"
+    artifact_dir="$tmp_dir/artifacts"
+    credential_env_file="$tmp_dir/credential.env"
+    lifecycle_marker="$tmp_dir/lifecycle_invocation.txt"
+    mkdir -p "$artifact_dir"
+
+    cat > "$credential_env_file" <<'EOF'
+API_URL=https://api.prod.flapjack.foo
+FLAPJACK_ADMIN_KEY=prod-admin-key
+EOF
+
+    write_mock_script "$tmp_dir/mock_full_vm_lifecycle.sh" '
+{
+    echo "mode=$1"
+    echo "secret_file=${FJCLOUD_SECRET_FILE:-}"
+} >> "$LIFECYCLE_INVOCATION_MARKER"
+exit 0'
+
+    run_orchestrator env \
+        LIFECYCLE_INVOCATION_MARKER="$lifecycle_marker" \
+        FULL_VALIDATION_FULL_VM_LIFECYCLE_SCRIPT="$tmp_dir/mock_full_vm_lifecycle.sh" \
+        bash "$ORCH_SCRIPT" --paid-beta-rc --artifact-dir="$artifact_dir" --credential-env-file="$credential_env_file" --sha=aabbccddee00112233445566778899aabbccddee --billing-month=2026-03 --staging-smoke-api-ami-id=ami-12345678 --staging-smoke-flapjack-ami-id=ami-87654321 --only-steps=prod_full_vm_lifecycle
+
+    assert_eq "$RUN_EXIT_CODE" "0" "FLAPJACK_ADMIN_KEY fallback should let prod_full_vm_lifecycle run"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "prod_full_vm_lifecycle")" "pass" "FLAPJACK_ADMIN_KEY fallback should satisfy prod_full_vm_lifecycle admin credential requirements"
+    assert_contains "$(cat "$lifecycle_marker" 2>/dev/null || true)" "mode=data-plane" "FLAPJACK_ADMIN_KEY fallback should still invoke the lifecycle owner in data-plane mode"
+
+    rm -rf "$tmp_dir"
+}
+
+test_paid_beta_rc_prod_full_vm_lifecycle_staging_only_skips_without_invocation() {
+    local tmp_dir artifact_dir lifecycle_marker
+    tmp_dir="$(mktemp -d)"
+    artifact_dir="$tmp_dir/artifacts"
+    lifecycle_marker="$tmp_dir/lifecycle_invocation.txt"
+    mkdir -p "$artifact_dir"
+
+    # A staging-only RC must never touch the prod data plane: the lifecycle owner
+    # must not be invoked and the row records the production-surface skip reason.
+    write_mock_script "$tmp_dir/mock_full_vm_lifecycle.sh" 'echo "invoked" >> "$LIFECYCLE_INVOCATION_MARKER"; exit 0'
+
+    run_orchestrator env \
+        LIFECYCLE_INVOCATION_MARKER="$lifecycle_marker" \
+        FULL_VALIDATION_FULL_VM_LIFECYCLE_SCRIPT="$tmp_dir/mock_full_vm_lifecycle.sh" \
+        bash "$ORCH_SCRIPT" --paid-beta-rc --staging-only --artifact-dir="$artifact_dir" --sha=aabbccddee00112233445566778899aabbccddee --billing-month=2026-03 --staging-smoke-api-ami-id=ami-12345678 --staging-smoke-flapjack-ami-id=ami-87654321 --only-steps=prod_full_vm_lifecycle
+
+    assert_eq "$(json_step_status "$RUN_STDOUT" "prod_full_vm_lifecycle")" "skipped" "staging-only prod_full_vm_lifecycle must be skipped"
+    assert_eq "$(json_step_reason "$RUN_STDOUT" "prod_full_vm_lifecycle")" "staging_only_production_surface" "staging-only prod_full_vm_lifecycle must record the production-surface skip reason"
+    assert_eq "$(cat "$lifecycle_marker" 2>/dev/null || true)" "" "staging-only mode must not invoke the prod lifecycle owner"
+
+    rm -rf "$tmp_dir"
+}
+
 echo "=== full backend validation tier1 registry tests ==="
 test_list_paid_beta_steps_matches_registry_owner
 test_paid_beta_rc_rust_steps_target_integration_binary
@@ -738,4 +924,10 @@ test_paid_beta_rc_browser_auth_setup_fails_closed_without_staging_targets
 test_paid_beta_rc_tier1_live_evidence_gap_and_browser_promotion
 test_paid_beta_rc_canary_customer_loop_reads_credential_env_file
 test_paid_beta_rc_delegated_tier1_exit_code_mappings
+test_paid_beta_rc_prod_full_vm_lifecycle_invokes_data_plane_owner
+test_paid_beta_rc_prod_full_vm_lifecycle_missing_credential_is_external_secret_missing
+test_paid_beta_rc_prod_full_vm_lifecycle_malformed_credential_is_external_secret_missing
+test_paid_beta_rc_prod_full_vm_lifecycle_missing_admin_key_is_external_secret_missing
+test_paid_beta_rc_prod_full_vm_lifecycle_accepts_flapjack_admin_key_fallback
+test_paid_beta_rc_prod_full_vm_lifecycle_staging_only_skips_without_invocation
 run_test_summary

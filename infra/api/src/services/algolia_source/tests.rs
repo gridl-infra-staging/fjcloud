@@ -478,7 +478,7 @@ fn sized_item(name: &str, entries: u64, data_size: u64, file_size: u64) -> Algol
 fn inspect_request(source_name: &str) -> AlgoliaSourceInspectRequest {
     AlgoliaSourceInspectRequest {
         app_id: APP_ID.to_string(),
-        api_key: API_KEY.to_string(),
+        api_key: Zeroizing::new(API_KEY.to_string()),
         source_name: source_name.to_string(),
     }
 }
@@ -627,7 +627,7 @@ async fn algolia_cloud_job_inspect_source_maps_credential_and_acl_failures() {
         service(empty_key)
             .inspect_source(AlgoliaSourceInspectRequest {
                 app_id: APP_ID.to_string(),
-                api_key: String::new(),
+                api_key: Zeroizing::new(String::new()),
                 source_name: "products".to_string(),
             })
             .await
@@ -779,7 +779,7 @@ async fn algolia_cloud_job_inspect_source_request_and_result_never_reveal_key() 
     let secret = "do-not-log-this-temporary-key";
     let request = AlgoliaSourceInspectRequest {
         app_id: "TESTAPP123".to_string(),
-        api_key: secret.to_string(),
+        api_key: Zeroizing::new(secret.to_string()),
         source_name: "products".to_string(),
     };
     let debug_request = format!("{request:?}");

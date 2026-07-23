@@ -28,6 +28,7 @@ use crate::repos::VmInventoryRepo;
 use crate::repos::WebhookEventRepo;
 use crate::routes::public_infrastructure::PublicInfrastructureResponse;
 use crate::services::alerting::AlertService;
+use crate::services::algolia_import::AlgoliaImportService;
 use crate::services::algolia_source::AlgoliaSourceLister;
 use crate::services::discovery::DiscoveryService;
 use crate::services::email::EmailService;
@@ -238,6 +239,7 @@ pub struct AppState {
     pub email_service: Arc<dyn EmailService>,
     pub dunning_emails_disabled: bool,
     pub algolia_migration_enabled: bool,
+    pub algolia_import_service: Arc<AlgoliaImportService>,
     pub algolia_source_service: Arc<dyn AlgoliaSourceLister>,
     pub webhook_event_repo: Arc<dyn WebhookEventRepo + Send + Sync>,
     pub object_store: Arc<dyn ObjectStore + Send + Sync>,

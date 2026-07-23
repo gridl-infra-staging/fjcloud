@@ -16,7 +16,7 @@
 
 | Directory | Summary |
 | --- | --- |
-| admin | This directory contains admin API route handlers for infrastructure and billing management, including endpoints for rate cards, customer tokens, deployments, migrations, indexes, and other administrative operations, with audit logging for sensitive actions like impersonation. |
+| admin | — |
 | auth | — |
 | indexes | This directory contains HTTP route handlers for managing search indexes in the fjcloud API, including operations for searching, configuring settings, managing documents, handling replicas, import pipelines, lifecycle management, and customer restore functionality for cold indexes. |
 | migration | The migration directory provides API routes for Algolia index migration operations, including destination eligibility validation, source index discovery, and job management, with centralized error code mapping for migration-related failures. |

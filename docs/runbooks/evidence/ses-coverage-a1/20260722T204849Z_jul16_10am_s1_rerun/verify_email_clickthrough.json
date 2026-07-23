@@ -1,0 +1,13 @@
+{
+  "probe_id": "verify_email_clickthrough",
+  "detect_kind": "terminus_email_verified",
+  "log_path": "/private/tmp/fjcloud_s1_9d521e1c9e873b777a4833b7de0dade01b49a3a8_20260722T195420Z/docs/runbooks/evidence/ses-coverage-a1/20260722T204849Z_jul16_10am_s1_rerun/verify_email_clickthrough.log",
+  "pass": true,
+  "rc": 0,
+  "parsed_evidence": {
+    "json_object_count": 0,
+    "final_json": null,
+    "terminus_line": "TERMINUS: email_verified=true",
+    "last_nonempty_line": "TERMINUS: email_verified=true"
+  }
+}

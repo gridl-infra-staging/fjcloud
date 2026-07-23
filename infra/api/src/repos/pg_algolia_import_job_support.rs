@@ -6,8 +6,7 @@ use uuid::Uuid;
 use super::PgAlgoliaImportJobRepo;
 use crate::models::algolia_import_job::{
     AlgoliaImportJob, AlgoliaImportJobRow, AlgoliaImportJobState, AlgoliaImportSummary,
-    AlgoliaReplaceTargetFacts, AuthenticatedAlgoliaReplacementTarget, EngineResumeMirror,
-    NewAlgoliaImportJob,
+    AlgoliaReplaceTargetFacts, AuthenticatedAlgoliaReplacementTarget, NewAlgoliaImportJob,
 };
 use crate::repos::algolia_import_job_repo::{
     AlgoliaImportJobAdmissionError, AlgoliaImportResumeDeadlineClaim,
@@ -556,42 +555,41 @@ pub(super) const DEFAULT_ACTIVE_NODE_IMPORT_JOB_LIMIT: i64 = 4;
 pub(super) const DEFAULT_ACTIVE_NODE_TRANSIENT_BYTES_LIMIT: i64 = DEFAULT_STORAGE_LIMIT_BYTES;
 
 pub(super) fn active_reservation_predicate() -> &'static str {
-    "erased_at IS NULL AND (
-       publication_disposition = 'unknown'
-       OR resumable = TRUE
-       OR status NOT IN ('completed', 'completed_with_warnings', 'cancelled', 'failed', 'interrupted')
-       OR engine_ack_state NOT IN ('not_applicable', 'seal_acknowledged', 'acknowledged'))"
+    "erased_at IS NULL AND NOT (
+       resumable = FALSE AND (
+         (
+           engine_ack_state = 'acknowledged'
+           AND dispatch_intent_state <> 'absent'
+           AND engine_job_id IS NOT NULL
+           AND (
+             (status IN ('completed', 'completed_with_warnings')
+              AND publication_disposition = 'promoted')
+             OR (status = 'cancelled' AND publication_disposition = 'unchanged')
+             OR (status = 'failed'
+                 AND publication_disposition IN ('unchanged', 'not_started'))
+             OR (status = 'interrupted' AND publication_disposition = 'unchanged')
+           )
+         )
+         OR (
+           engine_ack_state = 'not_applicable'
+           AND status = 'failed'
+           AND publication_disposition = 'not_started'
+           AND dispatch_intent_state = 'absent'
+           AND engine_job_id IS NULL
+         )
+         OR (
+           engine_ack_state = 'seal_acknowledged'
+           AND status = 'interrupted'
+           AND publication_disposition = 'not_started'
+           AND dispatch_intent_state <> 'absent'
+           AND engine_job_id IS NULL
+         )
+       )
+     )"
 }
 
 pub(super) fn state_from_job(job: &AlgoliaImportJob) -> Result<AlgoliaImportJobState, RepoError> {
-    let resume_mirror = match (
-        job.resume_checkpoint.clone(),
-        job.resume_status_observed_at,
-        job.resume_deadline,
-    ) {
-        (Some(checkpoint), Some(observed_at), Some(deadline)) => Some(
-            EngineResumeMirror::new(checkpoint, observed_at, deadline)
-                .map_err(|message| RepoError::Conflict(message.into()))?,
-        ),
-        _ => None,
-    };
-    Ok(AlgoliaImportJobState {
-        status: job.status,
-        publication_disposition: job.publication_disposition,
-        engine_ack_state: job.engine_ack_state,
-        dispatch_intent_state: job.dispatch_intent_state,
-        engine_job_id: job.engine_job_id,
-        lifecycle_generation: job.lifecycle_generation,
-        retryable: job.retryable,
-        resume_intent_generation: job.resume_intent_generation,
-        resume_mirror,
-        resumable: job.resumable,
-        resume_count: job.resume_count,
-        summary: job.summary.clone(),
-        warnings: job.warnings.clone(),
-        error_code: job.error_code,
-        error_message: job.error_message.clone(),
-    })
+    AlgoliaImportJobState::try_from(job).map_err(|message| RepoError::Conflict(message.into()))
 }
 
 pub(super) fn validate_transition(

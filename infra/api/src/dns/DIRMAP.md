@@ -3,5 +3,5 @@
 
 | File | Summary |
 | --- | --- |
-| cloudflare.rs | Stub summary for cloudflare.rs. |
+| cloudflare.rs | Stub summary for infra/api/src/dns/cloudflare.rs. |
 <!-- [scrai:end] -->

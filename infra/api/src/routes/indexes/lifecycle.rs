@@ -1,7 +1,9 @@
 use super::algolia_import_engine::ensure_algolia_import_engine_compatible;
 use super::shared_vm::{create_index_on_shared_vm, reserve_shared_vm_destination};
 use super::*;
-use crate::models::algolia_import_job::AlgoliaImportDestinationKind;
+use crate::models::algolia_import_job::{
+    AlgoliaImportCreatePlacement, AlgoliaImportDestinationKind,
+};
 use crate::models::{AlgoliaImportJob, NewAlgoliaImportJob};
 use crate::repos::{
     AlgoliaImportJobAdmissionError, AlgoliaImportJobRepo, PgAlgoliaImportJobRepo, RepoError,
@@ -111,10 +113,28 @@ pub async fn create_algolia_import_job(
         .into());
     }
 
-    let destination = admit_new_index_destination(state, customer_id, &logical_target, &region)
+    let prepared =
+        prepare_algolia_create_target(state, customer_id, &logical_target, &region).await?;
+    let admitted_job = job
+        .with_create_placement(prepared.vm_id, prepared.physical_uid)
+        .map_err(|message| ApiError::BadRequest(message.into()))?;
+
+    PgAlgoliaImportJobRepo::new(state.pool.clone())
+        .create(admitted_job)
+        .await
+        .map_err(Into::into)
+}
+
+pub(crate) async fn prepare_algolia_create_target(
+    state: &AppState,
+    customer_id: Uuid,
+    logical_target: &str,
+    region: &str,
+) -> Result<AlgoliaImportCreatePlacement, AlgoliaCreateAdmissionError> {
+    let destination = admit_new_index_destination(state, customer_id, logical_target, region)
         .await
         .map_err(map_algolia_admission_error)?;
-    if state.region_config.provider_for_region(&region) != Some("aws") {
+    if state.region_config.provider_for_region(region) != Some("aws") {
         return Err(ApiError::BadRequest(
             crate::models::AlgoliaImportErrorCode::MigrationProviderUnsupported
                 .as_str()
@@ -124,14 +144,10 @@ pub async fn create_algolia_import_job(
     }
     let selected_vm = reserve_shared_vm_destination(state, &destination).await?;
     ensure_algolia_import_engine_compatible(state, selected_vm.flapjack_url()).await?;
-    let admitted_job = job
-        .with_create_placement(selected_vm.vm_id(), destination.flapjack_uid())
-        .map_err(|message| ApiError::BadRequest(message.into()))?;
-
-    PgAlgoliaImportJobRepo::new(state.pool.clone())
-        .create(admitted_job)
-        .await
-        .map_err(Into::into)
+    Ok(AlgoliaImportCreatePlacement {
+        vm_id: selected_vm.vm_id(),
+        physical_uid: destination.flapjack_uid(),
+    })
 }
 
 fn map_algolia_admission_error(error: IndexAdmissionError) -> ApiError {

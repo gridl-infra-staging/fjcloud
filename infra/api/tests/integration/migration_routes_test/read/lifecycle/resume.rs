@@ -317,7 +317,7 @@ async fn algolia_cloud_job_resume_validates_server_owned_source_before_mutation(
     assert_eq!(requests.len(), 1);
     assert_eq!(requests[0].app_id, "SERVERAPP123");
     assert_eq!(requests[0].source_name, "server_source");
-    assert_eq!(requests[0].api_key, "fresh-submitted-key");
+    assert_eq!(requests[0].api_key.as_str(), "fresh-submitted-key");
     let persisted: (String, i64, Option<String>) = sqlx::query_as(
         "SELECT status, resume_intent_generation, resume_checkpoint
          FROM algolia_import_jobs WHERE id = $1",
@@ -454,7 +454,7 @@ fn algolia_cloud_job_resume_source_inspection_tracing_redacts_api_key() {
             let error = service
                 .inspect_source(AlgoliaSourceInspectRequest {
                     app_id: "SERVERAPP123".to_string(),
-                    api_key: submitted_key.to_string(),
+                    api_key: zeroize::Zeroizing::new(submitted_key.to_string()),
                     source_name: "server_source".to_string(),
                 })
                 .await
@@ -664,7 +664,7 @@ async fn algolia_cloud_job_resume_exposure_disabled_returns_retryable_503_but_ca
     };
     let source_service = FakeAlgoliaSourceLister::with_inspect([]);
     let (app, jwt, customer_id) =
-        setup_algolia_cloud_job_lifecycle_app(db.pool.clone(), false, source_service).await;
+        setup_algolia_cloud_job_lifecycle_app(db.pool.clone(), false, source_service.clone()).await;
     let resumable_id = seed_resumable_retained_job(
         &db.pool,
         customer_id,
@@ -700,6 +700,7 @@ async fn algolia_cloud_job_resume_exposure_disabled_returns_retryable_503_but_ca
         resume_body["code"],
         AlgoliaImportErrorCode::BackendUnavailable.as_str()
     );
+    assert!(source_service.inspect_requests().is_empty());
 
     let (cancel_status, _headers, cancel_body) = post_job_action(
         &app,
@@ -710,4 +711,6 @@ async fn algolia_cloud_job_resume_exposure_disabled_returns_retryable_503_but_ca
     .await;
     assert_eq!(cancel_status, StatusCode::ACCEPTED);
     assert_eq!(cancel_body["status"], "cancelling");
+    assert_eq!(cancel_body["resumable"], false);
+    assert!(source_service.inspect_requests().is_empty());
 }

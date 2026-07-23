@@ -6,11 +6,11 @@
 
 | Directory | Summary |
 | --- | --- |
-| build | The build directory contains verification tooling for fjcloud release binaries, specifically Stage 1 validation that confirms four fjcloud-owned staged release binaries are properly built as AL2023-glibc arm64 ELF objects with correct build provenance tracing back to the local source archive. |
-| garage | The garage directory contains shell scripts for deploying and managing a Garage object storage cluster, including installation with binary verification, cluster initialization with credential setup, and health monitoring for admin and S3 endpoints. |
+| build | The build directory contains verification scripts for fjcloud's staged release binaries, specifically checking that they are properly formatted AL2023-glibc arm64 ELF objects with correct build provenance. |
+| garage | The garage directory contains operational utilities for managing Garage object storage, including installation scripts with integrity verification and systemd integration, cluster initialization tooling, and health monitoring probes for admin and S3 API endpoints. |
 | packer | — |
-| runbooks | This runbooks directory contains operational procedures for the fjcloud platform, including a restore script for recovering the customer-facing site after the 2026-05-03 maintenance takedown that followed the v1.0.0 launch review. |
-| scripts | The scripts directory contains deployment and operational automation utilities for fjcloud infrastructure, including zero-downtime deploys, database migrations, RDS restore procedures, AWS bootstrap validation, and live system maintenance tasks like TTL cleanup and Algolia migration toggles. |
-| terraform | This directory contains infrastructure automation scripts, TDD contract tests, and validation tooling for the platform's deployment pipeline, including AWS bootstrapping, database recovery, secret auditing, and Lambda canary image publishing. |
-| user-data | Idempotent VM bootstrap script baked into the fjcloud AMI that reads instance metadata and secrets from AWS Parameter Store to configure environment files and start services. |
+| runbooks | This runbooks directory contains operational procedures for the fjcloud project, including a site_takedown_20260503 subdirectory with a restore.sh script to reverse customer-facing changes made during a May 3, 2026 takedown that followed the v1.0.0 launch review. |
+| scripts | The scripts directory contains deployment and operational automation for fjcloud, including zero-downtime deploy/rollback via SSM, database migration runners, AWS bootstrap validation and provisioning, RDS restore rehearsal, and various cleanup and maintenance operations. |
+| terraform | This directory contains Terraform deployment automation and ops scripts for infrastructure provisioning, validation, and management, along with an extensive suite of TDD-style static contract and unit tests that validate bootstrap operations, deployment/migration/rollback procedures, AWS resource management, secret hygiene, and monitoring prerequisites without requiring live infrastructure. |
+| user-data | A VM bootstrap script that reads instance metadata and secrets from AWS, configures environment, and starts services—baked into the AMI and idempotent for safe re-runs. |
 <!-- [scrai:end] -->

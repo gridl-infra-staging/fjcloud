@@ -487,6 +487,49 @@ exit 0
         "migration failure should emit migration_failed reason code"
 }
 
+test_up_preserve_db_skips_internal_teardown_drop() {
+    # FJCLOUD_INTEGRATION_PRESERVE_DB=1 must reach the internal integration-down
+    # call so a restart keeps retained job state instead of dropping the database.
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    setup_startup_mocks "$tmp_dir"
+    local pid_dir="$tmp_dir/pids"
+    mkdir -p "$pid_dir/flapjack-data"
+    printf 'retained-engine-job\n' > "$pid_dir/flapjack-data/job-state"
+    write_mock_script "$tmp_dir/psql" '
+printf "%s\n" "$*" >> "'"$tmp_dir"'/psql.log"
+if [[ "$*" == *"SELECT 1 FROM pg_database"* ]]; then
+    echo "1"
+    exit 0
+fi
+exit 0
+'
+
+    local exit_code=0
+    (
+        PATH="$tmp_dir:/usr/bin:/bin" \
+        FLAPJACK_DEV_DIR="/nonexistent" \
+        FJCLOUD_INTEGRATION_PRESERVE_DB=1 \
+        FJCLOUD_INTEGRATION_PID_DIR="$pid_dir" \
+        bash "$REPO_ROOT/scripts/integration-up.sh" >/dev/null 2>&1
+    ) || exit_code=$?
+
+    local psql_calls
+    psql_calls="$(cat "$tmp_dir/psql.log" 2>/dev/null || true)"
+    local runtime_state_preserved=false
+    [ -f "$pid_dir/flapjack-data/job-state" ] && runtime_state_preserved=true
+    cleanup_startup_mocks "$tmp_dir"
+
+    assert_eq "$exit_code" "0" "preserve-mode startup should succeed"
+    assert_not_contains "$psql_calls" "DROP DATABASE" \
+        "preserve-mode startup must not drop the database through its internal teardown"
+    if [ "$runtime_state_preserved" = true ]; then
+        pass "preserve-mode startup keeps flapjack runtime data through internal teardown"
+    else
+        fail "preserve-mode startup should keep flapjack runtime data through internal teardown"
+    fi
+}
+
 test_up_exports_database_url() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"
@@ -653,6 +696,7 @@ test_up_prints_shared_source_provenance_for_selected_checkout() {
 
     local checkout="$tmp_dir/flapjack_dev"
     local cargo_log="$tmp_dir/cargo.log"
+    local api_env_log="$tmp_dir/api_env.log"
     mkdir -p "$checkout/engine/flapjack-server/src"
     printf '[workspace]\nmembers = ["flapjack-server"]\n' > "$checkout/engine/Cargo.toml"
     printf 'fn main() {}\n' > "$checkout/engine/flapjack-server/src/main.rs"
@@ -663,14 +707,31 @@ case "$*" in
         api_bin="$(pwd)/target/debug/fjcloud-api"
         metering_bin="$(pwd)/target/debug/fj-metering-agent"
         mkdir -p "$(dirname "$api_bin")"
-        printf "#!/usr/bin/env bash\nexit 0\n" > "$api_bin"
+        cat > "$api_bin" <<'\''MOCK_API'\''
+#!/usr/bin/env bash
+if [ -n "${INTEGRATION_UP_API_ENV_LOG:-}" ]; then
+    {
+        echo "FJCLOUD_FLAPJACK_REQUIRED_REVISION=${FJCLOUD_FLAPJACK_REQUIRED_REVISION:-}"
+        echo "FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID=${FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID:-}"
+        echo "FJCLOUD_FLAPJACK_REQUIRED_SHA256=${FJCLOUD_FLAPJACK_REQUIRED_SHA256:-}"
+    } >> "$INTEGRATION_UP_API_ENV_LOG"
+fi
+exit 0
+MOCK_API
         chmod +x "$api_bin"
         printf "#!/usr/bin/env bash\nexit 0\n" > "$metering_bin"
         chmod +x "$metering_bin"
         ;;
     "build -p flapjack-server")
         mkdir -p target/debug
-        printf "#!/usr/bin/env bash\nexit 0\n" > target/debug/flapjack
+        cat > target/debug/flapjack <<'\''MOCK_FLAPJACK'\''
+#!/usr/bin/env bash
+if [ "${1:-}" = "build-info" ] && [ "${2:-}" = "--json" ]; then
+    printf "%s\n" "{\"build\":{\"workspaceDigest\":\"source-digest-1\"}}"
+    exit 0
+fi
+exit 0
+MOCK_FLAPJACK
         chmod +x target/debug/flapjack
         ;;
     *)
@@ -684,8 +745,20 @@ esac
         PATH="$tmp_dir:/usr/bin:/bin" \
         FLAPJACK_DEV_DIR="$checkout" \
         FLAPJACK_SOURCE_RECEIPT_DIR="$tmp_dir/receipts" \
+        INTEGRATION_UP_API_ENV_LOG="$api_env_log" \
         bash "$REPO_ROOT/scripts/integration-up.sh" 2>&1
     ) || exit_code=$?
+
+    local wait_attempt
+    for wait_attempt in 1 2 3 4 5; do
+        [ -s "$api_env_log" ] && break
+        sleep 0.1
+    done
+
+    local env_log
+    env_log="$(cat "$api_env_log" 2>/dev/null || true)"
+    local expected_flapjack_sha
+    expected_flapjack_sha="$(shasum -a 256 "$checkout/engine/target/debug/flapjack" | awk '{print $1}')"
 
     assert_eq "$exit_code" "0" \
         "integration startup should succeed when the selected source checkout builds"
@@ -695,6 +768,12 @@ esac
         "integration startup should surface the helper-owned receipt path"
     assert_contains "$(cat "$cargo_log")" "args=build -p flapjack-server" \
         "integration startup should delegate the Flapjack source build to the helper"
+    assert_contains "$env_log" "FJCLOUD_FLAPJACK_REQUIRED_REVISION=unknown" \
+        "integration startup should pass source revision identity to the API"
+    assert_contains "$env_log" "FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID=source-digest-1" \
+        "integration startup should pass source build identity to the API"
+    assert_contains "$env_log" "FJCLOUD_FLAPJACK_REQUIRED_SHA256=$expected_flapjack_sha" \
+        "integration startup should pass source binary checksum identity to the API"
 }
 
 test_up_port_in_use_emits_reason_code() {
@@ -933,6 +1012,7 @@ main() {
     echo ""
     echo "--- Startup Config Validation ---"
     test_up_exports_database_url
+    test_up_preserve_db_skips_internal_teardown_drop
     test_up_exports_correct_port_in_url
     test_up_api_port_matches_config
     test_summary_redacts_effective_admin_key

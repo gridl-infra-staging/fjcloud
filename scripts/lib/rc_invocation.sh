@@ -26,6 +26,7 @@ RC_STEP_SECTION_ENTRIES=(
     "status_runtime:6"
     "canary_customer_loop:6"
     "canary_outside_aws:6"
+    "prod_full_vm_lifecycle:6"
 )
 
 rc_section_for_step_name() {

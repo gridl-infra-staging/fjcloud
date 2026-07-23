@@ -3,8 +3,8 @@ use uuid::Uuid;
 
 use super::{
     AlgoliaImportDispatchIntentState, AlgoliaImportEngineAckState, AlgoliaImportErrorCode,
-    AlgoliaImportJobStatus, AlgoliaImportPublicationDisposition, AlgoliaImportSummary,
-    EngineResumeMirror,
+    AlgoliaImportJob, AlgoliaImportJobStatus, AlgoliaImportPublicationDisposition,
+    AlgoliaImportSummary, EngineResumeMirror,
 };
 
 #[derive(Debug, Clone)]
@@ -32,7 +32,7 @@ impl AlgoliaImportJobState {
         use AlgoliaImportEngineAckState::{
             Acknowledged, NotApplicable, OutboxPending, Pending, SealAcknowledged,
         };
-        use AlgoliaImportJobStatus::{Cancelled, Failed, Interrupted};
+        use AlgoliaImportJobStatus::{Failed, Interrupted};
         use AlgoliaImportPublicationDisposition::{NotStarted, Unchanged};
 
         if self.dispatch_intent_state == Absent && self.engine_job_id.is_some() {
@@ -40,6 +40,13 @@ impl AlgoliaImportJobState {
         }
         if self.resume_count < 0 {
             return Err("resume count cannot be negative");
+        }
+        if self.status.is_terminal()
+            && !self
+                .status
+                .has_valid_terminal_disposition(self.publication_disposition)
+        {
+            return Err("terminal status has an invalid publication disposition");
         }
         if self.resumable
             && (!matches!(self.status, Failed | Interrupted)
@@ -50,9 +57,6 @@ impl AlgoliaImportJobState {
                 || self.engine_ack_state != Pending)
         {
             return Err("resumable state requires an engine-linked pending failure mirror");
-        }
-        if self.status == Cancelled && self.publication_disposition != Unchanged {
-            return Err("cancelled state requires unchanged publication");
         }
         if self.status == Interrupted {
             if self.error_code != Some(AlgoliaImportErrorCode::Interrupted) {
@@ -134,6 +138,41 @@ impl AlgoliaImportJobState {
             return Ok(());
         }
         Err("undeclared Algolia import job transition")
+    }
+}
+
+impl TryFrom<&AlgoliaImportJob> for AlgoliaImportJobState {
+    type Error = &'static str;
+
+    fn try_from(job: &AlgoliaImportJob) -> Result<Self, Self::Error> {
+        let resume_mirror = match (
+            job.resume_checkpoint.clone(),
+            job.resume_status_observed_at,
+            job.resume_deadline,
+        ) {
+            (None, None, None) => None,
+            (Some(checkpoint), Some(observed_at), Some(deadline)) => {
+                Some(EngineResumeMirror::new(checkpoint, observed_at, deadline)?)
+            }
+            _ => return Err("persisted resume mirror is incomplete"),
+        };
+        Ok(Self {
+            status: job.status,
+            publication_disposition: job.publication_disposition,
+            engine_ack_state: job.engine_ack_state,
+            dispatch_intent_state: job.dispatch_intent_state,
+            engine_job_id: job.engine_job_id,
+            lifecycle_generation: job.lifecycle_generation,
+            retryable: job.retryable,
+            resume_intent_generation: job.resume_intent_generation,
+            resume_mirror,
+            resumable: job.resumable,
+            resume_count: job.resume_count,
+            summary: job.summary.clone(),
+            warnings: job.warnings.clone(),
+            error_code: job.error_code,
+            error_message: job.error_message.clone(),
+        })
     }
 }
 

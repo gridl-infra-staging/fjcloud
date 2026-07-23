@@ -43,6 +43,7 @@ aws-sdk-s3         = { workspace = true }
 aws-sdk-sesv2      = { workspace = true }
 aws-sdk-cloudwatch = { workspace = true }
 base64             = "0.22"
+bytes              = "1"
 urlencoding        = "2.1"
 reqwest            = { workspace = true }
 moka               = { version = "0.12", features = ["sync"] }
@@ -54,11 +55,13 @@ quick-xml          = { workspace = true }
 utoipa             = { version = "5.4", features = ["axum_extras", "chrono", "uuid", "decimal"] }
 utoipa-scalar      = { version = "0.2", features = ["axum"] }
 proptest           = { version = "1", optional = true }
+zeroize            = "1"
 
 [features]
 proptest-tests = ["dep:proptest"]
 
 [dev-dependencies]
+zeroize = "1"
 tokio = { workspace = true, features = ["test-util"] }
 tower = { version = "0.4", features = ["util"] }
 http-body-util = "0.1"

@@ -12,6 +12,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use thiserror::Error;
 use utoipa::ToSchema;
+use zeroize::Zeroizing;
 
 use crate::models::algolia_import_job::{AlgoliaImportSource, AlgoliaImportSourceMetadata};
 
@@ -36,11 +37,14 @@ pub struct AlgoliaClientRequest {
     pub page: u32,
     pub hits_per_page: u32,
     app_id: String,
-    api_key: String,
+    // The temporary Algolia key is carried in a zeroizing owner so every clone
+    // made during retries and per-page fetches is scrubbed from allocator
+    // memory on drop rather than lingering as cleartext.
+    api_key: Zeroizing<String>,
 }
 
 impl AlgoliaClientRequest {
-    fn new(url: reqwest::Url, app_id: String, api_key: String, page: u32) -> Self {
+    fn new(url: reqwest::Url, app_id: String, api_key: Zeroizing<String>, page: u32) -> Self {
         Self {
             url,
             page,
@@ -52,7 +56,12 @@ impl AlgoliaClientRequest {
 
     #[cfg(test)]
     fn for_test(url: reqwest::Url, app_id: &str, api_key: &str, page: u32) -> Self {
-        Self::new(url, app_id.to_string(), api_key.to_string(), page)
+        Self::new(
+            url,
+            app_id.to_string(),
+            Zeroizing::new(api_key.to_string()),
+            page,
+        )
     }
 }
 
@@ -134,7 +143,7 @@ impl AlgoliaSourceClient for ReqwestAlgoliaSourceClient {
             .http
             .get(request.url)
             .header("X-Algolia-Application-Id", request.app_id)
-            .header("X-Algolia-API-Key", request.api_key)
+            .header("X-Algolia-API-Key", request.api_key.as_str())
             .query(&[
                 ("page", request.page.to_string()),
                 ("hitsPerPage", request.hits_per_page.to_string()),
@@ -190,7 +199,10 @@ impl fmt::Debug for AlgoliaSourceListRequest {
 #[derive(Clone)]
 pub struct AlgoliaSourceInspectRequest {
     pub app_id: String,
-    pub api_key: String,
+    // Final temporary key held under zeroizing ownership so admission can hand
+    // it in without minting an ordinary `String` copy, and every retained clone
+    // (including test observers) is scrubbed on drop.
+    pub api_key: Zeroizing<String>,
     pub source_name: String,
 }
 
@@ -358,8 +370,12 @@ impl AlgoliaSourceService {
         let hits_per_page = validated_hits_per_page(request.hits_per_page)?;
         let source_fingerprint = self.source_fingerprint(&request.app_id, &request.api_key);
         let progress = self.decode_progress(request.cursor.as_deref(), &source_fingerprint)?;
-        let mut client_request =
-            AlgoliaClientRequest::new(url, request.app_id, request.api_key, progress.page);
+        let mut client_request = AlgoliaClientRequest::new(
+            url,
+            request.app_id,
+            Zeroizing::new(request.api_key),
+            progress.page,
+        );
         client_request.hits_per_page = hits_per_page;
         let upstream = self.fetch_with_retries(client_request).await?;
         self.build_response(progress, upstream, source_fingerprint)
@@ -496,8 +512,12 @@ impl AlgoliaSourceService {
     ) -> Result<(), AlgoliaSourceError> {
         for action in ["settings", "browse"] {
             let url = algolia_index_action_url(base_url, source_name, action)?;
-            let request =
-                AlgoliaClientRequest::new(url, app_id.to_string(), api_key.to_string(), 0);
+            let request = AlgoliaClientRequest::new(
+                url,
+                app_id.to_string(),
+                Zeroizing::new(api_key.to_string()),
+                0,
+            );
             let response = self.fetch_terminal(request).await?;
             interpret_permission_status(response.status)?;
         }

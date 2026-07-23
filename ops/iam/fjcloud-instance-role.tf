@@ -53,23 +53,16 @@ resource "aws_iam_role_policy" "fjcloud_ssm_read" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = ["ssm:DescribeParameters"]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "ssm:GetParameter",
-          "ssm:GetParametersByPath",
-          "ssm:PutParameter",
-          "ssm:DeleteParameter",
-        ]
-        Resource = "arn:aws:ssm:*:*:parameter/fjcloud/*"
-      },
-    ]
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ssm:GetParameter",
+        "ssm:GetParametersByPath",
+        "ssm:PutParameter",
+        "ssm:DeleteParameter",
+      ]
+      Resource = "arn:aws:ssm:*:*:parameter/fjcloud/*"
+    }]
   })
 }
 

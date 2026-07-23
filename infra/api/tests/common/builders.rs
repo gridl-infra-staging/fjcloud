@@ -12,6 +12,7 @@ use api::repos::InMemoryStorageKeyRepo;
 use api::repos::PgAlgoliaImportJobRepo;
 use api::router::build_router;
 use api::services::alerting::MockAlertService;
+use api::services::algolia_import::AlgoliaImportService;
 use api::services::algolia_source::{
     AlgoliaSourceLister, AlgoliaSourceService, ReqwestAlgoliaSourceClient,
 };
@@ -231,6 +232,7 @@ pub struct TestStateBuilder {
     email_service: Arc<dyn EmailService>,
     dunning_emails_disabled: bool,
     algolia_migration_enabled: bool,
+    algolia_import_service: Option<Arc<AlgoliaImportService>>,
     algolia_source_service: Arc<dyn AlgoliaSourceLister>,
     pool_override: Option<sqlx::PgPool>,
     webhook_event_repo: Arc<MockWebhookEventRepo>,
@@ -292,6 +294,7 @@ impl TestStateBuilder {
             email_service: mock_email_service() as Arc<dyn EmailService>,
             dunning_emails_disabled: false,
             algolia_migration_enabled: false,
+            algolia_import_service: None,
             pool_override: None,
             algolia_source_service: Arc::new(
                 AlgoliaSourceService::new(
@@ -399,6 +402,15 @@ impl TestStateBuilder {
 
     pub fn with_flapjack_proxy(mut self, flapjack_proxy: Arc<FlapjackProxy>) -> Self {
         self.flapjack_proxy = flapjack_proxy;
+        self.algolia_import_service = None;
+        self
+    }
+
+    pub fn with_algolia_import_service(
+        mut self,
+        algolia_import_service: Arc<AlgoliaImportService>,
+    ) -> Self {
+        self.algolia_import_service = Some(algolia_import_service);
         self
     }
 
@@ -599,6 +611,9 @@ impl TestStateBuilder {
             ),
         );
         let pool = self.pool_override.unwrap_or_else(lazy_pool);
+        let algolia_import_service = self
+            .algolia_import_service
+            .unwrap_or_else(|| Arc::new(AlgoliaImportService::new(self.flapjack_proxy.clone())));
 
         AppState {
             pool: pool.clone(),
@@ -622,6 +637,7 @@ impl TestStateBuilder {
             email_service: self.email_service,
             dunning_emails_disabled: self.dunning_emails_disabled,
             algolia_migration_enabled: self.algolia_migration_enabled,
+            algolia_import_service,
             algolia_source_service: self.algolia_source_service,
             webhook_event_repo: self.webhook_event_repo,
             object_store: self.object_store,

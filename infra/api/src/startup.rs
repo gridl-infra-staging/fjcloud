@@ -7,9 +7,12 @@ use unconfigured_stripe::UnconfiguredStripeService;
 use crate::config::Config;
 use crate::dns;
 use crate::provisioner;
-use crate::repos::{PgStorageBucketRepo, PgStorageKeyRepo};
+use crate::repos::{PgAlgoliaImportJobRepo, PgStorageBucketRepo, PgStorageKeyRepo};
 use crate::services::access_tracker::AccessTracker;
 use crate::services::alerting::{AlertService, LogAlertService, WebhookAlertService};
+use crate::services::algolia_import::{
+    AlgoliaImportReconciliationConfig, AlgoliaImportReconciliationRuntime,
+};
 use crate::services::cold_tier::{ColdTierConfig, ColdTierDependencies, ColdTierService};
 use crate::services::health_monitor::HealthMonitor;
 use crate::services::heartbeat::HeartbeatPublisher;
@@ -664,6 +667,26 @@ pub fn spawn_background_tasks(
         ("region failover", region_failover_handle),
         ("cold tier", cold_tier_handle),
     ];
+
+    let algolia_import_reconciliation = AlgoliaImportReconciliationRuntime::new(
+        Arc::new(PgAlgoliaImportJobRepo::new(state.pool.clone())),
+        state.vm_inventory_repo.clone(),
+        state.alert_service.clone(),
+        AlgoliaImportReconciliationConfig::default(),
+    );
+    let algolia_import_reconciliation_handle = {
+        let service = state.algolia_import_service.clone();
+        let rx = shutdown_rx.clone();
+        tokio::spawn(async move {
+            service
+                .run_reconciliation_loop(algolia_import_reconciliation, rx)
+                .await;
+        })
+    };
+    named_handles.push((
+        "Algolia import reconciliation",
+        algolia_import_reconciliation_handle,
+    ));
 
     if startup_env.is_staging_or_production() {
         let cloudwatch_client = aws_sdk_cloudwatch::Client::new(&aws_sdk_config);

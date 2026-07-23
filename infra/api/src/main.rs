@@ -6,6 +6,7 @@ use api::repos::{ColdSnapshotRepo, IndexReplicaRepo, PgAlgoliaImportJobRepo, PgI
 use api::secrets::NodeSecretManager;
 use api::services::access_tracker::AccessTracker;
 use api::services::alerting::AlertService;
+use api::services::algolia_import::AlgoliaImportService;
 use api::services::algolia_source::{AlgoliaSourceService, ReqwestAlgoliaSourceClient};
 use api::services::cold_tier::{FlapjackNodeClient, ReqwestNodeClient};
 use api::services::discovery::DiscoveryService;
@@ -55,6 +56,7 @@ struct WiredServices {
     storage: StorageComponents,
     provisioning_service: Arc<ProvisioningService>,
     flapjack_proxy: Arc<FlapjackProxy>,
+    algolia_import_service: Arc<AlgoliaImportService>,
     index_replica_repo: Arc<dyn IndexReplicaRepo>,
     discovery_service: Arc<DiscoveryService>,
     replica_service: Arc<ReplicaService>,
@@ -195,6 +197,7 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         storage,
         provisioning_service,
         flapjack_proxy,
+        algolia_import_service,
         index_replica_repo,
         discovery_service,
         replica_service,
@@ -254,6 +257,7 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         email_service,
         dunning_emails_disabled: cfg.dunning_emails_disabled,
         algolia_migration_enabled: cfg.algolia_migration_enabled,
+        algolia_import_service,
         algolia_source_service: Arc::new(AlgoliaSourceService::new(
             Arc::new(ReqwestAlgoliaSourceClient::new()?),
             cfg.jwt_secret.as_bytes(),
@@ -613,6 +617,7 @@ async fn wire_control_plane_services(
         alert_service: rt.alert_service,
         storage: rt.storage,
         provisioning_service,
+        algolia_import_service: Arc::new(AlgoliaImportService::new(rt.flapjack_proxy.clone())),
         flapjack_proxy: rt.flapjack_proxy,
         index_replica_repo: rt.index_replica_repo,
         discovery_service: rt.discovery_service,

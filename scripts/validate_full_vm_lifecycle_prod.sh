@@ -43,8 +43,13 @@ CANARY_INDEX_NAME=""
 CANARY_INDEX_CREATED=0
 CANARY_ACCOUNT_DELETED=0
 CANARY_ADMIN_CLEANED=0
+CANARY_CUSTOMER_HARD_ERASED=0
 CANARY_VERIFY_EMAIL_BUCKET=""
 CANARY_VERIFY_EMAIL_MESSAGE_KEY=""
+
+# Single source of truth for the seeded lifecycle document identity. Both the
+# ingest (batch) and the non-vacuous search proof key off this exact objectID.
+CANARY_SEED_DOC_ID="lifecycle-doc-1"
 
 LIFECYCLE_INVOICE_ID=""
 LIFECYCLE_STRIPE_INVOICE_ID=""
@@ -64,12 +69,14 @@ log() {
 
 print_usage() {
     cat <<USAGE
-Usage: validate_full_vm_lifecycle_prod.sh <dry-run|run-a|run-b>
+Usage: validate_full_vm_lifecycle_prod.sh <dry-run|data-plane|run-a|run-b>
 
 Modes:
-  dry-run  Validate deterministic mode dispatch and cleanup plumbing only.
-  run-a    Execute signup/verify + shared-index + admin invoice flow.
-  run-b    Execute run-a plus reusable Stripe payment-method attach and paid-invoice convergence.
+  dry-run     Validate deterministic mode dispatch and cleanup plumbing only.
+  data-plane  Launch-gate-safe prod proof: signup/verify + index create/ingest +
+              exact search assertion, then fail-closed cleanup. No Stripe/billing.
+  run-a       Execute data-plane prefix plus shared-index + admin invoice flow.
+  run-b       Execute run-a plus reusable Stripe payment-method attach and paid-invoice convergence.
 USAGE
 }
 
@@ -80,7 +87,7 @@ parse_cli_args() {
     fi
 
     case "$1" in
-        dry-run|run-a|run-b)
+        dry-run|data-plane|run-a|run-b)
             LIFECYCLE_MODE="$1"
             ;;
         *)
@@ -186,7 +193,7 @@ run_index_create_step() {
 
 run_index_batch_step() {
     capture_json_response tenant_call POST "/indexes/${CANARY_INDEX_NAME}/batch" "$CANARY_TOKEN" \
-        -d "{\"requests\":[{\"action\":\"addObject\",\"body\":{\"objectID\":\"lifecycle-doc-1\",\"title\":\"Lifecycle Probe\",\"body\":\"${CANARY_NONCE}\"}}]}"
+        -d "{\"requests\":[{\"action\":\"addObject\",\"body\":{\"objectID\":\"${CANARY_SEED_DOC_ID}\",\"title\":\"Lifecycle Probe\",\"body\":\"${CANARY_NONCE}\"}}]}"
     if [ "$HTTP_RESPONSE_CODE" != "200" ]; then
         mark_failure "write_document" "batch write returned HTTP ${HTTP_RESPONSE_CODE:-unknown}"
         return 1
@@ -195,8 +202,19 @@ run_index_batch_step() {
     log "index write succeeded (${CANARY_INDEX_NAME})"
 }
 
+# Non-vacuous search proof: the seeded document must be the ONE and ONLY result.
+#
+# A bare hits.length > 0 check is not proof — an unrelated pre-existing document
+# would satisfy it. This step requires the exact seeded objectID with a total
+# denominator of exactly 1 (one matching hit, nbHits == 1).
+#
+# Retry classification, emitted by the Python oracle via exit status:
+#   0 -> match      : exactly one hit, nbHits == 1, objectID == CANARY_SEED_DOC_ID (success)
+#   2 -> stale      : empty/unparseable result — eventual consistency, retry
+#   1 -> mismatch   : non-empty but wrong id or overbroad denominator — definitive failure
 run_index_search_step() {
     local search_ok=0
+    local search_diag="" classify_rc=0
 
     for _ in 1 2 3 4 5; do
         capture_json_response tenant_call POST "/indexes/${CANARY_INDEX_NAME}/search" "$CANARY_TOKEN" \
@@ -206,29 +224,79 @@ run_index_search_step() {
             continue
         fi
 
-        if python3 - "$HTTP_RESPONSE_BODY" <<PY
+        # NOTE: the search oracle is passed via `python3 -c` rather than a
+        # here-doc because a here-doc inside "$( ... )" breaks bash 3.2's parser
+        # (macOS /bin/bash) when the script is sourced by the contract suite.
+        if search_diag="$(python3 -c '
 import json
 import sys
 
-payload = json.loads(sys.argv[1])
+body = sys.argv[1]
+expected_id = sys.argv[2]
+
+try:
+    payload = json.loads(body)
+except (ValueError, TypeError):
+    print("unparseable search body")
+    raise SystemExit(2)
+
+# A valid-JSON body that is not an object (bare list/string/number) is a
+# malformed response, not eventual-consistency staleness: fail definitively
+# with a concrete diagnostic rather than raising an AttributeError on .get,
+# whose traceback would be dropped to stderr and leave an empty failure detail.
+if not isinstance(payload, dict):
+    print("non-object search body (type=%s)" % type(payload).__name__)
+    raise SystemExit(1)
+
 hits = payload.get("hits")
-if isinstance(hits, list) and len(hits) > 0:
+if not isinstance(hits, list):
+    hits = []
+object_ids = [h.get("objectID") for h in hits if isinstance(h, dict)]
+
+# Total-count denominator: prefer the server nbHits, fall back to len(hits).
+total = payload.get("nbHits")
+if not isinstance(total, int):
+    total = len(hits)
+
+# Empty result: seeded document not yet visible -- transient, retry.
+if total == 0 and not object_ids:
+    print("empty result (nbHits=0)")
+    raise SystemExit(2)
+
+# Exact contract: one matching hit, denominator exactly 1, seeded objectID.
+if total == 1 and len(hits) == 1 and object_ids == [expected_id]:
+    print("nbHits=1 objectID=%s" % expected_id)
     raise SystemExit(0)
+
+# Non-empty but wrong id or overbroad count -- definitive, do not retry.
+print("nbHits=%r hits_len=%d object_ids=%s" % (total, len(hits), object_ids))
 raise SystemExit(1)
-PY
-        then
+' "$HTTP_RESPONSE_BODY" "$CANARY_SEED_DOC_ID")"; then
+            classify_rc=0
+        else
+            classify_rc=$?
+        fi
+
+        if [ "$classify_rc" -eq 0 ]; then
             search_ok=1
             break
         fi
+        if [ "$classify_rc" -eq 1 ]; then
+            mark_failure "search_index" \
+                "search returned a non-matching/overbroad result for ${CANARY_SEED_DOC_ID}: ${search_diag}"
+            return 1
+        fi
+        # classify_rc == 2: stale/empty — retry.
         sleep 1
     done
 
     if [ "$search_ok" -ne 1 ]; then
-        mark_failure "search_index" "search did not return hits for nonce ${CANARY_NONCE}"
+        mark_failure "search_index" \
+            "search did not converge to exactly one ${CANARY_SEED_DOC_ID} hit for nonce ${CANARY_NONCE} (last: ${search_diag:-none})"
         return 1
     fi
 
-    log "index search succeeded (${CANARY_INDEX_NAME})"
+    log "index search succeeded (${CANARY_INDEX_NAME}; objectID=${CANARY_SEED_DOC_ID}, nbHits=1)"
 }
 
 run_delete_index_step() {
@@ -276,6 +344,31 @@ run_admin_cleanup_step() {
 
     CANARY_ADMIN_CLEANED=1
     log "admin cleanup completed for tenant ${CANARY_CUSTOMER_ID}"
+}
+
+# Drive the customer surface to a true zero-residue denominator. DELETE /account
+# and DELETE /admin/tenants/:id only SOFT-delete the customer (status=deleted),
+# leaving one audit tombstone row per canary run. This step calls the existing
+# admin hard-erase endpoint (POST /admin/customers/:id/hard-erase) to permanently
+# remove that row so the post-cleanup customer count reaches 0. The endpoint
+# requires the customer to already be soft-deleted, which the preceding cleanup
+# steps guarantee.
+run_hard_erase_customer_step() {
+    if [ -z "$CANARY_CUSTOMER_ID" ] || [ "$CANARY_CUSTOMER_HARD_ERASED" -eq 1 ]; then
+        return 0
+    fi
+
+    capture_json_response admin_call POST "/admin/customers/${CANARY_CUSTOMER_ID}/hard-erase"
+    # 204 = erased; 404 = row already gone (idempotent re-entry). Any other code
+    # (400 not-soft-deleted, 409 open-invoice residue, 5xx) means the row may
+    # still exist — surface it rather than silently leaving residue behind.
+    if [ "$HTTP_RESPONSE_CODE" != "204" ] && [ "$HTTP_RESPONSE_CODE" != "404" ]; then
+        mark_failure "hard_erase_customer" "hard-erase returned HTTP ${HTTP_RESPONSE_CODE:-unknown} for customer ${CANARY_CUSTOMER_ID}"
+        return 1
+    fi
+
+    CANARY_CUSTOMER_HARD_ERASED=1
+    log "customer hard-erase completed for ${CANARY_CUSTOMER_ID} (HTTP ${HTTP_RESPONSE_CODE})"
 }
 
 run_sync_stripe_step() {
@@ -922,6 +1015,13 @@ run_orchestration_flow() {
     run_index_create_step || return 1
     run_index_batch_step || return 1
     run_index_search_step || return 1
+    # Launch-gate-safe mode terminates the flow at the non-vacuous search proof.
+    # It reuses the exact signup/verify/create/ingest/search prefix above and
+    # never enters the parked live-money Stripe/invoice/privacy branches below;
+    # run_live_mode drives the canonical cleanup owner as its pass condition.
+    if [ "$LIFECYCLE_MODE" = "data-plane" ]; then
+        return 0
+    fi
     run_sync_stripe_step || return 1
     if [ "$LIFECYCLE_MODE" = "run-b" ]; then
         run_prepare_run_b_payment_step || return 1
@@ -951,6 +1051,7 @@ cleanup() {
     run_delete_index_step || true
     run_delete_account_step || true
     run_admin_cleanup_step || true
+    run_hard_erase_customer_step || true
 
     capture_stage5_post_cleanup_evidence || true
 }
@@ -965,6 +1066,21 @@ run_live_mode() {
     load_orchestration_env || return 1
     run_orchestration_flow || return 1
     capture_stage5_pre_cleanup_evidence || true
+
+    # Launch-gate-safe mode makes teardown part of its pass condition: a
+    # prod-mutating RC row must not report success while leaving residue. The
+    # canonical cleanup owner swallows individual return codes (|| true) but its
+    # required surfaces (index delete, account/admin cleanup, hard-erase) call
+    # mark_failure on any unexpected result, so running cleanup inline here and
+    # surfacing FLOW_FAILED (checked by main) fails the run on residue. cleanup
+    # sets CLEANUP_RAN=1 and clears the EXIT trap, so the trap stays only as the
+    # failure-path safety net for aborts before this point.
+    if [ "$LIFECYCLE_MODE" = "data-plane" ]; then
+        cleanup
+        if [ "$FLOW_FAILED" -eq 1 ]; then
+            return 1
+        fi
+    fi
 }
 
 main() {

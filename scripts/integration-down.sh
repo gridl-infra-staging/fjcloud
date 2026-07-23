@@ -148,7 +148,12 @@ kill_pid_file "$FLAPJACK_PID" "flapjack" "flapjack"
 # ---------------------------------------------------------------------------
 # 2. Drop test database
 # ---------------------------------------------------------------------------
-if [ "$db_name_valid" != true ]; then
+# FJCLOUD_INTEGRATION_PRESERVE_DB=1 stops the processes but keeps the database so
+# an API/engine restart (integration-up run again with the same flag) can resume
+# against retained job state instead of a freshly-migrated empty schema.
+if [ "${FJCLOUD_INTEGRATION_PRESERVE_DB:-}" = "1" ]; then
+    log "Preserving database $INTEGRATION_DB (FJCLOUD_INTEGRATION_PRESERVE_DB=1)"
+elif [ "$db_name_valid" != true ]; then
     log "ERROR: INTEGRATION_DB must be a safe PostgreSQL identifier: '$INTEGRATION_DB' (skipping database drop)"
 elif ! init_integration_db_access; then
     log "psql or docker compose postgres fallback not available — skipping database drop"
@@ -177,7 +182,11 @@ fi
 # 3. Clean up
 # ---------------------------------------------------------------------------
 rm -f "$PID_DIR"/*.log 2>/dev/null || true
-rm -rf "$PID_DIR/flapjack-data" 2>/dev/null || true
+if [ "${FJCLOUD_INTEGRATION_PRESERVE_DB:-}" = "1" ]; then
+    log "Preserving flapjack runtime data $PID_DIR/flapjack-data (FJCLOUD_INTEGRATION_PRESERVE_DB=1)"
+else
+    rm -rf "$PID_DIR/flapjack-data" 2>/dev/null || true
+fi
 if [ -d "$PID_DIR" ]; then
     rmdir "$PID_DIR" 2>/dev/null || true
 fi

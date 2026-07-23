@@ -8,6 +8,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The src directory houses the SvelteKit frontend codebase, organized into reusable libraries for API communication and billing logic, and server-side routes handling authentication, customer dashboards, and admin functionality. |
-| tests | The tests directory contains end-to-end UI testing infrastructure with Playwright fixtures and helpers for authentication, billing, database lookups, and form interactions, plus VLM screenshot capture utilities for managing visual test specifications. |
+| src | The web frontend source directory containing shared utilities, UI components, and authentication infrastructure alongside SvelteKit route handlers for customer dashboards, administrative operations, OAuth integration, and billing-related API endpoints. |
+| tests | The tests directory contains end-to-end Playwright test infrastructure, including UI helpers for authentication flows, index detail testing, and VLM screenshot capture, alongside TypeScript fixtures that set up test scenarios for billing, payments, and database interactions. |
 <!-- [scrai:end] -->

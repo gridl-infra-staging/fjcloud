@@ -416,6 +416,80 @@ EOF
     )" || RUN_EXIT_CODE=$?
 }
 
+# Drive the real run_index_search_step against a scripted sequence of search
+# responses. $1/$2 are newline-delimited body/code fixtures fed one per call
+# (the final entry repeats for any additional retry attempts), letting a single
+# probe cover steady-state, overbroad, and retry-then-converge scenarios.
+run_index_search_assertion_probe() {
+    local probe_runner
+    probe_runner="$TEST_TMP_DIR/index_search_assertion_probe.sh"
+    cat > "$probe_runner" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+target_script="$1"
+
+source "$target_script"
+
+# bash 3.2-safe line split of the newline-delimited fixtures.
+PROBE_BODIES=()
+while IFS= read -r fixture_line; do PROBE_BODIES+=("$fixture_line"); done <<< "$PROBE_RESP_BODIES"
+PROBE_CODES=()
+while IFS= read -r fixture_line; do PROBE_CODES+=("$fixture_line"); done <<< "$PROBE_RESP_CODES"
+SEARCH_CALLS=0
+
+capture_json_response() {
+    local idx="$SEARCH_CALLS"
+    SEARCH_CALLS=$((SEARCH_CALLS + 1))
+    local body_idx="$idx" code_idx="$idx"
+    if [ "$idx" -ge "${#PROBE_BODIES[@]}" ]; then body_idx=$(( ${#PROBE_BODIES[@]} - 1 )); fi
+    if [ "$idx" -ge "${#PROBE_CODES[@]}" ]; then code_idx=$(( ${#PROBE_CODES[@]} - 1 )); fi
+    HTTP_RESPONSE_BODY="${PROBE_BODIES[$body_idx]}"
+    HTTP_RESPONSE_CODE="${PROBE_CODES[$code_idx]}"
+    return 0
+}
+
+mark_failure() {
+    FLOW_FAILED=1
+    FLOW_FAILURE_STEP="$1"
+    FLOW_FAILURE_DETAIL="$2"
+    return 0
+}
+
+log() { :; }
+sleep() { :; }
+
+CANARY_NONCE="probe-nonce"
+CANARY_TOKEN="probe-token"
+CANARY_INDEX_NAME="lifecycle-probe-nonce"
+FLOW_FAILED=0
+FLOW_FAILURE_STEP=""
+FLOW_FAILURE_DETAIL=""
+
+if run_index_search_step; then
+    echo "rc=0"
+else
+    rc=$?
+    echo "rc=$rc"
+fi
+echo "calls=$SEARCH_CALLS"
+echo "flow_failed=$FLOW_FAILED"
+echo "flow_step=$FLOW_FAILURE_STEP"
+echo "flow_detail=$FLOW_FAILURE_DETAIL"
+EOF
+    chmod +x "$probe_runner"
+    RUN_EXIT_CODE=0
+    RUN_STDOUT="$(
+        env -i \
+            PATH="/usr/bin:/bin:/usr/local/bin" \
+            HOME="$TEST_TMP_DIR" \
+            TMPDIR="$TEST_TMP_DIR" \
+            ORCHESTRATOR_SOURCE_FOR_TEST="1" \
+            PROBE_RESP_BODIES="$1" \
+            PROBE_RESP_CODES="$2" \
+            bash "$probe_runner" "$TARGET_SCRIPT" 2>&1
+    )" || RUN_EXIT_CODE=$?
+}
+
 trace_shows_sourced_top_level_function_dispatch() {
     local trace_output="$1"
     local sourced_script_path="$2"
@@ -769,6 +843,115 @@ test_index_create_retries_transient_504() {
         "CONTRACT[index-create-retry-504]: successful retry must mark CANARY_INDEX_CREATED=1"
     assert_contains "$RUN_STDOUT" "flow_failed=0" \
         "CONTRACT[index-create-retry-504]: transient 504 recovery must not leave FLOW_FAILED set"
+}
+
+test_index_search_rejects_unrelated_hits() {
+    make_test_tmp_dir
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[index-search-non-vacuous]: search must reject unrelated hits — script missing"
+        return
+    fi
+    # HTTP 200 with a non-empty but unrelated hit set. hits.length > 0 alone is
+    # NOT proof the seeded document is searchable; this must fail.
+    run_index_search_assertion_probe \
+        '{"hits":[{"objectID":"some-unrelated-doc"}],"nbHits":1}' \
+        '200'
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "CONTRACT[index-search-non-vacuous]: search assertion probe harness must execute successfully"
+    assert_contains "$RUN_STDOUT" "rc=1" \
+        "CONTRACT[index-search-non-vacuous]: run_index_search_step must fail when the only hit is an unrelated objectID"
+    assert_contains "$RUN_STDOUT" "flow_failed=1" \
+        "CONTRACT[index-search-non-vacuous]: unrelated-hit result must mark FLOW_FAILED"
+    assert_contains "$RUN_STDOUT" "flow_step=search_index" \
+        "CONTRACT[index-search-non-vacuous]: unrelated-hit failure must be attributed to the search_index step"
+    assert_contains "$RUN_STDOUT" "some-unrelated-doc" \
+        "CONTRACT[index-search-non-vacuous]: failure detail must surface the returned object ids for diagnosis"
+}
+
+test_index_search_rejects_overbroad_denominator() {
+    make_test_tmp_dir
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[index-search-exact-denominator]: search must reject overbroad result sets — script missing"
+        return
+    fi
+    # The seeded doc IS present, but the total count is 2 — the index is not a
+    # clean single-document surface, so the proof is overbroad and must fail.
+    run_index_search_assertion_probe \
+        '{"hits":[{"objectID":"lifecycle-doc-1"},{"objectID":"lifecycle-doc-2"}],"nbHits":2}' \
+        '200'
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "CONTRACT[index-search-exact-denominator]: search assertion probe harness must execute successfully"
+    assert_contains "$RUN_STDOUT" "rc=1" \
+        "CONTRACT[index-search-exact-denominator]: run_index_search_step must fail when nbHits is greater than 1"
+    assert_contains "$RUN_STDOUT" "flow_failed=1" \
+        "CONTRACT[index-search-exact-denominator]: overbroad denominator must mark FLOW_FAILED"
+    assert_contains "$RUN_STDOUT" "flow_step=search_index" \
+        "CONTRACT[index-search-exact-denominator]: overbroad denominator failure must be attributed to search_index"
+}
+
+test_index_search_accepts_exact_seeded_document() {
+    make_test_tmp_dir
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[index-search-exact-match]: search must accept the exact seeded document — script missing"
+        return
+    fi
+    # Exactly one hit whose objectID is the seeded document, denominator exactly 1.
+    run_index_search_assertion_probe \
+        '{"hits":[{"objectID":"lifecycle-doc-1"}],"nbHits":1}' \
+        '200'
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "CONTRACT[index-search-exact-match]: search assertion probe harness must execute successfully"
+    assert_contains "$RUN_STDOUT" "rc=0" \
+        "CONTRACT[index-search-exact-match]: run_index_search_step must pass when exactly objectID lifecycle-doc-1 is returned with denominator 1"
+    assert_contains "$RUN_STDOUT" "flow_failed=0" \
+        "CONTRACT[index-search-exact-match]: exact seeded-document match must not mark FLOW_FAILED"
+}
+
+test_index_search_retries_transient_stale_empty() {
+    make_test_tmp_dir
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[index-search-retry-stale]: search must retry transient empty results — script missing"
+        return
+    fi
+    # First response is a stale empty index (eventual consistency), second is the
+    # exact seeded match. Retry semantics must converge to success, not give up.
+    run_index_search_assertion_probe \
+        $'{"hits":[],"nbHits":0}\n{"hits":[{"objectID":"lifecycle-doc-1"}],"nbHits":1}' \
+        $'200\n200'
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "CONTRACT[index-search-retry-stale]: search assertion probe harness must execute successfully"
+    assert_contains "$RUN_STDOUT" "rc=0" \
+        "CONTRACT[index-search-retry-stale]: run_index_search_step must retry a stale empty result and then pass on the seeded match"
+    assert_contains "$RUN_STDOUT" "calls=2" \
+        "CONTRACT[index-search-retry-stale]: a transient empty result must be retried before succeeding"
+    assert_contains "$RUN_STDOUT" "flow_failed=0" \
+        "CONTRACT[index-search-retry-stale]: transient-empty recovery must not leave FLOW_FAILED set"
+}
+
+test_index_search_rejects_non_object_json_body_with_diagnostic() {
+    make_test_tmp_dir
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[index-search-non-object-body]: search must fail with a concrete diagnostic on a valid-JSON non-object body — script missing"
+        return
+    fi
+    # A 200 whose body is valid JSON but NOT an object (a bare array). Calling
+    # .get on it would raise an uncaught AttributeError whose traceback goes to
+    # stderr and is dropped, leaving an empty failure detail. The oracle must
+    # instead classify this as a definitive mismatch AND carry a concrete
+    # "non-object" diagnostic so the search_index failure is diagnosable.
+    run_index_search_assertion_probe \
+        '[{"objectID":"lifecycle-doc-1"}]' \
+        '200'
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "CONTRACT[index-search-non-object-body]: search assertion probe harness must execute successfully"
+    assert_contains "$RUN_STDOUT" "rc=1" \
+        "CONTRACT[index-search-non-object-body]: run_index_search_step must fail (not retry) on a valid-JSON non-object search body"
+    assert_contains "$RUN_STDOUT" "flow_failed=1" \
+        "CONTRACT[index-search-non-object-body]: non-object search body must mark FLOW_FAILED"
+    assert_contains "$RUN_STDOUT" "flow_step=search_index" \
+        "CONTRACT[index-search-non-object-body]: non-object search body failure must be attributed to search_index"
+    assert_contains "$RUN_STDOUT" "non-object" \
+        "CONTRACT[index-search-non-object-body]: failure detail must carry a concrete non-object diagnostic, not an empty AttributeError message"
 }
 
 test_run_b_prefers_flapjack_cloud_stripe_key() {
@@ -1130,6 +1313,309 @@ test_script_uses_staging_db_run_sql_for_stage6_db_evidence() {
     fi
 }
 
+# Drive the real run_hard_erase_customer_step against a single scripted admin
+# hard-erase response. $1/$2 are the response body/code the stubbed
+# capture_json_response returns. This locks the contract that cleanup drives the
+# customer surface to a true zero-residue denominator (count 0) by calling the
+# existing POST /admin/customers/:id/hard-erase endpoint, rather than stopping at
+# the soft-delete tombstone (status=deleted, count 1) that DELETE /account leaves.
+run_hard_erase_customer_probe() {
+    local probe_runner
+    probe_runner="$TEST_TMP_DIR/hard_erase_customer_probe.sh"
+    cat > "$probe_runner" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+target_script="$1"
+
+source "$target_script"
+
+HARD_ERASE_CALLS=0
+HARD_ERASE_METHOD=""
+HARD_ERASE_PATH=""
+
+capture_json_response() {
+    # $1 = call helper (admin_call), $2 = method, $3 = path
+    HARD_ERASE_CALLS=$((HARD_ERASE_CALLS + 1))
+    HARD_ERASE_METHOD="$2"
+    HARD_ERASE_PATH="$3"
+    HTTP_RESPONSE_BODY="$PROBE_RESP_BODY"
+    HTTP_RESPONSE_CODE="$PROBE_RESP_CODE"
+    return 0
+}
+
+mark_failure() {
+    FLOW_FAILED=1
+    FLOW_FAILURE_STEP="$1"
+    FLOW_FAILURE_DETAIL="$2"
+    return 0
+}
+
+log() { :; }
+sleep() { :; }
+
+CANARY_CUSTOMER_ID="11111111-2222-3333-4444-555555555555"
+FLOW_FAILED=0
+FLOW_FAILURE_STEP=""
+FLOW_FAILURE_DETAIL=""
+
+if run_hard_erase_customer_step; then
+    echo "rc=0"
+else
+    rc=$?
+    echo "rc=$rc"
+fi
+echo "calls=$HARD_ERASE_CALLS"
+echo "method=$HARD_ERASE_METHOD"
+echo "path=$HARD_ERASE_PATH"
+echo "hard_erased=${CANARY_CUSTOMER_HARD_ERASED:-unset}"
+echo "flow_failed=$FLOW_FAILED"
+echo "flow_step=$FLOW_FAILURE_STEP"
+echo "flow_detail=$FLOW_FAILURE_DETAIL"
+EOF
+    chmod +x "$probe_runner"
+    RUN_EXIT_CODE=0
+    RUN_STDOUT="$(
+        env -i \
+            PATH="/usr/bin:/bin:/usr/local/bin" \
+            HOME="$TEST_TMP_DIR" \
+            TMPDIR="$TEST_TMP_DIR" \
+            ORCHESTRATOR_SOURCE_FOR_TEST="1" \
+            PROBE_RESP_BODY="$1" \
+            PROBE_RESP_CODE="$2" \
+            bash "$probe_runner" "$TARGET_SCRIPT" 2>&1
+    )" || RUN_EXIT_CODE=$?
+}
+
+test_hard_erase_customer_erases_soft_deleted_row() {
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[hard-erase-204]: script missing"
+        return
+    fi
+    make_test_tmp_dir
+    run_hard_erase_customer_probe '{}' '204'
+    if [[ "$RUN_STDOUT" == *"rc=0"* ]] \
+        && [[ "$RUN_STDOUT" == *"method=POST"* ]] \
+        && [[ "$RUN_STDOUT" == *"path=/admin/customers/11111111-2222-3333-4444-555555555555/hard-erase"* ]] \
+        && [[ "$RUN_STDOUT" == *"hard_erased=1"* ]] \
+        && [[ "$RUN_STDOUT" == *"flow_failed=0"* ]]; then
+        pass "CONTRACT[hard-erase-204]: 204 hard-erase of soft-deleted customer succeeds and marks the surface erased"
+    else
+        fail "CONTRACT[hard-erase-204]: expected POST .../hard-erase, rc=0, hard_erased=1, flow_failed=0 — got: $RUN_STDOUT"
+    fi
+}
+
+test_hard_erase_customer_treats_404_as_already_erased() {
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[hard-erase-404]: script missing"
+        return
+    fi
+    make_test_tmp_dir
+    run_hard_erase_customer_probe '{"error":"customer not found"}' '404'
+    if [[ "$RUN_STDOUT" == *"rc=0"* ]] \
+        && [[ "$RUN_STDOUT" == *"hard_erased=1"* ]] \
+        && [[ "$RUN_STDOUT" == *"flow_failed=0"* ]]; then
+        pass "CONTRACT[hard-erase-404]: 404 (row already gone) is idempotent success — zero residue"
+    else
+        fail "CONTRACT[hard-erase-404]: expected rc=0, hard_erased=1, flow_failed=0 — got: $RUN_STDOUT"
+    fi
+}
+
+test_hard_erase_customer_marks_failure_on_residue() {
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[hard-erase-residue]: script missing"
+        return
+    fi
+    make_test_tmp_dir
+    # 409 Conflict: open invoices still reference the customer, so the row is NOT
+    # erased. Cleanup must surface this as a failure with the returned code, never
+    # silently leave the residue behind.
+    run_hard_erase_customer_probe '{"error":"customer still has open invoices"}' '409'
+    if [[ "$RUN_STDOUT" == *"flow_failed=1"* ]] \
+        && [[ "$RUN_STDOUT" == *"flow_step=hard_erase_customer"* ]] \
+        && [[ "$RUN_STDOUT" == *"409"* ]] \
+        && [[ "$RUN_STDOUT" != *"hard_erased=1"* ]]; then
+        pass "CONTRACT[hard-erase-residue]: unexpected code (409) marks hard_erase_customer failure with the returned code"
+    else
+        fail "CONTRACT[hard-erase-residue]: expected flow_failed=1, flow_step=hard_erase_customer, code 409, not erased — got: $RUN_STDOUT"
+    fi
+}
+
+# Drive the real main() in launch-gate-safe data-plane mode with every network
+# and evidence side effect stubbed out. $1 names a cleanup surface that should
+# fail via mark_failure (empty = every surface succeeds). This locks the two
+# data-plane contracts: (1) the mode reuses the signup..search prefix and stops
+# before any Stripe/invoice/privacy branch; (2) the mode drives all required
+# cleanup surfaces and exits non-zero when index deletion, account/admin
+# cleanup, or customer hard-erase fails, so a prod-mutating RC row cannot pass
+# with residue.
+run_data_plane_lifecycle_probe() {
+    local probe_runner record_path
+    probe_runner="$TEST_TMP_DIR/data_plane_lifecycle_probe.sh"
+    record_path="$TEST_TMP_DIR/data_plane_record"
+    rm -f "$record_path"
+    cat > "$probe_runner" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+target_script="$1"
+fail_step="$2"
+
+source "$target_script"
+
+record_step() { printf '%s\n' "$1" >> "$RECORD_PATH"; }
+
+# Lifecycle prefix (signup..search) succeeds and records in order.
+run_signup_step() { record_step "signup"; }
+run_verify_email_step() { record_step "verify_email"; }
+run_index_create_step() { record_step "create_index"; CANARY_INDEX_CREATED=1; }
+run_index_batch_step() { record_step "batch_index"; }
+run_index_search_step() { record_step "search_index"; }
+
+# Post-search billing/privacy steps must NEVER run in data-plane mode; if any
+# is invoked it records a marker the assertions reject.
+run_sync_stripe_step() { record_step "sync_stripe"; CANARY_STRIPE_CUSTOMER_ID="cus_probe"; }
+run_prepare_run_b_payment_step() { record_step "prepare_run_b_payment"; }
+run_invoice_generation_step() { record_step "generate_invoice"; }
+run_invoice_finalize_step() { record_step "finalize_invoice"; }
+run_pay_invoice_out_of_band_step() { record_step "pay_invoice_out_of_band"; }
+run_wait_for_paid_invoice_step() { record_step "wait_for_paid_invoice"; }
+run_tenant_invoice_read_step() { record_step "read_invoices"; }
+run_optional_privacy_card_step() { record_step "privacy_branch"; }
+
+# Cleanup surfaces record; the named surface fails via the real mark_failure so
+# FLOW_FAILED propagates through the canonical cleanup owner.
+maybe_fail() {
+    local step="$1"
+    if [ "$step" = "$fail_step" ]; then
+        mark_failure "$step" "probe-forced $step cleanup failure"
+        return 1
+    fi
+    return 0
+}
+run_delete_index_step() { record_step "cleanup_delete_index"; maybe_fail "delete_index"; }
+run_delete_account_step() { record_step "cleanup_delete_account"; maybe_fail "delete_account"; }
+run_admin_cleanup_step() { record_step "cleanup_admin"; maybe_fail "admin_cleanup"; }
+run_hard_erase_customer_step() { record_step "cleanup_hard_erase"; maybe_fail "hard_erase_customer"; }
+run_detach_probe_payment_method_step() { record_step "cleanup_detach_pm"; }
+run_pause_privacy_card_step() { record_step "cleanup_pause_privacy"; }
+
+# Neutralize env loading and evidence capture so the probe stays hermetic.
+load_orchestration_env() { API_URL="http://probe"; ADMIN_KEY="probe"; return 0; }
+capture_stage5_pre_cleanup_evidence() { :; }
+capture_stage5_post_cleanup_evidence() { :; }
+log() { :; }
+
+CANARY_CUSTOMER_ID="11111111-2222-3333-4444-555555555555"
+
+if main data-plane; then
+    echo "rc=0"
+else
+    echo "rc=$?"
+fi
+echo "cleanup_ran=$CLEANUP_RAN"
+echo "flow_failed=$FLOW_FAILED"
+EOF
+    chmod +x "$probe_runner"
+    RUN_EXIT_CODE=0
+    RUN_STDOUT="$(
+        env -i \
+            PATH="/usr/bin:/bin:/usr/local/bin" \
+            HOME="$TEST_TMP_DIR" \
+            TMPDIR="$TEST_TMP_DIR" \
+            ORCHESTRATOR_SOURCE_FOR_TEST="1" \
+            RECORD_PATH="$record_path" \
+            bash "$probe_runner" "$TARGET_SCRIPT" "$1" 2>&1
+    )" || RUN_EXIT_CODE=$?
+    RUN_RECORD="$(cat "$record_path" 2>/dev/null || true)"
+}
+
+test_data_plane_mode_is_recognized() {
+    make_test_tmp_dir
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[mode-data-plane]: 'data-plane' must be a recognized CLI mode — script missing"
+        return
+    fi
+    run_target_with_minimal_env "data-plane"
+    assert_contains "$RUN_STDOUT" "data-plane" \
+        "CONTRACT[mode-data-plane]: invoking data-plane must dispatch into data-plane mode (mode-specific output includes 'data-plane')"
+    assert_not_contains "$RUN_STDOUT" "unknown" \
+        "CONTRACT[mode-data-plane]: invoking data-plane must not be treated as an unknown mode"
+    assert_not_contains "$RUN_STDOUT" "Usage" \
+        "CONTRACT[mode-data-plane]: invoking data-plane must not fall back to top-level usage output"
+}
+
+test_data_plane_reuses_prefix_and_skips_billing_branches() {
+    make_test_tmp_dir
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[data-plane-prefix]: data-plane must reuse signup..search and stop before billing/privacy — script missing"
+        return
+    fi
+    run_flow_order_probe "data-plane"
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "CONTRACT[data-plane-prefix]: flow-order probe for data-plane must succeed"
+    if python3 - "$RUN_STDOUT" <<'PY'
+import sys
+steps = [line.strip() for line in sys.argv[1].splitlines() if line.strip()]
+expected = ["signup", "verify_email", "create_index", "batch_index", "search_index"]
+raise SystemExit(0 if steps == expected else 1)
+PY
+    then
+        pass "CONTRACT[data-plane-prefix]: data-plane runs exactly signup, verify_email, create_index, batch_index, search_index in order"
+    else
+        fail "CONTRACT[data-plane-prefix]: data-plane must run exactly the signup..search prefix in order — got: $RUN_STDOUT"
+    fi
+    assert_not_contains "$RUN_STDOUT" "sync_stripe" \
+        "CONTRACT[data-plane-no-stripe]: data-plane must not enter the Stripe sync branch"
+    assert_not_contains "$RUN_STDOUT" "generate_invoice" \
+        "CONTRACT[data-plane-no-invoice]: data-plane must not enter invoice generation/finalization"
+    assert_not_contains "$RUN_STDOUT" "finalize_invoice" \
+        "CONTRACT[data-plane-no-finalize]: data-plane must not finalize invoices"
+    assert_not_contains "$RUN_STDOUT" "prepare_run_b_payment" \
+        "CONTRACT[data-plane-no-payment]: data-plane must not attach payment methods"
+    assert_not_contains "$RUN_STDOUT" "pay_invoice_out_of_band" \
+        "CONTRACT[data-plane-no-oob-pay]: data-plane must not enter the out-of-band pay branch"
+    assert_not_contains "$RUN_STDOUT" "wait_for_paid_invoice" \
+        "CONTRACT[data-plane-no-paid-wait]: data-plane must not wait for paid invoice convergence"
+    assert_not_contains "$RUN_STDOUT" "privacy_branch" \
+        "CONTRACT[data-plane-no-privacy]: data-plane must not enter the privacy-card branch"
+}
+
+test_data_plane_cleanup_attempts_all_required_surfaces() {
+    make_test_tmp_dir
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[data-plane-cleanup-surfaces]: data-plane must drive index/account/admin/hard-erase cleanup — script missing"
+        return
+    fi
+    run_data_plane_lifecycle_probe ""
+    assert_contains "$RUN_STDOUT" "rc=0" \
+        "CONTRACT[data-plane-cleanup-surfaces]: data-plane must exit 0 when the lifecycle and every cleanup surface succeed"
+    assert_contains "$RUN_STDOUT" "cleanup_ran=1" \
+        "CONTRACT[data-plane-cleanup-surfaces]: data-plane must run the canonical cleanup owner inline"
+    assert_contains "$RUN_RECORD" "cleanup_delete_index" \
+        "CONTRACT[data-plane-cleanup-index]: data-plane cleanup must attempt index deletion"
+    assert_contains "$RUN_RECORD" "cleanup_delete_account" \
+        "CONTRACT[data-plane-cleanup-account]: data-plane cleanup must attempt account deletion"
+    assert_contains "$RUN_RECORD" "cleanup_admin" \
+        "CONTRACT[data-plane-cleanup-admin]: data-plane cleanup must attempt admin tenant cleanup"
+    assert_contains "$RUN_RECORD" "cleanup_hard_erase" \
+        "CONTRACT[data-plane-cleanup-hard-erase]: data-plane cleanup must attempt customer hard-erase"
+}
+
+test_data_plane_cleanup_failure_fails_the_run() {
+    make_test_tmp_dir
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[data-plane-cleanup-residue]: data-plane must fail when a required cleanup surface fails — script missing"
+        return
+    fi
+    local surface
+    for surface in delete_index admin_cleanup hard_erase_customer; do
+        run_data_plane_lifecycle_probe "$surface"
+        assert_not_contains "$RUN_STDOUT" "rc=0" \
+            "CONTRACT[data-plane-cleanup-residue]: data-plane must exit non-zero when ${surface} cleanup fails"
+        assert_contains "$RUN_STDOUT" "flow_failed=1" \
+            "CONTRACT[data-plane-cleanup-residue]: failed ${surface} cleanup must mark FLOW_FAILED so the RC row cannot pass with residue"
+    done
+}
+
 main() {
     echo "=== probe_full_vm_lifecycle_script_test.sh ==="
     echo "Target: $TARGET_SCRIPT"
@@ -1140,6 +1626,10 @@ main() {
     test_dry_run_does_not_require_env_secret_file
     test_run_a_mode_is_recognized
     test_run_b_mode_is_recognized
+    test_data_plane_mode_is_recognized
+    test_data_plane_reuses_prefix_and_skips_billing_branches
+    test_data_plane_cleanup_attempts_all_required_surfaces
+    test_data_plane_cleanup_failure_fails_the_run
     test_unknown_mode_fails_with_usage
     test_no_mode_fails_with_usage
     test_trap_cleanup_is_declared_and_re_entry_safe
@@ -1159,9 +1649,17 @@ main() {
     test_run_b_sequences_paid_invoice_steps
     test_run_a_skips_run_b_only_paid_steps
     test_index_create_retries_transient_504
+    test_index_search_rejects_unrelated_hits
+    test_index_search_rejects_overbroad_denominator
+    test_index_search_accepts_exact_seeded_document
+    test_index_search_retries_transient_stale_empty
+    test_index_search_rejects_non_object_json_body_with_diagnostic
     test_run_b_prefers_flapjack_cloud_stripe_key
     test_invoice_id_validation_is_not_numeric_only
     test_payment_method_id_validation_allows_underscore
+    test_hard_erase_customer_erases_soft_deleted_row
+    test_hard_erase_customer_treats_404_as_already_erased
+    test_hard_erase_customer_marks_failure_on_residue
     test_post_cleanup_invoice_query_is_guarded_for_empty_invoice_id
     test_pre_cleanup_invoice_query_is_guarded_for_empty_invoice_id
     test_script_emits_stage6_raw_evidence_filenames

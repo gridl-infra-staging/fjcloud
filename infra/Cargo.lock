@@ -117,6 +117,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "billing",
+ "bytes",
  "chrono",
  "hex",
  "hmac",
@@ -151,6 +152,7 @@ dependencies = [
  "utoipa-scalar",
  "uuid",
  "wiremock",
+ "zeroize",
 ]
 
 [[package]]

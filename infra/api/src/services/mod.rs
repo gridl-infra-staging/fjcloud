@@ -1,5 +1,6 @@
 pub mod access_tracker;
 pub mod alerting;
+pub mod algolia_import;
 pub mod algolia_source;
 pub mod audit_log;
 pub mod billing_health;

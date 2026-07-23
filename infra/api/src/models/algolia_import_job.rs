@@ -53,21 +53,40 @@ impl AlgoliaImportJobStatus {
         }
     }
 
+    pub fn has_valid_terminal_disposition(
+        self,
+        publication_disposition: AlgoliaImportPublicationDisposition,
+    ) -> bool {
+        use AlgoliaImportJobStatus::{
+            Cancelled, Completed, CompletedWithWarnings, Failed, Interrupted,
+        };
+        use AlgoliaImportPublicationDisposition::{NotStarted, Promoted, Unchanged};
+
+        matches!(
+            (self, publication_disposition),
+            (Completed | CompletedWithWarnings, Promoted)
+                | (Cancelled, Unchanged)
+                | (Failed | Interrupted, Unchanged | NotStarted)
+        )
+    }
+
+    pub fn is_terminal(self) -> bool {
+        matches!(
+            self,
+            Self::Completed
+                | Self::CompletedWithWarnings
+                | Self::Cancelled
+                | Self::Failed
+                | Self::Interrupted
+        )
+    }
+
     pub fn is_finally_terminal(
         self,
         resumable: bool,
         publication_disposition: AlgoliaImportPublicationDisposition,
     ) -> bool {
-        if matches!(self, Self::Failed | Self::Interrupted) && resumable {
-            return false;
-        }
-        if self == Self::Cancelled {
-            return publication_disposition == AlgoliaImportPublicationDisposition::Unchanged;
-        }
-        matches!(
-            self,
-            Self::Completed | Self::CompletedWithWarnings | Self::Failed | Self::Interrupted
-        )
+        !resumable && self.has_valid_terminal_disposition(publication_disposition)
     }
 }
 
@@ -421,6 +440,12 @@ pub struct NewAlgoliaReplaceImportJob {
     source: AlgoliaImportSource,
     idempotency_key: String,
     target_binding: Option<AlgoliaImportTargetBinding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlgoliaImportCreatePlacement {
+    pub vm_id: Uuid,
+    pub physical_uid: String,
 }
 
 impl NewAlgoliaReplaceImportJob {

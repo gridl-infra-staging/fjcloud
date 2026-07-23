@@ -1,5 +1,7 @@
 use super::*;
+use crate::models::AlgoliaImportErrorCode;
 use crate::secrets::mock::MockNodeSecretManager;
+use crate::services::algolia_import::AlgoliaImportService;
 use async_trait::async_trait;
 use serde_json::json;
 use std::collections::{HashMap, VecDeque};
@@ -63,6 +65,54 @@ fn strict_requirements() -> FlapjackEngineRequirements {
         Some("sha-1"),
         Some("preview_events_v1"),
     )
+}
+
+#[test]
+fn algolia_import_admission_maps_every_compatibility_reason_exhaustively() {
+    let cases = [
+        (FlapjackRuntimeIdentityReason::Match, Ok(())),
+        (
+            FlapjackRuntimeIdentityReason::RuntimeUnreachable,
+            Err(AlgoliaImportErrorCode::BackendUnavailable),
+        ),
+        (
+            FlapjackRuntimeIdentityReason::VersionMismatch,
+            Err(AlgoliaImportErrorCode::EngineUpgradeRequired),
+        ),
+        (
+            FlapjackRuntimeIdentityReason::RevisionMismatch,
+            Err(AlgoliaImportErrorCode::EngineUpgradeRequired),
+        ),
+        (
+            FlapjackRuntimeIdentityReason::BuildIdMismatch,
+            Err(AlgoliaImportErrorCode::EngineUpgradeRequired),
+        ),
+        (
+            FlapjackRuntimeIdentityReason::ChecksumMismatch,
+            Err(AlgoliaImportErrorCode::EngineUpgradeRequired),
+        ),
+        (
+            FlapjackRuntimeIdentityReason::DirtyLocalBuild,
+            Err(AlgoliaImportErrorCode::EngineUpgradeRequired),
+        ),
+        (
+            FlapjackRuntimeIdentityReason::MissingCapability,
+            Err(AlgoliaImportErrorCode::EngineUpgradeRequired),
+        ),
+        (
+            FlapjackRuntimeIdentityReason::LegacyMalformedHealth,
+            Err(AlgoliaImportErrorCode::EngineUpgradeRequired),
+        ),
+    ];
+
+    for (reason, expected) in cases {
+        assert_eq!(
+            AlgoliaImportService::classify_engine_compatibility(reason),
+            expected,
+            "compatibility reason {}",
+            reason.as_str()
+        );
+    }
 }
 
 async fn classify_health(
@@ -417,5 +467,32 @@ async fn flapjack_engine_compatibility_no_required_capability_accepts_engine_wit
         "capabilities": []
     });
     let reason = classify_health(requirements, health).await;
+    assert_eq!(reason, FlapjackRuntimeIdentityReason::Match);
+}
+
+/// Regression: the pinned source-built engine does not self-report the binary
+/// artifact SHA in `/health`. The API still requires the configured SHA so the
+/// launcher can prove artifact provenance, but runtime compatibility is anchored
+/// on version + revision + build_id + dirty. If a runtime SHA is present, it
+/// remains checked by the mismatch case above.
+#[tokio::test]
+async fn flapjack_engine_compatibility_accepts_exact_identity_without_runtime_sha() {
+    let requirements = FlapjackEngineRequirements::new(
+        Some("1.0.10"),
+        Some("abc123"),
+        Some("build-1"),
+        Some("sha-1"),
+        None,
+    );
+    let health = json!({
+        "version": "1.0.10",
+        "producer_revision": "abc123",
+        "build_id": "build-1",
+        "dirty": false,
+        "capabilities": []
+    });
+
+    let reason = classify_health(requirements, health).await;
+
     assert_eq!(reason, FlapjackRuntimeIdentityReason::Match);
 }

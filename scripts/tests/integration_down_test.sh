@@ -169,6 +169,73 @@ test_down_log_files_cleaned() {
     assert_contains "$output" "torn down" "teardown should still report completion after log cleanup"
 }
 
+test_down_preserves_database_when_requested() {
+    # A restart-without-reset needs teardown to stop processes but keep the
+    # database so retained job state survives an API/engine restart. Default
+    # teardown must still drop the DB; FJCLOUD_INTEGRATION_PRESERVE_DB=1 must skip
+    # the drop and report that it preserved the database.
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap "rm -rf '$tmp_dir'" RETURN
+
+    cat > "$tmp_dir/whoami" << 'MOCK'
+#!/usr/bin/env bash
+echo "tester"
+MOCK
+    chmod +x "$tmp_dir/whoami"
+
+    cat > "$tmp_dir/psql" << MOCK
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$tmp_dir/psql.log"
+if [[ "\$*" == *"SELECT 1 FROM pg_database"* ]]; then
+    echo "1"
+    exit 0
+fi
+exit 0
+MOCK
+    chmod +x "$tmp_dir/psql"
+
+    : > "$tmp_dir/psql.log"
+    local pid_dir="$tmp_dir/pids"
+    mkdir -p "$pid_dir/flapjack-data"
+    printf 'retained-engine-job\n' > "$pid_dir/flapjack-data/job-state"
+    local default_out default_exit=0
+    default_out=$(
+        PATH="$tmp_dir:/usr/bin:/bin" \
+        FJCLOUD_INTEGRATION_PID_DIR="$pid_dir" \
+        bash "$REPO_ROOT/scripts/integration-down.sh" 2>&1
+    ) || default_exit=$?
+    assert_eq "$default_exit" "0" "default teardown should succeed"
+    assert_contains "$(cat "$tmp_dir/psql.log")" "DROP DATABASE" \
+        "default teardown drops the integration database"
+    if [ -e "$pid_dir/flapjack-data/job-state" ]; then
+        fail "default teardown should remove flapjack runtime data"
+    else
+        pass "default teardown removes flapjack runtime data"
+    fi
+
+    : > "$tmp_dir/psql.log"
+    mkdir -p "$pid_dir/flapjack-data"
+    printf 'retained-engine-job\n' > "$pid_dir/flapjack-data/job-state"
+    local preserve_out preserve_exit=0
+    preserve_out=$(
+        PATH="$tmp_dir:/usr/bin:/bin" \
+        FJCLOUD_INTEGRATION_PRESERVE_DB=1 \
+        FJCLOUD_INTEGRATION_PID_DIR="$pid_dir" \
+        bash "$REPO_ROOT/scripts/integration-down.sh" 2>&1
+    ) || preserve_exit=$?
+    assert_eq "$preserve_exit" "0" "preserve-mode teardown should succeed"
+    assert_not_contains "$(cat "$tmp_dir/psql.log")" "DROP DATABASE" \
+        "preserve-mode teardown keeps the integration database"
+    assert_contains "$preserve_out" "Preserving database" \
+        "preserve-mode teardown reports the database was kept"
+    if [ -f "$pid_dir/flapjack-data/job-state" ]; then
+        pass "preserve-mode teardown keeps flapjack runtime data"
+    else
+        fail "preserve-mode teardown should keep flapjack runtime data"
+    fi
+}
+
 test_down_tracks_built_metering_binary_identity() {
     local script_text
     script_text="$(cat "$REPO_ROOT/scripts/integration-down.sh")"
@@ -343,6 +410,7 @@ main() {
     test_teardown_with_stale_pid_file
     test_down_stale_pid_pointing_to_different_process
     test_down_log_files_cleaned
+    test_down_preserves_database_when_requested
     test_down_tracks_built_metering_binary_identity
     test_down_succeeds_when_psql_unavailable
     test_down_psql_query_failure_reports_query_skip

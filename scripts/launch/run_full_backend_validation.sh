@@ -33,6 +33,7 @@ WEB_RUNTIME_REPO_ROOT="${FULL_VALIDATION_WEB_RUNTIME_REPO_ROOT:-$REPO_ROOT}"
 OUTSIDE_AWS_HEALTH_SCRIPT="${FULL_VALIDATION_OUTSIDE_AWS_HEALTH_SCRIPT:-$REPO_ROOT/scripts/canary/outside_aws_health_check.sh}"
 SES_INBOUND_ROUNDTRIP_SCRIPT="${FULL_VALIDATION_SES_INBOUND_ROUNDTRIP_SCRIPT:-$REPO_ROOT/scripts/validate_inbound_email_roundtrip.sh}"
 CANARY_CUSTOMER_LOOP_SCRIPT="${FULL_VALIDATION_CANARY_CUSTOMER_LOOP_SCRIPT:-$REPO_ROOT/scripts/canary/customer_loop_synthetic.sh}"
+FULL_VM_LIFECYCLE_SCRIPT="${FULL_VALIDATION_FULL_VM_LIFECYCLE_SCRIPT:-$REPO_ROOT/scripts/validate_full_vm_lifecycle_prod.sh}"
 SHA_OVERRIDE=""
 MODE="live"
 ARTIFACT_DIR=""
@@ -359,6 +360,13 @@ read_env_value_from_file() {
     done < "$env_file"
     return 1
 }
+
+validate_env_assignment_file_syntax() {
+    local env_file="$1"
+    _validate_env_assignment_file_noop() { :; }
+    _for_each_env_assignment "$env_file" _validate_env_assignment_file_noop
+}
+
 resolve_credential_value() {
     local key="$1"
     local explicit_value="${!key:-}"
@@ -1087,6 +1095,7 @@ visit_paid_beta_rc_step_registry() {
         register_required_step "signup_abuse" append_staging_only_production_skip_step "signup_abuse"
         register_required_step "browser_signup_paid" append_staging_only_production_skip_step "browser_signup_paid"
         register_required_step "browser_portal_cancel" append_staging_only_production_skip_step "browser_portal_cancel"
+        register_required_step "prod_full_vm_lifecycle" append_staging_only_production_skip_step "prod_full_vm_lifecycle"
         return 0
     fi
     register_required_step "admin_broadcast" run_paid_beta_rc_rust_step "admin_broadcast" "admin_broadcast_failed" "1" "\"$CARGO_BIN\" test -p api --test auth_admin admin_broadcast_test:: -- --ignored"
@@ -1102,6 +1111,7 @@ visit_paid_beta_rc_step_registry() {
     register_required_step "signup_abuse" run_paid_beta_rc_rust_step "signup_abuse" "signup_abuse_failed" "0" "\"$CARGO_BIN\" test -p api --test platform signup_abuse_test::"
     register_required_step "browser_signup_paid" run_step_paid_beta_rc_browser_signup_paid
     register_required_step "browser_portal_cancel" run_step_paid_beta_rc_browser_portal_cancel
+    register_required_step "prod_full_vm_lifecycle" run_step_paid_beta_rc_prod_full_vm_lifecycle
 }
 
 emit_paid_beta_step_registry_json() {
@@ -1273,6 +1283,69 @@ run_step_paid_beta_rc_canary_customer_loop() {
     fi
     append_step "canary_customer_loop" "fail" "canary_customer_loop_failed" "$elapsed"
     return "$exit_code"
+}
+# Narrow adapter around the delegated-step seam that runs the prod VM lifecycle
+# owner in launch-gate-safe data-plane mode. It requires a readable credential
+# env file (a prod-mutating row must classify as external_secret_missing rather
+# than run without secrets), forwards it as FJCLOUD_SECRET_FILE, and lands the
+# lifecycle bundle under a per-step RC evidence directory.
+validate_prod_full_vm_lifecycle_credential_env() {
+    local env_file="$1"
+    local log_path="$2"
+    local api_url="" api_status=0 admin_key="" admin_status=0
+
+    if ! validate_env_assignment_file_syntax "$env_file" >"$log_path" 2>&1; then
+        return 2
+    fi
+
+    api_url="$(read_env_value_from_file "$env_file" "API_URL")" || api_status=$?
+    if [ "$api_status" -ne 0 ] || [ -z "$api_url" ]; then
+        printf 'ERROR: prod_full_vm_lifecycle requires API_URL in credential env file: %s\n' "$env_file" >"$log_path"
+        return 3
+    fi
+
+    admin_status=0
+    admin_key="$(read_env_value_from_file "$env_file" "ADMIN_KEY")" || admin_status=$?
+    if [ "$admin_status" -eq 0 ] && [ -n "$admin_key" ]; then
+        return 0
+    fi
+    admin_status=0
+    admin_key="$(read_env_value_from_file "$env_file" "FLAPJACK_ADMIN_KEY")" || admin_status=$?
+    if [ "$admin_status" -eq 0 ] && [ -n "$admin_key" ]; then
+        return 0
+    fi
+
+    printf 'ERROR: prod_full_vm_lifecycle requires ADMIN_KEY or FLAPJACK_ADMIN_KEY in credential env file: %s\n' "$env_file" >"$log_path"
+    return 4
+}
+
+run_step_paid_beta_rc_prod_full_vm_lifecycle() {
+    local start_ms end_ms elapsed evidence_dir log_path validate_status=0 reason
+    start_ms="$(_ms_now)"
+    log_path="$(_step_log_path prod_full_vm_lifecycle)"
+    if [ -z "$CREDENTIAL_ENV_FILE" ] || [ ! -f "$CREDENTIAL_ENV_FILE" ] || [ ! -r "$CREDENTIAL_ENV_FILE" ]; then
+        printf 'ERROR: credential env file not readable: %s\n' "${CREDENTIAL_ENV_FILE:-<unset>}" >"$log_path"
+        end_ms="$(_ms_now)"; elapsed=$((end_ms - start_ms))
+        append_step "prod_full_vm_lifecycle" "external_secret_missing" "credentialed_prod_full_vm_lifecycle_env_file_missing" "$elapsed"
+        return 2
+    fi
+    validate_prod_full_vm_lifecycle_credential_env "$CREDENTIAL_ENV_FILE" "$log_path" || validate_status=$?
+    if [ "$validate_status" -ne 0 ]; then
+        end_ms="$(_ms_now)"; elapsed=$((end_ms - start_ms))
+        case "$validate_status" in
+            2) reason="credentialed_prod_full_vm_lifecycle_env_file_parse_failed" ;;
+            3) reason="credentialed_prod_full_vm_lifecycle_api_url_missing" ;;
+            4) reason="credentialed_prod_full_vm_lifecycle_admin_key_missing" ;;
+            *) reason="credentialed_prod_full_vm_lifecycle_env_gap" ;;
+        esac
+        append_step "prod_full_vm_lifecycle" "external_secret_missing" "$reason" "$elapsed"
+        return 2
+    fi
+    evidence_dir="$ARTIFACT_DIR/prod_full_vm_lifecycle"
+    mkdir -p "$evidence_dir"
+    run_delegated_command_step "prod_full_vm_lifecycle" "prod_full_vm_lifecycle_failed" "" \
+        env FJCLOUD_SECRET_FILE="$CREDENTIAL_ENV_FILE" STAGE5_EVIDENCE_DIR="$evidence_dir" \
+        bash "$FULL_VM_LIFECYCLE_SCRIPT" data-plane
 }
 stripe_key_is_live_mode() {
     local stripe_key="$1"

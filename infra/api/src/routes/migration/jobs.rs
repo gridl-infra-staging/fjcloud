@@ -10,13 +10,15 @@ use utoipa::ToSchema;
 
 use crate::auth::AuthenticatedTenant;
 use crate::errors::ApiError;
-use crate::models::algolia_import_job::{
-    AlgoliaImportDestinationKind, AlgoliaImportJob, NewAlgoliaImportJob, NewAlgoliaReplaceImportJob,
-};
+use crate::models::algolia_import_job::{AlgoliaImportDestinationKind, AlgoliaImportJob};
 use crate::models::AlgoliaImportErrorCode;
 use crate::repos::{
-    clamp_algolia_import_job_list_limit, AlgoliaImportJobListCursor, AlgoliaImportJobRepo,
-    AlgoliaImportTransitionDisposition, AlgoliaLifecycleError, PgAlgoliaImportJobRepo,
+    clamp_algolia_import_job_list_limit, AlgoliaImportDispatchReplayIdentity,
+    AlgoliaImportJobListCursor, AlgoliaImportJobRepo, AlgoliaImportTransitionDisposition,
+    AlgoliaLifecycleError, PgAlgoliaImportJobRepo,
+};
+use crate::services::algolia_import::{
+    AlgoliaImportAdmissionError, AlgoliaImportAdmissionRequest, AlgoliaImportCancelContext,
 };
 use crate::services::algolia_source::AlgoliaSourceInspectRequest;
 use crate::state::AppState;
@@ -187,35 +189,68 @@ pub async fn create_algolia_import_job(
             )
         })?
         .to_string();
-    let binding = super::verify_target_envelope(&state, &auth, &request)?;
-    let source = state
-        .algolia_source_service
-        .inspect_source(AlgoliaSourceInspectRequest {
-            app_id: request.app_id,
-            api_key: request.api_key,
-            source_name: request.source_name,
-        })
-        .await
-        .map_err(map_algolia_source_error)?;
-    let job = match binding.mode() {
-        AlgoliaImportDestinationKind::Create => {
-            let job =
-                NewAlgoliaImportJob::create_from_target_binding(binding, source, idempotency_key)
-                    .map_err(|code| migration_code_error(StatusCode::BAD_REQUEST, code))?;
-            crate::routes::indexes::lifecycle::create_algolia_import_job(&state, job)
-                .await
-                .map_err(map_create_admission_error)?
-        }
-        AlgoliaImportDestinationKind::Replace => {
-            let job =
-                NewAlgoliaReplaceImportJob::from_target_binding(binding, source, idempotency_key)
-                    .map_err(|code| migration_code_error(StatusCode::BAD_REQUEST, code))?;
-            PgAlgoliaImportJobRepo::new(state.pool.clone())
-                .create_replace(job)
-                .await
-                .map_err(map_job_admission_error)?
-        }
+    let target_binding = super::verify_target_envelope(&state, &auth, &request)?;
+    // Return an exact idempotent replay from persisted state before running any
+    // fresh create-target placement/compatibility admission or credential-bearing
+    // source inspection, so a retained job replays unchanged under later drift.
+    let replay_identity = AlgoliaImportDispatchReplayIdentity {
+        app_id: request.app_id.clone(),
+        source_name: request.source_name.clone(),
+        kind: target_binding.mode(),
+        logical_target: target_binding.logical_target().to_string(),
+        region: target_binding.region().to_string(),
     };
+    if let Some(existing) = state
+        .algolia_import_service
+        .find_dispatch_replay(
+            &state.pool,
+            target_binding.customer_id(),
+            &idempotency_key,
+            &replay_identity,
+        )
+        .await
+        .map_err(map_submit_admission_error)?
+    {
+        let body = public_algolia_import_job(existing);
+        let location = format!("/migration/algolia/jobs/{}", body.id);
+        return Ok((
+            StatusCode::ACCEPTED,
+            [(axum::http::header::LOCATION, location)],
+            Json(body),
+        ));
+    }
+    let create_target = match target_binding.mode() {
+        AlgoliaImportDestinationKind::Create => Some(
+            crate::routes::indexes::lifecycle::prepare_algolia_create_target(
+                &state,
+                target_binding.customer_id(),
+                target_binding.logical_target(),
+                target_binding.region(),
+            )
+            .await
+            .map_err(map_create_admission_error)?,
+        ),
+        AlgoliaImportDestinationKind::Replace => None,
+    };
+    let outcome = state
+        .algolia_import_service
+        .admit_and_submit(
+            AlgoliaImportAdmissionRequest::new(
+                target_binding,
+                create_target,
+                request.app_id,
+                request.api_key,
+                request.source_name,
+                idempotency_key,
+            ),
+            &state.pool,
+            state.algolia_source_service.as_ref(),
+            state.vm_inventory_repo.as_ref(),
+            state.alert_service.as_ref(),
+        )
+        .await
+        .map_err(map_submit_admission_error)?;
+    let job = outcome.into_job();
     let body = public_algolia_import_job(job);
     let location = format!("/migration/algolia/jobs/{}", body.id);
     Ok((
@@ -223,6 +258,23 @@ pub async fn create_algolia_import_job(
         [(axum::http::header::LOCATION, location)],
         Json(body),
     ))
+}
+
+fn map_submit_admission_error(error: AlgoliaImportAdmissionError) -> ApiError {
+    match error {
+        AlgoliaImportAdmissionError::Source(error) => map_algolia_source_error(error),
+        AlgoliaImportAdmissionError::Admission(error) => map_job_admission_error(error),
+        AlgoliaImportAdmissionError::Refused(AlgoliaImportErrorCode::BackendUnavailable) => {
+            super::migration_backpressure()
+        }
+        AlgoliaImportAdmissionError::Refused(code) => {
+            migration_code_error(StatusCode::BAD_REQUEST, code)
+        }
+        AlgoliaImportAdmissionError::PreparedCreateTargetMissing => {
+            ApiError::Internal("prepared create target missing".into())
+        }
+        AlgoliaImportAdmissionError::Repository(error) => ApiError::from(error),
+    }
 }
 
 pub(super) fn public_algolia_import_job(job: AlgoliaImportJob) -> PublicAlgoliaImportJob {
@@ -366,10 +418,26 @@ pub async fn cancel_algolia_import_job(
     Path(id): Path<uuid::Uuid>,
     Json(_request): Json<CancelAlgoliaImportJobRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let outcome = PgAlgoliaImportJobRepo::new(state.pool.clone())
-        .request_cancel_for_customer(auth.customer_id, id)
+    let result = state
+        .algolia_import_service
+        .cancel_for_customer(AlgoliaImportCancelContext {
+            pool: &state.pool,
+            vm_repo: state.vm_inventory_repo.as_ref(),
+            alert_service: state.alert_service.as_ref(),
+            customer_id: auth.customer_id,
+            job_id: id,
+        })
         .await
         .map_err(map_cancel_lifecycle_error)?;
+    if let Some(handoff) = result.terminal_handoff.as_ref() {
+        tracing::debug!(
+            job_id = %id,
+            status = handoff.status.as_str(),
+            publication_disposition = handoff.publication_disposition.as_str(),
+            "Algolia cancel terminal observation retained for reconciliation"
+        );
+    }
+    let outcome = result.outcome;
     Ok((
         transition_status(outcome.disposition),
         Json(public_algolia_import_job(outcome.job)),
@@ -425,7 +493,7 @@ pub async fn resume_algolia_import_job(
         .algolia_source_service
         .inspect_source(AlgoliaSourceInspectRequest {
             app_id: retained.algolia_app_id,
-            api_key: request.api_key,
+            api_key: zeroize::Zeroizing::new(request.api_key),
             source_name: retained.source_name,
         })
         .await

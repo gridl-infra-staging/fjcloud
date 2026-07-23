@@ -108,13 +108,20 @@ impl PgAlgoliaImportJobRepo {
         tx: &mut Transaction<'_, Postgres>,
         current: AlgoliaImportJob,
     ) -> Result<AlgoliaImportCancelOutcome, LifecycleTransitionError> {
-        if matches!(
-            current.status,
-            AlgoliaImportJobStatus::Cancelling | AlgoliaImportJobStatus::Cancelled
-        ) {
+        if current.status == AlgoliaImportJobStatus::Cancelled {
             return Ok(AlgoliaImportCancelOutcome {
                 job: current,
                 dispatch: None,
+                disposition: AlgoliaImportTransitionDisposition::Replayed,
+            });
+        }
+        if current.status == AlgoliaImportJobStatus::Cancelling {
+            let dispatch = current
+                .engine_job_id
+                .map(|engine_job_id| AlgoliaImportCancelDispatch { engine_job_id });
+            return Ok(AlgoliaImportCancelOutcome {
+                job: current,
+                dispatch,
                 disposition: AlgoliaImportTransitionDisposition::Replayed,
             });
         }
@@ -146,10 +153,7 @@ impl PgAlgoliaImportJobRepo {
 
         let dispatch = updated
             .engine_job_id
-            .is_some()
-            .then_some(AlgoliaImportCancelDispatch {
-                job_id: updated.cloud_job_id,
-            });
+            .map(|engine_job_id| AlgoliaImportCancelDispatch { engine_job_id });
         Ok(AlgoliaImportCancelOutcome {
             job: updated,
             dispatch,

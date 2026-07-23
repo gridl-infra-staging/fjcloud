@@ -225,6 +225,49 @@ PY
     assert_jq_eq "$verdict_path" ".non_pass_steps[] | select(.name == \"staging_runtime_smoke\") | .classification" "investigate" "investigate branch should be explicit"
 }
 
+# A failed prod data-plane lifecycle row is a real defect on the launch-sentence
+# search path, not a tolerated gap: it must classify as other_real in section 6
+# and drive the real-defect verdict. The full-pass fixture is derived from the
+# canonical registry, so this also proves the new row participates in the
+# required-set shape.
+test_classify_existing_prod_full_vm_lifecycle_failure_is_other_real_section6() {
+    setup_workspace
+    local fixture_dir="$TEST_WORKSPACE/fixtures/prod-full-vm-lifecycle-fail"
+    local summary_path="$fixture_dir/summary.json"
+    local artifact_dir="$TEST_WORKSPACE/artifacts"
+    local verdict_path="$artifact_dir/prod-full-vm-lifecycle-fail-verdict.json"
+    local section1_manifest="$TEST_WORKSPACE/section1_bundle/run_manifest.json"
+    write_paid_beta_summary_with_step "$summary_path" "prod_full_vm_lifecycle" "fail" "prod_full_vm_lifecycle_failed"
+    write_section1_manifest_with_shape "$section1_manifest" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "2026-06" "green"
+
+    classify_manifest_summary "$summary_path" "$verdict_path" "$section1_manifest" "$artifact_dir"
+
+    assert_eq "$RUN_EXIT_CODE" "0" "prod lifecycle failure classify-existing should exit 0"
+    assert_jq_eq "$verdict_path" ".verdict" "NOT-READY-real-defects" "a failed prod data-plane lifecycle row is a real defect on the launch path"
+    assert_jq_eq "$verdict_path" ".non_pass_steps[] | select(.name == \"prod_full_vm_lifecycle\") | .classification" "other_real" "failed prod lifecycle row must classify as other_real"
+    assert_jq_eq "$verdict_path" ".non_pass_steps[] | select(.name == \"prod_full_vm_lifecycle\") | .section" "6" "prod lifecycle row must map to section 6"
+}
+
+# The staging-only production skip for the same row is a mode skip, never a real
+# defect: a staging RC must not be penalized for consciously not touching prod.
+test_classify_existing_prod_full_vm_lifecycle_staging_only_skip_is_mode_skip() {
+    setup_workspace
+    local fixture_dir="$TEST_WORKSPACE/fixtures/prod-full-vm-lifecycle-skip"
+    local summary_path="$fixture_dir/summary.json"
+    local artifact_dir="$TEST_WORKSPACE/artifacts"
+    local verdict_path="$artifact_dir/prod-full-vm-lifecycle-skip-verdict.json"
+    local section1_manifest="$TEST_WORKSPACE/section1_bundle/run_manifest.json"
+    write_paid_beta_summary_with_step "$summary_path" "prod_full_vm_lifecycle" "skipped" "staging_only_production_surface"
+    write_section1_manifest_with_shape "$section1_manifest" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "2026-06" "green"
+
+    classify_manifest_summary "$summary_path" "$verdict_path" "$section1_manifest" "$artifact_dir"
+
+    assert_eq "$RUN_EXIT_CODE" "0" "staging-only prod lifecycle skip classify-existing should exit 0"
+    assert_jq_eq "$verdict_path" ".other_real_count" "0" "staging-only prod lifecycle skip must not count as a real defect"
+    assert_jq_eq "$verdict_path" ".non_pass_steps[] | select(.name == \"prod_full_vm_lifecycle\") | .classification" "mode_skip" "staging-only prod lifecycle skip must classify as mode_skip"
+    assert_jq_eq "$verdict_path" ".non_pass_steps[] | select(.name == \"prod_full_vm_lifecycle\") | .section" "6" "staging-only prod lifecycle skip must still map to section 6"
+}
+
 test_classify_existing_real_defect_overrides_complete_red_section1_preauthorization() {
     setup_workspace
     local fixture_dir="$TEST_WORKSPACE/fixtures/complete-red-with-defect"

@@ -153,7 +153,6 @@ logger -t "$LOG_TAG" "env files written"
 # --------------------------------------------------------------------------
 
 systemctl daemon-reload
-systemctl enable flapjack fj-metering-agent
-systemctl start flapjack fj-metering-agent
+systemctl enable --now flapjack fj-metering-agent
 
 logger -t "$LOG_TAG" "services started, bootstrap complete"

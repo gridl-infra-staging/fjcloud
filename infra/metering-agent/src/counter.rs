@@ -268,6 +268,7 @@ mod tests {
             flapjack_application_id: "flapjack".to_string(),
             internal_key: "test-key".to_string(),
             scrape_interval: std::time::Duration::from_secs(60),
+            http_timeout: std::time::Duration::from_secs(60),
             storage_poll_interval: std::time::Duration::from_secs(300),
             tenant_map_refresh_interval: std::time::Duration::from_secs(300),
             host_metrics_enabled: false,

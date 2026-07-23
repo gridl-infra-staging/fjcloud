@@ -78,7 +78,7 @@ async fn run(cfg: Config, pool: sqlx::PgPool) -> Result<()> {
     let writer = record::PgUsageRecordWriter { pool: &pool };
     let host_metrics_writer = host_metrics_writer::VmHostMetricsWriter { pool: &pool };
     let http = reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))
+        .timeout(cfg.http_timeout)
         .build()?;
 
     try_initial_tenant_map_load(&cfg, &http, &tenant_map).await;

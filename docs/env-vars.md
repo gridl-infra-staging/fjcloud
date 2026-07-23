@@ -46,6 +46,7 @@ file:
 | `NODE_ID`                    | Yes      | —                          | Stable node identifier. When `VM_ID` is unset, host telemetry resolves `vm_inventory.id` by matching this value against `vm_inventory.hostname`. |
 | `REGION`                     | Yes      | —                          | Region label attached to persisted usage records and breaker metadata. |
 | `SCRAPE_INTERVAL_SECS`       | No       | `60`                       | Interval in seconds between `/metrics` scrape cycles. |
+| `HTTP_TIMEOUT_SECS`          | No       | `60`                       | Total timeout in seconds for local Flapjack HTTP calls. Must be greater than zero. |
 | `STORAGE_POLL_INTERVAL_SECS` | No       | `300`                      | Interval in seconds between `/internal/storage` polling cycles. |
 | `TENANT_MAP_REFRESH_INTERVAL_SECS` | No | `300`                      | Interval in seconds between control-plane tenant-map refreshes. |
 | `TENANT_MAP_URL`             | No       | `http://127.0.0.1:3001/internal/tenant-map` | Control-plane endpoint used to refresh tenant-to-customer attribution. Must use `https` unless the host is loopback. |

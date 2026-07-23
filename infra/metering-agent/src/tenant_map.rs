@@ -464,6 +464,7 @@ mod tests {
             flapjack_application_id: "flapjack".to_string(),
             internal_key: "internal-key-123".to_string(),
             scrape_interval: Duration::from_secs(60),
+            http_timeout: Duration::from_secs(60),
             storage_poll_interval: Duration::from_secs(300),
             tenant_map_refresh_interval: Duration::from_secs(300),
             host_metrics_enabled: false,

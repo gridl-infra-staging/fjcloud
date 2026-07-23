@@ -27,6 +27,8 @@ pub struct Config {
     pub internal_key: String,
     /// How often to scrape the /metrics endpoint.
     pub scrape_interval: Duration,
+    /// Total timeout for local Flapjack HTTP calls.
+    pub http_timeout: Duration,
     /// How often to poll /internal/storage for disk-usage gauges.
     pub storage_poll_interval: Duration,
     /// How often to refresh the tenant map from the control-plane API.
@@ -138,6 +140,7 @@ impl Config {
         let customer_id = require("CUSTOMER_ID")?.trim().to_string();
 
         let scrape_interval = Duration::from_secs(parse_u64_or(&read, "SCRAPE_INTERVAL_SECS", 60)?);
+        let http_timeout = parse_positive_duration_secs(&read, "HTTP_TIMEOUT_SECS", 60)?;
         let storage_poll_interval =
             Duration::from_secs(parse_u64_or(&read, "STORAGE_POLL_INTERVAL_SECS", 300)?);
         let tenant_map_refresh_interval = Duration::from_secs(parse_u64_or(
@@ -173,6 +176,7 @@ impl Config {
             flapjack_application_id,
             internal_key,
             scrape_interval,
+            http_timeout,
             storage_poll_interval,
             tenant_map_refresh_interval,
             host_metrics_enabled: host_metrics.enabled,
@@ -241,6 +245,24 @@ where
                 reason: error.to_string(),
             }),
     }
+}
+
+fn parse_positive_duration_secs<F>(
+    read: &F,
+    key: &str,
+    default: u64,
+) -> Result<Duration, ConfigError>
+where
+    F: Fn(&str) -> Result<String, std::env::VarError>,
+{
+    let seconds = parse_u64_or(read, key, default)?;
+    if seconds == 0 {
+        return Err(ConfigError::Invalid {
+            var: key.to_string(),
+            reason: "must be greater than zero".to_string(),
+        });
+    }
+    Ok(Duration::from_secs(seconds))
 }
 
 fn read_optional_trimmed<F>(read: &F, key: &str) -> Option<String>
@@ -561,6 +583,52 @@ mod tests {
         })
         .unwrap();
         assert_eq!(cfg.scrape_interval, Duration::from_secs(120));
+    }
+
+    #[test]
+    fn default_http_timeout_allows_large_metrics_scrapes() {
+        let cfg = Config::from_reader(valid_env).expect("default config should parse");
+
+        assert_eq!(cfg.http_timeout, Duration::from_secs(60));
+    }
+
+    #[test]
+    fn custom_http_timeout_is_respected() {
+        let cfg = Config::from_reader(|key| match key {
+            "HTTP_TIMEOUT_SECS" => Ok("90".into()),
+            other => valid_env(other),
+        })
+        .expect("custom HTTP timeout should parse");
+
+        assert_eq!(cfg.http_timeout, Duration::from_secs(90));
+    }
+
+    #[test]
+    fn non_numeric_http_timeout_returns_error() {
+        let err = Config::from_reader(|key| match key {
+            "HTTP_TIMEOUT_SECS" => Ok("slow".into()),
+            other => valid_env(other),
+        })
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            ConfigError::Invalid { ref var, .. } if var == "HTTP_TIMEOUT_SECS"
+        ));
+    }
+
+    #[test]
+    fn zero_http_timeout_returns_error() {
+        let err = Config::from_reader(|key| match key {
+            "HTTP_TIMEOUT_SECS" => Ok("0".into()),
+            other => valid_env(other),
+        })
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            ConfigError::Invalid { ref var, .. } if var == "HTTP_TIMEOUT_SECS"
+        ));
     }
 
     #[test]

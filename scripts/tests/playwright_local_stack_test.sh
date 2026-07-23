@@ -269,7 +269,7 @@ load_env_file() { :; }
 SH
 	cat > "$temp_dir/scripts/lib/health.sh" <<'SH'
 wait_for_health() {
-	for _ in $(seq 1 40); do
+	for _ in $(seq 1 400); do
 		curl -fsS "$1" >/dev/null 2>&1 && return 0
 		sleep 0.05
 	done
@@ -456,7 +456,7 @@ load_env_file() { :; }
 SH
 	cat > "$temp_dir/scripts/lib/health.sh" <<'SH'
 wait_for_health() {
-	for _ in $(seq 1 40); do
+	for _ in $(seq 1 400); do
 		curl -fsS "$1" >/dev/null 2>&1 && return 0
 		sleep 0.05
 	done

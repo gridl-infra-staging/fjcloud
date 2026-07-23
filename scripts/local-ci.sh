@@ -98,6 +98,46 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# ---------------------------------------------------------------------------
+# Bounded parallelism — cap how many gates fork concurrently.
+# ---------------------------------------------------------------------------
+# The dispatch loop below backgrounds every scheduled gate. Launching all
+# ~30 gates at once means ~30 gate bodies fork cargo/clippy/npm/bash
+# subprocesses simultaneously. On a shared host already running many other
+# worker processes, that burst can exhaust the per-uid process table and
+# gates die with `fork: Resource temporarily unavailable` / `spawn EAGAIN`
+# — a false FAIL that has nothing to do with the code under test.
+# (Diagnosed 2026-07-23: full `--fast` went red with fork EAGAIN across
+# port-collision-diagnose/rust-lint/web-test while each gate passed cleanly
+# in isolation — i.e. the unbounded fan-out, not any gate, was the defect.)
+#
+# LOCAL_CI_MAX_PARALLEL bounds the number of concurrently-running gates.
+# Default: min(8, CPU cores) — enough parallelism to stay fast, low enough
+# to keep the fork burst well under the process limit. Override to tune for
+# a given host; non-numeric or <1 values are clamped to a safe cap.
+detect_cpu_count() {
+    local n
+    n="$(sysctl -n hw.ncpu 2>/dev/null \
+        || getconf _NPROCESSORS_ONLN 2>/dev/null \
+        || nproc 2>/dev/null \
+        || echo 4)"
+    case "$n" in ''|*[!0-9]*) n=4 ;; esac
+    printf '%s' "$n"
+}
+
+if [ -n "${LOCAL_CI_MAX_PARALLEL:-}" ]; then
+    MAX_PARALLEL="$LOCAL_CI_MAX_PARALLEL"
+else
+    cpu_count="$(detect_cpu_count)"
+    if [ "$cpu_count" -lt 8 ]; then
+        MAX_PARALLEL="$cpu_count"
+    else
+        MAX_PARALLEL=8
+    fi
+fi
+case "$MAX_PARALLEL" in ''|*[!0-9]*) MAX_PARALLEL=8 ;; esac
+[ "$MAX_PARALLEL" -lt 1 ] && MAX_PARALLEL=1
+
 render_prod_drift() {
     printf '\n## Prod deploy drift (informational — does not affect exit code)\n'
     local drift_output
@@ -178,6 +218,18 @@ run_gate() {
             *)                  record_result "$name" "FAIL" "$dur" "$log" ;;
         esac
     } &
+}
+
+# throttle_parallel — block until fewer than MAX_PARALLEL background gates
+# are still running, so the dispatch loop never bursts more than the cap of
+# concurrently-forking gate bodies. Uses `jobs -pr` (PIDs of running jobs),
+# which works on bash 3.2 — the macOS system shell — where the newer
+# any-job wait flag is unavailable. The short poll interval keeps the cap
+# tight without busy-waiting.
+throttle_parallel() {
+    while [ "$(jobs -pr | wc -l | tr -d '[:space:]')" -ge "$MAX_PARALLEL" ]; do
+        sleep 0.2
+    done
 }
 
 skip_gate() {
@@ -718,19 +770,12 @@ schedule index-export-clientside-contract
 schedule rust-lint
 schedule migration-test
 schedule validate-bootstrap-parser
+schedule validate-bootstrap-env-local
 schedule publish-scripts-buildx
 schedule algolia-safety-probe-contract
 schedule flapjack-ami-pointer-contract
 schedule engine-exposure-probe-contract
 schedule fleet-dataplane-probe-contract
-
-# Keep the bootstrap env-local test in the existing sequential lane until the
-# Stage 3 parallel-safety cleanup retires this scheduling workaround. The test
-# itself is fixture-isolated; only the local-ci sequencing contract is retained.
-RUN_BOOTSTRAP_ENV_LOCAL_SEQUENTIAL=0
-if [ -z "$SINGLE_GATE" ] || [ "$SINGLE_GATE" = "validate-bootstrap-env-local" ]; then
-    RUN_BOOTSTRAP_ENV_LOCAL_SEQUENTIAL=1
-fi
 
 # Run web-test after the parallel batch so local CPU contention cannot turn
 # Vitest's tight per-test timeout into a false deploy-gate failure.
@@ -751,7 +796,6 @@ elif [ "$MODE" = "full" ] && [ -z "$SINGLE_GATE" ]; then
 fi
 
 if [ "${#SCHEDULED_GATES[@]}" -eq 0 ] \
-    && [ "$RUN_BOOTSTRAP_ENV_LOCAL_SEQUENTIAL" -eq 0 ] \
     && [ "$RUN_WEB_TEST_SEQUENTIAL" -eq 0 ] \
     && [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 0 ]; then
     if [ -n "$SINGLE_GATE" ]; then
@@ -766,9 +810,6 @@ fi
 start_all=$(now_seconds)
 
 total_gates="${#SCHEDULED_GATES[@]}"
-if [ "$RUN_BOOTSTRAP_ENV_LOCAL_SEQUENTIAL" -eq 1 ]; then
-    total_gates=$((total_gates + 1))
-fi
 if [ "$RUN_WEB_TEST_SEQUENTIAL" -eq 1 ]; then
     total_gates=$((total_gates + 1))
 fi
@@ -777,9 +818,6 @@ if [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 1 ]; then
 fi
 
 gate_label_list="${SCHEDULED_GATES[*]:-}"
-if [ "$RUN_BOOTSTRAP_ENV_LOCAL_SEQUENTIAL" -eq 1 ]; then
-    gate_label_list="${gate_label_list:+$gate_label_list }validate-bootstrap-env-local (sequential)"
-fi
 if [ "$RUN_WEB_TEST_SEQUENTIAL" -eq 1 ]; then
     gate_label_list="${gate_label_list:+$gate_label_list }web-test (sequential)"
 fi
@@ -787,10 +825,13 @@ if [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 1 ]; then
     gate_label_list="${gate_label_list:+$gate_label_list } rust-test (sequential)"
 fi
 printf '%bRunning %d gate(s):%b %s\n' "$C_BLU" "$total_gates" "$C_RESET" "$gate_label_list"
-printf '%bMode:%b %s\n\n' "$C_BLU" "$C_RESET" "$MODE"
+printf '%bMode:%b %s  %bMax parallel:%b %s\n\n' "$C_BLU" "$C_RESET" "$MODE" "$C_BLU" "$C_RESET" "$MAX_PARALLEL"
 
 if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
     for gate in "${SCHEDULED_GATES[@]}"; do
+        # Cap concurrent gate fan-out so the fork burst stays under the
+        # per-uid process limit on a shared host (see MAX_PARALLEL above).
+        throttle_parallel
         case "$gate" in
             check-sizes)     run_gate check-sizes     gate_check_sizes ;;
             script-exec-bits) run_gate script-exec-bits gate_script_exec_bits ;;
@@ -816,6 +857,7 @@ if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
             rust-lint)       run_gate rust-lint       gate_rust_lint ;;
             migration-test)  run_gate migration-test  gate_migration_test ;;
             validate-bootstrap-parser) run_gate validate-bootstrap-parser gate_validate_bootstrap_parser ;;
+            validate-bootstrap-env-local) run_gate validate-bootstrap-env-local gate_validate_bootstrap_env_local ;;
             publish-scripts-buildx) run_gate publish-scripts-buildx gate_publish_scripts_buildx ;;
             algolia-safety-probe-contract) run_gate algolia-safety-probe-contract gate_algolia_safety_probe_contract ;;
             flapjack-ami-pointer-contract) run_gate flapjack-ami-pointer-contract gate_flapjack_ami_pointer_contract ;;
@@ -832,13 +874,6 @@ fi
 # cargo/clippy and other CPU-heavy local-only checks.
 if [ "$RUN_WEB_TEST_SEQUENTIAL" -eq 1 ]; then
     run_gate web-test gate_web_test
-    wait
-fi
-
-# Run the repository-state-mutating bootstrap gate only after every parallel
-# gate has released .env.local.
-if [ "$RUN_BOOTSTRAP_ENV_LOCAL_SEQUENTIAL" -eq 1 ]; then
-    run_gate validate-bootstrap-env-local gate_validate_bootstrap_env_local
     wait
 fi
 

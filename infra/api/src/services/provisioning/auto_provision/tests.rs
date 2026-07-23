@@ -130,8 +130,8 @@ fn build_user_data_starts_systemd_services() {
     for provider in &["aws", "hetzner", "gcp", "oci", "bare_metal"] {
         let script = build_user_data(provider, "c", "n", "r", "k");
         assert!(
-            script.contains("systemctl start flapjack"),
-            "{provider}: must start flapjack service"
+            script.contains("systemctl enable --now flapjack fj-metering-agent"),
+            "{provider}: must atomically enable and start flapjack services"
         );
         assert!(
             script.contains("fj-metering-agent"),

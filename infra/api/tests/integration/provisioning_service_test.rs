@@ -2461,8 +2461,8 @@ async fn hetzner_deployment_uses_direct_secrets_in_cloud_init() {
          Got user_data:\n{user_data}"
     );
     assert!(
-        user_data.contains("systemctl start flapjack"),
-        "cloud-init must start flapjack service.\nGot user_data:\n{user_data}"
+        user_data.contains("systemctl enable --now flapjack fj-metering-agent"),
+        "cloud-init must atomically enable and start flapjack services.\nGot user_data:\n{user_data}"
     );
 }
 

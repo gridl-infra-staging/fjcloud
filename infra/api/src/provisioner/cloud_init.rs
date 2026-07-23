@@ -128,8 +128,7 @@ logger -t "$LOG_TAG" "env files written"
 
 # Enable and start services
 systemctl daemon-reload
-systemctl enable flapjack fj-metering-agent
-systemctl start flapjack fj-metering-agent
+systemctl enable --now flapjack fj-metering-agent
 
 logger -t "$LOG_TAG" "services started, bootstrap complete"
 "#
@@ -181,7 +180,7 @@ mod tests {
         assert!(script.contains("DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL"));
         assert!(script.contains("User=fjcloud"));
         assert!(script.contains("Group=fjcloud"));
-        assert!(script.contains("systemctl start flapjack"));
+        assert!(script.contains("systemctl enable --now flapjack fj-metering-agent"));
     }
 
     /// Verifies Hetzner-mode user-data embeds DB URL and API key directly (no SSM), uses the direct-secrets comment header, and starts flapjack services.
@@ -220,7 +219,25 @@ mod tests {
         assert!(script.contains("DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL"));
         assert!(script.contains("User=fjcloud"));
         assert!(script.contains("Group=fjcloud"));
-        assert!(script.contains("systemctl start flapjack"));
+        assert!(script.contains("systemctl enable --now flapjack fj-metering-agent"));
+    }
+
+    #[test]
+    fn cloud_init_starts_services_with_atomic_enable_now() {
+        let params = CloudInitParams {
+            customer_id: "cust-123".to_string(),
+            node_id: "node-abc".to_string(),
+            region: "us-east-1".to_string(),
+            environment: "staging".to_string(),
+            secrets: SecretDelivery::AwsSsm {
+                region: "us-east-1".to_string(),
+            },
+        };
+        let script = generate_cloud_init(&params);
+
+        assert!(script.contains("systemctl enable --now flapjack fj-metering-agent"));
+        assert!(!script.contains("systemctl enable flapjack fj-metering-agent\n"));
+        assert!(!script.contains("systemctl start flapjack fj-metering-agent\n"));
     }
 
     /// Confirms that direct-delivery secrets containing shell metacharacters (`$`, backticks, single quotes) are single-quoted with proper escape sequences to prevent command injection.

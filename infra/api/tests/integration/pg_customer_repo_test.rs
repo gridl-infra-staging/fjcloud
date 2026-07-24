@@ -1639,7 +1639,7 @@ async fn soft_delete_preserves_recovery_evidence_and_generation_fence() {
 }
 
 #[tokio::test]
-async fn reactivation_preserves_lifecycle_generation() {
+async fn reactivation_advances_lifecycle_generation() {
     let Some(db) =
         pg_schema_harness::connect_and_migrate("it_customer_reactivation_generation").await
     else {
@@ -1670,7 +1670,7 @@ async fn reactivation_preserves_lifecycle_generation() {
         .await
         .expect("reload reactivated customer")
         .expect("reactivated customer remains present");
-    assert_eq!(reactivated.lifecycle_generation, 7);
+    assert_eq!(reactivated.lifecycle_generation, 8);
 
     cleanup_customer(&db.pool, &email).await;
 }
@@ -3464,8 +3464,7 @@ async fn reactivate_cannot_cross_soft_delete_generation_fence() {
     let generation = 7_i64;
 
     // Control arm: a suspended customer at generation G reactivates to active and
-    // keeps generation G exactly — the existing admin transition still admits
-    // `suspended -> active`.
+    // advances to G + 1, fencing work admitted before the suspension.
     let suspended_email = format!("reactivate-suspended-{}@integration.test", Uuid::new_v4());
     let suspended = repo
         .create("Reactivate Suspended", &suspended_email)
@@ -3490,8 +3489,9 @@ async fn reactivate_cannot_cross_soft_delete_generation_fence() {
     let reactivated = fetch_customer_lifecycle_snapshot(&pool, suspended.id).await;
     assert_eq!(reactivated.status, "active");
     assert_eq!(
-        reactivated.lifecycle_generation, generation,
-        "suspended -> active reactivation must preserve generation G exactly"
+        reactivated.lifecycle_generation,
+        generation + 1,
+        "suspended -> active reactivation must advance the generation exactly once"
     );
 
     // Fence arm: a real soft-deleted customer at generation G + 1 cannot be

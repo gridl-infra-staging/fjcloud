@@ -22,6 +22,7 @@ pub const EXPECTED_PERSISTED_VM_REFERENCE_COLUMNS: &[(&str, &str)] = &[
     ("index_replicas", "replica_vm_id"),
     ("algolia_import_jobs", "destination_vm_id"),
     ("vm_host_metrics", "vm_id"),
+    ("vm_lifecycle_events", "vm_id"),
 ];
 
 #[derive(Clone, Copy)]

@@ -128,7 +128,9 @@ pub(super) async fn reactivate(pool: &PgPool, id: Uuid) -> Result<bool, RepoErro
     }
     super::lifecycle::lock_algolia_import_jobs(&mut tx, id).await?;
     let result = sqlx::query(
-        "UPDATE customers SET status = 'active', updated_at = NOW() \
+        "UPDATE customers \
+             SET status = 'active', lifecycle_generation = lifecycle_generation + 1, \
+                 updated_at = NOW() \
              WHERE id = $1 AND status = 'suspended'",
     )
     .bind(id)

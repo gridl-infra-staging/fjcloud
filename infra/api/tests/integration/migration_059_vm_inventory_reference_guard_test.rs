@@ -301,27 +301,98 @@ async fn migration_059_algolia_reservation_predicate_matches_the_rust_owner() {
         return;
     };
     let erased_at = Utc::now();
+    let engine_job_id = Uuid::new_v4();
     let cases = [
-        (None, "unknown", false, "completed", "acknowledged", true),
-        (None, "promoted", true, "failed", "acknowledged", true),
-        (None, "not_started", false, "queued", "pending", true),
-        (None, "promoted", false, "completed", "pending", true),
-        (None, "promoted", false, "completed", "acknowledged", false),
+        (
+            None,
+            "unknown",
+            false,
+            "completed",
+            "acknowledged",
+            "committed",
+            Some(engine_job_id),
+            true,
+        ),
+        (
+            None,
+            "promoted",
+            true,
+            "failed",
+            "acknowledged",
+            "committed",
+            Some(engine_job_id),
+            true,
+        ),
+        (
+            None,
+            "not_started",
+            false,
+            "queued",
+            "pending",
+            "ambiguous",
+            None,
+            true,
+        ),
+        (
+            None,
+            "promoted",
+            false,
+            "completed",
+            "pending",
+            "committed",
+            Some(engine_job_id),
+            true,
+        ),
+        (
+            None,
+            "promoted",
+            false,
+            "completed",
+            "acknowledged",
+            "committed",
+            Some(engine_job_id),
+            false,
+        ),
         (
             None,
             "not_started",
             false,
             "failed",
             "not_applicable",
+            "absent",
+            None,
             false,
         ),
-        (Some(erased_at), "unknown", true, "queued", "pending", false),
+        (
+            Some(erased_at),
+            "unknown",
+            true,
+            "queued",
+            "pending",
+            "ambiguous",
+            None,
+            false,
+        ),
     ];
 
-    for (erased_at, disposition, resumable, status, acknowledgement, expected) in cases {
+    for (
+        erased_at,
+        disposition,
+        resumable,
+        status,
+        acknowledgement,
+        dispatch_intent_state,
+        engine_job_id,
+        expected,
+    ) in cases
+    {
         let rust_owner_sql = format!(
-            "SELECT ({}) FROM (VALUES ($1::timestamptz, $2::text, $3::boolean, $4::text, $5::text)) \
-             AS reservation(erased_at, publication_disposition, resumable, status, engine_ack_state)",
+            "SELECT ({}) FROM (VALUES (
+                 $1::timestamptz, $2::text, $3::boolean, $4::text, $5::text, $6::text, $7::uuid
+             )) AS reservation(
+                 erased_at, publication_disposition, resumable, status, engine_ack_state,
+                 dispatch_intent_state, engine_job_id
+             )",
             PgAlgoliaImportJobRepo::active_reservation_predicate_for_contract_tests()
         );
         let rust_owner_value: bool = sqlx::query_scalar(&rust_owner_sql)
@@ -330,17 +401,21 @@ async fn migration_059_algolia_reservation_predicate_matches_the_rust_owner() {
             .bind(resumable)
             .bind(status)
             .bind(acknowledgement)
+            .bind(dispatch_intent_state)
+            .bind(engine_job_id)
             .fetch_one(&db.pool)
             .await
             .expect("evaluate canonical Rust reservation predicate");
         let migration_owner_value: bool = sqlx::query_scalar(
-            "SELECT algolia_import_job_has_active_reservation($1, $2, $3, $4, $5)",
+            "SELECT algolia_import_job_has_active_reservation($1, $2, $3, $4, $5, $6, $7)",
         )
         .bind(erased_at)
         .bind(disposition)
         .bind(resumable)
         .bind(status)
         .bind(acknowledgement)
+        .bind(dispatch_intent_state)
+        .bind(engine_job_id)
         .fetch_one(&db.pool)
         .await
         .expect("evaluate migration-owned reservation predicate");

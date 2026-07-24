@@ -232,6 +232,9 @@ fn schema_valid_reservation_quad(
     engine_ack_state: AlgoliaImportEngineAckState,
     resumable: bool,
 ) -> bool {
+    if status.is_terminal() && !status.has_valid_terminal_disposition(publication_disposition) {
+        return false;
+    }
     if resumable {
         return matches!(
             status,

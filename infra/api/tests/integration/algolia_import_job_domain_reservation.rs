@@ -7,6 +7,7 @@ use api::models::algolia_import_job::{
     AlgoliaImportSummary, NewAlgoliaImportJob, NewAlgoliaReplaceImportJob,
 };
 use api::repos::{
+    AlgoliaImportDispatchAdmission, AlgoliaImportDispatchAdmissionOutcome,
     AlgoliaImportJobAdmissionError, AlgoliaImportJobRepo, CustomerHardDeleteKind, CustomerRepo,
     PgAlgoliaImportJobRepo, PgCustomerRepo, PgTenantRepo, TenantRepo,
 };
@@ -1033,6 +1034,22 @@ fn active_engine_state(
     }
 }
 
+async fn admit_create_dispatch(
+    repo: &PgAlgoliaImportJobRepo,
+    request: NewAlgoliaImportJob,
+) -> AlgoliaImportJob {
+    match repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Create(request))
+        .await
+        .expect("admit dispatch")
+    {
+        AlgoliaImportDispatchAdmissionOutcome::New(job) => job,
+        AlgoliaImportDispatchAdmissionOutcome::Replay(_) => {
+            panic!("fresh dispatch fixture must create a new job")
+        }
+    }
+}
+
 async fn advance_to_copying_documents(
     repo: &PgAlgoliaImportJobRepo,
     job_id: Uuid,
@@ -1061,10 +1078,7 @@ async fn terminal_state_update_releases_reservation() {
     let customer = Uuid::new_v4();
     insert_active_customer(&db.pool, customer, 1).await;
 
-    let job = repo
-        .create(create_job(customer, "products", "key-1"))
-        .await
-        .expect("create");
+    let job = admit_create_dispatch(&repo, create_job(customer, "products", "key-1")).await;
 
     let engine_job_id = Uuid::new_v4();
     advance_to_copying_documents(&repo, job.id, engine_job_id).await;
@@ -1097,10 +1111,7 @@ async fn resumable_failure_state_retains_reservation_through_update() {
     let customer = Uuid::new_v4();
     insert_active_customer(&db.pool, customer, 1).await;
 
-    let job = repo
-        .create(create_job(customer, "products", "key-1"))
-        .await
-        .expect("create");
+    let job = admit_create_dispatch(&repo, create_job(customer, "products", "key-1")).await;
 
     let engine_job_id = Uuid::new_v4();
     let observed_at = chrono::Utc::now();
@@ -1151,10 +1162,7 @@ async fn resumed_job_does_not_create_second_reservation() {
     let customer = Uuid::new_v4();
     insert_active_customer(&db.pool, customer, 1).await;
 
-    let job = repo
-        .create(create_job(customer, "products", "key-1"))
-        .await
-        .expect("create");
+    let job = admit_create_dispatch(&repo, create_job(customer, "products", "key-1")).await;
 
     let engine_job_id = Uuid::new_v4();
     let observed_at = chrono::Utc::now();

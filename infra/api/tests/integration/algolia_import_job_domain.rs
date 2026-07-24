@@ -345,6 +345,21 @@ fn assert_destination_changed_admission(
     );
 }
 
+fn assert_destination_conflict_admission(
+    result: Result<AlgoliaImportJob, AlgoliaImportJobAdmissionError>,
+    context: &str,
+) {
+    assert!(
+        matches!(
+            result,
+            Err(AlgoliaImportJobAdmissionError::Refused(
+                AlgoliaImportErrorCode::DestinationConflict
+            ))
+        ),
+        "{context}: expected destination_conflict refusal, got {result:?}"
+    );
+}
+
 #[tokio::test]
 async fn migration_creates_distinct_algolia_import_jobs_contract() {
     let Some(db) = connect_and_migrate("algolia_import_contract").await else {
@@ -702,8 +717,37 @@ async fn concurrent_dispatch_admissions_for_one_client_key_create_once_then_repl
             )
         })
         .count();
+    let conflict_count = outcomes
+        .iter()
+        .filter(|outcome| {
+            matches!(
+                outcome,
+                Err(AlgoliaImportJobAdmissionError::Refused(
+                    AlgoliaImportErrorCode::DestinationConflict
+                ))
+            )
+        })
+        .count();
     assert_eq!(new_count, 1, "exactly one concurrent admission creates");
-    assert_eq!(replay_count, 1, "the loser must resolve as typed replay");
+    assert_eq!(
+        conflict_count, 1,
+        "the fail-fast advisory-lock loser must return destination_conflict"
+    );
+    assert_eq!(
+        replay_count, 0,
+        "replay cannot be resolved until the winner commits"
+    );
+    let retry = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Create(new_job(
+            customer_id,
+            "concurrent-dispatch-key",
+        )))
+        .await
+        .expect("retry after the winning commit");
+    assert!(
+        matches!(retry, AlgoliaImportDispatchAdmissionOutcome::Replay(_)),
+        "the subsequent retry must resolve as typed replay"
+    );
     let retained_jobs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM algolia_import_jobs")
         .fetch_one(&pool)
         .await
@@ -1059,13 +1103,13 @@ async fn suspended_then_reactivated_customer_refuses_stale_dispatch_admission_re
         current_generation, 12,
         "reactivation must stale pre-suspension dispatch admissions"
     );
-    assert_destination_changed_admission(
+    assert_destination_conflict_admission(
         repo.admit_dispatch(AlgoliaImportDispatchAdmission::Create(original_request))
             .await
             .map(AlgoliaImportDispatchAdmissionOutcome::into_job),
         "same-key dispatch replay after reactivation",
     );
-    assert_destination_changed_admission(
+    assert_destination_conflict_admission(
         repo.admit_dispatch(AlgoliaImportDispatchAdmission::Create(new_job(
             customer_id,
             "reactivated-dispatch-new-key",

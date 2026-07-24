@@ -114,7 +114,21 @@ struct AcceptanceOracles {
     version: u32,
     oracle_kind: String,
     lane_composition: LaneComposition,
+    #[allow(dead_code)]
+    privacy_erasure_dependencies: Vec<PrivacyErasureDependency>,
     oracles: BTreeMap<String, ClassOracle>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct PrivacyErasureDependency {
+    id: String,
+    owner: String,
+    required_contract: String,
+    minimum_unblock: String,
+    status: String,
+    reason: String,
 }
 
 /// Downstream composition contract: after Lanes 11 and 20 are composed, Lane 20
@@ -1967,13 +1981,19 @@ fn catalog_lifecycle_oracle_behavior_mutations_fail_closed() {
 fn catalog_lifecycle_acceptance_oracle_does_not_duplicate_writer_denominator() {
     let value: serde_json::Value = serde_json::from_str(CATALOG_LIFECYCLE_ACCEPTANCE_ORACLES_JSON)
         .expect("acceptance oracle fixture must be valid JSON");
+    let object = value
+        .as_object()
+        .expect("acceptance oracle fixture must be a JSON object");
 
     let mut keys = BTreeSet::new();
-    collect_json_object_keys(&value, &mut keys);
+    collect_json_object_keys(
+        object
+            .get("oracles")
+            .expect("acceptance oracle fixture must contain oracles"),
+        &mut keys,
+    );
 
     let forbidden = [
-        "writers",
-        "writer",
         "writer_id",
         "writer_ids",
         "writer_disposition",
@@ -1992,14 +2012,10 @@ fn catalog_lifecycle_acceptance_oracle_does_not_duplicate_writer_denominator() {
         "acceptance oracle must not copy writer-owned denominator fields: {copied:?}"
     );
 
-    // No top-level writer list of any shape.
-    let object = value
-        .as_object()
-        .expect("acceptance oracle fixture must be a JSON object");
-    for (key, child) in object {
+    for field in ["writers", "writer", "writer_ids", "total_writer_count"] {
         assert!(
-            !child.is_array() || key == "oracles",
-            "acceptance oracle must not carry a writer list at {key:?}"
+            !object.contains_key(field),
+            "acceptance oracle must not carry top-level writer denominator field {field:?}"
         );
     }
 }

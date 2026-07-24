@@ -13,17 +13,107 @@ pub enum SecretDelivery {
     Direct { db_url: String, api_key: String },
 }
 
+/// Whether the VM image can run the Caddy reverse-proxy bootstrap contract.
+pub enum CaddyRuntime {
+    Unavailable,
+    Available { served_hostname: String },
+}
+
 /// Parameters for generating flapjack cloud-init user-data.
 pub struct CloudInitParams {
     pub customer_id: String,
     pub node_id: String,
     pub region: String,
     pub environment: String,
+    pub caddy_runtime: CaddyRuntime,
     pub secrets: SecretDelivery,
 }
 
 fn shell_single_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\"'\"'"))
+}
+
+fn is_safe_caddy_hostname(value: &str) -> bool {
+    if value.is_empty() || value.len() > 253 || !value.contains('.') {
+        return false;
+    }
+
+    value.split('.').all(|label| {
+        !label.is_empty()
+            && label.len() <= 63
+            && !label.starts_with('-')
+            && !label.ends_with('-')
+            && label
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    })
+}
+
+const CADDY_SHELL_CONTRACT: &str = r#"
+is_safe_caddy_hostname() {
+  local candidate="$1"
+  local label
+  local -a labels
+
+  [ -n "$candidate" ] || return 1
+  [ "${#candidate}" -le 253 ] || return 1
+  [[ "$candidate" == *.* ]] || return 1
+  IFS='.' read -r -a labels <<< "$candidate"
+  [ "${#labels[@]}" -ge 2 ] || return 1
+
+  for label in "${labels[@]}"; do
+    [ -n "$label" ] && [ "${#label}" -le 63 ] || return 1
+    [[ "$label" =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$ ]] || return 1
+  done
+}
+
+configure_caddy() {
+  local served_hostname="$1"
+
+  if [ -z "$served_hostname" ]; then
+    logger -t "$LOG_TAG" "WARN: Caddy setup skipped; no served hostname available"
+    return 0
+  fi
+  if ! is_safe_caddy_hostname "$served_hostname"; then
+    logger -t "$LOG_TAG" "WARN: Caddy setup skipped; unsafe served hostname"
+    return 0
+  fi
+
+  install -d -m 0755 -o root -g caddy /etc/caddy || return
+  if ! cat > /etc/caddy/Caddyfile <<CADDYEOF
+$served_hostname {
+  reverse_proxy 127.0.0.1:7700
+}
+CADDYEOF
+  then
+    return 1
+  fi
+  chown root:caddy /etc/caddy/Caddyfile || return
+  chmod 0644 /etc/caddy/Caddyfile || return
+  systemctl enable --now caddy || return
+  systemctl reload-or-restart caddy || return
+}
+
+if ! configure_caddy "$CADDY_SERVED_HOSTNAME"; then
+  logger -t "$LOG_TAG" "WARN: Caddy setup failed; Flapjack services remain running"
+fi
+"#;
+
+fn caddy_runtime_sections(runtime: &CaddyRuntime) -> (String, String) {
+    match runtime {
+        CaddyRuntime::Unavailable => (String::new(), String::new()),
+        CaddyRuntime::Available { served_hostname } => {
+            let quoted_hostname = if is_safe_caddy_hostname(served_hostname) {
+                shell_single_quote(served_hostname)
+            } else {
+                "''".to_string()
+            };
+            (
+                format!("CADDY_SERVED_HOSTNAME={quoted_hostname}\n"),
+                CADDY_SHELL_CONTRACT.to_string(),
+            )
+        }
+    }
 }
 
 /// Generate cloud-init user-data script for a flapjack VM.
@@ -66,6 +156,8 @@ DISCORD_WEBHOOK_URL="#,
     let quoted_node_id = shell_single_quote(node_id);
     let quoted_region = shell_single_quote(region);
     let quoted_environment = shell_single_quote(environment);
+    let (caddy_metadata_assignment, caddy_shell_contract) =
+        caddy_runtime_sections(&params.caddy_runtime);
 
     format!(
         r#"#!/bin/bash
@@ -77,7 +169,7 @@ logger -t "$LOG_TAG" "starting bootstrap (user-data)"
 # Instance metadata
 CUSTOMER_ID={quoted_customer_id}
 NODE_ID={quoted_node_id}
-REGION={quoted_region}
+{caddy_metadata_assignment}REGION={quoted_region}
 ENVIRONMENT={quoted_environment}
 
 logger -t "$LOG_TAG" "customer_id=$CUSTOMER_ID node_id=$NODE_ID region=$REGION environment=$ENVIRONMENT"
@@ -93,6 +185,7 @@ umask 077
 cat > /etc/flapjack/env <<ENVEOF
 DATABASE_URL=$DB_URL
 FLAPJACK_API_KEY=$API_KEY
+FLAPJACK_ADMIN_KEY=$API_KEY
 # Bind all interfaces so the same-host metering agent (FLAPJACK_URL uses the
 # node hostname, not loopback) and the API security group can reach the engine.
 # Network exposure is gated by the AWS SG + firewalld, not by the bind address.
@@ -129,6 +222,7 @@ logger -t "$LOG_TAG" "env files written"
 # Enable and start services
 systemctl daemon-reload
 systemctl enable --now flapjack fj-metering-agent
+{caddy_shell_contract}
 
 logger -t "$LOG_TAG" "services started, bootstrap complete"
 "#
@@ -139,6 +233,48 @@ logger -t "$LOG_TAG" "services started, bootstrap complete"
 mod tests {
     use super::*;
 
+    fn assert_caddy_enabled_script(script: &str, hostname: &str) {
+        assert!(script.contains(&format!("CADDY_SERVED_HOSTNAME='{hostname}'")));
+        assert!(script.contains("cat > /etc/caddy/Caddyfile <<CADDYEOF"));
+        assert!(script.contains("$served_hostname {"));
+        assert!(script.contains("reverse_proxy 127.0.0.1:7700"));
+        assert!(script.contains("systemctl enable --now caddy"));
+        assert!(script.contains("systemctl reload-or-restart caddy"));
+    }
+
+    fn assert_caddy_disabled_script(script: &str) {
+        assert!(!script.contains("CADDY_SERVED_HOSTNAME"));
+        assert!(!script.contains("is_safe_caddy_hostname()"));
+        assert!(!script.contains("configure_caddy"));
+        assert!(!script.contains("/etc/caddy"));
+        assert!(!script.contains("reverse_proxy 127.0.0.1:7700"));
+        assert!(!script
+            .lines()
+            .any(|line| line.contains("systemctl") && line.contains("caddy")));
+    }
+
+    fn assert_core_flapjack_and_metering_script(script: &str) {
+        assert!(script.contains("cat > /etc/flapjack/env <<ENVEOF"));
+        assert!(script.contains("cat > /etc/fjcloud/metering-env <<ENVEOF"));
+        assert!(script.contains("FLAPJACK_API_KEY=$API_KEY"));
+        assert!(script.contains("FLAPJACK_ADMIN_KEY=$API_KEY"));
+        assert!(script.contains("FLAPJACK_BIND_ADDR=0.0.0.0:7700"));
+        assert!(script.contains("FLAPJACK_DISABLE_DASHBOARD=1"));
+        assert!(script.contains("FLAPJACK_URL=http://$NODE_ID:7700"));
+        assert!(script.contains("ENVIRONMENT=$ENVIRONMENT"));
+        assert!(script.contains("TENANT_MAP_URL=https://api.$DNS_DOMAIN/internal/tenant-map"));
+        assert!(script.contains(
+            "COLD_STORAGE_USAGE_URL=https://api.$DNS_DOMAIN/internal/cold-storage-usage"
+        ));
+        assert!(script.contains("SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL"));
+        assert!(script.contains("DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL"));
+        assert!(script.contains("User=fjcloud"));
+        assert!(script.contains("Group=fjcloud"));
+        assert!(script.contains("systemctl enable --now flapjack fj-metering-agent"));
+        assert!(!script.contains("runtime-env.conf"));
+        assert!(!script.contains("/etc/flapjack/metering-env"));
+    }
+
     /// Verifies AWS-mode user-data includes `aws ssm get-parameter` calls and single-quoted metadata fields, and starts flapjack services.
     #[test]
     fn cloud_init_aws_includes_ssm_commands() {
@@ -147,6 +283,9 @@ mod tests {
             node_id: "node-abc".to_string(),
             region: "us-east-1".to_string(),
             environment: "staging".to_string(),
+            caddy_runtime: CaddyRuntime::Available {
+                served_hostname: "vm-abc.example.com".to_string(),
+            },
             secrets: SecretDelivery::AwsSsm {
                 region: "us-east-1".to_string(),
             },
@@ -160,27 +299,8 @@ mod tests {
         assert!(script.contains("ENVIRONMENT='staging'"));
         assert!(script.contains(r#"/fjcloud/$ENVIRONMENT/database_url"#));
         assert!(script.contains(r#"/fjcloud/$ENVIRONMENT/internal_auth_token"#));
-        // Flapjack must bind a routable interface (not loopback) so the
-        // same-host metering agent (FLAPJACK_URL=http://$NODE_ID:7700) and the
-        // API security group can reach it; network exposure is gated by the SG
-        // + firewalld, not by binding loopback. resolve_bind_addr() in
-        // flapjack-server lets FLAPJACK_BIND_ADDR override the 127.0.0.1:7700
-        // default.
-        assert!(script.contains("FLAPJACK_BIND_ADDR=0.0.0.0:7700"));
-        assert!(script.contains("FLAPJACK_DISABLE_DASHBOARD=1"));
-        assert!(!script.contains("runtime-env.conf"));
-        assert!(!script.contains("/etc/flapjack/metering-env"));
-        assert!(script.contains("cat > /etc/fjcloud/metering-env <<ENVEOF"));
-        assert!(script.contains("ENVIRONMENT=$ENVIRONMENT"));
-        assert!(script.contains("TENANT_MAP_URL=https://api.$DNS_DOMAIN/internal/tenant-map"));
-        assert!(script.contains(
-            "COLD_STORAGE_USAGE_URL=https://api.$DNS_DOMAIN/internal/cold-storage-usage"
-        ));
-        assert!(script.contains("SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL"));
-        assert!(script.contains("DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL"));
-        assert!(script.contains("User=fjcloud"));
-        assert!(script.contains("Group=fjcloud"));
-        assert!(script.contains("systemctl enable --now flapjack fj-metering-agent"));
+        assert_core_flapjack_and_metering_script(&script);
+        assert_caddy_enabled_script(&script, "vm-abc.example.com");
     }
 
     /// Verifies Hetzner-mode user-data embeds DB URL and API key directly (no SSM), uses the direct-secrets comment header, and starts flapjack services.
@@ -191,6 +311,7 @@ mod tests {
             node_id: "node-xyz".to_string(),
             region: "eu-central-1".to_string(),
             environment: "prod".to_string(),
+            caddy_runtime: CaddyRuntime::Unavailable,
             secrets: SecretDelivery::Direct {
                 db_url: "postgres://db.example.com/fjcloud".to_string(),
                 api_key: "sk-secret-key".to_string(),
@@ -205,21 +326,7 @@ mod tests {
         assert!(script.contains("Secrets delivered via user-data (Hetzner)"));
         assert!(script.contains("postgres://db.example.com/fjcloud"));
         assert!(script.contains("sk-secret-key"));
-        assert!(script.contains("FLAPJACK_BIND_ADDR=0.0.0.0:7700"));
-        assert!(script.contains("FLAPJACK_DISABLE_DASHBOARD=1"));
-        assert!(!script.contains("runtime-env.conf"));
-        assert!(!script.contains("/etc/flapjack/metering-env"));
-        assert!(script.contains("cat > /etc/fjcloud/metering-env <<ENVEOF"));
-        assert!(script.contains("ENVIRONMENT=$ENVIRONMENT"));
-        assert!(script.contains("TENANT_MAP_URL=https://api.$DNS_DOMAIN/internal/tenant-map"));
-        assert!(script.contains(
-            "COLD_STORAGE_USAGE_URL=https://api.$DNS_DOMAIN/internal/cold-storage-usage"
-        ));
-        assert!(script.contains("SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL"));
-        assert!(script.contains("DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL"));
-        assert!(script.contains("User=fjcloud"));
-        assert!(script.contains("Group=fjcloud"));
-        assert!(script.contains("systemctl enable --now flapjack fj-metering-agent"));
+        assert_core_flapjack_and_metering_script(&script);
     }
 
     #[test]
@@ -229,6 +336,7 @@ mod tests {
             node_id: "node-abc".to_string(),
             region: "us-east-1".to_string(),
             environment: "staging".to_string(),
+            caddy_runtime: CaddyRuntime::Unavailable,
             secrets: SecretDelivery::AwsSsm {
                 region: "us-east-1".to_string(),
             },
@@ -240,6 +348,25 @@ mod tests {
         assert!(!script.contains("systemctl start flapjack fj-metering-agent\n"));
     }
 
+    #[test]
+    fn cloud_init_omits_caddy_when_runtime_unavailable() {
+        let params = CloudInitParams {
+            customer_id: "cust-456".to_string(),
+            node_id: "node-xyz".to_string(),
+            region: "eu-central-1".to_string(),
+            environment: "prod".to_string(),
+            caddy_runtime: CaddyRuntime::Unavailable,
+            secrets: SecretDelivery::Direct {
+                db_url: "postgres://db.example.com/fjcloud".to_string(),
+                api_key: "sk-secret-key".to_string(),
+            },
+        };
+        let script = generate_cloud_init(&params);
+
+        assert_core_flapjack_and_metering_script(&script);
+        assert_caddy_disabled_script(&script);
+    }
+
     /// Confirms that direct-delivery secrets containing shell metacharacters (`$`, backticks, single quotes) are single-quoted with proper escape sequences to prevent command injection.
     #[test]
     fn cloud_init_hetzner_escapes_direct_secrets_for_shell() {
@@ -248,6 +375,7 @@ mod tests {
             node_id: "node".to_string(),
             region: "eu-central-1".to_string(),
             environment: "prod".to_string(),
+            caddy_runtime: CaddyRuntime::Unavailable,
             secrets: SecretDelivery::Direct {
                 db_url: "postgres://user:pass@db.example.com/fjcloud".to_string(),
                 api_key: "sk-'unsafe'-$HOME-$(whoami)".to_string(),
@@ -289,6 +417,9 @@ mod tests {
             node_id: "node-`id`".to_string(),
             region: "us-east-1\"; rm -rf /; \"".to_string(),
             environment: "staging$(rm -rf /)".to_string(),
+            caddy_runtime: CaddyRuntime::Available {
+                served_hostname: "vm-$(hostname).example.com".to_string(),
+            },
             secrets: SecretDelivery::AwsSsm {
                 region: "us-east-1\"; rm -rf /; \"".to_string(),
             },
@@ -338,12 +469,73 @@ mod tests {
     }
 
     #[test]
+    fn cloud_init_uses_hostname_only_for_caddy_config() {
+        let params = CloudInitParams {
+            customer_id: "cust-456".to_string(),
+            node_id: "node-xyz".to_string(),
+            region: "eu-central-1".to_string(),
+            environment: "prod".to_string(),
+            caddy_runtime: CaddyRuntime::Available {
+                served_hostname: "vm-canonical.example.com".to_string(),
+            },
+            secrets: SecretDelivery::Direct {
+                db_url: "postgres://db.example.com/fjcloud".to_string(),
+                api_key: "sk-secret-key".to_string(),
+            },
+        };
+        let script = generate_cloud_init(&params);
+
+        assert_caddy_enabled_script(&script, "vm-canonical.example.com");
+        assert!(script.contains("FLAPJACK_URL=http://$NODE_ID:7700"));
+        assert!(!script.contains("$NODE_ID {"));
+        assert!(!script.contains("sk-secret-key {"));
+        assert!(!script.contains("postgres://db.example.com/fjcloud {"));
+    }
+
+    #[test]
+    fn caddy_hostname_validation_rejects_injection_characters() {
+        assert!(is_safe_caddy_hostname("vm-canonical.example.com"));
+        assert!(is_safe_caddy_hostname("lane-l2-1234.staging.flapjack.foo"));
+        assert!(!is_safe_caddy_hostname(""));
+        assert!(!is_safe_caddy_hostname("vm"));
+        assert!(!is_safe_caddy_hostname("-vm.example.com"));
+        assert!(!is_safe_caddy_hostname("vm-.example.com"));
+        assert!(!is_safe_caddy_hostname(
+            "vm.example.com\nreverse_proxy attacker:80"
+        ));
+        assert!(!is_safe_caddy_hostname("vm.example.com {"));
+    }
+
+    #[test]
+    fn cloud_init_drops_unsafe_caddy_hostname() {
+        let params = CloudInitParams {
+            customer_id: "cust".to_string(),
+            node_id: "node".to_string(),
+            region: "us-east-1".to_string(),
+            environment: "staging".to_string(),
+            caddy_runtime: CaddyRuntime::Available {
+                served_hostname: "vm.example.com\nreverse_proxy attacker:80".to_string(),
+            },
+            secrets: SecretDelivery::AwsSsm {
+                region: "us-east-1".to_string(),
+            },
+        };
+
+        let script = generate_cloud_init(&params);
+
+        assert!(script.contains("CADDY_SERVED_HOSTNAME=''"));
+        assert!(script.contains("WARN: Caddy setup skipped; unsafe served hostname"));
+        assert!(!script.contains("reverse_proxy attacker:80"));
+    }
+
+    #[test]
     fn cloud_init_sets_secure_permissions() {
         let params = CloudInitParams {
             customer_id: "c".to_string(),
             node_id: "n".to_string(),
             region: "r".to_string(),
             environment: "staging".to_string(),
+            caddy_runtime: CaddyRuntime::Unavailable,
             secrets: SecretDelivery::AwsSsm {
                 region: "r".to_string(),
             },

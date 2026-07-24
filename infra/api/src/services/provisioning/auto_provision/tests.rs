@@ -1,11 +1,63 @@
 #![allow(clippy::await_holding_lock)]
 
 use super::*;
+use crate::vm_providers::VALID_VM_PROVIDERS;
+
+fn assert_caddy_runtime_present(script: &str, hostname: &str) {
+    assert!(script.contains(&format!("CADDY_SERVED_HOSTNAME='{hostname}'")));
+    assert!(script.contains("cat > /etc/caddy/Caddyfile <<CADDYEOF"));
+    assert!(script.contains("$served_hostname {"));
+    assert!(script.contains("reverse_proxy 127.0.0.1:7700"));
+    assert!(script.contains("systemctl enable --now caddy"));
+    assert!(script.contains("systemctl reload-or-restart caddy"));
+}
+
+fn assert_caddy_runtime_absent(provider: &str, script: &str) {
+    assert!(
+        !script.contains("CADDY_SERVED_HOSTNAME"),
+        "{provider}: non-AWS user-data must not configure a served Caddy hostname"
+    );
+    assert!(
+        !script.contains("configure_caddy"),
+        "{provider}: non-AWS user-data must not define Caddy setup"
+    );
+    assert!(
+        !script.contains("/etc/caddy"),
+        "{provider}: non-AWS user-data must not write Caddy config"
+    );
+    assert!(
+        !script.contains("reverse_proxy 127.0.0.1:7700"),
+        "{provider}: non-AWS user-data must not proxy through local Caddy"
+    );
+    assert!(
+        !script
+            .lines()
+            .any(|line| line.contains("systemctl") && line.contains("caddy")),
+        "{provider}: non-AWS user-data must not manage Caddy with systemctl"
+    );
+}
+
+fn assert_core_flapjack_and_metering_script(script: &str) {
+    assert!(script.contains("cat > /etc/flapjack/env <<ENVEOF"));
+    assert!(script.contains("cat > /etc/fjcloud/metering-env <<ENVEOF"));
+    assert!(script.contains("FLAPJACK_API_KEY=$API_KEY"));
+    assert!(script.contains("FLAPJACK_ADMIN_KEY=$API_KEY"));
+    assert!(script.contains("FLAPJACK_BIND_ADDR=0.0.0.0:7700"));
+    assert!(script.contains("FLAPJACK_URL=http://$NODE_ID:7700"));
+    assert!(script.contains("systemctl enable --now flapjack fj-metering-agent"));
+}
 
 #[test]
 fn build_user_data_aws_uses_ssm() {
     let _env_guard = EnvVarGuard::set("ENVIRONMENT", Some("staging"));
-    let script = build_user_data("aws", "cust-123", "node-abc", "us-east-1", "fj_live_key");
+    let script = build_user_data(
+        "aws",
+        "cust-123",
+        "node-abc",
+        "us-east-1",
+        "fj_live_key",
+        "vm-abc.example.com",
+    );
 
     assert!(script.contains("CUSTOMER_ID='cust-123'"));
     assert!(script.contains("NODE_ID='node-abc'"));
@@ -35,6 +87,7 @@ fn build_user_data_hetzner_uses_direct_secrets() {
         "node-xyz",
         "eu-central-1",
         "fj_live_htz",
+        "vm-xyz.example.com",
     );
 
     assert!(script.contains("CUSTOMER_ID='cust-456'"));
@@ -60,6 +113,7 @@ fn build_user_data_gcp_uses_direct_secrets() {
         "node-gcp",
         "us-central1-a",
         "fj_live_gcp",
+        "vm-gcp.example.com",
     );
 
     assert!(script.contains("CUSTOMER_ID='cust-789'"));
@@ -85,6 +139,7 @@ fn build_user_data_oci_uses_direct_secrets() {
         "node-oci",
         "Uocm:US-ASHBURN-AD-1",
         "fj_live_oci",
+        "vm-oci.example.com",
     );
 
     assert!(script.contains("CUSTOMER_ID='cust-oci'"));
@@ -110,6 +165,7 @@ fn build_user_data_bare_metal_uses_direct_secrets() {
         "node-bm",
         "eu-central-bm",
         "fj_live_bm",
+        "vm-bm.example.com",
     );
 
     assert!(script.contains("CUSTOMER_ID='cust-bm'"));
@@ -128,7 +184,7 @@ fn build_user_data_bare_metal_uses_direct_secrets() {
 #[test]
 fn build_user_data_starts_systemd_services() {
     for provider in &["aws", "hetzner", "gcp", "oci", "bare_metal"] {
-        let script = build_user_data(provider, "c", "n", "r", "k");
+        let script = build_user_data(provider, "c", "n", "r", "k", "vm-test.example.com");
         assert!(
             script.contains("systemctl enable --now flapjack fj-metering-agent"),
             "{provider}: must atomically enable and start flapjack services"
@@ -143,7 +199,7 @@ fn build_user_data_starts_systemd_services() {
 #[test]
 fn build_user_data_sets_secure_permissions() {
     for provider in &["aws", "hetzner", "gcp", "oci", "bare_metal"] {
-        let script = build_user_data(provider, "c", "n", "r", "k");
+        let script = build_user_data(provider, "c", "n", "r", "k", "vm-test.example.com");
         assert!(
             script.contains("chmod 600"),
             "{provider}: env files must have restricted permissions"
@@ -158,7 +214,7 @@ fn build_user_data_sets_secure_permissions() {
 #[test]
 fn build_user_data_includes_logging() {
     for provider in &["aws", "hetzner", "gcp", "oci", "bare_metal"] {
-        let script = build_user_data(provider, "c", "n", "r", "k");
+        let script = build_user_data(provider, "c", "n", "r", "k", "vm-test.example.com");
         assert!(
             script.contains("logger -t"),
             "{provider}: user-data must log to syslog"
@@ -171,7 +227,7 @@ fn build_user_data_includes_logging() {
 #[test]
 fn build_user_data_metering_env_uses_correct_var_names() {
     for provider in &["aws", "hetzner", "gcp", "oci", "bare_metal"] {
-        let script = build_user_data(provider, "c", "n", "r", "k");
+        let script = build_user_data(provider, "c", "n", "r", "k", "vm-test.example.com");
         assert!(
             script.contains("DATABASE_URL="),
             "{provider}: must set DATABASE_URL"
@@ -194,6 +250,69 @@ fn build_user_data_metering_env_uses_correct_var_names() {
             "{provider}: must not use METERING_ prefix"
         );
     }
+}
+
+#[test]
+fn build_user_data_limits_caddy_runtime_to_aws() {
+    assert_eq!(
+        VALID_VM_PROVIDERS,
+        &["aws", "hetzner", "gcp", "oci", "bare_metal"]
+    );
+
+    for provider in VALID_VM_PROVIDERS {
+        let script = build_user_data(
+            provider,
+            "cust-canonical",
+            "node-canonical",
+            "us-east-1",
+            "fj_live_secret",
+            "vm-canonical.example.com",
+        );
+
+        if *provider == "aws" {
+            assert!(
+                script.contains("aws ssm get-parameter"),
+                "AWS user-data must keep SSM secret delivery"
+            );
+            assert!(
+                !script.contains("fj_live_secret"),
+                "AWS user-data must not embed the API key"
+            );
+            assert_caddy_runtime_present(&script, "vm-canonical.example.com");
+        } else {
+            assert!(
+                !script.contains("aws ssm"),
+                "{provider}: non-AWS user-data must not reference AWS SSM"
+            );
+            assert!(
+                script.contains("fj_live_secret"),
+                "{provider}: non-AWS user-data must embed the API key directly"
+            );
+            assert_core_flapjack_and_metering_script(&script);
+            assert_caddy_runtime_absent(provider, &script);
+        }
+    }
+}
+
+#[test]
+fn build_shared_vm_request_passes_request_hostname_to_user_data() {
+    let draft = SharedVmDraft {
+        hostname: "vm-shared-canonical.example.com".to_string(),
+        flapjack_url: "http://vm-shared-canonical.example.com:7700".to_string(),
+        node_id: "node-shared-canonical".to_string(),
+    };
+
+    let request = build_shared_vm_request(&draft, "aws", "us-east-1", "fj_live_secret");
+    let script = request
+        .user_data
+        .expect("shared VM request should include user-data");
+
+    assert_eq!(request.hostname, "vm-shared-canonical.example.com");
+    assert!(script.contains("NODE_ID='node-shared-canonical'"));
+    assert!(script.contains("CADDY_SERVED_HOSTNAME='vm-shared-canonical.example.com'"));
+    assert!(script.contains("$served_hostname {"));
+    assert!(script.contains("FLAPJACK_URL=http://$NODE_ID:7700"));
+    assert!(!script.contains("fj_live_secret"));
 }
 
 #[test]

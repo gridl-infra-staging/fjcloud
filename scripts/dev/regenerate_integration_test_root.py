@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import tomllib
 from collections import defaultdict
 from pathlib import Path
 
@@ -13,6 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 TESTS_DIR = REPO_ROOT / "infra" / "api" / "tests"
 INTEGRATION_DIR = TESTS_DIR / "integration"
 LEGACY_INTEGRATION_ROOT = TESTS_DIR / "integration.rs"
+API_MANIFEST = REPO_ROOT / "infra" / "api" / "Cargo.toml"
 ROOT_GROUPS: dict[str, tuple[str, ...]] = {
     # index/search/replica/discovery/restore/analytics stems
     "indexes": (
@@ -164,7 +166,6 @@ ROOT_GROUPS: dict[str, tuple[str, ...]] = {
         "pricing_compare_test",
         "provisioner_test",
         "provisioning_teardown_seam_test",
-        "provisioning_service_test",
         "public_infrastructure_test",
         "public_site_test",
         "rate_card_test",
@@ -229,6 +230,16 @@ def integration_module_stems() -> set[str]:
     } - path_included_child_stems()
 
 
+def standalone_integration_test_stems() -> set[str]:
+    manifest = tomllib.loads(API_MANIFEST.read_text(encoding="utf-8"))
+    integration_dir = Path("tests/integration")
+    return {
+        Path(test_target["path"]).stem
+        for test_target in manifest.get("test", [])
+        if Path(test_target.get("path", "")).parent == integration_dir
+    }
+
+
 def path_included_child_stems() -> set[str]:
     included: set[str] = set()
     for source_path in INTEGRATION_DIR.glob("*.rs"):
@@ -244,6 +255,7 @@ def path_included_child_stems() -> set[str]:
 
 def grouped_modules() -> dict[str, list[str]]:
     remaining = integration_module_stems()
+    remaining.difference_update(standalone_integration_test_stems())
     grouped: dict[str, list[str]] = {}
 
     for group_name, explicit_stems in ROOT_GROUPS.items():
@@ -321,7 +333,8 @@ def cmd_check() -> int:
     explicitly_grouped = {
         stem for explicit_stems in ROOT_GROUPS.values() for stem in explicit_stems
     }
-    ungrouped_modules = sorted(integration_module_stems() - explicitly_grouped)
+    explicitly_owned = explicitly_grouped | standalone_integration_test_stems()
+    ungrouped_modules = sorted(integration_module_stems() - explicitly_owned)
 
     if LEGACY_INTEGRATION_ROOT.exists():
         errors.append(

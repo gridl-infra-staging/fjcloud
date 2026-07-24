@@ -35,6 +35,7 @@ TARGETS_FILE=""
 EVIDENCE_DIR=""
 RUN_OUTPUT=""
 RUN_EXIT_CODE=0
+TARGET_ADDRESS="198.51.100.10"
 
 create_case() {
     local case_name="$1"
@@ -44,6 +45,7 @@ create_case() {
     EVIDENCE_DIR="$CASE_DIR/evidence"
     mkdir -p "$EVIDENCE_DIR"
     : > "$TARGETS_FILE"
+    TARGET_ADDRESS="198.51.100.10"
 }
 
 write_security_group_fixture() {
@@ -107,6 +109,27 @@ write_http_fixture() {
     local fixture_value="$3"
     local status_file="$EVIDENCE_DIR/${target_key}.http_${path_key}.status"
     local exit_file="$EVIDENCE_DIR/${target_key}.http_${path_key}.exit"
+    local fixture_status fixture_exit fixture_verify
+
+    if [ "$path_key" = "tls" ]; then
+        status_file="$EVIDENCE_DIR/${target_key}.tls.status"
+        exit_file="$EVIDENCE_DIR/${target_key}.tls.exit"
+        case "$fixture_value" in
+            ok) fixture_status=403; fixture_exit=0; fixture_verify=0 ;;
+            absent) fixture_status=000; fixture_exit=7; fixture_verify=0 ;;
+            cert_untrusted) fixture_status=000; fixture_exit=60; fixture_verify=20 ;;
+            handshake_failed) fixture_status=000; fixture_exit=35; fixture_verify=0 ;;
+            hostname_mismatch) fixture_status=000; fixture_exit=60; fixture_verify=62 ;;
+            unreachable) fixture_status=000; fixture_exit=28; fixture_verify=0 ;;
+            *)
+                fail "test setup accepts TLS fixture kind '$fixture_value'"
+                ;;
+        esac
+        printf '%s\n' "$fixture_status" > "$status_file"
+        printf '%s\n' "$fixture_exit" > "$exit_file"
+        printf '%s\n' "$fixture_verify" > "$EVIDENCE_DIR/${target_key}.tls.verify"
+        return
+    fi
 
     case "$fixture_value" in
         timeout)
@@ -129,17 +152,19 @@ add_target() {
     local sg_fixture="$2"
     local nc_fixture="$3"
     local http_fixtures="$4"
+    local tls_fixture="${5:-ok}"
     local target_key="test_i-${target_suffix}"
     local dashboard_status swagger_status indexes_status
 
     read -r dashboard_status swagger_status indexes_status <<< "$http_fixtures"
-    printf 'test\ti-%s\t198.51.100.10\tsg-acde\n' "$target_suffix" >> "$TARGETS_FILE"
+    printf 'test\ti-%s\t%s\tsg-acde\n' "$target_suffix" "$TARGET_ADDRESS" >> "$TARGETS_FILE"
     printf '0\n' > "$EVIDENCE_DIR/${target_key}.sg.exit"
     write_security_group_fixture "$target_key" "$sg_fixture"
     write_nc_fixture "$target_key" "$nc_fixture"
     write_http_fixture "$target_key" dashboard "$dashboard_status"
     write_http_fixture "$target_key" swagger_ui "$swagger_status"
     write_http_fixture "$target_key" indexes "$indexes_status"
+    write_http_fixture "$target_key" tls "$tls_fixture"
 }
 
 run_case() {
@@ -155,6 +180,79 @@ run_case() {
 assert_no_network_calls() {
     local case_name="$1"
     assert_eq "$(cat "$NETWORK_CALLS")" "" "$case_name uses fixture evidence without network commands"
+}
+
+target_tls_token() {
+    awk '
+        $1 == "TARGET" {
+            for (field = 1; field <= NF; field++) {
+                if ($field ~ /^tls=/) {
+                    sub(/^tls=/, "", $field)
+                    print $field
+                }
+            }
+        }
+    ' <<< "$RUN_OUTPUT"
+}
+
+assert_target_tls() {
+    local expected_token="$1"
+    local case_name="$2"
+
+    assert_eq "$(target_tls_token)" "$expected_token" \
+        "$case_name renders the exact per-target TLS token"
+}
+
+test_reachable_plaintext_without_tls_is_tls_absent() {
+    create_case plaintext_without_tls
+    add_target plaintext public open "401 401 403" absent
+    run_case
+
+    assert_ne "$RUN_EXIT_CODE" "0" "reachable plaintext engine without trusted TLS is fail-loud"
+    assert_target_tls "TLS_ABSENT" "reachable plaintext engine"
+    assert_contains "$RUN_OUTPUT" "VERDICT: EXPOSED" \
+        "transport classification preserves the existing exposure verdict"
+    assert_no_network_calls "reachable plaintext engine case"
+}
+
+test_verified_tls_is_tls_ok() {
+    create_case verified_tls
+    TARGET_ADDRESS="vm-shared-abc.staging.flapjack.foo"
+    add_target verified restricted closed "401 403 404" ok
+    run_case
+
+    assert_eq "$RUN_EXIT_CODE" "0" "verified TLS on a DNS target permits a green result"
+    assert_target_tls "TLS_OK" "verified TLS case"
+    assert_contains "$RUN_OUTPUT" "target_address=$TARGET_ADDRESS" \
+        "DNS target address is accepted and rendered"
+}
+
+test_tls_failures_are_never_tls_ok() {
+    local fixture_kind target_suffix
+
+    for fixture_kind in cert_untrusted handshake_failed hostname_mismatch; do
+        create_case "tls_${fixture_kind}"
+        target_suffix="${fixture_kind//_/-}"
+        add_target "$target_suffix" restricted closed "401 403 404" "$fixture_kind"
+        run_case
+
+        assert_ne "$RUN_EXIT_CODE" "0" "$fixture_kind is fail-loud"
+        assert_target_tls "TLS_UNTRUSTED" "$fixture_kind case"
+        assert_not_contains "$RUN_OUTPUT" "tls=TLS_OK" \
+            "$fixture_kind can never be classified as TLS_OK"
+    done
+}
+
+test_unreachable_transport_probe_is_explicit() {
+    create_case unreachable_transport
+    add_target unreachable restricted timeout "timeout timeout timeout" unreachable
+    run_case
+
+    assert_ne "$RUN_EXIT_CODE" "0" "unreachable transport probe is fail-loud"
+    assert_target_tls "PROBE_UNREACHABLE" "unreachable transport case"
+    assert_contains "$RUN_OUTPUT" "VERDICT: TRANSPORT_FAILURE" "transport failure is non-green"
+    assert_not_contains "$RUN_OUTPUT" "tls=TLS_OK" \
+        "unreachable transport probe can never be classified as TLS_OK"
 }
 
 test_public_dashboard_is_exposed() {
@@ -349,6 +447,22 @@ test_probe_does_not_render_raw_security_group_payloads() {
         "live collection keeps raw security-group metadata out of public output"
 }
 
+test_tls_collection_is_status_only_and_trust_enforcing() {
+    local probe_content
+    probe_content="$(cat "$TARGET_SCRIPT")"
+
+    assert_contains "$probe_content" "%{ssl_verify_result}" "TLS probe captures verification status"
+    assert_contains "$probe_content" "-o /dev/null" "TLS probe discards response bodies"
+    assert_contains "$probe_content" "\"https://\${TARGET_ADDRESS}/1/indexes\"" \
+        "TLS probe validates the supplied target name"
+    assert_not_contains "$probe_content" "--insecure" "TLS probe never disables certificate validation"
+    assert_not_contains "$probe_content" "curl -k" "TLS probe never uses curl's insecure shorthand"
+}
+
+test_reachable_plaintext_without_tls_is_tls_absent
+test_verified_tls_is_tls_ok
+test_tls_failures_are_never_tls_ok
+test_unreachable_transport_probe_is_explicit
 test_public_dashboard_is_exposed
 test_public_timeout_is_latent_exposure
 test_restricted_timeout_is_not_exposed
@@ -369,5 +483,6 @@ test_live_mode_honors_explicit_secret_file
 test_probe_script_is_executable
 test_local_ci_registration_is_complete
 test_probe_does_not_render_raw_security_group_payloads
+test_tls_collection_is_status_only_and_trust_enforcing
 
 run_test_summary

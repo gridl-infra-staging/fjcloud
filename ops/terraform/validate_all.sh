@@ -335,6 +335,8 @@ is_allowed_public_ingress() {
   if [[ "$resource_type" == "aws_vpc_security_group_ingress_rule" ]]; then
     [[ ( "$resource_name" == "alb_http" && "$from_port" == "80" && "$to_port" == "80" && "$protocol" == "tcp" ) \
       || ( "$resource_name" == "alb_https" && "$from_port" == "443" && "$to_port" == "443" && "$protocol" == "tcp" ) \
+      || ( "$resource_name" == "flapjack_acme_http" && "$from_port" == "80" && "$to_port" == "80" && "$protocol" == "tcp" ) \
+      || ( "$resource_name" == "flapjack_customer_https" && "$from_port" == "443" && "$to_port" == "443" && "$protocol" == "tcp" ) \
       || ( "$resource_name" == "flapjack_public_data_plane" && "$from_port" == "7700" && "$to_port" == "7700" && "$protocol" == "tcp" ) ]]
     return
   fi
@@ -589,7 +591,7 @@ run_security_group_audit() {
   done
 
   if [[ "$failed" -eq 0 ]]; then
-    echo "Security-group audit passed (public 0.0.0.0/0 ingress limited to named TCP ALB 80/443 and Flapjack data-plane 7700 rules)."
+    echo "Security-group audit passed (public 0.0.0.0/0 ingress limited to named TCP ALB 80/443 and Flapjack ACME 80, HTTPS 443, data-plane 7700 rules)."
   fi
 
   return "$failed"

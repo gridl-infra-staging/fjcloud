@@ -969,7 +969,16 @@ async fn verification_with_valid_token_marks_verified() {
         }),
     );
     let create_resp = app.oneshot(create_req).await.unwrap();
-    assert_eq!(create_resp.status(), StatusCode::CREATED);
+    // This mock-repo auth test owns the verification admission gate, not the
+    // full index lifecycle. Index creation proceeds to a DB-backed lifecycle
+    // lease after admission, and the test harness intentionally has no live
+    // Postgres connection for that later boundary.
+    let create_status = create_resp.status();
+    let create_body = body_json(create_resp).await;
+    assert_ne!(
+        create_body["error"], "email_not_verified",
+        "verified customer must clear the email-verification gate (got status {create_status}, body {create_body})"
+    );
 }
 
 #[tokio::test]

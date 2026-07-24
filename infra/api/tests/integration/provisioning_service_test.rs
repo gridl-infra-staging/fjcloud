@@ -2,6 +2,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::Duration;
 
+// Force Cargo to rebuild SQLx migration macros when their directory changes.
+const _: &str = env!("FJCLOUD_MIGRATIONS_FINGERPRINT");
+
+#[path = "../common/mod.rs"]
+mod common;
+
 use api::dns::mock::MockDnsManager;
 use api::models::vm_inventory::NewVmInventory;
 use api::provisioner::{mock::MockVmProvisioner, UnconfiguredVmProvisioner};
@@ -2731,6 +2737,58 @@ async fn terminate_succeeds_when_vm_already_externally_terminated() {
 // Stage 9: Hetzner VM cloud-init uses Direct secrets, not AWS SSM
 // -----------------------------------------------------------------------
 
+fn assert_caddy_runtime_present_in_user_data(user_data: &str, hostname: &str) {
+    assert!(
+        user_data.contains(&format!("CADDY_SERVED_HOSTNAME='{hostname}'")),
+        "cloud-init must serve the request hostname through Caddy.\nGot user_data:\n{user_data}"
+    );
+    assert!(
+        user_data.contains("cat > /etc/caddy/Caddyfile <<CADDYEOF"),
+        "cloud-init must write a Caddyfile.\nGot user_data:\n{user_data}"
+    );
+    assert!(
+        user_data.contains("$served_hostname {"),
+        "Caddyfile must use the served hostname variable.\nGot user_data:\n{user_data}"
+    );
+    assert!(
+        user_data.contains("reverse_proxy 127.0.0.1:7700"),
+        "Caddyfile must reverse proxy to the local engine.\nGot user_data:\n{user_data}"
+    );
+    assert!(
+        user_data.contains("systemctl enable --now caddy"),
+        "cloud-init must enable and start Caddy.\nGot user_data:\n{user_data}"
+    );
+    assert!(
+        user_data.contains("systemctl reload-or-restart caddy"),
+        "cloud-init must reload Caddy after writing config.\nGot user_data:\n{user_data}"
+    );
+}
+
+fn assert_caddy_runtime_absent_from_user_data(user_data: &str) {
+    assert!(
+        !user_data.contains("CADDY_SERVED_HOSTNAME"),
+        "non-AWS cloud-init must not set a Caddy served hostname.\nGot user_data:\n{user_data}"
+    );
+    assert!(
+        !user_data.contains("configure_caddy"),
+        "non-AWS cloud-init must not define Caddy setup.\nGot user_data:\n{user_data}"
+    );
+    assert!(
+        !user_data.contains("/etc/caddy"),
+        "non-AWS cloud-init must not write Caddy config.\nGot user_data:\n{user_data}"
+    );
+    assert!(
+        !user_data.contains("reverse_proxy 127.0.0.1:7700"),
+        "non-AWS cloud-init must not proxy through local Caddy.\nGot user_data:\n{user_data}"
+    );
+    assert!(
+        !user_data
+            .lines()
+            .any(|line| line.contains("systemctl") && line.contains("caddy")),
+        "non-AWS cloud-init must not manage Caddy with systemctl.\nGot user_data:\n{user_data}"
+    );
+}
+
 #[tokio::test]
 async fn hetzner_deployment_uses_direct_secrets_in_cloud_init() {
     let (svc, customer_repo, _deployment_repo, vm_provisioner, _dns, _ssm) = default_service();
@@ -2753,6 +2811,7 @@ async fn hetzner_deployment_uses_direct_secrets_in_cloud_init() {
 
     let user_data = last_req
         .user_data
+        .as_deref()
         .expect("user_data must be set for VM bootstrapping");
 
     assert!(
@@ -2764,6 +2823,31 @@ async fn hetzner_deployment_uses_direct_secrets_in_cloud_init() {
         user_data.contains("systemctl enable --now flapjack fj-metering-agent"),
         "cloud-init must atomically enable and start flapjack services.\nGot user_data:\n{user_data}"
     );
+    assert!(
+        user_data.contains("API_KEY='"),
+        "Hetzner cloud-init must embed the generated API key directly.\nGot user_data:\n{user_data}"
+    );
+    assert!(
+        user_data.contains("cat > /etc/flapjack/env <<ENVEOF"),
+        "cloud-init must write the Flapjack env file.\nGot user_data:\n{user_data}"
+    );
+    assert!(
+        user_data.contains("cat > /etc/fjcloud/metering-env <<ENVEOF"),
+        "cloud-init must write the metering env file.\nGot user_data:\n{user_data}"
+    );
+    assert!(
+        user_data.contains("FLAPJACK_BIND_ADDR=0.0.0.0:7700"),
+        "cloud-init must bind Flapjack on the provider-reachable listener.\nGot user_data:\n{user_data}"
+    );
+    assert!(
+        user_data.contains("FLAPJACK_URL=http://$NODE_ID:7700"),
+        "cloud-init must preserve the node-id metering URL.\nGot user_data:\n{user_data}"
+    );
+    assert!(
+        user_data.contains("systemctl start flapjack fj-metering-agent"),
+        "cloud-init must start Flapjack and metering services.\nGot user_data:\n{user_data}"
+    );
+    assert_caddy_runtime_absent_from_user_data(user_data);
 }
 
 #[tokio::test]
@@ -2782,14 +2866,21 @@ async fn aws_deployment_uses_ssm_secrets_in_cloud_init() {
         .last_create_request()
         .expect("create_vm should have been called");
 
+    let expected_hostname = last_req.hostname.clone();
     let user_data = last_req
         .user_data
+        .as_deref()
         .expect("user_data must be set for VM bootstrapping");
 
     assert!(
         user_data.contains("aws ssm get-parameter"),
         "AWS cloud-init must use SSM for secret retrieval.\nGot user_data:\n{user_data}"
     );
+    assert!(
+        user_data.contains(r#"/fjcloud/$NODE_ID/api-key"#),
+        "AWS cloud-init must read the node API key from SSM.\nGot user_data:\n{user_data}"
+    );
+    assert_caddy_runtime_present_in_user_data(user_data, &expected_hostname);
 }
 
 // -----------------------------------------------------------------------

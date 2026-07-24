@@ -1,8 +1,11 @@
 use crate::models::vm_inventory::{NewVmInventory, VmInventory};
-use crate::provisioner::cloud_init::{self, CloudInitParams, SecretDelivery};
+use crate::provisioner::cloud_init::{self, CaddyRuntime, CloudInitParams, SecretDelivery};
 use crate::provisioner::CreateVmRequest;
 use crate::repos::VmInventoryRepo;
 use crate::services::health_monitor::{await_engine_health, EngineHealthWaitStatus};
+use crate::vm_providers::{
+    AWS_VM_PROVIDER, BARE_METAL_VM_PROVIDER, GCP_VM_PROVIDER, HETZNER_VM_PROVIDER, OCI_VM_PROVIDER,
+};
 use reqwest::Url;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -560,6 +563,7 @@ fn build_shared_vm_request(
         &draft.node_id,
         region,
         api_key,
+        &draft.hostname,
     );
 
     CreateVmRequest {
@@ -603,16 +607,28 @@ pub(crate) fn build_user_data(
     node_id: &str,
     region: &str,
     api_key: &str,
+    hostname: &str,
 ) -> String {
     let environment = std::env::var("ENVIRONMENT").unwrap_or_else(|_| "unknown".to_string());
-    let secrets = match vm_provider {
-        "aws" => SecretDelivery::AwsSsm {
+    let secrets = secret_delivery_for_provider(vm_provider, region, api_key);
+    let caddy_runtime = caddy_runtime_for_provider(vm_provider, hostname);
+
+    cloud_init::generate_cloud_init(&CloudInitParams {
+        customer_id: customer_id.to_string(),
+        node_id: node_id.to_string(),
+        region: region.to_string(),
+        environment,
+        caddy_runtime,
+        secrets,
+    })
+}
+
+fn secret_delivery_for_provider(vm_provider: &str, region: &str, api_key: &str) -> SecretDelivery {
+    match vm_provider {
+        AWS_VM_PROVIDER => SecretDelivery::AwsSsm {
             region: region.to_string(),
         },
-        // Supported non-AWS providers use direct secret delivery via cloud-init.
-        // (bare_metal is a real SSH-pool provider — vm_providers::BARE_METAL_VM_PROVIDER,
-        // registered in startup.rs; it was dropped from this allowlist by 0623f9f9cf.)
-        "hetzner" | "gcp" | "oci" | "bare_metal" => {
+        HETZNER_VM_PROVIDER | GCP_VM_PROVIDER | OCI_VM_PROVIDER | BARE_METAL_VM_PROVIDER => {
             let db_url = std::env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgres://localhost/fjcloud".to_string());
             SecretDelivery::Direct {
@@ -621,15 +637,19 @@ pub(crate) fn build_user_data(
             }
         }
         _ => unreachable!("unsupported providers are rejected before user-data generation"),
-    };
+    }
+}
 
-    cloud_init::generate_cloud_init(&CloudInitParams {
-        customer_id: customer_id.to_string(),
-        node_id: node_id.to_string(),
-        region: region.to_string(),
-        environment,
-        secrets,
-    })
+fn caddy_runtime_for_provider(vm_provider: &str, hostname: &str) -> CaddyRuntime {
+    match vm_provider {
+        AWS_VM_PROVIDER => CaddyRuntime::Available {
+            served_hostname: hostname.to_string(),
+        },
+        HETZNER_VM_PROVIDER | GCP_VM_PROVIDER | OCI_VM_PROVIDER | BARE_METAL_VM_PROVIDER => {
+            CaddyRuntime::Unavailable
+        }
+        _ => unreachable!("unsupported providers are rejected before user-data generation"),
+    }
 }
 
 #[cfg(test)]
@@ -654,7 +674,8 @@ mod security_tests {
         for provider in ["aws", "hetzner", "gcp", "oci"] {
             ensure_supported_vm_provider(provider)
                 .unwrap_or_else(|error| panic!("supported provider {provider} failed: {error}"));
-            let user_data = build_user_data(provider, "cust", "node", "iad", "secret");
+            let user_data =
+                build_user_data(provider, "cust", "node", "iad", "secret", "vm.example.com");
             assert!(
                 !user_data.is_empty(),
                 "supported provider {provider} must produce user-data"

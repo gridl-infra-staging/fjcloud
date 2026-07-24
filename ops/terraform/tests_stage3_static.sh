@@ -88,6 +88,7 @@ assert_contains_active "$compute_main_file" 'iam_instance_profile' "IAM instance
 
 assert_contains_active "$compute_main_file" 'user_data' "User data present on EC2 instance"
 assert_contains_active "$compute_main_file" 'user_data_replace_on_change[[:space:]]*=[[:space:]]*false' "user_data_replace_on_change remains false"
+assert_resource_block_contains_multiline "$compute_main_file" "aws_instance" "api" 'lifecycle[[:space:]]*\{[^}]*ignore_changes[[:space:]]*=[[:space:]]*\[[[:space:]]*user_data[[:space:]]*\]' "API instance ignores exactly user_data drift in Terraform plans"
 assert_contains_active "$compute_main_file" 'amazon-cloudwatch-agent' "Compute bootstrap installs CloudWatch agent"
 assert_contains_active "$compute_main_file" 'disk_used_percent' "Compute bootstrap configures disk_used_percent collection"
 assert_contains_active "$compute_main_file" 'amazon-cloudwatch-agent-ctl' "Compute bootstrap starts CloudWatch agent via ctl"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EXPECTED_SCHEMA_VERSION="flapjack.release.e3.v1"
+EXPECTED_SCHEMA_VERSION=1
 EXPECTED_TARGET="aarch64-unknown-linux-musl"
 EXPECTED_ARCH="aarch64"
 EXPECTED_PROFILE="release"
@@ -78,9 +78,9 @@ validate_manifest_json() {
 }
 
 validate_manifest_envelope() {
-  local schema_version artifact_file artifact_target artifact_arch artifact_profile archive_sha expected_archive_sha
-  schema_version="$(json_value '.schemaVersion' "$MANIFEST_PATH")" || fail "manifest missing schemaVersion"
-  [[ "$schema_version" == "$EXPECTED_SCHEMA_VERSION" ]] || fail "manifest schemaVersion must be $EXPECTED_SCHEMA_VERSION"
+  local artifact_file artifact_target artifact_arch artifact_profile archive_sha expected_archive_sha
+  jq -e --argjson expected "$EXPECTED_SCHEMA_VERSION" '.schemaVersion == $expected' "$MANIFEST_PATH" >/dev/null \
+    || fail "manifest schemaVersion must be numeric $EXPECTED_SCHEMA_VERSION"
 
   artifact_file="$(json_value '.artifact.file' "$MANIFEST_PATH")" || fail "manifest missing artifact.file"
   artifact_target="$(json_value '.artifact.target' "$MANIFEST_PATH")" || fail "manifest missing artifact.target"
@@ -97,33 +97,54 @@ validate_manifest_envelope() {
 }
 
 validate_release_identity() {
-  local version revision build_id dirty
+  local version revision revision_known workspace_digest dirty build_schema build_profile build_target
+  build_schema="$(json_value '.build.schemaVersion' "$MANIFEST_PATH")" || fail "manifest missing build.schemaVersion"
   version="$(json_value '.build.version' "$MANIFEST_PATH")" || fail "manifest missing build.version"
-  revision="$(json_value '.build.producer_revision' "$MANIFEST_PATH")" || fail "manifest missing build.producer_revision"
-  build_id="$(json_value '.build.build_id' "$MANIFEST_PATH")" || fail "manifest missing build.build_id"
-  jq -e '.build | has("dirty")' "$MANIFEST_PATH" >/dev/null || fail "manifest missing build.dirty"
+  revision="$(json_value '.build.revision' "$MANIFEST_PATH")" || fail "manifest missing build.revision"
+  revision_known="$(json_value '.build.revisionKnown' "$MANIFEST_PATH")" || fail "manifest missing build.revisionKnown"
+  workspace_digest="$(json_value '.build.workspaceDigest' "$MANIFEST_PATH")" || fail "manifest missing build.workspaceDigest"
+  build_profile="$(json_value '.build.profile' "$MANIFEST_PATH")" || fail "manifest missing build.profile"
+  build_target="$(json_value '.build.target' "$MANIFEST_PATH")" || fail "manifest missing build.target"
+  jq -e '.build | has("dirty") and has("dirtyKnown")' "$MANIFEST_PATH" >/dev/null \
+    || fail "manifest missing build dirty-state fields"
+  jq -e '
+    .build
+    | (.dirtyKnown == true and (.dirty | type) == "boolean")
+      or (.dirtyKnown == false and .dirty == null)
+  ' "$MANIFEST_PATH" >/dev/null \
+    || fail "manifest build dirty-state fields are inconsistent"
   dirty="$(jq -r '.build.dirty' "$MANIFEST_PATH")"
 
+  [[ "$build_schema" == "$EXPECTED_SCHEMA_VERSION" ]] || fail "manifest build.schemaVersion must be $EXPECTED_SCHEMA_VERSION"
   [[ "$version" != "unknown" && -n "$version" ]] || fail "manifest build.version is unknown"
-  [[ "$revision" != "unknown" && -n "$revision" ]] || fail "manifest build.producer_revision is unknown"
-  [[ "$build_id" != "unknown" && -n "$build_id" ]] || fail "manifest build.build_id is unknown"
-  [[ "$dirty" == "false" ]] || fail "manifest build.dirty must be false"
+  [[ "$revision_known" == "true" ]] || fail "manifest build.revisionKnown must be true"
+  [[ "$revision" =~ ^[0-9a-f]{40}$ ]] || fail "manifest build.revision must be 40 lowercase hexadecimal characters"
+  [[ "$workspace_digest" =~ ^[0-9a-f]{64}$ ]] || fail "manifest build.workspaceDigest must be 64 lowercase hexadecimal characters"
+  [[ "$build_profile" == "$EXPECTED_PROFILE" ]] || fail "manifest build.profile must be $EXPECTED_PROFILE"
+  [[ "$build_target" == "$EXPECTED_TARGET" ]] || fail "manifest build.target must be $EXPECTED_TARGET"
+  [[ "$dirty" != "true" ]] || fail "manifest build.dirty must not be true"
 }
 
 single_safe_archive_member() {
-  local archive_list archive_details member member_type normalized
+  local archive_list candidate member="" member_count=0
   archive_list="$(tar -tzf "$ARCHIVE_PATH")" || fail "archive member listing failed"
   [[ -n "$archive_list" ]] || fail "archive is empty"
-  [[ "$(printf '%s\n' "$archive_list" | wc -l | tr -d ' ')" == "1" ]] || fail "archive must contain exactly one member"
-  archive_details="$(LC_ALL=C tar -tvzf "$ARCHIVE_PATH")" || fail "archive member inspection failed"
-  [[ "$(printf '%s\n' "$archive_details" | wc -l | tr -d ' ')" == "1" ]] || fail "archive must contain exactly one member"
-  member_type="${archive_details:0:1}"
-  [[ "$member_type" == "-" ]] || fail "archive member must be a regular file"
-  member="$archive_list"
-  normalized="${member#./}"
-  [[ "$member" != /* ]] || fail "archive member must be relative"
-  [[ "$normalized" == "flapjack" ]] || fail "archive member must be the flapjack executable"
-  [[ "$member" != *".."* ]] || fail "archive member must not contain parent traversal"
+
+  while IFS= read -r candidate; do
+    case "$candidate" in
+      .|./)
+        ;;
+      flapjack|./flapjack)
+        member="$candidate"
+        member_count=$((member_count + 1))
+        ;;
+      *)
+        fail "archive may contain only its root directory and the flapjack executable"
+        ;;
+    esac
+  done <<<"$archive_list"
+
+  [[ "$member_count" == "1" ]] || fail "archive must contain exactly one flapjack executable"
   printf '%s\n' "$member"
 }
 

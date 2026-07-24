@@ -165,8 +165,6 @@ mod placement_test;
 mod pricing_compare_test;
 #[path = "integration/provisioner_test.rs"]
 mod provisioner_test;
-#[path = "integration/provisioning_service_test.rs"]
-mod provisioning_service_test;
 #[path = "integration/provisioning_teardown_seam_test.rs"]
 mod provisioning_teardown_seam_test;
 #[path = "integration/public_infrastructure_test.rs"]

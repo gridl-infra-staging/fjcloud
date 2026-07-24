@@ -39,6 +39,18 @@ assert_resource_block_contains "$networking_main_file" "aws_vpc_security_group_i
 assert_resource_block_contains "$networking_main_file" "aws_vpc_security_group_ingress_rule" "flapjack_public_data_plane" 'to_port[[:space:]]*=[[:space:]]*7700' "Public Flapjack data-plane ingress ends at port 7700"
 assert_resource_block_contains "$networking_main_file" "aws_vpc_security_group_ingress_rule" "flapjack_public_data_plane" 'ip_protocol[[:space:]]*=[[:space:]]*"tcp"' "Public Flapjack data-plane ingress uses TCP"
 assert_resource_block_not_contains "$networking_main_file" "aws_vpc_security_group_ingress_rule" "flapjack_public_data_plane" 'var\.env|^[[:space:]]*(count|for_each)[[:space:]]*=' "Public Flapjack data-plane ingress is unconditional and environment-independent"
+assert_named_resource_count "$networking_main_file" "aws_vpc_security_group_ingress_rule" "flapjack_acme_http" 1 "Networking declares exactly one named public Flapjack ACME HTTP ingress rule"
+assert_resource_block_contains "$networking_main_file" "aws_vpc_security_group_ingress_rule" "flapjack_acme_http" 'security_group_id[[:space:]]*=[[:space:]]*aws_security_group\.flapjack_vm\.id' "Public Flapjack ACME HTTP ingress targets the Flapjack VM security group"
+assert_resource_block_contains "$networking_main_file" "aws_vpc_security_group_ingress_rule" "flapjack_acme_http" 'cidr_ipv4[[:space:]]*=[[:space:]]*"0\.0\.0\.0/0"' "Public Flapjack ACME HTTP ingress uses the public IPv4 CIDR"
+assert_resource_block_contains "$networking_main_file" "aws_vpc_security_group_ingress_rule" "flapjack_acme_http" 'from_port[[:space:]]*=[[:space:]]*80' "Public Flapjack ACME HTTP ingress starts at port 80"
+assert_resource_block_contains "$networking_main_file" "aws_vpc_security_group_ingress_rule" "flapjack_acme_http" 'to_port[[:space:]]*=[[:space:]]*80' "Public Flapjack ACME HTTP ingress ends at port 80"
+assert_resource_block_contains "$networking_main_file" "aws_vpc_security_group_ingress_rule" "flapjack_acme_http" 'ip_protocol[[:space:]]*=[[:space:]]*"tcp"' "Public Flapjack ACME HTTP ingress uses TCP"
+assert_named_resource_count "$networking_main_file" "aws_vpc_security_group_ingress_rule" "flapjack_customer_https" 1 "Networking declares exactly one named public Flapjack customer HTTPS ingress rule"
+assert_resource_block_contains "$networking_main_file" "aws_vpc_security_group_ingress_rule" "flapjack_customer_https" 'security_group_id[[:space:]]*=[[:space:]]*aws_security_group\.flapjack_vm\.id' "Public Flapjack customer HTTPS ingress targets the Flapjack VM security group"
+assert_resource_block_contains "$networking_main_file" "aws_vpc_security_group_ingress_rule" "flapjack_customer_https" 'cidr_ipv4[[:space:]]*=[[:space:]]*"0\.0\.0\.0/0"' "Public Flapjack customer HTTPS ingress uses the public IPv4 CIDR"
+assert_resource_block_contains "$networking_main_file" "aws_vpc_security_group_ingress_rule" "flapjack_customer_https" 'from_port[[:space:]]*=[[:space:]]*443' "Public Flapjack customer HTTPS ingress starts at port 443"
+assert_resource_block_contains "$networking_main_file" "aws_vpc_security_group_ingress_rule" "flapjack_customer_https" 'to_port[[:space:]]*=[[:space:]]*443' "Public Flapjack customer HTTPS ingress ends at port 443"
+assert_resource_block_contains "$networking_main_file" "aws_vpc_security_group_ingress_rule" "flapjack_customer_https" 'ip_protocol[[:space:]]*=[[:space:]]*"tcp"' "Public Flapjack customer HTTPS ingress uses TCP"
 public_data_plane_resource_count=$(rg -g '*.tf' -g '!**/fixtures/**' -g '!**/.terraform/**' -c 'resource "aws_vpc_security_group_ingress_rule" "flapjack_public_data_plane"' ops/terraform | awk -F: '{ count += $2 } END { print count + 0 }')
 if [[ "$public_data_plane_resource_count" == "1" ]]; then
   pass "Terraform modules declare the named public Flapjack data-plane rule exactly once"
@@ -85,7 +97,7 @@ offenders=$(awk '
     closes = gsub(/}/, "}")
     depth += opens - closes
     if ($0 ~ /cidr_ipv4[[:space:]]*=[[:space:]]*"0\.0\.0\.0\/0"/) {
-      if (name != "alb_http" && name != "alb_https" && name != "flapjack_public_data_plane") {
+      if (name != "alb_http" && name != "alb_https" && name != "flapjack_public_data_plane" && name != "flapjack_acme_http" && name != "flapjack_customer_https") {
         print name
       }
     }
@@ -98,7 +110,7 @@ offenders=$(awk '
 ' "$networking_main_file" | sort -u)
 
 if [[ -z "$offenders" ]]; then
-  pass "Only ALB ingress and the named Flapjack data-plane rule are internet-exposed"
+  pass "Only ALB ingress and named Flapjack ACME, HTTPS, and data-plane rules are internet-exposed"
 else
   fail "Unexpected internet-exposed ingress resource names: ${offenders//$'\n'/, }"
 fi

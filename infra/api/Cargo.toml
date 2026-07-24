@@ -10,6 +10,10 @@ path = "src/lib.rs"
 name = "fjcloud-api"
 path = "src/main.rs"
 
+[[test]]
+name = "provisioning_service_test"
+path = "tests/integration/provisioning_service_test.rs"
+
 [dependencies]
 serde              = { workspace = true }
 serde_json         = { workspace = true }

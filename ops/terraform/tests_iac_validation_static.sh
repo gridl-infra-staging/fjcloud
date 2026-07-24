@@ -8,6 +8,7 @@ janitor_script="ops/scripts/live_e2e_ttl_janitor.sh"
 bootstrap_script="ops/user-data/bootstrap.sh"
 cloud_init_file="infra/api/src/provisioner/cloud_init.rs"
 packer_file="ops/packer/flapjack-ami.pkr.hcl"
+caddy_unit_file="ops/systemd/caddy.service"
 publication_script="ops/terraform/publish_support_email_canary_image.sh"
 publication_dockerfile="ops/terraform/support_email_canary/Dockerfile"
 publication_lambda_handler="ops/terraform/support_email_canary/lambda_handler.py"
@@ -20,6 +21,47 @@ assert_file_executable() {
     pass "${description} is executable"
   else
     fail "${description} is executable"
+  fi
+}
+
+assert_pattern_order() {
+  local file="$1"
+  local first_pattern="$2"
+  local second_pattern="$3"
+  local description="$4"
+  local first_line
+  local second_line
+
+  first_line=$(rg -n "$first_pattern" "$file" | head -n 1 | cut -d: -f1 || true)
+  second_line=$(rg -n "$second_pattern" "$file" | head -n 1 | cut -d: -f1 || true)
+
+  if [[ -n "$first_line" && -n "$second_line" && "$first_line" -lt "$second_line" ]]; then
+    pass "$description"
+  else
+    fail "$description"
+  fi
+}
+
+assert_caddy_configure_block_has_no_exit() {
+  local file="$1"
+  local description="$2"
+  local block
+
+  block=$(awk '
+    /^configure_caddy\(\)[[:space:]]*\{/ { in_block = 1 }
+    in_block { print }
+    in_block && /^}[[:space:]]*$/ { exit }
+  ' "$file")
+
+  if [[ -z "$block" ]]; then
+    fail "$description (configure_caddy block missing)"
+    return
+  fi
+
+  if rg -q '^[[:space:]]*exit([[:space:]]|$)' <<<"$block"; then
+    fail "$description"
+  else
+    pass "$description"
   fi
 }
 
@@ -122,11 +164,25 @@ assert_file_exists "$bootstrap_script" "bootstrap.sh exists"
 assert_file_contains "$bootstrap_script" 'X-aws-ec2-metadata-token-ttl-seconds: 21600' "bootstrap.sh uses IMDS token TTL 21600"
 assert_file_contains "$bootstrap_script" 'meta-data/tags/instance/customer_id' "bootstrap.sh reads customer_id from IMDS tags"
 assert_file_contains "$bootstrap_script" 'meta-data/tags/instance/node_id' "bootstrap.sh reads node_id from IMDS tags"
+assert_file_contains "$bootstrap_script" 'meta-data/tags/instance/Name' "bootstrap.sh reads Name from IMDS tags for served hostname"
+assert_file_contains "$bootstrap_script" 'Name=fj-' "bootstrap.sh documents the Name=fj-{hostname} hostname source"
+assert_file_contains "$bootstrap_script" 'NODE_ID.*\*.\*' "bootstrap.sh falls back to NODE_ID only when it is already an FQDN"
 assert_file_contains "$bootstrap_script" 'FLAPJACK_DISABLE_DASHBOARD=1' "bootstrap.sh disables unauthenticated Flapjack dashboard"
 assert_file_contains "$bootstrap_script" 'umask 077' "bootstrap.sh restricts secret env file permissions from first write"
 assert_file_contains "$bootstrap_script" 'systemctl enable --now flapjack fj-metering-agent' "bootstrap.sh atomically enables and starts Flapjack plus metering agent"
 assert_file_not_contains "$bootstrap_script" '^systemctl enable flapjack fj-metering-agent$' "bootstrap.sh does not split metering service enablement from start"
 assert_file_not_contains "$bootstrap_script" '^systemctl start flapjack fj-metering-agent$' "bootstrap.sh does not start metering service separately after enablement"
+assert_file_contains "$bootstrap_script" 'cat > /etc/caddy/Caddyfile' "bootstrap.sh renders /etc/caddy/Caddyfile"
+assert_file_contains "$bootstrap_script" 'reverse_proxy 127\.0\.0\.1:7700' "bootstrap.sh Caddyfile proxies to the local Flapjack engine"
+assert_file_contains "$bootstrap_script" '^is_safe_caddy_hostname\(\)' "bootstrap.sh defines served-hostname validation before writing Caddy config"
+assert_file_contains "$bootstrap_script" 'unsafe served hostname' "bootstrap.sh skips Caddy setup for invalid served hostnames"
+assert_file_contains "$bootstrap_script" 'systemctl enable --now caddy' "bootstrap.sh enables and starts Caddy"
+assert_file_contains "$bootstrap_script" 'systemctl reload-or-restart caddy' "bootstrap.sh reloads active Caddy after rewriting the Caddyfile"
+assert_file_contains "$bootstrap_script" 'WARN.*Caddy' "bootstrap.sh logs and skips Caddy setup failures"
+assert_file_not_contains "$bootstrap_script" '/etc/caddy/Caddyfile.*\$API_KEY|/etc/caddy/Caddyfile.*\$DB_URL|/etc/caddy/Caddyfile.*\$INTERNAL_AUTH_TOKEN' "bootstrap.sh does not write secret material to Caddy config"
+assert_pattern_order "$bootstrap_script" 'systemctl enable --now flapjack fj-metering-agent' 'if ! configure_caddy' "bootstrap.sh configures Caddy only after Flapjack services are started"
+assert_pattern_order "$bootstrap_script" 'systemctl enable --now caddy' 'systemctl reload-or-restart caddy' "bootstrap.sh reloads Caddy only after it is enabled"
+assert_caddy_configure_block_has_no_exit "$bootstrap_script" "bootstrap.sh Caddy configure block has no unguarded exit"
 
 assert_file_exists "$cloud_init_file" "cloud_init.rs exists"
 assert_file_contains "$cloud_init_file" 'FLAPJACK_URL=' "cloud_init.rs writes FLAPJACK_URL to metering env"
@@ -135,12 +191,30 @@ assert_file_contains "$cloud_init_file" 'INTERNAL_KEY=' "cloud_init.rs writes IN
 assert_file_contains "$cloud_init_file" 'TENANT_MAP_URL=' "cloud_init.rs writes TENANT_MAP_URL to metering env"
 assert_file_contains "$cloud_init_file" 'COLD_STORAGE_USAGE_URL=' "cloud_init.rs writes COLD_STORAGE_USAGE_URL to metering env"
 assert_file_contains "$cloud_init_file" 'umask 077' "cloud_init.rs restricts secret env file permissions from first write"
+assert_file_contains "$cloud_init_file" 'pub caddy_runtime: CaddyRuntime' "cloud_init params carry the provider-specific Caddy runtime"
+assert_file_contains "$cloud_init_file" 'CADDY_SERVED_HOSTNAME=\{quoted_hostname\}' "cloud_init.rs assigns the served hostname once for Caddy"
+assert_file_contains "$cloud_init_file" 'cat > /etc/caddy/Caddyfile' "cloud_init.rs renders /etc/caddy/Caddyfile"
+assert_file_contains "$cloud_init_file" '^  reverse_proxy 127\.0\.0\.1:7700' "cloud_init.rs Caddyfile proxies to the local Flapjack engine"
+assert_file_contains "$cloud_init_file" 'fn is_safe_caddy_hostname' "cloud_init.rs validates served hostnames before rendering Caddy config"
+assert_file_contains "$cloud_init_file" 'unsafe served hostname' "cloud_init.rs skips Caddy setup for invalid served hostnames"
+assert_file_contains "$cloud_init_file" 'systemctl enable --now caddy' "cloud_init.rs enables and starts Caddy"
+assert_file_contains "$cloud_init_file" 'systemctl reload-or-restart caddy' "cloud_init.rs reloads active Caddy after rewriting the Caddyfile"
+assert_file_contains "$cloud_init_file" 'WARN.*Caddy' "cloud_init.rs logs and skips Caddy setup failures"
+assert_file_not_contains "$cloud_init_file" '/etc/caddy/Caddyfile.*\$API_KEY|/etc/caddy/Caddyfile.*\$DB_URL|/etc/caddy/Caddyfile.*\$INTERNAL_AUTH_TOKEN' "cloud_init.rs does not write secret material to Caddy config"
+assert_pattern_order "$cloud_init_file" 'systemctl start flapjack fj-metering-agent' '\{caddy_shell_contract\}' "cloud_init.rs configures Caddy only after Flapjack services are started"
+assert_pattern_order "$cloud_init_file" 'systemctl enable --now caddy' 'systemctl reload-or-restart caddy' "cloud_init.rs reloads Caddy only after it is enabled"
+assert_caddy_configure_block_has_no_exit "$cloud_init_file" "cloud_init.rs Caddy configure block has no unguarded exit"
 
 assert_file_exists "$packer_file" "flapjack-ami.pkr.hcl exists"
 assert_file_contains "$packer_file" 'source "amazon-ebs"' "packer template uses amazon-ebs source"
 assert_file_contains "$packer_file" '../user-data/bootstrap.sh' "packer template copies bootstrap.sh into AMI"
 assert_file_contains "$packer_file" 'packer \{' "packer template declares packer block"
 assert_file_contains "$packer_file" 'required_version' "packer template declares required_version constraint"
+assert_file_exists "$caddy_unit_file" "caddy.service exists"
+assert_file_contains "$caddy_unit_file" 'ExecStart=/usr/local/bin/caddy run --config /etc/caddy/Caddyfile' "caddy.service starts the baked Caddy binary with the Caddyfile"
+assert_file_contains "$caddy_unit_file" '^User=caddy' "caddy.service uses the caddy user"
+assert_file_contains "$caddy_unit_file" '^Group=caddy' "caddy.service uses the caddy group"
+assert_file_contains "$caddy_unit_file" 'AmbientCapabilities=CAP_NET_BIND_SERVICE' "caddy.service has low-port bind capability"
 
 # ============================================================================
 # Stage 3 — Packer AMI contract: staging binary provisioning
@@ -175,6 +249,19 @@ assert_file_contains "$packer_file" 'install.*fj-metering-agent.*/usr/local/bin'
 
 # Packer must install firewalld before configuring firewall rules
 assert_file_contains "$packer_file" 'dnf install.*firewalld' "Packer template installs firewalld before configuring firewall rules"
+assert_file_not_contains "$packer_file" 'dnf install[^"]*[[:space:]]curl([[:space:]]|")' "Packer template preserves the AL2023 curl-minimal package"
+assert_file_contains "$packer_file" 'caddy_2\.10\.0_linux_arm64\.tar\.gz' "Packer template pins the Caddy linux-arm64 release artifact"
+assert_file_contains "$packer_file" '7976e98c44ddfaa32fed4e658246d6cc56b318183354c10a2a3c95219a4898a6' "Packer template pins the Caddy linux-arm64 SHA256"
+assert_file_contains "$packer_file" 'sha256sum -c' "Packer template verifies the Caddy archive checksum before extraction"
+assert_file_contains "$packer_file" 'file /tmp/caddy-extract/caddy' "Packer template verifies extracted Caddy binary architecture"
+assert_file_contains "$packer_file" 'useradd.*caddy' "Packer template creates caddy system user"
+assert_file_contains "$packer_file" '/etc/caddy' "Packer template creates /etc/caddy"
+assert_file_contains "$packer_file" '/var/lib/caddy' "Packer template creates /var/lib/caddy"
+assert_file_contains "$packer_file" '/var/log/caddy' "Packer template creates /var/log/caddy"
+assert_file_contains "$packer_file" '../systemd/caddy.service' "Packer template copies caddy.service from ops/systemd"
+assert_file_contains "$packer_file" 'install -m 0644 /tmp/caddy.service /etc/systemd/system/caddy.service' "Packer template installs caddy.service"
+assert_file_contains "$packer_file" 'install -m 0755 /tmp/caddy-extract/caddy /usr/local/bin/caddy' "Packer template installs Caddy to /usr/local/bin/caddy"
+assert_file_contains "$packer_file" 'firewall-cmd --permanent --add-port=80/tcp' "Packer template opens tcp/80 in firewalld"
 
 # ============================================================================
 # Stage 3 — Metering agent service: fjcloud user consistency

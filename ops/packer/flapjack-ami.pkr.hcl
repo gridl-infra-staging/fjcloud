@@ -74,8 +74,12 @@ locals {
   flapjack_release_manifest         = jsondecode(file(var.flapjack_manifest_path))
   flapjack_release_identifier       = local.flapjack_release_manifest.build.version
   flapjack_release_archive_file     = basename(var.flapjack_archive_path)
-  flapjack_upstream_manifest_sha256 = filesha256(var.flapjack_manifest_path)
-  flapjack_upstream_archive_sha256  = filesha256(var.flapjack_archive_path)
+  flapjack_upstream_manifest_sha256 = sha256(file(var.flapjack_manifest_path))
+  flapjack_upstream_archive_sha256  = local.flapjack_release_manifest.artifact.sha256
+  caddy_version                     = "2.10.0"
+  caddy_linux_arm64_archive         = "caddy_2.10.0_linux_arm64.tar.gz"
+  caddy_download_url                = "https://github.com/caddyserver/caddy/releases/download/v2.10.0/caddy_2.10.0_linux_arm64.tar.gz"
+  caddy_linux_arm64_sha256          = "7976e98c44ddfaa32fed4e658246d6cc56b318183354c10a2a3c95219a4898a6"
 }
 
 # --------------------------------------------------------------------------
@@ -186,6 +190,11 @@ build {
     destination = "/tmp/fjcloud-retention-job.timer"
   }
 
+  provisioner "file" {
+    source      = "../systemd/caddy.service"
+    destination = "/tmp/caddy.service"
+  }
+
   # --- Copy bootstrap script ---
   provisioner "file" {
     source      = "../user-data/bootstrap.sh"
@@ -204,8 +213,9 @@ build {
       # System packages (aws-cli is the AL2023 package name for AWS CLI v2)
       "sudo dnf update -y",
       # The client owns live DB probes; the server package owns the isolated
-      # temporary PostgreSQL used by rollback compatibility proofs.
-      "sudo dnf install -y aws-cli jq gcc cargo postgresql16 postgresql16-server",
+      # temporary PostgreSQL used by rollback compatibility proofs. AL2023
+      # supplies curl-minimal by default, which provides the curl CLI.
+      "sudo dnf install -y aws-cli jq gcc cargo tar file postgresql16 postgresql16-server",
       "cargo install sqlx-cli --version 0.8.3 --no-default-features --features postgres,rustls",
       "sudo install -m 0755 /home/ec2-user/.cargo/bin/sqlx /usr/local/bin/sqlx",
       "sudo chmod +x /usr/local/bin/sqlx",
@@ -220,12 +230,24 @@ build {
       "sudo mkdir -p /var/log/flapjack /etc/flapjack",
       "sudo chown flapjack:flapjack /var/lib/flapjack /var/log/flapjack /etc/flapjack",
 
+      # Create caddy system user and directories (VM-local TLS termination)
+      "sudo useradd --system --shell /sbin/nologin --create-home --home-dir /var/lib/caddy caddy",
+      "sudo mkdir -p /etc/caddy /var/lib/caddy /var/log/caddy",
+      "sudo chown root:caddy /etc/caddy",
+      "sudo chown caddy:caddy /var/lib/caddy /var/log/caddy",
+
       # Install binaries needed by the dual-use AMI. Shared VMs start the
       # flapjack engine directly from the baked image, while the staging API
       # host later refreshes the fjcloud binaries via deploy.sh.
       "chmod +x /tmp/validate_flapjack_ami_input.sh",
       "/tmp/validate_flapjack_ami_input.sh --manifest /tmp/flapjack-e3-manifest.json --archive /tmp/${local.flapjack_release_archive_file} --out /tmp/validated-flapjack",
+      "curl -fsSL --retry 3 -o /tmp/${local.caddy_linux_arm64_archive} ${local.caddy_download_url}",
+      "printf '%s  %s\\n' '${local.caddy_linux_arm64_sha256}' '/tmp/${local.caddy_linux_arm64_archive}' | sha256sum -c -",
+      "mkdir -p /tmp/caddy-extract",
+      "tar -xzf /tmp/${local.caddy_linux_arm64_archive} -C /tmp/caddy-extract caddy",
+      "file /tmp/caddy-extract/caddy | grep -E 'aarch64|ARM64|ARM aarch64'",
       "sudo install -m 0755 /tmp/validated-flapjack /usr/local/bin/flapjack",
+      "sudo install -m 0755 /tmp/caddy-extract/caddy /usr/local/bin/caddy",
       "sudo install -m 0755 /tmp/fjcloud-api /usr/local/bin/fjcloud-api",
       "sudo install -m 0755 /tmp/fjcloud-aggregation-job /usr/local/bin/fjcloud-aggregation-job",
       "sudo install -m 0755 /tmp/fjcloud-retention-job /usr/local/bin/fjcloud-retention-job",
@@ -239,6 +261,7 @@ build {
       "sudo install -m 0644 /tmp/fjcloud-aggregation-job.timer /etc/systemd/system/fjcloud-aggregation-job.timer",
       "sudo install -m 0644 /tmp/fjcloud-retention-job.service /etc/systemd/system/fjcloud-retention-job.service",
       "sudo install -m 0644 /tmp/fjcloud-retention-job.timer /etc/systemd/system/fjcloud-retention-job.timer",
+      "sudo install -m 0644 /tmp/caddy.service /etc/systemd/system/caddy.service",
 
       # Install bootstrap script
       "sudo install -m 0755 /tmp/bootstrap.sh /usr/local/bin/fjcloud-bootstrap",
@@ -250,6 +273,7 @@ build {
       # Configure host firewall (defense-in-depth; primary access control is via security groups)
       "sudo dnf install -y firewalld",
       "sudo systemctl enable --now firewalld",
+      "sudo firewall-cmd --permanent --add-port=80/tcp",
       "sudo firewall-cmd --permanent --add-port=443/tcp",
       "sudo firewall-cmd --permanent --add-port=3001/tcp",
       "sudo firewall-cmd --permanent --add-port=7700/tcp",
@@ -261,7 +285,8 @@ build {
       "sudo install -m 0644 /tmp/logrotate-flapjack /etc/logrotate.d/flapjack",
 
       # Clean up temp files
-      "rm -f /tmp/flapjack-e3-manifest.json /tmp/${local.flapjack_release_archive_file} /tmp/validate_flapjack_ami_input.sh /tmp/validated-flapjack /tmp/fjcloud-api /tmp/fjcloud-aggregation-job /tmp/fjcloud-retention-job /tmp/fj-metering-agent /tmp/flapjack.service /tmp/fj-metering-agent.service /tmp/fjcloud-api.service /tmp/fjcloud-aggregation-job.service /tmp/fjcloud-aggregation-job.timer /tmp/fjcloud-retention-job.service /tmp/fjcloud-retention-job.timer /tmp/bootstrap.sh /tmp/logrotate-flapjack",
+      "rm -rf /tmp/caddy-extract",
+      "rm -f /tmp/flapjack-e3-manifest.json /tmp/${local.flapjack_release_archive_file} /tmp/validate_flapjack_ami_input.sh /tmp/validated-flapjack /tmp/${local.caddy_linux_arm64_archive} /tmp/fjcloud-api /tmp/fjcloud-aggregation-job /tmp/fjcloud-retention-job /tmp/fj-metering-agent /tmp/flapjack.service /tmp/fj-metering-agent.service /tmp/fjcloud-api.service /tmp/fjcloud-aggregation-job.service /tmp/fjcloud-aggregation-job.timer /tmp/fjcloud-retention-job.service /tmp/fjcloud-retention-job.timer /tmp/caddy.service /tmp/bootstrap.sh /tmp/logrotate-flapjack",
     ]
   }
 
@@ -271,6 +296,8 @@ build {
       flapjack_upstream_manifest_sha256 = local.flapjack_upstream_manifest_sha256
       flapjack_upstream_archive_sha256  = local.flapjack_upstream_archive_sha256
       flapjack_release_identifier       = local.flapjack_release_identifier
+      caddy_version                     = local.caddy_version
+      caddy_linux_arm64_sha256          = local.caddy_linux_arm64_sha256
     }
   }
 }

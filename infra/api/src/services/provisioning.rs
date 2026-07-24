@@ -320,6 +320,7 @@ impl ProvisioningService {
             &deployment.node_id,
             &deployment.region,
             &api_key,
+            hostname,
         );
 
         let vm_request = CreateVmRequest {

@@ -1,0 +1,36 @@
+[Unit]
+Description=Caddy TLS Reverse Proxy
+Documentation=https://caddyserver.com/docs/
+After=network-online.target flapjack.service
+Wants=network-online.target
+Requires=flapjack.service
+ConditionPathExists=/etc/caddy/Caddyfile
+
+[Service]
+Type=exec
+User=caddy
+Group=caddy
+
+WorkingDirectory=/var/lib/caddy
+ExecStart=/usr/local/bin/caddy run --config /etc/caddy/Caddyfile
+ExecReload=/usr/local/bin/caddy reload --config /etc/caddy/Caddyfile --force
+
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/etc/caddy /var/lib/caddy /var/log/caddy
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=caddy
+
+[Install]
+WantedBy=multi-user.target

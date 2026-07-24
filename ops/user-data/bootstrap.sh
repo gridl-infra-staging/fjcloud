@@ -14,6 +14,8 @@
 #   node_id      — stable node identifier (e.g. "node-{uuid}")
 #   environment  — deploy environment name (e.g. "staging" | "prod")
 #   Name         — "fj-{hostname}" display name
+#   Caddy serves the hostname from Name=fj-{hostname}; NODE_ID fallback is
+#   allowed only when NODE_ID is already a fully qualified domain name.
 #
 # Expected SSM parameters:
 #   /fjcloud/{environment}/database_url — PostgreSQL connection string
@@ -52,6 +54,9 @@ CUSTOMER_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
 
 NODE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
   http://169.254.169.254/latest/meta-data/tags/instance/node_id)
+
+INSTANCE_NAME=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
+  http://169.254.169.254/latest/meta-data/tags/instance/Name || true)
 
 if [ -z "${ENVIRONMENT:-}" ]; then
   ENVIRONMENT=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
@@ -116,6 +121,7 @@ umask 077
 cat > /etc/flapjack/env <<ENVEOF
 DATABASE_URL=$DB_URL
 FLAPJACK_API_KEY=$API_KEY
+FLAPJACK_ADMIN_KEY=$API_KEY
 # Bind all interfaces so the same-host metering agent (FLAPJACK_URL uses the
 # node hostname, not loopback) and the API security group can reach the engine.
 # Network exposure is gated by the AWS SG + firewalld, not by the bind address.
@@ -148,11 +154,79 @@ chown fjcloud:fjcloud /etc/fjcloud/metering-env
 
 logger -t "$LOG_TAG" "env files written"
 
+is_safe_caddy_hostname() {
+  local candidate="$1"
+  local label
+  local -a labels
+
+  [ -n "$candidate" ] || return 1
+  [ "${#candidate}" -le 253 ] || return 1
+  [[ "$candidate" == *.* ]] || return 1
+  IFS='.' read -r -a labels <<< "$candidate"
+  [ "${#labels[@]}" -ge 2 ] || return 1
+
+  for label in "${labels[@]}"; do
+    [ -n "$label" ] && [ "${#label}" -le 63 ] || return 1
+    [[ "$label" =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$ ]] || return 1
+  done
+}
+
+derive_caddy_served_hostname() {
+  local name_tag="$1"
+  local candidate=""
+
+  if [[ "$name_tag" == fj-* && "$name_tag" != "fj-" ]]; then
+    candidate="${name_tag#fj-}"
+  elif [[ "$NODE_ID" == *.* ]]; then
+    candidate="$NODE_ID"
+  fi
+
+  if is_safe_caddy_hostname "$candidate"; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  printf '\n'
+}
+
+SERVED_HOSTNAME="$(derive_caddy_served_hostname "$INSTANCE_NAME")"
+
 # --------------------------------------------------------------------------
 # 5. Enable and start services
 # --------------------------------------------------------------------------
 
 systemctl daemon-reload
 systemctl enable --now flapjack fj-metering-agent
+
+configure_caddy() {
+  local served_hostname="$1"
+
+  if [ -z "$served_hostname" ]; then
+    logger -t "$LOG_TAG" "WARN: Caddy setup skipped; no served hostname available"
+    return 0
+  fi
+  if ! is_safe_caddy_hostname "$served_hostname"; then
+    logger -t "$LOG_TAG" "WARN: Caddy setup skipped; unsafe served hostname"
+    return 0
+  fi
+
+  install -d -m 0755 -o root -g caddy /etc/caddy || return
+  if ! cat > /etc/caddy/Caddyfile <<CADDYEOF
+$served_hostname {
+  reverse_proxy 127.0.0.1:7700
+}
+CADDYEOF
+  then
+    return 1
+  fi
+  chown root:caddy /etc/caddy/Caddyfile || return
+  chmod 0644 /etc/caddy/Caddyfile || return
+  systemctl enable --now caddy || return
+  systemctl reload-or-restart caddy || return
+}
+
+if ! configure_caddy "$SERVED_HOSTNAME"; then
+  logger -t "$LOG_TAG" "WARN: Caddy setup failed; Flapjack services remain running"
+fi
 
 logger -t "$LOG_TAG" "services started, bootstrap complete"

@@ -286,6 +286,24 @@ resource "aws_vpc_security_group_ingress_rule" "flapjack_public_data_plane" {
   ip_protocol       = "tcp"
 }
 
+resource "aws_vpc_security_group_ingress_rule" "flapjack_acme_http" {
+  security_group_id = aws_security_group.flapjack_vm.id
+  description       = "public ACME HTTP-01 for Flapjack VM TLS"
+  cidr_ipv4         = "0.0.0.0/0"
+  from_port         = 80
+  to_port           = 80
+  ip_protocol       = "tcp"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "flapjack_customer_https" {
+  security_group_id = aws_security_group.flapjack_vm.id
+  description       = "public customer HTTPS for Flapjack VM TLS"
+  cidr_ipv4         = "0.0.0.0/0"
+  from_port         = 443
+  to_port           = 443
+  ip_protocol       = "tcp"
+}
+
 resource "aws_vpc_security_group_egress_rule" "flapjack_outbound" {
   security_group_id = aws_security_group.flapjack_vm.id
   cidr_ipv4         = "0.0.0.0/0"

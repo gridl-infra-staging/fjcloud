@@ -18,13 +18,14 @@ TARGET_COUNT=0
 HAS_EXPOSED=0
 HAS_LATENT_EXPOSURE=0
 HAS_INDETERMINATE=0
+HAS_TRANSPORT_FAILURE=0
 
 usage() {
     cat <<'EOF'
 Usage: scripts/security/probe_engine_exposure.sh --targets-file FILE [--evidence-dir DIR]
 
 Targets are tab-separated rows with no header:
-  environment<TAB>vm_id<TAB>public_ip<TAB>sg_id[,sg_id...]
+  environment<TAB>vm_id<TAB>target_address<TAB>sg_id[,sg_id...]
 
 Without --evidence-dir, the probe collects read-only evidence with AWS CLI,
 nc, and curl. --evidence-dir is for hermetic known-answer fixtures only.
@@ -88,10 +89,30 @@ is_valid_ipv4() {
     done
 }
 
+is_valid_dns_name() {
+    local address="$1"
+    local label
+    local -a labels
+
+    [ "${#address}" -le 253 ] || return 1
+    [[ "$address" == *.* ]] || return 1
+    [[ ! "$address" =~ ^[0-9.]+$ ]] || return 1
+    IFS='.' read -r -a labels <<< "$address"
+    [ "${#labels[@]}" -ge 2 ] || return 1
+    for label in "${labels[@]}"; do
+        [ -n "$label" ] && [ "${#label}" -le 63 ] || return 1
+        [[ "$label" =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$ ]] || return 1
+    done
+}
+
+is_valid_target_address() {
+    is_valid_ipv4 "$1" || is_valid_dns_name "$1"
+}
+
 target_fields_are_valid() {
     [[ "$TARGET_ENV" =~ ^[A-Za-z0-9_-]+$ ]] \
         && [[ "$TARGET_VM_ID" =~ ^i-[A-Za-z0-9-]+$ ]] \
-        && is_valid_ipv4 "$TARGET_PUBLIC_IP" \
+        && is_valid_target_address "$TARGET_ADDRESS" \
         && [[ "$TARGET_SG_IDS" =~ ^sg-[0-9a-f]+(,sg-[0-9a-f]+)*$ ]]
 }
 
@@ -129,11 +150,11 @@ collect_live_sg_evidence() {
 }
 
 collect_live_nc_evidence() {
-    printf 'COMMAND target=%s nc -zv %s 7700\n' "$TARGET_VM_ID" "$TARGET_PUBLIC_IP"
+    printf 'COMMAND target=%s nc -zv %s 7700\n' "$TARGET_VM_ID" "$TARGET_ADDRESS"
     write_command_result \
         "$EVIDENCE_DIR/${TARGET_KEY}.nc.output" \
         "$EVIDENCE_DIR/${TARGET_KEY}.nc.exit" \
-        nc -zv "$TARGET_PUBLIC_IP" 7700
+        nc -zv "$TARGET_ADDRESS" 7700
     printf 'NC_EVIDENCE target=%s exit=%s output=%s\n' \
         "$TARGET_VM_ID" \
         "$(cat "$EVIDENCE_DIR/${TARGET_KEY}.nc.exit")" \
@@ -148,9 +169,9 @@ collect_live_http_evidence() {
     local http_status http_exit
 
     printf 'COMMAND target=%s curl -sS -m 8 -o /dev/null -w %%{http_code} http://%s:7700%s\n' \
-        "$TARGET_VM_ID" "$TARGET_PUBLIC_IP" "$request_path"
+        "$TARGET_VM_ID" "$TARGET_ADDRESS" "$request_path"
     if http_status="$(curl -sS -m 8 -o /dev/null -w '%{http_code}' \
-        "http://${TARGET_PUBLIC_IP}:7700${request_path}" 2>/dev/null)"; then
+        "http://${TARGET_ADDRESS}:7700${request_path}" 2>/dev/null)"; then
         http_exit=0
     else
         http_exit=$?
@@ -161,12 +182,36 @@ collect_live_http_evidence() {
         "$TARGET_VM_ID" "$request_path" "$http_status" "$http_exit"
 }
 
+collect_live_tls_evidence() {
+    local status_file="$EVIDENCE_DIR/${TARGET_KEY}.tls.status"
+    local exit_file="$EVIDENCE_DIR/${TARGET_KEY}.tls.exit"
+    local verify_file="$EVIDENCE_DIR/${TARGET_KEY}.tls.verify"
+    local tls_metrics tls_status tls_verify tls_exit
+
+    printf 'COMMAND target=%s curl -sS -m 8 -o /dev/null -w status/verify https://%s/1/indexes\n' \
+        "$TARGET_VM_ID" "$TARGET_ADDRESS"
+    if tls_metrics="$(curl -sS -m 8 -o /dev/null \
+        -w $'%{http_code}\\t%{ssl_verify_result}' \
+        "https://${TARGET_ADDRESS}/1/indexes" 2>/dev/null)"; then
+        tls_exit=0
+    else
+        tls_exit=$?
+    fi
+    IFS=$'\t' read -r tls_status tls_verify <<< "$tls_metrics"
+    printf '%s\n' "${tls_status:-missing}" > "$status_file"
+    printf '%s\n' "$tls_exit" > "$exit_file"
+    printf '%s\n' "${tls_verify:-missing}" > "$verify_file"
+    printf 'TLS_EVIDENCE target=%s status=%s exit=%s verify=%s\n' \
+        "$TARGET_VM_ID" "${tls_status:-missing}" "$tls_exit" "${tls_verify:-missing}"
+}
+
 collect_live_evidence() {
     collect_live_sg_evidence
     collect_live_nc_evidence
     collect_live_http_evidence dashboard /dashboard
     collect_live_http_evidence swagger_ui /swagger-ui
     collect_live_http_evidence indexes /1/indexes
+    collect_live_tls_evidence
 }
 
 classify_security_group() {
@@ -273,6 +318,47 @@ classify_http() {
     fi
 }
 
+http_request_reached_target() {
+    local path_key="$1"
+    local status_file="$EVIDENCE_DIR/${TARGET_KEY}.http_${path_key}.status"
+    local exit_file="$EVIDENCE_DIR/${TARGET_KEY}.http_${path_key}.exit"
+    local http_status http_exit
+
+    [ -f "$status_file" ] && [ -f "$exit_file" ] || return 1
+    http_status="$(cat "$status_file")"
+    http_exit="$(cat "$exit_file")"
+    [[ "$http_status" =~ ^[1-5][0-9][0-9]$ ]] \
+        && [[ "$http_exit" =~ ^[0-9]+$ ]] \
+        && [ "$http_exit" -eq 0 ]
+}
+
+classify_tls() {
+    local status_file="$EVIDENCE_DIR/${TARGET_KEY}.tls.status"
+    local exit_file="$EVIDENCE_DIR/${TARGET_KEY}.tls.exit"
+    local verify_file="$EVIDENCE_DIR/${TARGET_KEY}.tls.verify"
+    local tls_status tls_exit tls_verify
+
+    [ -f "$status_file" ] && [ -f "$exit_file" ] && [ -f "$verify_file" ] \
+        || { printf 'PROBE_UNREACHABLE\n'; return; }
+    tls_status="$(cat "$status_file")"
+    tls_exit="$(cat "$exit_file")"
+    tls_verify="$(cat "$verify_file")"
+    [[ "$tls_exit" =~ ^[0-9]+$ ]] && [[ "$tls_verify" =~ ^[0-9]+$ ]] \
+        || { printf 'PROBE_UNREACHABLE\n'; return; }
+
+    if [ "$tls_exit" -eq 0 ] && [ "$tls_verify" -eq 0 ] \
+        && [[ "$tls_status" =~ ^[1-5][0-9][0-9]$ ]]; then
+        printf 'TLS_OK\n'
+    elif [ "$tls_verify" -ne 0 ] || [ "$tls_exit" -eq 35 ] \
+        || [ "$tls_exit" -eq 51 ] || [ "$tls_exit" -eq 60 ]; then
+        printf 'TLS_UNTRUSTED\n'
+    elif http_request_reached_target indexes; then
+        printf 'TLS_ABSENT\n'
+    else
+        printf 'PROBE_UNREACHABLE\n'
+    fi
+}
+
 read_http_status() {
     local path_key="$1"
     local status_file="$EVIDENCE_DIR/${TARGET_KEY}.http_${path_key}.status"
@@ -281,11 +367,11 @@ read_http_status() {
 
 render_target_verdict() {
     local target_verdict="$1"
-    printf 'TARGET env=%s vm_id=%s public_ip=%s sg_ids=%s sg_public_7700=%s port=%s dashboard=%s swagger_ui=%s indexes=%s verdict=%s\n' \
-        "$TARGET_ENV" "$TARGET_VM_ID" "$TARGET_PUBLIC_IP" "$TARGET_SG_IDS" \
+    printf 'TARGET env=%s vm_id=%s target_address=%s sg_ids=%s sg_public_7700=%s port=%s dashboard=%s swagger_ui=%s indexes=%s tls=%s verdict=%s\n' \
+        "$TARGET_ENV" "$TARGET_VM_ID" "$TARGET_ADDRESS" "$TARGET_SG_IDS" \
         "$SG_STATE" "$NC_STATE" \
         "$(read_http_status dashboard)" "$(read_http_status swagger_ui)" \
-        "$(read_http_status indexes)" "$target_verdict"
+        "$(read_http_status indexes)" "$TLS_STATE" "$target_verdict"
 }
 
 classify_target() {
@@ -296,6 +382,10 @@ classify_target() {
     dashboard_state="$(classify_http dashboard)"
     swagger_state="$(classify_http swagger_ui)"
     indexes_state="$(classify_http indexes)"
+    TLS_STATE="$(classify_tls)"
+    if [ "$TLS_STATE" != "TLS_OK" ]; then
+        HAS_TRANSPORT_FAILURE=1
+    fi
 
     if [ "$dashboard_state" = "exposed" ] \
         || [ "$swagger_state" = "exposed" ] \
@@ -327,14 +417,15 @@ classify_target() {
 }
 
 mark_invalid_target() {
-    printf 'TARGET env=%s vm_id=%s public_ip=%s sg_ids=%s verdict=INDETERMINATE reason=invalid_target_fields\n' \
-        "$TARGET_ENV" "$TARGET_VM_ID" "$TARGET_PUBLIC_IP" "$TARGET_SG_IDS"
+    printf 'TARGET env=%s vm_id=%s target_address=%s sg_ids=%s tls=PROBE_UNREACHABLE verdict=INDETERMINATE reason=invalid_target_fields\n' \
+        "$TARGET_ENV" "$TARGET_VM_ID" "$TARGET_ADDRESS" "$TARGET_SG_IDS"
     HAS_INDETERMINATE=1
+    HAS_TRANSPORT_FAILURE=1
 }
 
-while IFS=$'\t' read -r TARGET_ENV TARGET_VM_ID TARGET_PUBLIC_IP TARGET_SG_IDS EXTRA_FIELD \
-    || [ -n "${TARGET_ENV}${TARGET_VM_ID}${TARGET_PUBLIC_IP}${TARGET_SG_IDS}${EXTRA_FIELD}" ]; do
-    [ -n "${TARGET_ENV}${TARGET_VM_ID}${TARGET_PUBLIC_IP}${TARGET_SG_IDS}${EXTRA_FIELD}" ] || continue
+while IFS=$'\t' read -r TARGET_ENV TARGET_VM_ID TARGET_ADDRESS TARGET_SG_IDS EXTRA_FIELD \
+    || [ -n "${TARGET_ENV}${TARGET_VM_ID}${TARGET_ADDRESS}${TARGET_SG_IDS}${EXTRA_FIELD}" ]; do
+    [ -n "${TARGET_ENV}${TARGET_VM_ID}${TARGET_ADDRESS}${TARGET_SG_IDS}${EXTRA_FIELD}" ] || continue
     TARGET_COUNT=$((TARGET_COUNT + 1))
     if [ -n "$EXTRA_FIELD" ] || ! target_fields_are_valid; then
         mark_invalid_target
@@ -358,6 +449,9 @@ elif [ "$HAS_LATENT_EXPOSURE" -eq 1 ]; then
     exit 1
 elif [ "$HAS_INDETERMINATE" -eq 1 ]; then
     printf 'VERDICT: INDETERMINATE\n'
+    exit 1
+elif [ "$HAS_TRANSPORT_FAILURE" -eq 1 ]; then
+    printf 'VERDICT: TRANSPORT_FAILURE\n'
     exit 1
 else
     printf 'VERDICT: NOT_EXPOSED\n'

@@ -9,7 +9,9 @@ use crate::models::cold_snapshot::NewColdSnapshot;
 use crate::services::alerting::{Alert, AlertSeverity};
 use crate::services::flapjack_node::{flapjack_index_uid, get_or_create_node_api_key};
 
-use super::{identity_from_tenant, ColdTierCandidate, ColdTierError, ColdTierService};
+use super::{
+    identity_from_tenant, map_repo_error, ColdTierCandidate, ColdTierError, ColdTierService,
+};
 
 struct SnapshotPayload {
     bytes: Vec<u8>,
@@ -37,6 +39,12 @@ impl ColdTierService {
         flapjack_url: &str,
         region: &str,
     ) -> Result<Uuid, ColdTierError> {
+        if let Some(lease) = &self.lifecycle_lease {
+            lease
+                .admit_mutation(candidate.customer_id, &candidate.tenant_id)
+                .await
+                .map_err(map_repo_error)?;
+        }
         let object_key = Self::build_snapshot_object_key(candidate, region, Uuid::new_v4());
         let source_vm = self.source_vm_for_candidate(candidate).await?;
         let node_api_key = self.node_api_key_for_source_vm(&source_vm).await?;

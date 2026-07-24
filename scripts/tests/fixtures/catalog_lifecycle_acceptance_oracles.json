@@ -5,6 +5,32 @@
     "execute_every_inventoried_caller_before_route_activation": true,
     "missing_dependency_disposition": "failure"
   },
+  "privacy_erasure_dependencies": [
+    {
+      "id": "authenticated_engine_seal_privacy_scrub",
+      "owner": "engine/flapjack-http/src/router.rs and engine/flapjack-http/src/handlers/migration/",
+      "required_contract": "authenticated seal/privacy-scrub with exact absence and ACK semantics",
+      "minimum_unblock": "publish the pinned engine route and known-answer contract before cloud can run privacy_erasure",
+      "status": "action_required",
+      "reason": "privacy_scrub_transport_unavailable"
+    },
+    {
+      "id": "cloud_erased_tombstone_scrub_worker",
+      "owner": "infra/api/src/services/algolia_import/reconciliation.rs and PgAlgoliaImportJobRepo",
+      "required_contract": "claim and deliver erased-tombstone scrub work through the production reconciliation path",
+      "minimum_unblock": "add the cloud scrub claim/delivery path after the authenticated engine scrub transport exists",
+      "status": "action_required",
+      "reason": "privacy_scrub_worker_unavailable"
+    },
+    {
+      "id": "deterministic_source_boundary_controls",
+      "owner": "engine/flapjack-http migration test controls",
+      "required_contract": "deterministic controls for pre-intent, post-intent, socket-write, engine-commit, response, linkage, export, cancelling, cancelled-before-ACK, terminal-failed, promotion, finalization, and ACK-outage boundaries",
+      "minimum_unblock": "source-built engine boundary controls must expose each named commit boundary without sleeps or polling races",
+      "status": "action_required",
+      "reason": "privacy_boundary_control_unavailable"
+    }
+  ],
   "oracles": {
     "block_without_change": {
       "summary": "A block_without_change writer must refuse to mutate the catalog while an IndexLifecycleLease guard is held, and may release its guard only after the engine acknowledges; it never changes catalog rows behind the lease.",

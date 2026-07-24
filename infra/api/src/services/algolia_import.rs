@@ -4,10 +4,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use zeroize::{Zeroize, Zeroizing};
 
-use crate::models::algolia_import_job::{
-    AlgoliaImportErrorCode, AlgoliaImportJobStatus, AlgoliaImportPublicationDisposition,
-    AlgoliaImportSummary,
-};
+pub use crate::models::algolia_import_job::AlgoliaImportTerminalFact;
 use crate::services::flapjack_proxy::{FlapjackProxy, ProxyError};
 
 #[path = "algolia_import/admission.rs"]
@@ -17,6 +14,9 @@ mod admission;
 mod admission_tests;
 #[path = "algolia_import/cancel.rs"]
 mod cancel;
+#[cfg(test)]
+#[path = "algolia_import/cancel_tests.rs"]
+mod cancel_tests;
 #[path = "algolia_import/error_classifier.rs"]
 mod error_classifier;
 #[cfg(test)]
@@ -29,6 +29,12 @@ mod observation;
 mod observation_tests;
 #[path = "algolia_import/reconciliation.rs"]
 mod reconciliation;
+#[cfg(test)]
+#[path = "algolia_import/reconciliation_postgres_tests.rs"]
+mod reconciliation_postgres_tests;
+#[cfg(test)]
+#[path = "algolia_import/reconciliation_test_support.rs"]
+mod reconciliation_test_support;
 #[cfg(test)]
 #[path = "algolia_import/reconciliation_tests.rs"]
 mod reconciliation_tests;
@@ -54,36 +60,6 @@ pub use status_response::{
     AsyncMigrationDisposition, AsyncMigrationExportProgress, AsyncMigrationPhase,
     AsyncMigrationStatusResponse,
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AlgoliaImportTerminalHandoff {
-    pub status: AlgoliaImportJobStatus,
-    pub publication_disposition: AlgoliaImportPublicationDisposition,
-    pub summary: AlgoliaImportSummary,
-    pub error_code: Option<AlgoliaImportErrorCode>,
-    pub error_message: Option<String>,
-}
-
-impl AlgoliaImportTerminalHandoff {
-    pub fn new(
-        status: AlgoliaImportJobStatus,
-        publication_disposition: AlgoliaImportPublicationDisposition,
-        summary: AlgoliaImportSummary,
-        error_code: Option<AlgoliaImportErrorCode>,
-        error_message: Option<String>,
-    ) -> Result<Self, &'static str> {
-        if !status.has_valid_terminal_disposition(publication_disposition) {
-            return Err("terminal handoff has an invalid publication disposition");
-        }
-        Ok(Self {
-            status,
-            publication_disposition,
-            summary,
-            error_code,
-            error_message,
-        })
-    }
-}
 
 #[derive(Clone)]
 pub struct AlgoliaImportService {
@@ -134,6 +110,22 @@ impl AlgoliaImportService {
     ) -> Result<AsyncMigrationStatusResponse, AlgoliaImportEngineError> {
         self.proxy
             .cancel_algolia_migration(
+                &target.flapjack_url,
+                &target.node_id,
+                &target.region,
+                engine_job_id,
+            )
+            .await
+            .map_err(AlgoliaImportEngineError::from_proxy)
+    }
+
+    pub async fn acknowledge(
+        &self,
+        target: EngineTarget,
+        engine_job_id: &str,
+    ) -> Result<(), AlgoliaImportEngineError> {
+        self.proxy
+            .acknowledge_algolia_migration(
                 &target.flapjack_url,
                 &target.node_id,
                 &target.region,
@@ -261,7 +253,7 @@ impl fmt::Debug for AlgoliaImportSubmitRequest {
             .debug_struct("AlgoliaImportSubmitRequest")
             .field("app_id", &"<redacted>")
             .field("api_key", &"<redacted>")
-            .field("source_index", &self.source_index)
+            .field("source_index", &"<redacted>")
             .field("target_index", &self.target_index)
             .field("overwrite", &self.overwrite)
             .finish()
@@ -636,10 +628,10 @@ mod tests {
     }
 
     #[test]
-    fn terminal_handoff_accepts_only_canonical_terminal_pairs() {
+    fn terminal_fact_accepts_only_canonical_terminal_pairs() {
         use crate::models::algolia_import_job::{
             AlgoliaImportErrorCode, AlgoliaImportJobStatus, AlgoliaImportPublicationDisposition,
-            AlgoliaImportSummary,
+            AlgoliaImportSummary, AlgoliaImportTerminalFact,
         };
         use AlgoliaImportJobStatus::{
             Cancelled, Completed, CompletedWithWarnings, Failed, Interrupted,
@@ -668,28 +660,34 @@ mod tests {
                     documents_imported: 20,
                     ..AlgoliaImportSummary::default()
                 };
-                let result = AlgoliaImportTerminalHandoff::new(
+                let terminal_at = "2026-07-22T00:00:02Z".parse().unwrap();
+                let engine_job_id = uuid::Uuid::new_v4();
+                let result = AlgoliaImportTerminalFact::new(
+                    engine_job_id,
                     status,
                     disposition,
                     summary.clone(),
+                    terminal_at,
                     Some(AlgoliaImportErrorCode::BackendUnavailable),
                     Some("sanitized terminal detail".to_string()),
                 );
                 assert_eq!(
                     result.is_ok(),
                     legal_pairs.contains(&(status, disposition)),
-                    "terminal handoff pair {status:?}+{disposition:?}"
+                    "terminal fact pair {status:?}+{disposition:?}"
                 );
-                if let Ok(handoff) = result {
-                    assert_eq!(handoff.status, status);
-                    assert_eq!(handoff.publication_disposition, disposition);
-                    assert_eq!(handoff.summary, summary);
+                if let Ok(fact) = result {
+                    assert_eq!(fact.engine_job_id, engine_job_id);
+                    assert_eq!(fact.status, status);
+                    assert_eq!(fact.publication_disposition, disposition);
+                    assert_eq!(fact.summary, summary);
+                    assert_eq!(fact.terminal_at, terminal_at);
                     assert_eq!(
-                        handoff.error_code,
+                        fact.error_code,
                         Some(AlgoliaImportErrorCode::BackendUnavailable)
                     );
                     assert_eq!(
-                        handoff.error_message.as_deref(),
+                        fact.error_message.as_deref(),
                         Some("sanitized terminal detail")
                     );
                 }
@@ -743,12 +741,13 @@ mod tests {
         let request = AlgoliaImportSubmitRequest::new(
             "app-id".to_string(),
             Zeroizing::new("super-secret-source-key".to_string()),
-            "products".to_string(),
+            "source-name-canary".to_string(),
             None,
             false,
         );
         let debug = format!("{request:?}");
         assert!(!debug.contains("super-secret-source-key"));
         assert!(!debug.contains("app-id"));
+        assert!(!debug.contains("source-name-canary"));
     }
 }

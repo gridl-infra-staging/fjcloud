@@ -6,8 +6,9 @@ use uuid::Uuid;
 use crate::models::algolia_import_job::{AlgoliaImportJob, AlgoliaImportJobState};
 use crate::models::AlgoliaImportErrorCode;
 use crate::repos::{
-    AlgoliaImportCancelOutcome, AlgoliaImportJobRepo, AlgoliaLifecycleError,
-    PgAlgoliaImportJobRepo, RepoError, VmInventoryRepo,
+    AlgoliaImportCancelOutcome, AlgoliaImportJobRepo, AlgoliaImportTerminalFinalizationAuthority,
+    AlgoliaImportTerminalFinalizationOutcome, AlgoliaLifecycleError, PgAlgoliaImportJobRepo,
+    RepoError, VmInventoryRepo,
 };
 use crate::services::alerting::{Alert, AlertService, AlertSeverity};
 
@@ -15,14 +16,14 @@ use super::{AlgoliaImportEngineOperation, AlgoliaImportService};
 
 pub(crate) struct AlgoliaImportCancelResult {
     pub outcome: AlgoliaImportCancelOutcome,
-    pub terminal_handoff: Option<super::AlgoliaImportTerminalHandoff>,
+    pub terminal_finalization: Option<AlgoliaImportTerminalFinalizationOutcome>,
 }
 
 impl From<AlgoliaImportCancelOutcome> for AlgoliaImportCancelResult {
     fn from(outcome: AlgoliaImportCancelOutcome) -> Self {
         Self {
             outcome,
-            terminal_handoff: None,
+            terminal_finalization: None,
         }
     }
 }
@@ -90,7 +91,7 @@ impl AlgoliaImportService {
             .await
     }
 
-    async fn consume_cancel_observation(
+    pub(super) async fn consume_cancel_observation(
         &self,
         job_repo: &(dyn AlgoliaImportJobRepo + Send + Sync),
         alert_service: &(dyn AlertService + Send + Sync),
@@ -123,10 +124,40 @@ impl AlgoliaImportService {
                     .map_err(AlgoliaLifecycleError::Repository)?;
                 Ok(outcome.into())
             }
-            Ok(super::AlgoliaImportStatusObservation::Terminal(terminal_handoff)) => {
+            Ok(super::AlgoliaImportStatusObservation::Terminal(fact)) => {
+                let engine_job_id = outcome
+                    .job
+                    .engine_job_id
+                    .expect("cancel dispatch is always engine-linked");
+                let finalization = job_repo
+                    .finalize_terminal_observation(
+                        AlgoliaImportTerminalFinalizationAuthority::ImmediateCancel {
+                            job_id: outcome.job.id,
+                            lifecycle_generation: outcome.job.lifecycle_generation,
+                            engine_job_id,
+                        },
+                        fact,
+                    )
+                    .await
+                    .map_err(AlgoliaLifecycleError::Repository)?;
+                match &finalization {
+                    AlgoliaImportTerminalFinalizationOutcome::Applied(job)
+                    | AlgoliaImportTerminalFinalizationOutcome::AlreadyApplied(job) => {
+                        outcome.job = job.clone();
+                    }
+                    AlgoliaImportTerminalFinalizationOutcome::FenceLost => {}
+                    AlgoliaImportTerminalFinalizationOutcome::Rejected(reason) => {
+                        Self::alert_cancel_terminal_rejected(
+                            alert_service,
+                            &outcome.job,
+                            reason.clone(),
+                        )
+                        .await;
+                    }
+                }
                 Ok(AlgoliaImportCancelResult {
                     outcome,
-                    terminal_handoff: Some(terminal_handoff),
+                    terminal_finalization: Some(finalization),
                 })
             }
             Err(_) => self
@@ -181,6 +212,26 @@ impl AlgoliaImportService {
                 severity: AlertSeverity::Warning,
                 title: "Algolia import cancel retained ambiguous job".to_string(),
                 message: "Algolia import cancel outcome requires reconciliation".to_string(),
+                metadata,
+            })
+            .await;
+    }
+
+    async fn alert_cancel_terminal_rejected(
+        alert_service: &(dyn AlertService + Send + Sync),
+        job: &AlgoliaImportJob,
+        reason: String,
+    ) {
+        let metadata = HashMap::from([
+            ("job_id".to_string(), job.id.to_string()),
+            ("cloud_job_id".to_string(), job.cloud_job_id.to_string()),
+            ("reason".to_string(), reason),
+        ]);
+        let _ = alert_service
+            .send_alert(Alert {
+                severity: AlertSeverity::Critical,
+                title: "Algolia import cancel terminal finalization rejected".to_string(),
+                message: "Algolia import cancel terminal observation failed closed".to_string(),
                 metadata,
             })
             .await;

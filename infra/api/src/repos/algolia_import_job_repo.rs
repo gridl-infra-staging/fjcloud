@@ -4,7 +4,7 @@ use sqlx::{Postgres, Transaction};
 use tokio::sync::OwnedMutexGuard;
 use uuid::Uuid;
 
-use crate::models::algolia_import_job::AlgoliaImportDestinationKind;
+use crate::models::algolia_import_job::{AlgoliaImportDestinationKind, AlgoliaImportTerminalFact};
 use crate::models::{
     AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportJobState, NewAlgoliaImportJob,
     NewAlgoliaReplaceImportJob,
@@ -221,6 +221,59 @@ pub struct AlgoliaImportReconciliationClaim {
 pub enum AlgoliaImportReconciliationWriteOutcome {
     Applied { unavailable_state_changed: bool },
     LeaseLost,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AlgoliaImportTerminalFinalizationAuthority {
+    ReconciliationLease(AlgoliaImportReconciliationLease),
+    ImmediateCancel {
+        job_id: Uuid,
+        lifecycle_generation: i64,
+        engine_job_id: Uuid,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub enum AlgoliaImportTerminalFinalizationOutcome {
+    Applied(AlgoliaImportJob),
+    AlreadyApplied(AlgoliaImportJob),
+    FenceLost,
+    Rejected(String),
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AlgoliaImportEngineAbsenceProof {
+    job_id: Uuid,
+    lifecycle_generation: i64,
+    terminal_at: DateTime<Utc>,
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+impl AlgoliaImportEngineAbsenceProof {
+    pub(crate) fn from_authenticated_engine_absence(
+        job_id: Uuid,
+        lifecycle_generation: i64,
+        terminal_at: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            job_id,
+            lifecycle_generation,
+            terminal_at,
+        }
+    }
+
+    pub(crate) fn job_id(self) -> Uuid {
+        self.job_id
+    }
+
+    pub(crate) fn lifecycle_generation(self) -> i64 {
+        self.lifecycle_generation
+    }
+
+    pub(crate) fn terminal_at(self) -> DateTime<Utc> {
+        self.terminal_at
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -455,6 +508,11 @@ pub trait AlgoliaImportJobRepo {
         observed_at: DateTime<Utc>,
         state: AlgoliaImportJobState,
     ) -> Result<AlgoliaImportReconciliationWriteOutcome, RepoError>;
+    async fn finalize_terminal_observation(
+        &self,
+        authority: AlgoliaImportTerminalFinalizationAuthority,
+        fact: AlgoliaImportTerminalFact,
+    ) -> Result<AlgoliaImportTerminalFinalizationOutcome, RepoError>;
     async fn claim_elapsed_resume_deadlines(
         &self,
         now: DateTime<Utc>,

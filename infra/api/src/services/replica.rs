@@ -110,6 +110,8 @@ impl ReplicaService {
         tenant_id: &str,
         target_region: &str,
     ) -> Result<IndexReplica, ReplicaError> {
+        self.admit_target_mutation(customer_id, tenant_id).await?;
+
         // Validate target region is available
         if self
             .region_config
@@ -220,8 +222,11 @@ impl ReplicaService {
     pub async fn remove_replica(
         &self,
         customer_id: Uuid,
+        tenant_id: &str,
         replica_id: Uuid,
     ) -> Result<(), ReplicaError> {
+        self.admit_target_mutation(customer_id, tenant_id).await?;
+
         let replica = self
             .replica_repo
             .get(replica_id)
@@ -230,7 +235,7 @@ impl ReplicaService {
             .ok_or(ReplicaError::ReplicaNotFound)?;
 
         // Verify ownership
-        if replica.customer_id != customer_id {
+        if replica.customer_id != customer_id || replica.tenant_id != tenant_id {
             return Err(ReplicaError::ReplicaNotFound);
         }
 
@@ -311,6 +316,20 @@ impl ReplicaService {
 }
 
 impl ReplicaService {
+    async fn admit_target_mutation(
+        &self,
+        customer_id: Uuid,
+        tenant_id: &str,
+    ) -> Result<(), ReplicaError> {
+        if let Some(lease) = &self.lifecycle_lease {
+            lease
+                .admit_mutation(customer_id, tenant_id)
+                .await
+                .map_err(map_repo_error)?;
+        }
+        Ok(())
+    }
+
     async fn guarded_target_mutation<F, Fut, T>(
         &self,
         customer_id: Uuid,

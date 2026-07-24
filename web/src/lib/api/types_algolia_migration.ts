@@ -136,7 +136,6 @@ export interface PublicAlgoliaImportDestination {
 }
 
 export interface PublicAlgoliaImportSource {
-	appId: string;
 	name: string;
 }
 
@@ -161,7 +160,6 @@ export interface PublicAlgoliaImportError {
 		| 'cancel_not_permitted'
 		| 'not_resumable'
 		| 'internal';
-	message: string | null;
 }
 
 export interface AlgoliaImportSummary {
@@ -185,7 +183,6 @@ export interface PublicAlgoliaImportJob {
 	destination: PublicAlgoliaImportDestination;
 	source: PublicAlgoliaImportSource;
 	summary: AlgoliaImportSummary;
-	warnings: unknown;
 	error: PublicAlgoliaImportError | null;
 	cancelRequestedAt: string | null;
 	resumeProvenance: string | null;

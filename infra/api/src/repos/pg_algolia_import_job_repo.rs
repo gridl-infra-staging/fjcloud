@@ -27,9 +27,10 @@ use crate::repos::algolia_import_job_repo::{
     AlgoliaImportEngineAckOutcome, AlgoliaImportJobAdmissionError, AlgoliaImportJobListCursor,
     AlgoliaImportJobListPage, AlgoliaImportJobRepo, AlgoliaImportReconciliationClaim,
     AlgoliaImportReconciliationLease, AlgoliaImportReconciliationWriteOutcome,
-    AlgoliaImportResumeDeadlineClaim, AlgoliaImportResumeOutcome, AlgoliaLifecycleError,
-    CatalogLifecycleTargetGuard, CatalogLifecycleTargetIdentity, DestinationEligibilityError,
-    DestinationEligibilitySnapshot,
+    AlgoliaImportResumeDeadlineClaim, AlgoliaImportResumeOutcome,
+    AlgoliaImportTerminalFinalizationAuthority, AlgoliaImportTerminalFinalizationOutcome,
+    AlgoliaLifecycleError, CatalogLifecycleTargetGuard, CatalogLifecycleTargetIdentity,
+    DestinationEligibilityError, DestinationEligibilitySnapshot,
 };
 use crate::repos::error::{is_unique_violation, RepoError};
 use reconciliation::{persist_job_state, validate_state_write};
@@ -43,7 +44,6 @@ use support::{
 
 const FIND_BY_IDEMPOTENCY_KEY_SQL: &str = "SELECT * FROM algolia_import_jobs
      WHERE customer_id=$1 AND idempotency_key=$2 AND erased_at IS NULL";
-
 #[derive(sqlx::FromRow)]
 struct ErasedTombstoneAckRow {
     id: Uuid,
@@ -495,42 +495,8 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
         error_code: AlgoliaImportErrorCode,
         error_message: Option<&str>,
     ) -> Result<AlgoliaImportJob, RepoError> {
-        if error_code == AlgoliaImportErrorCode::Interrupted {
-            return Err(RepoError::Conflict(
-                "no-dispatch failure cannot use the engine interruption code".into(),
-            ));
-        }
-        let mut tx = self.pool.begin().await.map_err(repo_error)?;
-        self.lock_generation_fenced_target_job(&mut tx, id).await?;
-        let result = sqlx::query(
-            "UPDATE algolia_import_jobs
-             SET status='failed', publication_disposition='not_started',
-                 dispatch_intent_state='absent', engine_ack_state='not_applicable',
-                 error_code=$2, error_message=$3, retryable=FALSE,
-                 worker_claimed_at=NULL, worker_lease_expires_at=NULL, updated_at=NOW()
-             WHERE id=$1 AND dispatch_intent_state='absent' AND engine_job_id IS NULL",
-        )
-        .bind(id)
-        .bind(error_code.as_str())
-        .bind(error_message)
-        .execute(&mut *tx)
-        .await
-        .map_err(repo_error)?;
-        if result.rows_affected() == 0 {
-            return Err(RepoError::Conflict(
-                "job lacks absent dispatch-intent proof".into(),
-            ));
-        }
-        let updated = sqlx::query_as::<_, AlgoliaImportJobRow>(
-            "SELECT * FROM algolia_import_jobs WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(repo_error)
-        .map(AlgoliaImportJob::from)?;
-        tx.commit().await.map_err(repo_error)?;
-        Ok(updated)
+        self.finalize_no_dispatch_failure_inner(id, error_code, error_message)
+            .await
     }
 
     async fn request_cancel(&self, id: Uuid) -> Result<AlgoliaImportCancelOutcome, RepoError> {
@@ -578,9 +544,18 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
         let current = match self.lock_generation_fenced_target_job(&mut tx, id).await {
             Ok(current) => current,
             Err(RepoError::NotFound) => {
-                let acknowledged = self
+                let acknowledged = match self
                     .mark_erased_tombstone_engine_acknowledged(&mut tx, id)
-                    .await?;
+                    .await
+                {
+                    Ok(acknowledged) => acknowledged,
+                    Err(RepoError::NotFound) => {
+                        return Err(RepoError::Conflict(
+                            "engine acknowledgement target is not retained".into(),
+                        ));
+                    }
+                    Err(error) => return Err(error),
+                };
                 tx.commit().await.map_err(repo_error)?;
                 return Ok(acknowledged);
             }
@@ -676,6 +651,15 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
         state: AlgoliaImportJobState,
     ) -> Result<AlgoliaImportReconciliationWriteOutcome, RepoError> {
         self.record_reconciliation_observation_inner(lease, observed_at, state)
+            .await
+    }
+
+    async fn finalize_terminal_observation(
+        &self,
+        authority: AlgoliaImportTerminalFinalizationAuthority,
+        fact: crate::models::algolia_import_job::AlgoliaImportTerminalFact,
+    ) -> Result<AlgoliaImportTerminalFinalizationOutcome, RepoError> {
+        self.finalize_terminal_observation_inner(authority, fact)
             .await
     }
 

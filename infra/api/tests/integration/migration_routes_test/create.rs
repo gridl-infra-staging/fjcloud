@@ -3,9 +3,7 @@ use super::*;
 #[tokio::test]
 async fn algolia_cloud_job_create_accepts_create_request_and_idempotent_replay() {
     let _env = FlapjackIdentityEnvGuard::compatible();
-    let Some(db) = connect_and_migrate("algolia_cloud_job_create_accept").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_cloud_job_create_accept").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([
         Ok(inspected_source("TESTAPP123", "source_products", "rev-1")),
         Ok(inspected_source(
@@ -101,9 +99,7 @@ async fn algolia_cloud_job_create_accepts_create_request_and_idempotent_replay()
 #[tokio::test]
 async fn algolia_cloud_job_create_retains_ambiguous_job_when_socket_result_is_lost() {
     let _env = FlapjackIdentityEnvGuard::compatible();
-    let Some(db) = connect_and_migrate("algolia_create_lost_socket").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_create_lost_socket").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([
         Ok(inspected_source("CANARYAPP123", "source_products", "rev-1")),
         Ok(inspected_source("CANARYAPP123", "source_products", "rev-1")),
@@ -166,9 +162,7 @@ async fn algolia_cloud_job_create_retains_ambiguous_job_when_socket_result_is_lo
 async fn algolia_cloud_job_create_retains_ambiguous_job_when_linkage_fails_after_engine_acceptance()
 {
     let _env = FlapjackIdentityEnvGuard::compatible();
-    let Some(db) = connect_and_migrate("algolia_create_linkage_fail").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_create_linkage_fail").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([Ok(inspected_source(
         "CANARYAPP456",
         "source_products",
@@ -249,9 +243,7 @@ async fn algolia_cloud_job_create_retains_ambiguous_job_when_linkage_fails_after
 #[tokio::test]
 async fn algolia_cloud_job_create_hygiene_distinguishes_public_app_id_from_secret_api_key() {
     let _env = FlapjackIdentityEnvGuard::compatible();
-    let Some(db) = connect_and_migrate("algolia_create_hygiene").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_create_hygiene").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([Ok(inspected_source(
         "PUBLICAPPID789",
         "source_products",
@@ -290,7 +282,8 @@ async fn algolia_cloud_job_create_hygiene_distinguishes_public_app_id_from_secre
     .await;
 
     assert_eq!(status, StatusCode::ACCEPTED, "body: {body}");
-    assert_eq!(body["source"]["appId"], "PUBLICAPPID789");
+    assert_eq!(body["source"], json!({ "name": "source_products" }));
+    assert!(body["source"].get("appId").is_none());
     let retained_id = Uuid::parse_str(body["id"].as_str().unwrap()).unwrap();
     let retained_row = serialized_import_job_row(&db.pool, retained_id).await;
     assert_eq!(retained_row["algolia_app_id"], "PUBLICAPPID789");
@@ -898,9 +891,7 @@ fn assert_no_submit_canary_retained(
 
 #[tokio::test]
 async fn algolia_cloud_job_create_rejects_missing_credentials_without_source_call() {
-    let Some(db) = connect_and_migrate("algolia_cloud_job_missing_creds").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_cloud_job_missing_creds").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([]);
     let (app, jwt, _customer_id, _flapjack) =
         setup_algolia_cloud_job_create_app(db.pool.clone(), source_service.clone()).await;
@@ -1002,6 +993,7 @@ fn algolia_cloud_job_inspect_source_tracing_never_reveals_temporary_key() {
         .build()
         .expect("current-thread runtime should build");
     let temporary_key = "temporary-secret-key-that-must-not-leak";
+    let source_name = "source-name-canary-that-must-not-enter-logs";
 
     tracing::subscriber::with_default(subscriber, || {
         tracing::callsite::rebuild_interest_cache();
@@ -1018,7 +1010,7 @@ fn algolia_cloud_job_inspect_source_tracing_never_reveals_temporary_key() {
                 .inspect_source(AlgoliaSourceInspectRequest {
                     app_id: "TESTAPP123".to_string(),
                     api_key: zeroize::Zeroizing::new(temporary_key.to_string()),
-                    source_name: "source_products".to_string(),
+                    source_name: source_name.to_string(),
                 })
                 .await
                 .expect_err("timeout should be surfaced");
@@ -1037,13 +1029,12 @@ fn algolia_cloud_job_inspect_source_tracing_never_reveals_temporary_key() {
     assert!(output.contains("[REDACTED]"));
     assert!(!output.contains(temporary_key));
     assert!(!output.contains("TESTAPP123"));
+    assert!(!output.contains(source_name));
 }
 
 #[tokio::test]
 async fn algolia_cloud_job_create_rejects_source_not_found_without_persisting() {
-    let Some(db) = connect_and_migrate("algolia_cloud_job_source_missing").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_cloud_job_source_missing").await;
     let source_service =
         FakeAlgoliaSourceLister::with_inspect([Err(AlgoliaSourceError::SourceIndexNotFound)]);
     let (app, jwt, _customer_id, _flapjack) =

@@ -6,289 +6,481 @@
       "id": "catalog_writer__infra_api_src_repos_pg_customer_repo_hard_delete__delete_customer_dependents__pg_index_replica_repo_delete",
       "owner_path": "infra/api/src/repos/pg_customer_repo/hard_delete.rs",
       "source_anchor": "pg_index_replica_repo.delete",
-      "disposition": "privacy_transition"
+      "disposition": "privacy_transition",
+      "live_caller_key": "caller__infra_api_src_repos_pg_customer_repo_hard_delete__delete_customer_dependents__pg_index_replica_repo_delete",
+      "live_scenario_key": "scenario__infra_api_src_repos_pg_customer_repo_hard_delete__delete_customer_dependents__pg_index_replica_repo_delete",
+      "live_phase": "privacy_erasure",
+      "live_caller_command": "invoke_privacy_erasure_dependency_gate"
     },
     {
       "id": "catalog_writer__infra_api_src_repos_pg_customer_repo_hard_delete__delete_customer_dependents__pg_tenant_repo_delete",
       "owner_path": "infra/api/src/repos/pg_customer_repo/hard_delete.rs",
       "source_anchor": "pg_tenant_repo.delete",
-      "disposition": "privacy_transition"
+      "disposition": "privacy_transition",
+      "live_caller_key": "caller__infra_api_src_repos_pg_customer_repo_hard_delete__delete_customer_dependents__pg_tenant_repo_delete",
+      "live_scenario_key": "scenario__infra_api_src_repos_pg_customer_repo_hard_delete__delete_customer_dependents__pg_tenant_repo_delete",
+      "live_phase": "privacy_erasure",
+      "live_caller_command": "invoke_privacy_erasure_dependency_gate"
     },
     {
       "id": "catalog_writer__infra_api_src_repos_pg_customer_repo_hard_delete__hard_delete__pg_customer_repo_hard_delete",
       "owner_path": "infra/api/src/repos/pg_customer_repo/hard_delete.rs",
       "source_anchor": "pg_customer_repo.hard_delete",
-      "disposition": "privacy_transition"
+      "disposition": "privacy_transition",
+      "live_caller_key": "caller__infra_api_src_repos_pg_customer_repo_hard_delete__hard_delete__pg_customer_repo_hard_delete",
+      "live_scenario_key": "scenario__infra_api_src_repos_pg_customer_repo_hard_delete__hard_delete__pg_customer_repo_hard_delete",
+      "live_phase": "privacy_erasure",
+      "live_caller_command": "invoke_privacy_erasure_dependency_gate"
     },
     {
       "id": "catalog_writer__infra_api_src_repos_pg_customer_repo_lifecycle__soft_delete__pg_customer_repo_soft_delete",
       "owner_path": "infra/api/src/repos/pg_customer_repo/lifecycle.rs",
       "source_anchor": "pg_customer_repo.soft_delete",
-      "disposition": "privacy_transition"
+      "disposition": "privacy_transition",
+      "live_caller_key": "caller__infra_api_src_repos_pg_customer_repo_lifecycle__soft_delete__pg_customer_repo_soft_delete",
+      "live_scenario_key": "pg_customer_repo_test::soft_delete_increments_lifecycle_generation_exactly_once",
+      "live_phase": "lifecycle_exclusion",
+      "live_caller_command": "invoke_lifecycle_soft_delete_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_repos_pg_index_replica_repo__create__pg_index_replica_repo_create",
       "owner_path": "infra/api/src/repos/pg_index_replica_repo.rs",
       "source_anchor": "pg_index_replica_repo.create",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_repos_pg_index_replica_repo__create__pg_index_replica_repo_create",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::replica_create_remove_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_repos_pg_index_replica_repo__delete__pg_index_replica_repo_delete",
       "owner_path": "infra/api/src/repos/pg_index_replica_repo.rs",
       "source_anchor": "pg_index_replica_repo.delete",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_repos_pg_index_replica_repo__delete__pg_index_replica_repo_delete",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::replica_create_remove_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_repos_pg_tenant_repo__create__pg_tenant_repo_create",
       "owner_path": "infra/api/src/repos/pg_tenant_repo.rs",
       "source_anchor": "pg_tenant_repo.create",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_repos_pg_tenant_repo__create__pg_tenant_repo_create",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::create_index_on_shared_vm_reservation_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
-      "id": "catalog_writer__infra_api_src_repos_pg_tenant_repo__create_lifecycle_intent__pg_tenant_repo_create",
+      "id": "catalog_writer__infra_api_src_repos_pg_tenant_repo__create_lifecycle_intent_tx__pg_tenant_repo_create",
       "owner_path": "infra/api/src/repos/pg_tenant_repo.rs",
       "source_anchor": "pg_tenant_repo.create",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_repos_pg_tenant_repo__create_lifecycle_intent_tx__pg_tenant_repo_create",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::create_index_on_shared_vm_reservation_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_repos_pg_tenant_repo__clear_vm_id__pg_tenant_repo_clear_vm_id",
       "owner_path": "infra/api/src/repos/pg_tenant_repo.rs",
       "source_anchor": "pg_tenant_repo.clear_vm_id",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_repos_pg_tenant_repo__clear_vm_id__pg_tenant_repo_clear_vm_id",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::cold_tier_intent_blocks_replace_reservation_before_remote_export",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_repos_pg_tenant_repo__delete__pg_tenant_repo_delete",
       "owner_path": "infra/api/src/repos/pg_tenant_repo.rs",
       "source_anchor": "pg_tenant_repo.delete",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_repos_pg_tenant_repo__delete__pg_tenant_repo_delete",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::delete_index_reservation_races_after_intent_before_finalization",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
-      "id": "catalog_writer__infra_api_src_repos_pg_tenant_repo__publish_lifecycle_placement__pg_tenant_repo_set_vm_id",
+      "id": "catalog_writer__infra_api_src_repos_pg_tenant_repo__publish_lifecycle_placement_tx__pg_tenant_repo_set_vm_id",
       "owner_path": "infra/api/src/repos/pg_tenant_repo.rs",
       "source_anchor": "pg_tenant_repo.set_vm_id",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_repos_pg_tenant_repo__publish_lifecycle_placement_tx__pg_tenant_repo_set_vm_id",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::create_index_on_shared_vm_reservation_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_repos_pg_tenant_repo__set_cold_snapshot_id__pg_tenant_repo_set_cold_snapshot_id",
       "owner_path": "infra/api/src/repos/pg_tenant_repo.rs",
       "source_anchor": "pg_tenant_repo.set_cold_snapshot_id",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_repos_pg_tenant_repo__set_cold_snapshot_id__pg_tenant_repo_set_cold_snapshot_id",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::cold_tier_intent_blocks_replace_reservation_before_remote_export",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_repos_pg_tenant_repo__set_tier__pg_tenant_repo_set_tier",
       "owner_path": "infra/api/src/repos/pg_tenant_repo.rs",
       "source_anchor": "pg_tenant_repo.set_tier",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_repos_pg_tenant_repo__set_tier__pg_tenant_repo_set_tier",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::cold_tier_intent_blocks_replace_reservation_before_remote_export",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_repos_pg_tenant_repo__set_vm_id__pg_tenant_repo_set_vm_id",
       "owner_path": "infra/api/src/repos/pg_tenant_repo.rs",
       "source_anchor": "pg_tenant_repo.set_vm_id",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_repos_pg_tenant_repo__set_vm_id__pg_tenant_repo_set_vm_id",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::create_index_on_shared_vm_reservation_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_routes_account__delete_account__customer_repo_soft_delete",
       "owner_path": "infra/api/src/routes/account.rs",
       "source_anchor": "customer_repo.soft_delete",
-      "disposition": "privacy_transition"
+      "disposition": "privacy_transition",
+      "live_caller_key": "caller__infra_api_src_routes_account__delete_account__customer_repo_soft_delete",
+      "live_scenario_key": "account_test::delete_account_soft_delete_retains_row_for_audit_visibility",
+      "live_phase": "lifecycle_exclusion",
+      "live_caller_command": "invoke_lifecycle_soft_delete_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_routes_admin_indexes__resolve_existing_seed_index__tenant_repo_publish_lifecycle_placement",
       "owner_path": "infra/api/src/routes/admin/indexes.rs",
       "source_anchor": "tenant_repo.publish_lifecycle_placement",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_routes_admin_indexes__resolve_existing_seed_index__tenant_repo_publish_lifecycle_placement",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::admin_seed_create_races_after_intent_before_remote_secret_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_routes_admin_indexes__seed_index__tenant_repo_create_lifecycle_intent",
       "owner_path": "infra/api/src/routes/admin/indexes.rs",
       "source_anchor": "tenant_repo.create_lifecycle_intent",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_routes_admin_indexes__seed_index__tenant_repo_create_lifecycle_intent",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::admin_seed_create_races_after_intent_before_remote_secret_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_routes_admin_indexes__publish_seed_intent__tenant_repo_publish_lifecycle_placement",
       "owner_path": "infra/api/src/routes/admin/indexes.rs",
       "source_anchor": "tenant_repo.publish_lifecycle_placement",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_routes_admin_indexes__publish_seed_intent__tenant_repo_publish_lifecycle_placement",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::admin_seed_create_races_after_intent_before_remote_secret_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_routes_admin_indexes__rollback_seed_intent__tenant_repo_delete",
       "owner_path": "infra/api/src/routes/admin/indexes.rs",
       "source_anchor": "tenant_repo.delete",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_routes_admin_indexes__rollback_seed_intent__tenant_repo_delete",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::admin_seed_create_races_after_intent_before_remote_secret_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_routes_admin_tenants__delete_tenant__customer_repo_soft_delete",
       "owner_path": "infra/api/src/routes/admin/tenants.rs",
       "source_anchor": "customer_repo.soft_delete",
-      "disposition": "privacy_transition"
+      "disposition": "privacy_transition",
+      "live_caller_key": "caller__infra_api_src_routes_admin_tenants__delete_tenant__customer_repo_soft_delete",
+      "live_scenario_key": "admin_audit_view_test::delete_admin_tenants_id_writes_tenant_deleted_audit_row",
+      "live_phase": "lifecycle_exclusion",
+      "live_caller_command": "invoke_lifecycle_soft_delete_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_routes_admin_tenants__hard_erase_customer__customer_repo_hard_delete",
       "owner_path": "infra/api/src/routes/admin/tenants.rs",
       "source_anchor": "customer_repo.hard_delete",
-      "disposition": "privacy_transition"
+      "disposition": "privacy_transition",
+      "live_caller_key": "caller__infra_api_src_routes_admin_tenants__hard_erase_customer__customer_repo_hard_delete",
+      "live_scenario_key": "scenario__infra_api_src_routes_admin_tenants__hard_erase_customer__customer_repo_hard_delete",
+      "live_phase": "privacy_erasure",
+      "live_caller_command": "invoke_privacy_erasure_dependency_gate"
     },
     {
       "id": "catalog_writer__infra_api_src_routes_indexes_replicas__create_replica__replica_service_create_replica",
       "owner_path": "infra/api/src/routes/indexes/replicas.rs",
       "source_anchor": "replica_service.create_replica",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_routes_indexes_replicas__create_replica__replica_service_create_replica",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::replica_create_remove_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_routes_indexes_lifecycle__delete_index__flapjack_proxy_delete_index",
       "owner_path": "infra/api/src/routes/indexes/lifecycle.rs",
       "source_anchor": "flapjack_proxy.delete_index",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_routes_indexes_lifecycle__delete_index__flapjack_proxy_delete_index",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::delete_index_reservation_races_after_intent_before_finalization",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_repos_pg_tenant_repo__publish_delete_lifecycle_intent__pg_tenant_repo_set_tier",
       "owner_path": "infra/api/src/repos/pg_tenant_repo.rs",
       "source_anchor": "pg_tenant_repo.set_tier",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_repos_pg_tenant_repo__publish_delete_lifecycle_intent__pg_tenant_repo_set_tier",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::delete_index_reservation_races_after_intent_before_finalization",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_routes_indexes_lifecycle__rollback_shared_vm_delete_intent__tenant_repo_publish_lifecycle_placement",
       "owner_path": "infra/api/src/routes/indexes/lifecycle.rs",
       "source_anchor": "tenant_repo.publish_lifecycle_placement",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_routes_indexes_lifecycle__rollback_shared_vm_delete_intent__tenant_repo_publish_lifecycle_placement",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::delete_index_reservation_races_after_intent_before_finalization",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_routes_indexes_replicas__delete_replica__replica_service_remove_replica",
       "owner_path": "infra/api/src/routes/indexes/replicas.rs",
       "source_anchor": "replica_service.remove_replica",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_routes_indexes_replicas__delete_replica__replica_service_remove_replica",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::replica_create_remove_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_routes_indexes_shared_vm__create_index_on_shared_vm__tenant_repo_create_lifecycle_intent",
       "owner_path": "infra/api/src/routes/indexes/shared_vm.rs",
       "source_anchor": "tenant_repo.create_lifecycle_intent",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_routes_indexes_shared_vm__create_index_on_shared_vm__tenant_repo_create_lifecycle_intent",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::create_index_on_shared_vm_reservation_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_routes_indexes_shared_vm__create_index_on_shared_vm__tenant_repo_publish_lifecycle_placement",
       "owner_path": "infra/api/src/routes/indexes/shared_vm.rs",
       "source_anchor": "tenant_repo.publish_lifecycle_placement",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_routes_indexes_shared_vm__create_index_on_shared_vm__tenant_repo_publish_lifecycle_placement",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::create_index_on_shared_vm_reservation_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_cold_tier_pipeline__begin_snapshot_record__tenant_repo_set_tier",
       "owner_path": "infra/api/src/services/cold_tier/pipeline.rs",
       "source_anchor": "tenant_repo.set_tier",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_cold_tier_pipeline__begin_snapshot_record__tenant_repo_set_tier",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::cold_tier_intent_blocks_replace_reservation_before_remote_export",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_cold_tier_pipeline__rollback_tenant_snapshot_state__tenant_repo_set_cold_snapshot_id",
       "owner_path": "infra/api/src/services/cold_tier/pipeline.rs",
       "source_anchor": "tenant_repo.set_cold_snapshot_id",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_cold_tier_pipeline__rollback_tenant_snapshot_state__tenant_repo_set_cold_snapshot_id",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::cold_tier_intent_blocks_replace_reservation_before_remote_export",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_cold_tier_pipeline__rollback_tenant_snapshot_state__tenant_repo_set_tier",
       "owner_path": "infra/api/src/services/cold_tier/pipeline.rs",
       "source_anchor": "tenant_repo.set_tier",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_cold_tier_pipeline__rollback_tenant_snapshot_state__tenant_repo_set_tier",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::cold_tier_intent_blocks_replace_reservation_before_remote_export",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_cold_tier_pipeline__rollback_tenant_snapshot_state__tenant_repo_set_vm_id",
       "owner_path": "infra/api/src/services/cold_tier/pipeline.rs",
       "source_anchor": "tenant_repo.set_vm_id",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_cold_tier_pipeline__rollback_tenant_snapshot_state__tenant_repo_set_vm_id",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::cold_tier_intent_blocks_replace_reservation_before_remote_export",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_cold_tier_pipeline__transition_tenant_to_cold_storage__tenant_repo_clear_vm_id",
       "owner_path": "infra/api/src/services/cold_tier/pipeline.rs",
       "source_anchor": "tenant_repo.clear_vm_id",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_cold_tier_pipeline__transition_tenant_to_cold_storage__tenant_repo_clear_vm_id",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::cold_tier_intent_blocks_replace_reservation_before_remote_export",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_cold_tier_pipeline__transition_tenant_to_cold_storage__tenant_repo_set_cold_snapshot_id",
       "owner_path": "infra/api/src/services/cold_tier/pipeline.rs",
       "source_anchor": "tenant_repo.set_cold_snapshot_id",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_cold_tier_pipeline__transition_tenant_to_cold_storage__tenant_repo_set_cold_snapshot_id",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::cold_tier_intent_blocks_replace_reservation_before_remote_export",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_migration_mod__reset_tenant_tier_after_execute_failure__tenant_repo_set_tier",
       "owner_path": "infra/api/src/services/migration/mod.rs",
       "source_anchor": "tenant_repo.set_tier",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_migration_mod__reset_tenant_tier_after_execute_failure__tenant_repo_set_tier",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::migration_lifecycle_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_migration_mod__begin_migration_intent__tenant_repo_set_tier",
       "owner_path": "infra/api/src/services/migration/mod.rs",
       "source_anchor": "tenant_repo.set_tier",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_migration_mod__begin_migration_intent__tenant_repo_set_tier",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::migration_lifecycle_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_migration_protocol__finalize_protocol__tenant_repo_set_tier",
       "owner_path": "infra/api/src/services/migration/protocol.rs",
       "source_anchor": "tenant_repo.set_tier",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_migration_protocol__finalize_protocol__tenant_repo_set_tier",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::migration_lifecycle_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_migration_protocol__finalize_protocol__tenant_repo_set_vm_id",
       "owner_path": "infra/api/src/services/migration/protocol.rs",
       "source_anchor": "tenant_repo.set_vm_id",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_migration_protocol__finalize_protocol__tenant_repo_set_vm_id",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::migration_lifecycle_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_migration_recovery__recover_source_on_failure__tenant_repo_publish_lifecycle_placement",
       "owner_path": "infra/api/src/services/migration/recovery.rs",
       "source_anchor": "tenant_repo.publish_lifecycle_placement",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_migration_recovery__recover_source_on_failure__tenant_repo_publish_lifecycle_placement",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::migration_lifecycle_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_migration_recovery__publish_rollback__tenant_repo_publish_lifecycle_placement",
       "owner_path": "infra/api/src/services/migration/recovery.rs",
       "source_anchor": "tenant_repo.publish_lifecycle_placement",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_migration_recovery__publish_rollback__tenant_repo_publish_lifecycle_placement",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::migration_lifecycle_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_region_failover__try_failover_tenant__tenant_repo_set_vm_id",
       "owner_path": "infra/api/src/services/region_failover.rs",
       "source_anchor": "tenant_repo.set_vm_id",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_region_failover__try_failover_tenant__tenant_repo_set_vm_id",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::region_failover_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_replica__create_replica__replica_repo_create",
       "owner_path": "infra/api/src/services/replica.rs",
       "source_anchor": "replica_repo.create",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_replica__create_replica__replica_repo_create",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::replica_create_remove_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_replica__remove_replica__replica_repo_delete",
       "owner_path": "infra/api/src/services/replica.rs",
       "source_anchor": "replica_repo.delete",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_replica__remove_replica__replica_repo_delete",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::replica_create_remove_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_restore__execute_restore_inner__tenant_repo_set_cold_snapshot_id",
       "owner_path": "infra/api/src/services/restore.rs",
       "source_anchor": "tenant_repo.set_cold_snapshot_id",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_restore__execute_restore_inner__tenant_repo_set_cold_snapshot_id",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::restore_lifecycle_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_restore__execute_restore_inner__tenant_repo_set_tier",
       "owner_path": "infra/api/src/services/restore.rs",
       "source_anchor": "tenant_repo.set_tier",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_restore__execute_restore_inner__tenant_repo_set_tier",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::restore_lifecycle_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_restore__execute_restore_inner__tenant_repo_set_vm_id",
       "owner_path": "infra/api/src/services/restore.rs",
       "source_anchor": "tenant_repo.set_vm_id",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_restore__execute_restore_inner__tenant_repo_set_vm_id",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::restore_lifecycle_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_restore__handle_restore_failure__tenant_repo_set_tier",
       "owner_path": "infra/api/src/services/restore.rs",
       "source_anchor": "tenant_repo.set_tier",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_restore__handle_restore_failure__tenant_repo_set_tier",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::restore_lifecycle_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     },
     {
       "id": "catalog_writer__infra_api_src_services_restore__initiate_restore__tenant_repo_set_tier",
       "owner_path": "infra/api/src/services/restore.rs",
       "source_anchor": "tenant_repo.set_tier",
-      "disposition": "block_without_change"
+      "disposition": "block_without_change",
+      "live_caller_key": "caller__infra_api_src_services_restore__initiate_restore__tenant_repo_set_tier",
+      "live_scenario_key": "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::restore_lifecycle_races_after_intent_before_remote_work",
+      "live_phase": "catalog",
+      "live_caller_command": "invoke_catalog_blocking_writer"
     }
   ]
 }

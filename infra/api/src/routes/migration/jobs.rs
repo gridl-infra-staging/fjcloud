@@ -46,7 +46,7 @@ impl fmt::Debug for CreateAlgoliaImportJobRequest {
             .field("mode", &self.mode)
             .field("app_id", &"[REDACTED]")
             .field("api_key", &"[REDACTED]")
-            .field("source_name", &self.source_name)
+            .field("source_name", &"[REDACTED]")
             .field("target", &self.target)
             .finish()
     }
@@ -95,9 +95,6 @@ pub struct PublicAlgoliaImportJob {
     destination: PublicAlgoliaImportDestination,
     source: PublicAlgoliaImportSource,
     summary: crate::models::algolia_import_job::AlgoliaImportSummary,
-    /// Free-form warning payload carried verbatim from the job row.
-    #[schema(value_type = Object)]
-    warnings: serde_json::Value,
     error: Option<PublicAlgoliaImportError>,
     cancel_requested_at: Option<String>,
     resume_provenance: Option<String>,
@@ -120,7 +117,6 @@ struct PublicAlgoliaImportDestination {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 struct PublicAlgoliaImportSource {
-    app_id: String,
     name: String,
 }
 
@@ -128,7 +124,6 @@ struct PublicAlgoliaImportSource {
 #[serde(rename_all = "camelCase")]
 struct PublicAlgoliaImportError {
     code: AlgoliaImportErrorCode,
-    message: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -288,15 +283,10 @@ pub(super) fn public_algolia_import_job(job: AlgoliaImportJob) -> PublicAlgoliaI
             region: job.destination_region,
         },
         source: PublicAlgoliaImportSource {
-            app_id: job.algolia_app_id,
             name: job.source_name,
         },
         summary: job.summary,
-        warnings: job.warnings,
-        error: job.error_code.map(|code| PublicAlgoliaImportError {
-            code,
-            message: job.error_message,
-        }),
+        error: job.error_code.map(|code| PublicAlgoliaImportError { code }),
         cancel_requested_at: job.cancel_requested_at.map(|value| value.to_rfc3339()),
         resume_provenance: job
             .resume_checkpoint
@@ -429,12 +419,13 @@ pub async fn cancel_algolia_import_job(
         })
         .await
         .map_err(map_cancel_lifecycle_error)?;
-    if let Some(handoff) = result.terminal_handoff.as_ref() {
+    if matches!(
+        result.terminal_finalization.as_ref(),
+        Some(crate::repos::AlgoliaImportTerminalFinalizationOutcome::FenceLost)
+    ) {
         tracing::debug!(
             job_id = %id,
-            status = handoff.status.as_str(),
-            publication_disposition = handoff.publication_disposition.as_str(),
-            "Algolia cancel terminal observation retained for reconciliation"
+            "Algolia cancel terminal finalization lost its authority fence"
         );
     }
     let outcome = result.outcome;
@@ -564,6 +555,14 @@ mod tests {
             serde_json::to_value(public_algolia_import_job(import_job_with_lifecycle_fields()))
                 .unwrap();
 
+        assert_eq!(serialized["source"], json!({ "name": "source_products" }));
+        assert_eq!(
+            serialized["error"],
+            json!({ "code": "backend_unavailable" })
+        );
+        assert!(serialized.get("warnings").is_none());
+        assert!(serialized["source"].get("appId").is_none());
+        assert!(serialized["error"].get("message").is_none());
         assert_eq!(
             serialized["summary"],
             json!({
@@ -593,6 +592,31 @@ mod tests {
         assert_eq!(serialized["resumable"], json!(true));
         assert_eq!(serialized["resumeCount"], json!(2));
         assert_eq!(serialized["publicationDisposition"], json!("unchanged"));
+    }
+
+    #[test]
+    fn credential_bearing_create_request_debug_redacts_secret_identifiers() {
+        let request = CreateAlgoliaImportJobRequest {
+            mode: AlgoliaImportDestinationKind::Create,
+            app_id: "APPID-CANARY".to_string(),
+            api_key: "APIKEY-CANARY".to_string(),
+            source_name: "SOURCE-NAME-CANARY".to_string(),
+            target: CreateAlgoliaImportJobTargetRequest {
+                eligibility_token: "TOKEN-CANARY".to_string(),
+            },
+        };
+
+        let debug = format!("{request:?}");
+
+        for secret in [
+            "APPID-CANARY",
+            "APIKEY-CANARY",
+            "SOURCE-NAME-CANARY",
+            "TOKEN-CANARY",
+        ] {
+            assert!(!debug.contains(secret), "Debug leaked {secret}: {debug}");
+        }
+        assert!(debug.contains("[REDACTED]"));
     }
 
     #[test]
@@ -655,8 +679,8 @@ mod tests {
             resume_count: 2,
             summary: summary_fixture(),
             warnings: json!({"skippedReplicas": []}),
-            error_code: None,
-            error_message: None,
+            error_code: Some(AlgoliaImportErrorCode::BackendUnavailable),
+            error_message: Some("raw producer error".to_string()),
             status: AlgoliaImportJobStatus::Failed,
             publication_disposition: AlgoliaImportPublicationDisposition::Unchanged,
             engine_ack_state: AlgoliaImportEngineAckState::Pending,

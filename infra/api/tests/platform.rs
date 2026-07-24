@@ -13,6 +13,8 @@ mod account_test;
 mod alerting_test;
 #[path = "integration/alerting_webhook_smoke_test.rs"]
 mod alerting_webhook_smoke_test;
+#[path = "integration/algolia_import_catalog_finalize.rs"]
+mod algolia_import_catalog_finalize;
 #[path = "integration/algolia_import_job_domain.rs"]
 mod algolia_import_job_domain;
 #[path = "integration/algolia_import_job_domain_reservation.rs"]

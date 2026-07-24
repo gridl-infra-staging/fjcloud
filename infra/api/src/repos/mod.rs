@@ -45,14 +45,15 @@ pub mod webhook_event_repo;
 pub use algolia_import_job_repo::{
     clamp_algolia_import_job_list_limit, AlgoliaImportCancelDispatch, AlgoliaImportCancelOutcome,
     AlgoliaImportDispatchAdmission, AlgoliaImportDispatchAdmissionOutcome,
-    AlgoliaImportDispatchGuard, AlgoliaImportDispatchReplayIdentity,
+    AlgoliaImportDispatchGuard, AlgoliaImportDispatchReplayIdentity, AlgoliaImportEngineAckOutcome,
     AlgoliaImportJobAdmissionError, AlgoliaImportJobListCursor, AlgoliaImportJobListPage,
     AlgoliaImportJobRepo, AlgoliaImportReconciliationClaim, AlgoliaImportReconciliationLease,
-    AlgoliaImportReconciliationWriteOutcome, AlgoliaImportResumeDispatch,
-    AlgoliaImportResumeOutcome, AlgoliaImportTransitionDisposition, AlgoliaLifecycleError,
-    CatalogLifecycleTargetGuard, CatalogLifecycleTargetIdentity, DestinationEligibilityError,
-    DestinationEligibilitySnapshot, ALGOLIA_IMPORT_JOB_LIST_DEFAULT_LIMIT,
-    ALGOLIA_IMPORT_JOB_LIST_MAX_LIMIT,
+    AlgoliaImportReconciliationWriteOutcome, AlgoliaImportResumeDeadlineClaim,
+    AlgoliaImportResumeDispatch, AlgoliaImportResumeOutcome,
+    AlgoliaImportTerminalFinalizationAuthority, AlgoliaImportTerminalFinalizationOutcome,
+    AlgoliaImportTransitionDisposition, AlgoliaLifecycleError, CatalogLifecycleTargetGuard,
+    CatalogLifecycleTargetIdentity, DestinationEligibilityError, DestinationEligibilitySnapshot,
+    ALGOLIA_IMPORT_JOB_LIST_DEFAULT_LIMIT, ALGOLIA_IMPORT_JOB_LIST_MAX_LIMIT,
 };
 pub use api_key_repo::ApiKeyRepo;
 pub use cold_snapshot_repo::ColdSnapshotRepo;

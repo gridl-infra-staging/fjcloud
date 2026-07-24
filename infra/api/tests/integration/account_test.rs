@@ -1,3 +1,4 @@
+use crate::common::catalog_live_binding::CatalogLiveBinding;
 use crate::common::{create_test_jwt, mock_repo};
 use api::repos::CustomerRepo;
 use axum::body::Body;
@@ -622,6 +623,7 @@ async fn delete_account_with_correct_password_succeeds() {
 
 #[tokio::test]
 async fn delete_account_soft_delete_retains_row_for_audit_visibility() {
+    let live_binding = CatalogLiveBinding::begin().await;
     let delete_context = setup_deleted_account_context().await;
 
     let retained_customer = delete_context
@@ -721,6 +723,9 @@ async fn delete_account_soft_delete_retains_row_for_audit_visibility() {
         &retained_customer,
         &retained_after_repeat,
     );
+    if let Some(binding) = live_binding {
+        binding.finish().await;
+    }
 }
 
 #[tokio::test]

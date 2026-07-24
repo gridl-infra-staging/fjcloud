@@ -129,7 +129,9 @@ impl AlgoliaImportJobState {
         }
         if is_in_place_update(previous, self)
             || is_normal_forward_transition(previous.status, self.status)
+            || is_engine_terminal_observation_transition(previous, self)
             || is_engine_failure_transition(previous, self)
+            || is_no_dispatch_failure_transition(previous, self)
             || is_cancel_request_transition(previous, self)
             || is_cancel_reconciliation_transition(previous, self)
             || is_resume_preparation_transition(previous, self)
@@ -221,6 +223,54 @@ fn is_engine_failure_transition(
         && next.dispatch_intent_state != AlgoliaImportDispatchIntentState::Absent
 }
 
+fn is_engine_terminal_observation_transition(
+    previous: &AlgoliaImportJobState,
+    next: &AlgoliaImportJobState,
+) -> bool {
+    use AlgoliaImportEngineAckState::{Acknowledged, OutboxPending};
+
+    is_running_import_status(previous.status)
+        && next.status.is_terminal()
+        && next.engine_job_id.is_some()
+        && next.engine_job_id == previous.engine_job_id
+        && next.dispatch_intent_state == previous.dispatch_intent_state
+        && next.dispatch_intent_state != AlgoliaImportDispatchIntentState::Absent
+        && matches!(next.engine_ack_state, OutboxPending | Acknowledged)
+}
+
+fn is_running_import_status(status: AlgoliaImportJobStatus) -> bool {
+    use AlgoliaImportJobStatus::{
+        CopyingConfiguration, CopyingDocuments, Promoting, Queued, Resuming, ValidatingSource,
+        Verifying,
+    };
+
+    matches!(
+        status,
+        Queued
+            | ValidatingSource
+            | CopyingConfiguration
+            | CopyingDocuments
+            | Verifying
+            | Promoting
+            | Resuming
+    )
+}
+
+fn is_no_dispatch_failure_transition(
+    previous: &AlgoliaImportJobState,
+    next: &AlgoliaImportJobState,
+) -> bool {
+    previous.status == AlgoliaImportJobStatus::Queued
+        && previous.dispatch_intent_state == AlgoliaImportDispatchIntentState::Absent
+        && previous.engine_job_id.is_none()
+        && next.status == AlgoliaImportJobStatus::Failed
+        && next.publication_disposition == AlgoliaImportPublicationDisposition::NotStarted
+        && next.engine_ack_state == AlgoliaImportEngineAckState::NotApplicable
+        && next.dispatch_intent_state == AlgoliaImportDispatchIntentState::Absent
+        && next.engine_job_id.is_none()
+        && !next.retryable
+}
+
 fn is_cancel_request_transition(
     previous: &AlgoliaImportJobState,
     next: &AlgoliaImportJobState,
@@ -249,7 +299,9 @@ fn is_cancel_reconciliation_transition(
     next: &AlgoliaImportJobState,
 ) -> bool {
     use AlgoliaImportEngineAckState::{Acknowledged, OutboxPending, SealAcknowledged};
-    use AlgoliaImportJobStatus::{Cancelled, Cancelling, Interrupted};
+    use AlgoliaImportJobStatus::{
+        Cancelled, Cancelling, Completed, CompletedWithWarnings, Interrupted,
+    };
     let pre_admission = next.status == Interrupted
         && next.publication_disposition == AlgoliaImportPublicationDisposition::NotStarted
         && next.engine_ack_state == SealAcknowledged
@@ -260,7 +312,12 @@ fn is_cancel_reconciliation_transition(
         && matches!(next.engine_ack_state, OutboxPending | Acknowledged)
         && next.engine_job_id == previous.engine_job_id
         && next.engine_job_id.is_some();
-    previous.status == Cancelling && (pre_admission || engine_admitted)
+    let engine_promoted = matches!(next.status, Completed | CompletedWithWarnings)
+        && next.publication_disposition == AlgoliaImportPublicationDisposition::Promoted
+        && matches!(next.engine_ack_state, OutboxPending | Acknowledged)
+        && next.engine_job_id == previous.engine_job_id
+        && next.engine_job_id.is_some();
+    previous.status == Cancelling && (pre_admission || engine_admitted || engine_promoted)
 }
 
 fn is_resume_preparation_transition(
@@ -309,4 +366,55 @@ fn summary_is_monotonic(next: &AlgoliaImportSummary, previous: &AlgoliaImportSum
         && next.rules_expected >= previous.rules_expected
         && next.rules_imported >= previous.rules_imported
         && next.rules_rejected >= previous.rules_rejected
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+    use uuid::Uuid;
+
+    use super::*;
+
+    fn linked_state(status: AlgoliaImportJobStatus) -> AlgoliaImportJobState {
+        AlgoliaImportJobState {
+            status,
+            publication_disposition: AlgoliaImportPublicationDisposition::NotStarted,
+            engine_ack_state: AlgoliaImportEngineAckState::Pending,
+            dispatch_intent_state: AlgoliaImportDispatchIntentState::Committed,
+            engine_job_id: Some(Uuid::parse_str("9f11d0a0-4443-44d4-b6c6-1ed71dbeb0fb").unwrap()),
+            lifecycle_generation: 7,
+            retryable: false,
+            resume_intent_generation: 0,
+            resume_mirror: None,
+            resumable: false,
+            resume_count: 0,
+            summary: AlgoliaImportSummary {
+                documents_expected: 1,
+                documents_imported: 0,
+                documents_rejected: 0,
+                settings_applied: 0,
+                settings_unsupported: 0,
+                synonyms_expected: 0,
+                synonyms_imported: 0,
+                synonyms_rejected: 0,
+                rules_expected: 0,
+                rules_imported: 0,
+                rules_rejected: 0,
+            },
+            warnings: json!([]),
+            error_code: None,
+            error_message: None,
+        }
+    }
+
+    #[test]
+    fn linked_import_can_observe_direct_success_terminal_from_queued() {
+        let previous = linked_state(AlgoliaImportJobStatus::Queued);
+        let mut next = linked_state(AlgoliaImportJobStatus::Completed);
+        next.publication_disposition = AlgoliaImportPublicationDisposition::Promoted;
+        next.engine_ack_state = AlgoliaImportEngineAckState::OutboxPending;
+        next.summary.documents_imported = 1;
+
+        assert_eq!(next.validate_transition_from(&previous), Ok(()));
+    }
 }

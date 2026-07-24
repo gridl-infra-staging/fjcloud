@@ -485,6 +485,20 @@ impl RegionFailoverMonitor {
         region: &str,
         vm_health: &HashMap<uuid::Uuid, bool>,
     ) {
+        if let Some(lease) = &self.lifecycle_lease {
+            if let Err(err) = lease
+                .admit_mutation(tenant.customer_id, &tenant.tenant_id)
+                .await
+            {
+                warn!(
+                    error = %err,
+                    tenant_id = %tenant.tenant_id,
+                    "failover: target is not admitted for lifecycle mutation"
+                );
+                return;
+            }
+        }
+
         let failover_key = format!("{}:{}", tenant.customer_id, tenant.tenant_id);
 
         if self

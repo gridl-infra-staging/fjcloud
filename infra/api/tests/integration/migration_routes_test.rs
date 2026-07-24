@@ -50,10 +50,18 @@ use uuid::Uuid;
 
 use crate::common::flapjack_proxy_test_support::MockFlapjackHttpClient;
 use crate::common::integration_helpers::tracing_test_lock;
-use crate::common::support::pg_schema_harness::{connect_and_migrate, insert_active_customer};
+use crate::common::support::pg_schema_harness::{
+    connect_and_migrate, insert_active_customer, DbHarness,
+};
 use crate::common::vm_inventory_reference_guard_fixtures::insert_vm_with_id;
 use api::router::build_router;
 use api::services::alerting::MockAlertService;
+
+async fn connect_and_migrate_required(schema_prefix: &str) -> DbHarness {
+    connect_and_migrate(schema_prefix).await.unwrap_or_else(|| {
+        panic!("DATABASE_URL must be set for Stage 4 PostgreSQL migration read tests")
+    })
+}
 
 #[derive(Clone)]
 struct CapturedTraceWriter(Arc<Mutex<Vec<u8>>>);
@@ -390,6 +398,16 @@ impl AlgoliaImportJobRepo for RecordCommitFailingRepo {
     ) -> Result<AlgoliaImportReconciliationWriteOutcome, RepoError> {
         self.inner
             .record_reconciliation_observation(lease, observed_at, state)
+            .await
+    }
+
+    async fn finalize_terminal_observation(
+        &self,
+        authority: api::repos::AlgoliaImportTerminalFinalizationAuthority,
+        fact: api::models::algolia_import_job::AlgoliaImportTerminalFact,
+    ) -> Result<api::repos::AlgoliaImportTerminalFinalizationOutcome, RepoError> {
+        self.inner
+            .finalize_terminal_observation(authority, fact)
             .await
     }
 
@@ -918,8 +936,7 @@ fn assert_public_job_body(
     assert_eq!(body["destination"]["kind"], expected_mode);
     assert_eq!(body["destination"]["target"], expected_target);
     assert_eq!(body["destination"]["region"], expected_region);
-    assert_eq!(body["source"]["appId"], "TESTAPP123");
-    assert_eq!(body["source"]["name"], expected_source_name);
+    assert_eq!(body["source"], json!({ "name": expected_source_name }));
     assert!(body["createdAt"].as_str().is_some());
     assert!(body["updatedAt"].as_str().is_some());
     for forbidden in [
@@ -937,12 +954,14 @@ fn assert_public_job_body(
         "resumeCheckpoint",
         "workerClaimedAt",
         "workerLeaseExpiresAt",
+        "warnings",
     ] {
         assert!(
             body.get(forbidden).is_none(),
             "public job body leaked internal field {forbidden}: {body}"
         );
     }
+    assert!(body["error"].get("message").is_none());
     assert!(!body.to_string().contains("temporary-create-key"));
 }
 

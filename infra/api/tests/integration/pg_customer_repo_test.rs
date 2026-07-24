@@ -14,9 +14,18 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::common::catalog_live_binding::CatalogLiveBinding;
 use crate::common::support::pg_schema_harness;
 use crate::common::support::pg_schema_harness::postgres_timestamp;
 use crate::common::vm_inventory_reference_guard_fixtures::insert_vm_with_id;
+
+async fn connect_and_migrate_required(schema_prefix: &str) -> pg_schema_harness::DbHarness {
+    pg_schema_harness::connect_and_migrate(schema_prefix)
+        .await
+        .unwrap_or_else(|| {
+            panic!("DATABASE_URL must be set for Stage 3 PostgreSQL hard-erasure tests")
+        })
+}
 
 async fn cleanup_customer(pool: &PgPool, email: &str) {
     sqlx::query("DELETE FROM customers WHERE email = $1")
@@ -1508,6 +1517,7 @@ async fn soft_delete_retains_row_and_is_idempotent() {
 
 #[tokio::test]
 async fn soft_delete_increments_lifecycle_generation_exactly_once() {
+    let live_binding = CatalogLiveBinding::begin().await;
     let Some(db) = pg_schema_harness::connect_and_migrate("it_customer_lifecycle_generation").await
     else {
         return;
@@ -1540,6 +1550,9 @@ async fn soft_delete_increments_lifecycle_generation_exactly_once() {
     assert_eq!(after_repeat.lifecycle_generation, 2);
 
     cleanup_customer(&db.pool, &email).await;
+    if let Some(binding) = live_binding {
+        binding.finish().await;
+    }
 }
 
 #[tokio::test]
@@ -2873,11 +2886,7 @@ fn assert_algolia_matrix_pii_columns_are_null(tombstone: &serde_json::Value) {
 
 #[tokio::test]
 async fn hard_delete_scrubs_algolia_jobs_and_retains_reconciliation_tombstone_matrix() {
-    let Some(db) =
-        pg_schema_harness::connect_and_migrate("hard_delete_algolia_tombstone_matrix").await
-    else {
-        return;
-    };
+    let db = connect_and_migrate_required("hard_delete_algolia_tombstone_matrix").await;
     let pool = db.pool.clone();
     let repo = PgCustomerRepo::new(pool.clone());
     let customer = repo

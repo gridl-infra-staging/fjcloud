@@ -317,6 +317,12 @@ impl MigrationService {
         &self,
         req: MigrationRequest,
     ) -> Result<MigrationExecutionOutcome, MigrationError> {
+        if let Some(lease) = &self.lifecycle_lease {
+            lease
+                .admit_mutation(req.customer_id, &req.index_name)
+                .await
+                .map_err(map_repo_error)?;
+        }
         self.ensure_execute_capacity().await?;
         let (source_vm, dest_vm) = self.validate_request(&req).await?;
         let intent = self.begin_migration_intent(&req).await?;

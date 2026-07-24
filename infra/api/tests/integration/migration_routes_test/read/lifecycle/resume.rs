@@ -8,9 +8,7 @@ use super::super::support::{
 
 #[tokio::test]
 async fn algolia_cloud_job_resume_accepts_failed_and_interrupted_then_replays_resuming() {
-    let Some(db) = connect_and_migrate("algolia_route_resume_accept_replay").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_resume_accept_replay").await;
     let source = AlgoliaImportSource::from_final_key_metadata(
         "SERVERAPP123",
         "server_source",
@@ -76,9 +74,7 @@ async fn algolia_cloud_job_resume_accepts_failed_and_interrupted_then_replays_re
 
 #[tokio::test]
 async fn algolia_cloud_job_resume_rejects_deleted_customer_without_mutating_retained_job() {
-    let Some(db) = connect_and_migrate("algolia_route_resume_deleted").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_resume_deleted").await;
     let source = AlgoliaImportSource::from_final_key_metadata(
         "SERVERAPP123",
         "server_source",
@@ -122,9 +118,7 @@ async fn algolia_cloud_job_resume_rejects_deleted_customer_without_mutating_reta
 
 #[tokio::test]
 async fn algolia_cloud_job_resume_requires_fresh_non_empty_api_key_before_source_or_mutation() {
-    let Some(db) = connect_and_migrate("algolia_route_resume_empty_key").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_resume_empty_key").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([]);
     let (app, jwt, customer_id) =
         setup_algolia_cloud_job_lifecycle_app(db.pool.clone(), true, source_service.clone()).await;
@@ -164,9 +158,7 @@ async fn algolia_cloud_job_resume_requires_fresh_non_empty_api_key_before_source
 
 #[tokio::test]
 async fn algolia_cloud_job_resume_missing_and_foreign_return_identical_404_without_source() {
-    let Some(db) = connect_and_migrate("algolia_route_resume_404").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_resume_404").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([]);
     let (app, jwt, _customer_id) =
         setup_algolia_cloud_job_lifecycle_app(db.pool.clone(), true, source_service.clone()).await;
@@ -211,9 +203,7 @@ async fn algolia_cloud_job_resume_missing_and_foreign_return_identical_404_witho
 
 #[tokio::test]
 async fn algolia_cloud_job_resume_non_resumable_states_and_elapsed_deadline_return_409() {
-    let Some(db) = connect_and_migrate("algolia_route_resume_refused").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_resume_refused").await;
     let source = AlgoliaImportSource::from_final_key_metadata(
         "SERVERAPP123",
         "server_source",
@@ -284,9 +274,7 @@ async fn algolia_cloud_job_resume_non_resumable_states_and_elapsed_deadline_retu
 
 #[tokio::test]
 async fn algolia_cloud_job_resume_validates_server_owned_source_before_mutation() {
-    let Some(db) = connect_and_migrate("algolia_route_resume_source").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_resume_source").await;
     let source_service =
         FakeAlgoliaSourceLister::with_inspect([Err(AlgoliaSourceError::InvalidCredentials)]);
     let (app, jwt, customer_id) =
@@ -334,9 +322,7 @@ async fn algolia_cloud_job_resume_validates_server_owned_source_before_mutation(
 
 #[tokio::test]
 async fn algolia_cloud_job_resume_source_failures_preserve_internal_state_and_secret_boundaries() {
-    let Some(db) = connect_and_migrate("algolia_route_resume_source_matrix").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_resume_source_matrix").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([
         Err(AlgoliaSourceError::ListIndexesAclRequired),
         Err(AlgoliaSourceError::SourcePermissionRequired),
@@ -474,9 +460,7 @@ fn algolia_cloud_job_resume_source_inspection_tracing_redacts_api_key() {
 
 #[tokio::test]
 async fn algolia_cloud_job_lifecycle_responses_reject_client_state_and_hide_sentinels() {
-    let Some(db) = connect_and_migrate("algolia_route_lifecycle_sentinels").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_lifecycle_sentinels").await;
     let source = AlgoliaImportSource::from_final_key_metadata(
         "SERVERAPP123",
         "server_source",
@@ -581,9 +565,7 @@ async fn algolia_cloud_job_lifecycle_responses_reject_client_state_and_hide_sent
 #[tokio::test]
 async fn algolia_cloud_job_resume_repository_backpressure_is_retryable_503_and_reads_cancel_survive(
 ) {
-    let Some(db) = connect_and_migrate("algolia_route_resume_repo_backpressure").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_resume_repo_backpressure").await;
     let source = AlgoliaImportSource::from_final_key_metadata(
         "SERVERAPP123",
         "server_source",
@@ -659,9 +641,7 @@ async fn algolia_cloud_job_resume_repository_backpressure_is_retryable_503_and_r
 
 #[tokio::test]
 async fn algolia_cloud_job_resume_exposure_disabled_returns_retryable_503_but_cancel_still_works() {
-    let Some(db) = connect_and_migrate("algolia_route_resume_exposure").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_resume_exposure").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([]);
     let (app, jwt, customer_id) =
         setup_algolia_cloud_job_lifecycle_app(db.pool.clone(), false, source_service.clone()).await;

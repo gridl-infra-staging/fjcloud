@@ -5,19 +5,9 @@ pub(super) mod support;
 
 use support::{get_json, seed_retained_job_with_internals, setup_algolia_cloud_job_read_app};
 
-#[tokio::test]
-async fn algolia_cloud_job_read_get_returns_public_dto_without_internal_fields() {
-    let Some(db) = connect_and_migrate("algolia_read_get_dto").await else {
-        return;
-    };
-    let (app, jwt, customer_id) = setup_algolia_cloud_job_read_app(db.pool.clone(), true).await;
-    let id = seed_retained_job_with_internals(&db.pool, customer_id, "products", "get", Utc::now())
-        .await;
-
-    let (status, body) = get_json(&app, &jwt, &format!("/migration/algolia/jobs/{id}")).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["id"], id.to_string());
-    assert_eq!(body["destination"]["target"], "products");
+fn assert_public_job_history_contract(body: &serde_json::Value) {
+    assert_eq!(body["source"], json!({ "name": "source_products" }));
+    assert_eq!(body["error"], json!({ "code": "backend_unavailable" }));
     for forbidden in [
         "customerId",
         "tenantId",
@@ -29,18 +19,30 @@ async fn algolia_cloud_job_read_get_returns_public_dto_without_internal_fields()
         "resumeCheckpoint",
         "engineJobId",
         "workerLeaseExpiresAt",
+        "warnings",
     ] {
         assert!(
             body.get(forbidden).is_none(),
             "leaked internal field {forbidden}"
         );
     }
+    assert!(
+        body["source"].get("appId").is_none(),
+        "public source must expose only the sanitized name"
+    );
+    assert!(
+        body["error"].get("message").is_none(),
+        "public error must expose only the stable code"
+    );
     let serialized = body.to_string();
     for secret in [
+        "TESTAPP123",
         "phys-secret-uid",
         "routing-secret-id",
         "idem-secret-get",
         "secret-fingerprint",
+        "raw-warning-canary",
+        "raw producer error canary",
     ] {
         assert!(
             !serialized.contains(secret),
@@ -50,10 +52,22 @@ async fn algolia_cloud_job_read_get_returns_public_dto_without_internal_fields()
 }
 
 #[tokio::test]
+async fn algolia_cloud_job_read_get_returns_public_dto_without_internal_fields() {
+    let db = connect_and_migrate_required("algolia_read_get_dto").await;
+    let (app, jwt, customer_id) = setup_algolia_cloud_job_read_app(db.pool.clone(), true).await;
+    let id = seed_retained_job_with_internals(&db.pool, customer_id, "products", "get", Utc::now())
+        .await;
+
+    let (status, body) = get_json(&app, &jwt, &format!("/migration/algolia/jobs/{id}")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["id"], id.to_string());
+    assert_eq!(body["destination"]["target"], "products");
+    assert_public_job_history_contract(&body);
+}
+
+#[tokio::test]
 async fn algolia_cloud_job_read_get_missing_and_foreign_return_identical_404() {
-    let Some(db) = connect_and_migrate("algolia_read_get_404").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_read_get_404").await;
     let (app, jwt, _customer_id) = setup_algolia_cloud_job_read_app(db.pool.clone(), true).await;
     let other = Uuid::new_v4();
     insert_active_customer(&db.pool, other, 1).await;
@@ -73,9 +87,7 @@ async fn algolia_cloud_job_read_get_missing_and_foreign_return_identical_404() {
 
 #[tokio::test]
 async fn algolia_cloud_job_read_list_paginates_with_signed_cursor() {
-    let Some(db) = connect_and_migrate("algolia_read_list_page").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_read_list_page").await;
     let (app, jwt, customer_id) = setup_algolia_cloud_job_read_app(db.pool.clone(), true).await;
     let base = Utc::now();
     let mut ids = Vec::new();
@@ -124,9 +136,7 @@ async fn algolia_cloud_job_read_list_paginates_with_signed_cursor() {
 
 #[tokio::test]
 async fn algolia_cloud_job_read_list_exact_full_page_has_no_cursor() {
-    let Some(db) = connect_and_migrate("algolia_read_list_exact_full").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_read_list_exact_full").await;
     let (app, jwt, customer_id) = setup_algolia_cloud_job_read_app(db.pool.clone(), true).await;
     let base = Utc::now();
     for index in 0..2 {
@@ -151,9 +161,7 @@ async fn algolia_cloud_job_read_list_exact_full_page_has_no_cursor() {
 
 #[tokio::test]
 async fn algolia_cloud_job_read_list_exact_multiple_final_page_has_no_cursor() {
-    let Some(db) = connect_and_migrate("algolia_read_list_exact_multiple").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_read_list_exact_multiple").await;
     let (app, jwt, customer_id) = setup_algolia_cloud_job_read_app(db.pool.clone(), true).await;
     let base = Utc::now();
     let mut ids = Vec::new();
@@ -196,9 +204,7 @@ async fn algolia_cloud_job_read_list_exact_multiple_final_page_has_no_cursor() {
 
 #[tokio::test]
 async fn algolia_cloud_job_read_list_rejects_tampered_and_cross_customer_cursor() {
-    let Some(db) = connect_and_migrate("algolia_read_list_cursor").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_read_list_cursor").await;
     let (app, jwt, customer_id) = setup_algolia_cloud_job_read_app(db.pool.clone(), true).await;
     let base = Utc::now();
     for index in 0..2 {
@@ -253,9 +259,7 @@ async fn algolia_cloud_job_read_list_rejects_tampered_and_cross_customer_cursor(
 
 #[tokio::test]
 async fn algolia_cloud_job_read_is_not_gated_by_exposure_flag() {
-    let Some(db) = connect_and_migrate("algolia_read_exposure_off").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_read_exposure_off").await;
     let (app, jwt, customer_id) = setup_algolia_cloud_job_read_app(db.pool.clone(), false).await;
     let id =
         seed_retained_job_with_internals(&db.pool, customer_id, "products", "read", Utc::now())
@@ -264,6 +268,7 @@ async fn algolia_cloud_job_read_is_not_gated_by_exposure_flag() {
     let (list_status, list_body) = get_json(&app, &jwt, "/migration/algolia/jobs").await;
     assert_eq!(list_status, StatusCode::OK);
     assert_eq!(list_body["jobs"].as_array().unwrap().len(), 1);
+    assert_public_job_history_contract(&list_body["jobs"][0]);
 
     let (get_status, _get_body) =
         get_json(&app, &jwt, &format!("/migration/algolia/jobs/{id}")).await;

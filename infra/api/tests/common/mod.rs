@@ -6,9 +6,11 @@
 
 pub mod admin_broadcast_test_support;
 pub mod admin_vm_retirement_test_support;
+pub mod algolia_import_job_test_support;
 pub mod algolia_import_reservation_lifetime;
 pub mod builders;
 pub mod capacity_profiles;
+pub mod catalog_live_binding;
 pub mod engine_health;
 pub mod engine_index_identity_test_support;
 pub mod flapjack_proxy_test_support;

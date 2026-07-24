@@ -57,6 +57,7 @@ async fn create_index_on_shared_vm_reservation_races_after_intent_before_remote_
 
 #[tokio::test]
 async fn create_index_on_shared_vm_reservation_races_after_intent_before_remote_work() {
+    let live_binding = CatalogLiveBinding::begin().await;
     let Some(db) = connect_and_migrate("catalog_route_create_reservation_after_intent").await
     else {
         return;
@@ -220,6 +221,20 @@ async fn create_index_on_shared_vm_reservation_races_after_intent_before_remote_
             .all(|tenant| tenant.tier != "provisioning"),
         "successful route create race must not leave stale provisioning intents"
     );
+    assert_create_route_refuses_reservation(
+        "catalog_live_route_create_import_blocks",
+        ActiveReservationKind::Import,
+    )
+    .await;
+    if let Some(binding) = live_binding {
+        let target = binding.target_index().to_string();
+        let refusal = binding.assert_tenant_destination_conflict(
+            "POST",
+            "/indexes",
+            &json!({"name": target, "region": "us-east-1"}),
+        );
+        binding.finish_after_refused_caller(refusal).await;
+    }
 }
 
 #[tokio::test]
@@ -433,6 +448,7 @@ async fn insert_shared_provisioning_intent(
 
 #[tokio::test]
 async fn delete_index_reservation_races_after_intent_before_finalization() {
+    let live_binding = CatalogLiveBinding::begin().await;
     let Some(db) = connect_and_migrate("catalog_route_delete_reservation_after_intent").await
     else {
         return;
@@ -582,10 +598,22 @@ async fn delete_index_reservation_races_after_intent_before_finalization() {
         after.tenants.iter().all(|tenant| tenant.tier != "deleting"),
         "successful delete must remove the operation-owned deleting row"
     );
+    assert_delete_route_refuses_reservation(
+        "catalog_live_route_delete_import_blocks",
+        ActiveReservationKind::Import,
+    )
+    .await;
+    if let Some(binding) = live_binding {
+        let path = format!("/indexes/{}", binding.target_index());
+        let refusal =
+            binding.assert_tenant_destination_conflict("DELETE", &path, &json!({"confirm": true}));
+        binding.finish_after_refused_caller(refusal).await;
+    }
 }
 
 #[tokio::test]
 async fn cold_tier_intent_blocks_replace_reservation_before_remote_export() {
+    let live_binding = CatalogLiveBinding::begin().await;
     let Some(db) = connect_and_migrate("catalog_lifecycle_cold_tier_intent_race").await else {
         return;
     };
@@ -640,6 +668,12 @@ async fn cold_tier_intent_blocks_replace_reservation_before_remote_export() {
     assert_eq!(snapshots[0].id, snapshot_id);
     assert_eq!(snapshots[0].status, "completed");
     assert_eq!(snapshots[0].size_bytes, b"snapshot".len() as i64);
+    assert_cold_tier_snapshot_rejects_active_import_reservation().await;
+    assert_cold_tier_snapshot_rejects_active_replace_reservation().await;
+    if let Some(binding) = live_binding {
+        let refusal = catalog_live_caller_admission::assert_live_cold_tier_call(&binding).await;
+        binding.finish_after_refused_caller(refusal).await;
+    }
 }
 
 #[tokio::test]
@@ -708,22 +742,37 @@ async fn cold_tier_failure_rollback_preserves_service_type_drift() {
 
 #[tokio::test]
 async fn region_failover_races_after_intent_before_remote_work() {
+    let live_binding = CatalogLiveBinding::begin().await;
     assert_region_failover_promotion_race_after_intent().await;
+    assert_region_failover_rejects_active_reservation().await;
+    if let Some(binding) = live_binding {
+        let refusal =
+            catalog_live_caller_admission::assert_live_region_failover_call(&binding).await;
+        binding.finish_after_refused_caller(refusal).await;
+    }
 }
 
-#[test]
-fn region_failover_races_after_intent_before_remote_work_reservation_wins() {
-    region_failover_rejects_active_replace_reservation();
+#[tokio::test]
+async fn region_failover_races_after_intent_before_remote_work_reservation_wins() {
+    assert_region_failover_rejects_active_reservation().await;
 }
 
 #[tokio::test]
 async fn replica_create_remove_races_after_intent_before_remote_work() {
+    let live_binding = CatalogLiveBinding::begin().await;
     assert_replica_create_race_after_intent().await;
+    assert_replica_remove_race_after_intent().await;
+    assert_replica_service_create_replica_rejects_active_reservation().await;
+    assert_replica_service_remove_replica_rejects_active_reservation().await;
+    if let Some(binding) = live_binding {
+        let refusal = catalog_live_caller_admission::assert_live_replica_call(&binding).await;
+        binding.finish_after_refused_caller(refusal).await;
+    }
 }
 
-#[test]
-fn replica_create_remove_races_after_intent_before_remote_work_reservation_wins_create() {
-    replica_service_create_replica_rejects_active_replace_reservation();
+#[tokio::test]
+async fn replica_create_remove_races_after_intent_before_remote_work_reservation_wins_create() {
+    assert_replica_service_create_replica_rejects_active_reservation().await;
 }
 
 #[tokio::test]
@@ -731,19 +780,26 @@ async fn replica_create_remove_races_after_intent_before_remote_work_remove() {
     assert_replica_remove_race_after_intent().await;
 }
 
-#[test]
-fn replica_create_remove_races_after_intent_before_remote_work_reservation_wins_remove() {
-    replica_service_remove_replica_rejects_active_replace_reservation();
+#[tokio::test]
+async fn replica_create_remove_races_after_intent_before_remote_work_reservation_wins_remove() {
+    assert_replica_service_remove_replica_rejects_active_reservation().await;
 }
 
 #[tokio::test]
 async fn restore_lifecycle_races_after_intent_before_remote_work() {
+    let live_binding = CatalogLiveBinding::begin().await;
     assert_restore_execute_race_after_intent().await;
+    assert_restore_initiate_race_after_intent().await;
+    assert_restore_service_initiate_restore_rejects_active_reservation().await;
+    if let Some(binding) = live_binding {
+        let refusal = catalog_live_caller_admission::assert_live_restore_call(&binding).await;
+        binding.finish_after_refused_caller(refusal).await;
+    }
 }
 
-#[test]
-fn restore_lifecycle_races_after_intent_before_remote_work_reservation_wins_initiate() {
-    restore_service_initiate_restore_rejects_active_replace_reservation();
+#[tokio::test]
+async fn restore_lifecycle_races_after_intent_before_remote_work_reservation_wins_initiate() {
+    assert_restore_service_initiate_restore_rejects_active_reservation().await;
 }
 
 #[tokio::test]
@@ -757,6 +813,7 @@ async fn restore_lifecycle_races_after_intent_before_remote_work_initiate() {
 /// and replacement (`destination_conflict`) admission before any remote HTTP work.
 #[tokio::test]
 async fn migration_lifecycle_races_after_intent_before_remote_work() {
+    let live_binding = CatalogLiveBinding::begin().await;
     for path in [
         MigrationIntentPath::Execute,
         MigrationIntentPath::ProbeRollback,
@@ -764,26 +821,34 @@ async fn migration_lifecycle_races_after_intent_before_remote_work() {
     ] {
         assert_migration_intent_window_blocks_admission(path).await;
     }
+    assert_migration_begin_rejects_all_active_reservations().await;
+    assert_migration_rollback_rejects_active_reservation_before_remote_work().await;
+    if let Some(binding) = live_binding {
+        let refusal = catalog_live_caller_admission::assert_live_migration_call(&binding).await;
+        binding.finish_after_refused_caller(refusal).await;
+    }
 }
 
-#[test]
-fn migration_lifecycle_races_after_intent_before_remote_work_reservation_wins_begin() {
-    migration_begin_rejects_active_replace_reservation();
+#[tokio::test]
+async fn migration_lifecycle_races_after_intent_before_remote_work_reservation_wins_begin() {
+    assert_migration_begin_rejects_all_active_reservations().await;
 }
 
-#[test]
-fn migration_lifecycle_races_after_intent_before_remote_work_reservation_wins_rollback() {
-    migration_rollback_rejects_active_replace_reservation_before_remote_work();
+#[tokio::test]
+async fn migration_lifecycle_races_after_intent_before_remote_work_reservation_wins_rollback() {
+    assert_migration_rollback_rejects_active_reservation_before_remote_work().await;
 }
 
-#[test]
-fn cold_tier_intent_blocks_replace_reservation_before_remote_export_reservation_wins_snapshot() {
-    cold_tier_snapshot_rejects_active_replace_reservation();
+#[tokio::test]
+async fn cold_tier_intent_blocks_replace_reservation_before_remote_export_reservation_wins_snapshot(
+) {
+    assert_cold_tier_snapshot_rejects_active_replace_reservation().await;
 }
 
-#[test]
-fn cold_tier_intent_blocks_replace_reservation_before_remote_export_reservation_wins_import() {
-    cold_tier_snapshot_rejects_active_import_reservation();
+#[tokio::test]
+async fn cold_tier_intent_blocks_replace_reservation_before_remote_export_reservation_wins_import()
+{
+    assert_cold_tier_snapshot_rejects_active_import_reservation().await;
 }
 
 /// Admin seed publishes its operation-owned provisioning intent before the
@@ -793,6 +858,7 @@ fn cold_tier_intent_blocks_replace_reservation_before_remote_export_reservation_
 /// seed must finalize to an active placement leaving no stale provisioning row.
 #[tokio::test]
 async fn admin_seed_create_races_after_intent_before_remote_secret_work() {
+    let live_binding = CatalogLiveBinding::begin().await;
     let Some(db) = connect_and_migrate("catalog_admin_seed_reservation_after_intent").await else {
         return;
     };
@@ -961,14 +1027,27 @@ async fn admin_seed_create_races_after_intent_before_remote_secret_work() {
             .all(|tenant| tenant.tier != "provisioning"),
         "successful seed race must not leave stale provisioning intents"
     );
+    assert_seed_index_rejects_active_import_reservation().await;
+    assert_resolve_existing_seed_index_rejects_active_replace_reservation().await;
+    if let Some(binding) = live_binding {
+        let path = format!("/admin/tenants/{}/indexes", binding.customer_id());
+        let target = binding.target_index().to_string();
+        let refusal = binding
+            .assert_admin_destination_conflict(
+                &path,
+                &json!({"name": target, "region": "us-east-1"}),
+            )
+            .await;
+        binding.finish_after_refused_caller(refusal).await;
+    }
 }
 
-#[test]
-fn admin_seed_create_races_after_intent_before_remote_secret_work_reservation_wins_seed() {
-    seed_index_rejects_active_import_reservation();
+#[tokio::test]
+async fn admin_seed_create_races_after_intent_before_remote_secret_work_reservation_wins_seed() {
+    assert_seed_index_rejects_active_import_reservation().await;
 }
 
-#[test]
-fn admin_seed_create_races_after_intent_before_remote_secret_work_reservation_wins_resolve() {
-    resolve_existing_seed_index_rejects_active_replace_reservation();
+#[tokio::test]
+async fn admin_seed_create_races_after_intent_before_remote_secret_work_reservation_wins_resolve() {
+    assert_resolve_existing_seed_index_rejects_active_replace_reservation().await;
 }

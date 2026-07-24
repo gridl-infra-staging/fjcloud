@@ -4,17 +4,20 @@ use std::time::Duration as StdDuration;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
+use uuid::Uuid;
 
 use crate::models::algolia_import_job::{AlgoliaImportErrorCode, AlgoliaImportJobState};
 use crate::repos::{
-    AlgoliaImportJobRepo, AlgoliaImportReconciliationClaim, AlgoliaImportReconciliationLease,
-    AlgoliaImportReconciliationWriteOutcome, RepoError, VmInventoryRepo,
+    AlgoliaImportEngineAckOutcome, AlgoliaImportJobRepo, AlgoliaImportReconciliationClaim,
+    AlgoliaImportReconciliationLease, AlgoliaImportReconciliationWriteOutcome,
+    AlgoliaImportTerminalFinalizationAuthority, AlgoliaImportTerminalFinalizationOutcome,
+    RepoError, VmInventoryRepo,
 };
 use crate::services::alerting::{Alert, AlertService, AlertSeverity};
 
 use super::{
     AlgoliaImportEngineOperation, AlgoliaImportObservationCursor, AlgoliaImportService,
-    AlgoliaImportStatusObservation, AlgoliaImportTerminalHandoff, EngineTarget,
+    AlgoliaImportStatusObservation, EngineTarget,
 };
 
 const DEFAULT_RECONCILIATION_BATCH_SIZE: i64 = 4;
@@ -53,6 +56,17 @@ pub(crate) trait AlgoliaImportReconciliationStore: Send + Sync {
         observed_at: DateTime<Utc>,
         state: AlgoliaImportJobState,
     ) -> Result<AlgoliaImportReconciliationWriteOutcome, RepoError>;
+
+    async fn finalize_terminal_observation(
+        &self,
+        authority: AlgoliaImportTerminalFinalizationAuthority,
+        fact: crate::models::algolia_import_job::AlgoliaImportTerminalFact,
+    ) -> Result<AlgoliaImportTerminalFinalizationOutcome, RepoError>;
+
+    async fn mark_engine_acknowledged(
+        &self,
+        id: Uuid,
+    ) -> Result<AlgoliaImportEngineAckOutcome, RepoError>;
 }
 
 #[async_trait]
@@ -77,6 +91,21 @@ where
     ) -> Result<AlgoliaImportReconciliationWriteOutcome, RepoError> {
         AlgoliaImportJobRepo::record_reconciliation_observation(self, lease, observed_at, state)
             .await
+    }
+
+    async fn finalize_terminal_observation(
+        &self,
+        authority: AlgoliaImportTerminalFinalizationAuthority,
+        fact: crate::models::algolia_import_job::AlgoliaImportTerminalFact,
+    ) -> Result<AlgoliaImportTerminalFinalizationOutcome, RepoError> {
+        AlgoliaImportJobRepo::finalize_terminal_observation(self, authority, fact).await
+    }
+
+    async fn mark_engine_acknowledged(
+        &self,
+        id: Uuid,
+    ) -> Result<AlgoliaImportEngineAckOutcome, RepoError> {
+        AlgoliaImportJobRepo::mark_engine_acknowledged(self, id).await
     }
 }
 
@@ -108,13 +137,17 @@ pub(crate) struct AlgoliaImportReconcileOnceReport {
     pub(crate) claimed: usize,
     pub(crate) persisted: usize,
     pub(crate) lease_lost: usize,
-    pub(crate) terminal_handoffs: Vec<AlgoliaImportTerminalHandoff>,
+    pub(crate) terminal_finalized: usize,
+    pub(crate) terminal_already_applied: usize,
+    pub(crate) terminal_rejected: usize,
 }
 
 enum ClaimObservation {
     Persisted,
     LeaseLost,
-    Terminal(AlgoliaImportTerminalHandoff),
+    TerminalFinalized,
+    TerminalAlreadyApplied,
+    TerminalRejected,
 }
 
 impl AlgoliaImportService {
@@ -142,7 +175,9 @@ impl AlgoliaImportService {
             match self.reconcile_claim(runtime, claim, now).await? {
                 ClaimObservation::Persisted => report.persisted += 1,
                 ClaimObservation::LeaseLost => report.lease_lost += 1,
-                ClaimObservation::Terminal(handoff) => report.terminal_handoffs.push(handoff),
+                ClaimObservation::TerminalFinalized => report.terminal_finalized += 1,
+                ClaimObservation::TerminalAlreadyApplied => report.terminal_already_applied += 1,
+                ClaimObservation::TerminalRejected => report.terminal_rejected += 1,
             }
         }
         Ok(report)
@@ -165,7 +200,9 @@ impl AlgoliaImportService {
                         claimed = report.claimed,
                         persisted = report.persisted,
                         lease_lost = report.lease_lost,
-                        terminal_handoffs = report.terminal_handoffs.len(),
+                        terminal_finalized = report.terminal_finalized,
+                        terminal_already_applied = report.terminal_already_applied,
+                        terminal_rejected = report.terminal_rejected,
                         "Algolia import reconciliation pass completed"
                     );
                 }
@@ -193,6 +230,13 @@ impl AlgoliaImportService {
     where
         S: AlgoliaImportReconciliationStore,
     {
+        if claim.job.engine_ack_state
+            == crate::models::algolia_import_job::AlgoliaImportEngineAckState::OutboxPending
+        {
+            return self
+                .deliver_terminal_ack(runtime, &claim.job, Some((&claim.lease, observed_at)))
+                .await;
+        }
         let response = match self
             .status_for_claim(runtime.vm_repo.as_ref(), &claim)
             .await
@@ -229,8 +273,9 @@ impl AlgoliaImportService {
                 self.persist_observation(runtime, claim, observed_at, state, false)
                     .await
             }
-            Ok(AlgoliaImportStatusObservation::Terminal(handoff)) => {
-                Ok(ClaimObservation::Terminal(handoff))
+            Ok(AlgoliaImportStatusObservation::Terminal(fact)) => {
+                self.finalize_reconciliation_terminal(runtime, claim, fact)
+                    .await
             }
             Err(_) => {
                 self.persist_unavailable(
@@ -330,6 +375,111 @@ impl AlgoliaImportService {
         }
     }
 
+    async fn finalize_reconciliation_terminal<S>(
+        &self,
+        runtime: &AlgoliaImportReconciliationRuntime<S>,
+        claim: AlgoliaImportReconciliationClaim,
+        fact: crate::models::algolia_import_job::AlgoliaImportTerminalFact,
+    ) -> Result<ClaimObservation, RepoError>
+    where
+        S: AlgoliaImportReconciliationStore,
+    {
+        match runtime
+            .store
+            .finalize_terminal_observation(
+                AlgoliaImportTerminalFinalizationAuthority::ReconciliationLease(claim.lease),
+                fact,
+            )
+            .await?
+        {
+            AlgoliaImportTerminalFinalizationOutcome::Applied(job) => {
+                self.deliver_terminal_ack(runtime, &job, None).await
+            }
+            AlgoliaImportTerminalFinalizationOutcome::AlreadyApplied(job) => {
+                self.deliver_terminal_ack(runtime, &job, None).await?;
+                Ok(ClaimObservation::TerminalAlreadyApplied)
+            }
+            AlgoliaImportTerminalFinalizationOutcome::FenceLost => Ok(ClaimObservation::LeaseLost),
+            AlgoliaImportTerminalFinalizationOutcome::Rejected(reason) => {
+                Self::alert_terminal_finalization_rejected(
+                    runtime.alert_service.as_ref(),
+                    &claim.job,
+                    reason,
+                )
+                .await;
+                Ok(ClaimObservation::TerminalRejected)
+            }
+        }
+    }
+
+    async fn deliver_terminal_ack<S>(
+        &self,
+        runtime: &AlgoliaImportReconciliationRuntime<S>,
+        job: &crate::models::algolia_import_job::AlgoliaImportJob,
+        retained_ack_claim: Option<(&AlgoliaImportReconciliationLease, DateTime<Utc>)>,
+    ) -> Result<ClaimObservation, RepoError>
+    where
+        S: AlgoliaImportReconciliationStore,
+    {
+        if job.engine_ack_state
+            == crate::models::algolia_import_job::AlgoliaImportEngineAckState::Acknowledged
+        {
+            return Ok(ClaimObservation::TerminalFinalized);
+        }
+        let engine_job_id = job.engine_job_id.ok_or_else(|| {
+            RepoError::Conflict("terminal engine acknowledgement requires engine identity".into())
+        })?;
+        let target = match self
+            .resolve_engine_target(job, runtime.vm_repo.as_ref())
+            .await
+        {
+            Ok(target) => target,
+            Err(error_code) => {
+                tracing::warn!(
+                    job_id = %job.id,
+                    reason = error_code.as_str(),
+                    "Algolia import terminal ACK target is unavailable"
+                );
+                return Self::release_retained_ack_claim(runtime, job, retained_ack_claim).await;
+            }
+        };
+        if let Err(error) = self.acknowledge(target, &engine_job_id.to_string()).await {
+            tracing::warn!(
+                job_id = %job.id,
+                %error,
+                "Algolia import terminal ACK delivery failed; retained outbox will retry"
+            );
+            return Self::release_retained_ack_claim(runtime, job, retained_ack_claim).await;
+        }
+        runtime.store.mark_engine_acknowledged(job.id).await?;
+        Ok(ClaimObservation::TerminalFinalized)
+    }
+
+    async fn release_retained_ack_claim<S>(
+        runtime: &AlgoliaImportReconciliationRuntime<S>,
+        job: &crate::models::algolia_import_job::AlgoliaImportJob,
+        retained_ack_claim: Option<(&AlgoliaImportReconciliationLease, DateTime<Utc>)>,
+    ) -> Result<ClaimObservation, RepoError>
+    where
+        S: AlgoliaImportReconciliationStore,
+    {
+        let Some((lease, observed_at)) = retained_ack_claim else {
+            return Ok(ClaimObservation::TerminalFinalized);
+        };
+        let state = AlgoliaImportJobState::try_from(job)
+            .map_err(|message| RepoError::Conflict(message.into()))?;
+        match runtime
+            .store
+            .record_reconciliation_observation(lease, observed_at, state)
+            .await?
+        {
+            AlgoliaImportReconciliationWriteOutcome::LeaseLost => Ok(ClaimObservation::LeaseLost),
+            AlgoliaImportReconciliationWriteOutcome::Applied { .. } => {
+                Ok(ClaimObservation::TerminalFinalized)
+            }
+        }
+    }
+
     async fn alert_reconciliation_unavailable(
         alert_service: &(dyn AlertService + Send + Sync),
         claim: &AlgoliaImportReconciliationClaim,
@@ -352,6 +502,26 @@ impl AlgoliaImportService {
                 severity: AlertSeverity::Warning,
                 title: "Algolia import status unavailable".to_string(),
                 message: "A retained Algolia import could not be reconciled".to_string(),
+                metadata,
+            })
+            .await;
+    }
+
+    async fn alert_terminal_finalization_rejected(
+        alert_service: &(dyn AlertService + Send + Sync),
+        job: &crate::models::algolia_import_job::AlgoliaImportJob,
+        reason: String,
+    ) {
+        let metadata = HashMap::from([
+            ("job_id".to_string(), job.id.to_string()),
+            ("cloud_job_id".to_string(), job.cloud_job_id.to_string()),
+            ("reason".to_string(), reason),
+        ]);
+        let _ = alert_service
+            .send_alert(Alert {
+                severity: AlertSeverity::Critical,
+                title: "Algolia import terminal finalization rejected".to_string(),
+                message: "Algolia import terminal observation failed closed".to_string(),
                 metadata,
             })
             .await;

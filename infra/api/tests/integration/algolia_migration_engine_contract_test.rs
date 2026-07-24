@@ -83,6 +83,51 @@ fn algolia_migration_engine_contract_fixture_closes_routes_and_wire_sets() {
         "/1/migrations/algolia/{job_id}/cancel"
     );
     assert_eq!(
+        contract["required_runtime_routes"]["acknowledge"]["method"],
+        "POST"
+    );
+    assert_eq!(
+        contract["required_runtime_routes"]["acknowledge"]["path"],
+        "/1/migrations/algolia/{job_id}/acknowledge"
+    );
+    assert_eq!(
+        contract["acknowledgement_contract"],
+        json!({
+            "authentication": {
+                "required": true,
+                "headers": ["x-algolia-api-key", "x-algolia-application-id"]
+            },
+            "durability": {
+                "persisted_state": "acknowledged_before_success_response"
+            },
+            "idempotency": {
+                "duplicate_acknowledgement": "success_no_mutation"
+            },
+            "absence": {
+                "missing_job": {
+                    "http_status": 404,
+                    "code": "migration_job_not_found"
+                }
+            },
+            "already_acknowledged": {
+                "http_status": 204
+            }
+        }),
+        "ACK route presence is not enough; the fixture must require auth, durability, idempotent replay, and exact missing-job behavior"
+    );
+    assert_eq!(
+        contract["acknowledgement_known_answer"],
+        json!({
+            "command": [
+                "bash",
+                "engine/scripts/test_algolia_migration_acknowledgement_contract.sh"
+            ],
+            "success_marker":
+                "PASS acknowledgement_contract authentication durability idempotency missing_job"
+        }),
+        "the dependency gate must execute the engine-owned semantic ACK contract test"
+    );
+    assert_eq!(
         strings_at(&contract, &["request", "required_fields"]),
         ["apiKey", "appId", "sourceIndex"]
     );

@@ -109,7 +109,6 @@ function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 		mode: 'create',
 		destination: { kind: 'create', target: 'fj_products', region: 'us-east-1' },
 		source: {
-			appId: VOLATILE_SOURCE_CREDENTIALS.appId,
 			name: VOLATILE_SOURCE_CREDENTIALS.sourceName
 		},
 		summary: {
@@ -125,7 +124,6 @@ function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 			rulesImported: 6,
 			rulesRejected: 1
 		},
-		warnings: { skippedReplicas: [] },
 		error: null,
 		cancelRequestedAt: null,
 		resumeProvenance: 'engine_checkpoint',
@@ -353,7 +351,7 @@ describe('ApiClient - migration availability', () => {
 	it('returns the canonical public job fields without deriving lifecycle values locally', async () => {
 		const expected = publicJob({
 			status: 'completed_with_warnings',
-			error: { code: 'incompatible_data', message: 'unsupported object payload' },
+			error: { code: 'incompatible_data' },
 			resumable: false,
 			resumeProvenance: null,
 			resumeDeadline: null,
@@ -369,8 +367,8 @@ describe('ApiClient - migration availability', () => {
 			status: 'completed_with_warnings',
 			mode: 'create',
 			destination: { kind: 'create', target: 'fj_products', region: 'us-east-1' },
-			source: { appId: VOLATILE_SOURCE_CREDENTIALS.appId, name: 'source_products' },
-			error: { code: 'incompatible_data', message: 'unsupported object payload' },
+			source: { name: 'source_products' },
+			error: { code: 'incompatible_data' },
 			cancelRequestedAt: null,
 			resumeProvenance: null,
 			resumeDeadline: null,
@@ -393,7 +391,6 @@ describe('ApiClient - migration availability', () => {
 			rulesImported: 6,
 			rulesRejected: 1
 		});
-		expect(result.warnings).toEqual({ skippedReplicas: [] });
 	});
 
 	it('exposes every migration request and response type through the canonical API barrel', () => {

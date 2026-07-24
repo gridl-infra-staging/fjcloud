@@ -212,7 +212,7 @@ impl fmt::Debug for AlgoliaSourceInspectRequest {
             .debug_struct("AlgoliaSourceInspectRequest")
             .field("app_id", &"[REDACTED]")
             .field("api_key", &"[REDACTED]")
-            .field("source_name", &self.source_name)
+            .field("source_name", &"[REDACTED]")
             .finish()
     }
 }

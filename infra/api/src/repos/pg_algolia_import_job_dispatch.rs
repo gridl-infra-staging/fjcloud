@@ -289,21 +289,33 @@ impl PgAlgoliaImportJobRepo {
         id: Uuid,
     ) -> Result<AlgoliaImportDispatchGuard, RepoError> {
         let mut tx = self.pool.begin().await.map_err(repo_error)?;
-        let current = self.lock_generation_fenced_target_job(&mut tx, id).await?;
-        if current.dispatch_intent_state != AlgoliaImportDispatchIntentState::Ambiguous
+        let current = match self.lock_generation_fenced_target_job(&mut tx, id).await {
+            Ok(current) => current,
+            Err(error) => {
+                tx.rollback().await.map_err(repo_error)?;
+                return Err(error);
+            }
+        };
+        let validation_error = if current.dispatch_intent_state
+            != AlgoliaImportDispatchIntentState::Ambiguous
             || current.engine_job_id.is_some()
         {
-            return Err(RepoError::Conflict(
+            Some(RepoError::Conflict(
                 "dispatch guard requires ambiguous pre-send proof".into(),
-            ));
-        }
-        if current
+            ))
+        } else if current
             .status
             .is_finally_terminal(current.resumable, current.publication_disposition)
         {
-            return Err(RepoError::Conflict(
+            Some(RepoError::Conflict(
                 "finally terminal Algolia import job cannot acquire dispatch guard".into(),
-            ));
+            ))
+        } else {
+            None
+        };
+        if let Some(error) = validation_error {
+            tx.rollback().await.map_err(repo_error)?;
+            return Err(error);
         }
         Ok(AlgoliaImportDispatchGuard {
             tx,

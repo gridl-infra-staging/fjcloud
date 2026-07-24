@@ -69,6 +69,14 @@ pub trait TenantRepo {
     /// Count of indexes for a customer (for limit enforcement).
     async fn count_by_customer(&self, customer_id: Uuid) -> Result<i64, RepoError>;
 
+    /// Count logical index slots consumed by published catalog rows and
+    /// unpublished create reservations. PostgreSQL overrides this with the
+    /// canonical import-reservation calculation; repositories without import
+    /// persistence use their catalog count.
+    async fn count_logical_index_slots(&self, customer_id: Uuid) -> Result<i64, RepoError> {
+        self.count_by_customer(customer_id).await
+    }
+
     /// All indexes on a given deployment (for cleanup when terminating a VM).
     async fn find_by_deployment(
         &self,

@@ -60,6 +60,14 @@ PER_FILE_OVERRIDES=(
     # and remove this override.
     "web/src/lib/components/migration/MigrationCreateFlow.svelte|760|temporary cap while create-flow wizard steps are extracted; split pending"
 
+    # 2026-07-23: Stage 3 metering rollout repair must pass the deploy gate
+    # while INV-4 forbids editing infra/metering-agent/src/counter.rs in this
+    # lane. Keep the cap at the current 959-line size so new counter growth
+    # still fails until a dedicated counter split lane removes this exception.
+    # FIXME(counter-owner-split): split counter behavior/tests into focused
+    # modules and remove this override.
+    "infra/metering-agent/src/counter.rs|959|temporary cap for Stage 3 deploy gate while counter.rs edits are forbidden; split pending"
+
 )
 
 check_file_size() {

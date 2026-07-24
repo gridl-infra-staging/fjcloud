@@ -24,7 +24,6 @@ function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 			region: 'us-east-1'
 		},
 		source: {
-			appId: 'ALGOLIA_APP',
 			name: 'products'
 		},
 		summary: {
@@ -40,7 +39,6 @@ function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 			rulesImported: 6,
 			rulesRejected: 1
 		},
-		warnings: { raw: 'must not render' },
 		error: null,
 		cancelRequestedAt: null,
 		resumeProvenance: null,
@@ -193,7 +191,7 @@ describe('Algolia import job detail presentation', () => {
 				status: 'failed',
 				publicationDisposition: 'unchanged',
 				resumable: true,
-				error: { code: 'backend_unavailable', message: 'backend unavailable' }
+				error: { code: 'backend_unavailable' }
 			})
 		});
 
@@ -211,8 +209,9 @@ describe('Algolia import job detail presentation', () => {
 				status: 'failed',
 				publicationDisposition: 'unchanged',
 				resumable: true,
-				error: { code: 'invalid_credentials', message: producerMessage }
-			})
+				error: { code: 'invalid_credentials' },
+				legacyProducerMessage: producerMessage
+			} as Partial<PublicAlgoliaImportJob> & { legacyProducerMessage: string })
 		});
 
 		expect(screen.getByTestId('migration-job-error')).toHaveTextContent(
@@ -229,7 +228,7 @@ describe('Algolia import job detail presentation', () => {
 				status: 'interrupted',
 				publicationDisposition: 'unknown',
 				resumable: true,
-				error: { code: 'interrupted', message: null }
+				error: { code: 'interrupted' }
 			})
 		});
 
@@ -254,7 +253,7 @@ describe('Algolia import job detail presentation', () => {
 				},
 				status: 'failed',
 				publicationDisposition: 'unknown',
-				error: { code: 'destination_changed', message: null }
+				error: { code: 'destination_changed' }
 			})
 		});
 
@@ -529,7 +528,7 @@ describe('Algolia import job detail presentation', () => {
 					status,
 					resumable: true,
 					publicationDisposition: 'unchanged',
-					error: { code, message: null }
+					error: { code }
 				}),
 				capabilities: { cancel: false, resume: true, replace: false },
 				onResumeIntent: () => {}
@@ -555,7 +554,7 @@ describe('Algolia import job detail presentation', () => {
 				status: 'interrupted',
 				resumable: true,
 				publicationDisposition: 'unchanged',
-				error: { code: 'interrupted', message: null },
+				error: { code: 'interrupted' },
 				resumeDeadline: '2026-07-19T18:30:00Z',
 				resumeProvenance: 'Deadline set by the migration engine at interruption.'
 			}),
@@ -576,7 +575,7 @@ describe('Algolia import job detail presentation', () => {
 				status: 'failed',
 				resumable: true,
 				publicationDisposition: 'unchanged',
-				error: { code: 'invalid_credentials', message: null },
+				error: { code: 'invalid_credentials' },
 				resumeDeadline: null,
 				resumeProvenance: null
 			}),
@@ -594,7 +593,7 @@ describe('Algolia import job detail presentation', () => {
 				status: 'failed',
 				resumable: true,
 				publicationDisposition: 'unchanged',
-				error: { code: 'invalid_credentials', message: null }
+				error: { code: 'invalid_credentials' }
 			}),
 			capabilities: { cancel: false, resume: true, replace: false },
 			onResumeIntent
@@ -618,7 +617,7 @@ describe('Algolia import job detail presentation', () => {
 			status: 'failed',
 			resumable: true,
 			publicationDisposition: 'unchanged',
-			error: { code: 'invalid_credentials', message: null }
+			error: { code: 'invalid_credentials' }
 		});
 		const props = {
 			job,
@@ -649,7 +648,7 @@ describe('Algolia import job detail presentation', () => {
 				status: 'failed',
 				resumable: true,
 				publicationDisposition: 'unchanged',
-				error: { code: 'invalid_credentials', message: null }
+				error: { code: 'invalid_credentials' }
 			}),
 			capabilities: { cancel: false, resume: true, replace: false },
 			onResumeIntent
@@ -688,7 +687,7 @@ describe('Algolia import job detail presentation', () => {
 				status: 'failed',
 				resumable: false,
 				publicationDisposition: 'unchanged',
-				error: { code: 'not_resumable', message: null }
+				error: { code: 'not_resumable' }
 			}),
 			capabilities: { cancel: false, resume: true, replace: false },
 			onResumeIntent: () => {}
@@ -711,7 +710,7 @@ describe('Algolia import job detail presentation', () => {
 					status: 'interrupted',
 					resumable: true,
 					publicationDisposition: 'unchanged',
-					error: { code: 'interrupted', message: null }
+					error: { code: 'interrupted' }
 				}),
 				admission: {
 					admitted: false,

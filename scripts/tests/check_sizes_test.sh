@@ -12,6 +12,8 @@ PASS_COUNT=0
 FAIL_COUNT=0
 INDEX_DETAIL_PATH="web/src/routes/console/indexes/[name]/IndexDetailShell.svelte"
 EXPECTED_INDEX_DETAIL_LIMIT=828
+COUNTER_PATH="infra/metering-agent/src/counter.rs"
+EXPECTED_COUNTER_LIMIT=959
 
 pass() {
     echo "PASS: $1"
@@ -72,6 +74,51 @@ bump_index_detail_override_limit() {
     local inflated_limit=$((EXPECTED_INDEX_DETAIL_LIMIT + 100))
 
     python3 - "$check_script" "$INDEX_DETAIL_PATH" "$EXPECTED_INDEX_DETAIL_LIMIT" "$inflated_limit" <<'PY'
+import sys
+
+path, override_path, old_limit, new_limit = sys.argv[1:]
+with open(path, "r", encoding="utf-8") as handle:
+    content = handle.read()
+
+old = f"{override_path}|{old_limit}|"
+new = f"{override_path}|{new_limit}|"
+if old not in content:
+    raise SystemExit(f"expected override token not found: {old}")
+
+with open(path, "w", encoding="utf-8") as handle:
+    handle.write(content.replace(old, new, 1))
+PY
+}
+
+run_counter_override_guard() {
+    local check_script="$1"
+    local fixture_root="$2"
+    local output="" exit_code=0
+
+    write_lines "$fixture_root/$COUNTER_PATH" "$EXPECTED_COUNTER_LIMIT"
+    output="$("$check_script" "$fixture_root" 2>&1)" || exit_code=$?
+    if [[ "$exit_code" != "0" || "$output" != "" ]]; then
+        return 1
+    fi
+
+    local oversized_count=$((EXPECTED_COUNTER_LIMIT + 1))
+    output=""
+    exit_code=0
+    write_lines "$fixture_root/$COUNTER_PATH" "$oversized_count"
+    output="$("$check_script" "$fixture_root" 2>&1)" || exit_code=$?
+    if [[ "$exit_code" != "1" ]]; then
+        return 1
+    fi
+    if [[ "$output" != *"FAIL: $COUNTER_PATH ($oversized_count lines, limit $EXPECTED_COUNTER_LIMIT)"* ]]; then
+        return 1
+    fi
+}
+
+bump_counter_override_limit() {
+    local check_script="$1"
+    local inflated_limit=$((EXPECTED_COUNTER_LIMIT + 100))
+
+    python3 - "$check_script" "$COUNTER_PATH" "$EXPECTED_COUNTER_LIMIT" "$inflated_limit" <<'PY'
 import sys
 
 path, override_path, old_limit, new_limit = sys.argv[1:]
@@ -150,6 +197,29 @@ test_index_detail_override_is_ratcheted_and_guarded() {
     rm -rf "$tmpdir"
 }
 
+test_metering_counter_override_is_ratcheted_and_guarded() {
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+
+    local copied_script="$tmpdir/scripts/check-sizes.sh"
+    local fixture_root="$tmpdir/repo"
+    mkdir -p "$(dirname "$copied_script")" "$fixture_root"
+    cp "$CHECK_SCRIPT" "$copied_script"
+    chmod +x "$copied_script"
+
+    local guard_exit=0
+    run_counter_override_guard "$copied_script" "$fixture_root" || guard_exit=$?
+    assert_eq "$guard_exit" "0" "metering counter override accepts only the current stage cap"
+
+    bump_counter_override_limit "$copied_script"
+
+    guard_exit=0
+    run_counter_override_guard "$copied_script" "$fixture_root" || guard_exit=$?
+    assert_ne "$guard_exit" "0" "metering counter override guard fails after a +100 cap bump"
+
+    rm -rf "$tmpdir"
+}
+
 test_lifecycle_override_is_retired() {
     local tmpdir
     tmpdir="$(mktemp -d)"
@@ -195,6 +265,7 @@ echo ""
 test_script_accepts_limits_and_passes_at_boundaries
 test_script_fails_for_oversized_files_and_ignores_excluded_paths
 test_index_detail_override_is_ratcheted_and_guarded
+test_metering_counter_override_is_ratcheted_and_guarded
 test_lifecycle_override_is_retired
 test_retired_now_doc_is_not_part_of_size_gate
 

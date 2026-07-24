@@ -541,4 +541,22 @@ fn algolia_cloud_job_future_contract_is_generated_but_stays_unserved() {
             .is_none(),
         "public migration jobs must not expose the internal engine resume checkpoint"
     );
+    assert!(
+        generated
+            .pointer("/components/schemas/PublicAlgoliaImportJob/properties/warnings")
+            .is_none(),
+        "public migration jobs must not expose raw warning payloads"
+    );
+    assert!(
+        generated
+            .pointer("/components/schemas/PublicAlgoliaImportSource/properties/appId")
+            .is_none(),
+        "public migration source must not expose Algolia App ID"
+    );
+    assert!(
+        generated
+            .pointer("/components/schemas/PublicAlgoliaImportError/properties/message")
+            .is_none(),
+        "public migration errors must not expose producer error messages"
+    );
 }

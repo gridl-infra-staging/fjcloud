@@ -73,6 +73,35 @@ write_openapi() {
           }
         }
       }
+    },
+    "/1/migrations/algolia/{job_id}/acknowledge": {
+      "post": {
+        "x-fjcloud-terminal-ack-contract": {
+          "authentication": {
+            "required": true,
+            "headers": ["x-algolia-api-key", "x-algolia-application-id"]
+          },
+          "durability": {
+            "persisted_state": "acknowledged_before_success_response"
+          },
+          "idempotency": {
+            "duplicate_acknowledgement": "success_no_mutation"
+          },
+          "absence": {
+            "missing_job": {
+              "http_status": 404,
+              "code": "migration_job_not_found"
+            }
+          },
+          "already_acknowledged": {
+            "http_status": 204
+          }
+        },
+        "responses": {
+          "204": {"description": "Acknowledged"},
+          "404": {"description": "Not found"}
+        }
+      }
     }
   },
   "components": {
@@ -125,12 +154,18 @@ JSON
 
 init_engine_repo() {
     local dir="$1"
-    mkdir -p "$dir/engine"
+    mkdir -p "$dir/engine/scripts"
     cat >"$dir/engine/Cargo.toml" <<'EOF_CARGO'
 [package]
 name = "flapjack-server"
 version = "0.0.0"
 EOF_CARGO
+    cat >"$dir/engine/scripts/test_algolia_migration_acknowledgement_contract.sh" <<'EOF_ACK_TEST'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' 'PASS acknowledgement_contract authentication durability idempotency missing_job'
+EOF_ACK_TEST
+    chmod +x "$dir/engine/scripts/test_algolia_migration_acknowledgement_contract.sh"
     write_openapi "$dir/engine/docs2/openapi.json"
     mkdir -p "$dir/engine/demo-dualclient/public"
     cp "$dir/engine/docs2/openapi.json" "$dir/engine/demo-dualclient/public/openapi.json"
@@ -165,6 +200,19 @@ assert_fails_action_required() {
         cat "$output" >&2
         fail "expected command to fail"
     fi
+    assert_action_required "$output"
+}
+
+assert_fails_with_status() {
+    local expected_status="$1"
+    local output="$tmpdir/output.$RANDOM"
+    shift
+    local actual_status=0
+    "$@" >"$output" 2>&1 || actual_status=$?
+    [ "$actual_status" -eq "$expected_status" ] || {
+        cat "$output" >&2
+        fail "expected exit $expected_status, got $actual_status"
+    }
     assert_action_required "$output"
 }
 
@@ -209,6 +257,33 @@ import sys
 path, head_sha, artifact_sha = sys.argv[1:4]
 payload = json.loads(open(path, encoding="utf-8").read())
 payload["pinned_engine_sha"] = head_sha
+payload["required_runtime_routes"] = {
+    "acknowledge": {
+        "method": "POST",
+        "path": "/1/migrations/algolia/{job_id}/acknowledge",
+    }
+}
+payload["acknowledgement_contract"] = {
+    "authentication": {
+        "required": True,
+        "headers": ["x-algolia-api-key", "x-algolia-application-id"],
+    },
+    "durability": {
+        "persisted_state": "acknowledged_before_success_response",
+    },
+    "idempotency": {
+        "duplicate_acknowledgement": "success_no_mutation",
+    },
+    "absence": {
+        "missing_job": {
+            "http_status": 404,
+            "code": "migration_job_not_found",
+        },
+    },
+    "already_acknowledged": {
+        "http_status": 204,
+    },
+}
 for artifact in payload["openapi_artifacts"]:
     artifact["sha256"] = artifact_sha
 open(path, "w", encoding="utf-8").write(json.dumps(payload, sort_keys=True, indent=2) + "\n")
@@ -244,6 +319,68 @@ git -C "$engine" checkout --quiet -- engine/demo-dualclient/public/openapi.json
 printf '{invalid json\n' >"$engine/engine/docs2/openapi.json"
 assert_fails_action_required run_checker "$engine" "$head_sha" "$test_fixture"
 git -C "$engine" checkout --quiet -- engine/docs2/openapi.json
+
+cp "$test_fixture" "$tmpdir/contract.before-missing-ack.json"
+python3 - "$engine" "$test_fixture" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+engine = pathlib.Path(sys.argv[1])
+fixture_path = pathlib.Path(sys.argv[2])
+fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+for artifact in fixture["openapi_artifacts"]:
+    path = engine / artifact["path"]
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    del payload["paths"]["/1/migrations/algolia/{job_id}/acknowledge"]
+    encoded = json.dumps(payload, indent=2).encode() + b"\n"
+    path.write_bytes(encoded)
+    artifact["sha256"] = hashlib.sha256(encoded).hexdigest()
+fixture_path.write_text(json.dumps(fixture, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+PY
+assert_fails_with_status 3 run_checker "$engine" "$head_sha" "$test_fixture"
+git -C "$engine" checkout --quiet -- \
+    engine/docs2/openapi.json engine/demo-dualclient/public/openapi.json
+mv "$tmpdir/contract.before-missing-ack.json" "$test_fixture"
+
+cp "$test_fixture" "$tmpdir/contract.before-presence-only-ack.json"
+python3 - "$engine" "$test_fixture" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+engine = pathlib.Path(sys.argv[1])
+fixture_path = pathlib.Path(sys.argv[2])
+fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+for artifact in fixture["openapi_artifacts"]:
+    path = engine / artifact["path"]
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["paths"]["/1/migrations/algolia/{job_id}/acknowledge"]["post"].pop(
+        "x-fjcloud-terminal-ack-contract", None
+    )
+    encoded = json.dumps(payload, indent=2).encode() + b"\n"
+    path.write_bytes(encoded)
+    artifact["sha256"] = hashlib.sha256(encoded).hexdigest()
+fixture_path.write_text(json.dumps(fixture, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+PY
+assert_fails_with_status 3 run_checker "$engine" "$head_sha" "$test_fixture"
+git -C "$engine" checkout --quiet -- \
+    engine/docs2/openapi.json engine/demo-dualclient/public/openapi.json
+mv "$tmpdir/contract.before-presence-only-ack.json" "$test_fixture"
+
+cp "$engine/engine/scripts/test_algolia_migration_acknowledgement_contract.sh" \
+    "$tmpdir/ack-known-answer.before"
+cat >"$engine/engine/scripts/test_algolia_migration_acknowledgement_contract.sh" <<'EOF_ACK_STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' 'PASS route_exists_only'
+EOF_ACK_STUB
+chmod +x "$engine/engine/scripts/test_algolia_migration_acknowledgement_contract.sh"
+assert_fails_with_status 3 run_checker "$engine" "$head_sha" "$test_fixture"
+mv "$tmpdir/ack-known-answer.before" \
+    "$engine/engine/scripts/test_algolia_migration_acknowledgement_contract.sh"
 
 cp "$test_fixture" "$tmpdir/contract.before-drift.json"
 python3 - "$test_fixture" <<'PY'

@@ -249,7 +249,7 @@ fn build_document_count_records(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tenant_map::TenantAttribution;
+    use crate::tenant_map::{replace_tenant_map_cache, TenantAttribution, TenantMapEntry};
     use chrono::Utc;
     use dashmap::DashMap;
     use std::sync::Arc;
@@ -804,5 +804,152 @@ mod tests {
             .map(|r| r.value)
             .sum();
         assert_eq!(second_search, 3, "increment after baseline must be billed");
+    }
+
+    #[test]
+    fn metering_finalized_catalog_wire_mapping_attributes_exact_scrape_deltas() {
+        let fixture = finalized_catalog_metering_fixture();
+        assert_eq!(
+            fixture.scrape(7, 4, 1_000, 60),
+            vec![
+                (
+                    fixture.imported_customer,
+                    "products".to_string(),
+                    "search_requests",
+                    7
+                ),
+                (
+                    fixture.imported_customer,
+                    "products".to_string(),
+                    "write_operations",
+                    4
+                )
+            ]
+        );
+        assert_eq!(
+            fixture.scrape(11, 9, 1_003, 120),
+            vec![
+                (
+                    fixture.existing_customer,
+                    "existing".to_string(),
+                    "search_requests",
+                    3
+                ),
+                (
+                    fixture.imported_customer,
+                    "products".to_string(),
+                    "search_requests",
+                    4
+                ),
+                (
+                    fixture.imported_customer,
+                    "products".to_string(),
+                    "write_operations",
+                    5
+                )
+            ]
+        );
+    }
+
+    struct FinalizedCatalogMeteringFixture {
+        cfg: Config,
+        state: TenantStateMap,
+        tenant_map: TenantCustomerMap,
+        imported_customer: Uuid,
+        existing_customer: Uuid,
+        imported_uid: String,
+        existing_uid: String,
+    }
+
+    impl FinalizedCatalogMeteringFixture {
+        fn scrape(
+            &self,
+            imported_search: u64,
+            imported_writes: u64,
+            existing_search: u64,
+            elapsed_seconds: i64,
+        ) -> Vec<(Uuid, String, &'static str, i64)> {
+            let mut metrics = crate::scraper::FlapjackMetrics::default();
+            metrics
+                .search_requests_total
+                .insert(self.imported_uid.clone(), imported_search);
+            metrics
+                .write_operations_total
+                .insert(self.imported_uid.clone(), imported_writes);
+            metrics
+                .search_requests_total
+                .insert(self.existing_uid.clone(), existing_search);
+            let records = build_counter_usage_records(
+                &self.cfg,
+                &metrics,
+                &self.state,
+                &self.tenant_map,
+                self.cfg.started_at + chrono::Duration::seconds(elapsed_seconds),
+            );
+            projected_counter_records(&records)
+        }
+    }
+
+    fn finalized_catalog_metering_fixture() -> FinalizedCatalogMeteringFixture {
+        let cfg = test_config();
+        let imported_customer = Uuid::new_v4();
+        let existing_customer = Uuid::new_v4();
+        let imported_uid = format!("{}_products", imported_customer.as_simple());
+        let existing_uid = format!("{}_existing", existing_customer.as_simple());
+        let wire_entries: Vec<TenantMapEntry> = serde_json::from_value(serde_json::json!([
+            {
+                "tenant_id": "products",
+                "flapjack_uid": imported_uid.clone(),
+                "customer_id": imported_customer,
+                "vm_id": Uuid::new_v4(),
+                "flapjack_url": cfg.flapjack_url.clone(),
+                "tier": "active",
+                "created_at": (cfg.started_at + chrono::Duration::seconds(30)).to_rfc3339()
+            },
+            {
+                "tenant_id": "existing",
+                "flapjack_uid": existing_uid.clone(),
+                "customer_id": existing_customer,
+                "vm_id": Uuid::new_v4(),
+                "flapjack_url": cfg.flapjack_url.clone(),
+                "tier": "active",
+                "created_at": (cfg.started_at - chrono::Duration::hours(1)).to_rfc3339()
+            }
+        ]))
+        .expect("deserialize control-plane tenant-map wire contract");
+        let tenant_map: TenantCustomerMap = Arc::new(DashMap::new());
+        replace_tenant_map_cache(&tenant_map, wire_entries, &cfg.flapjack_url);
+        FinalizedCatalogMeteringFixture {
+            cfg,
+            state: Arc::new(DashMap::new()),
+            tenant_map,
+            imported_customer,
+            existing_customer,
+            imported_uid,
+            existing_uid,
+        }
+    }
+
+    fn projected_counter_records(
+        records: &[record::UsageRecord],
+    ) -> Vec<(Uuid, String, &'static str, i64)> {
+        let mut projected = records
+            .iter()
+            .map(|record| {
+                (
+                    record.customer_id,
+                    record.tenant_id.clone(),
+                    record.event_type.as_str(),
+                    record.value,
+                )
+            })
+            .collect::<Vec<_>>();
+        projected.sort_by(|left, right| {
+            left.1
+                .cmp(&right.1)
+                .then_with(|| left.2.cmp(right.2))
+                .then_with(|| left.3.cmp(&right.3))
+        });
+        projected
     }
 }

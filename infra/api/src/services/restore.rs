@@ -203,6 +203,12 @@ impl RestoreService {
         customer_id: Uuid,
         tenant_id: &str,
     ) -> Result<RestoreResponse, RestoreError> {
+        if let Some(lease) = &self.lifecycle_lease {
+            lease
+                .admit_mutation(customer_id, tenant_id)
+                .await
+                .map_err(map_repo_error)?;
+        }
         // 1. Look up tenant
         let tenant = self
             .tenant_repo

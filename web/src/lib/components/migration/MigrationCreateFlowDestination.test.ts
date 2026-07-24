@@ -78,7 +78,7 @@ function importJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 		status: 'queued',
 		mode: 'create',
 		destination: { kind: 'create', target: 'source_products', region: 'us-east-1' },
-		source: { appId: APP_ID_CANARY, name: 'source_products' },
+		source: { name: 'source_products' },
 		summary: {
 			documentsExpected: 0,
 			documentsImported: 0,
@@ -92,7 +92,6 @@ function importJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 			rulesImported: 0,
 			rulesRejected: 0
 		},
-		warnings: {},
 		error: null,
 		cancelRequestedAt: null,
 		resumeProvenance: null,

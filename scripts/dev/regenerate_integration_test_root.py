@@ -86,6 +86,7 @@ ROOT_GROUPS: dict[str, tuple[str, ...]] = {
         "account_test",
         "alerting_test",
         "alerting_webhook_smoke_test",
+        "algolia_import_catalog_finalize",
         "algolia_import_job_domain",
         "algolia_migration_engine_contract_test",
         "algolia_import_job_domain_reservation",

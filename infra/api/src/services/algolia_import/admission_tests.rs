@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::models::algolia_import_job::AlgoliaImportErrorCode;
 use crate::services::flapjack_proxy::{FlapjackEngineRequirements, ProxyError};
 
-use super::reconciliation_tests::{harness, job, response, vm, FixedVmRepo};
+use super::reconciliation_test_support::{harness, job, response, vm, FixedVmRepo};
 
 fn strict_requirements() -> FlapjackEngineRequirements {
     FlapjackEngineRequirements::new(

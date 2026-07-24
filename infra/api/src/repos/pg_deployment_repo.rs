@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
+use crate::models::vm_inventory::VmInventory;
 use crate::models::Deployment;
 use crate::repos::deployment_repo::DeploymentRepo;
 use crate::repos::error::{is_unique_violation, RepoError};
@@ -14,6 +15,58 @@ pub struct PgDeploymentRepo {
 impl PgDeploymentRepo {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
+    }
+
+    pub async fn create_running_shared_deployment_tx(
+        tx: &mut Transaction<'_, Postgres>,
+        customer_id: Uuid,
+        region: &str,
+        vm: &VmInventory,
+    ) -> Result<Deployment, RepoError> {
+        let node_id = format!("node-{}", Uuid::new_v4());
+        sqlx::query_as::<_, Deployment>(
+            "INSERT INTO customer_deployments
+             (customer_id, node_id, region, vm_type, vm_provider, ip_address,
+              status, provider_vm_id, hostname, flapjack_url, failure_reason)
+             VALUES ($1, $2, $3, 'shared', $4, '0.0.0.0',
+                     'running', $5, $6, $7, NULL)
+             RETURNING *",
+        )
+        .bind(customer_id)
+        .bind(&node_id)
+        .bind(region)
+        .bind(&vm.provider)
+        .bind(vm.id.to_string())
+        .bind(&vm.hostname)
+        .bind(&vm.flapjack_url)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(|error| {
+            if is_unique_violation(&error) {
+                RepoError::Conflict("node_id already exists".into())
+            } else {
+                RepoError::Other(error.to_string())
+            }
+        })
+    }
+
+    pub async fn create_running_shared_deployment(
+        &self,
+        customer_id: Uuid,
+        region: &str,
+        vm: &VmInventory,
+    ) -> Result<Deployment, RepoError> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|error| RepoError::Other(error.to_string()))?;
+        let deployment =
+            Self::create_running_shared_deployment_tx(&mut tx, customer_id, region, vm).await?;
+        tx.commit()
+            .await
+            .map_err(|error| RepoError::Other(error.to_string()))?;
+        Ok(deployment)
     }
 }
 

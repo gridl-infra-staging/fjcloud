@@ -49,6 +49,18 @@ impl IndexLifecycleLease {
             .await
     }
 
+    /// Checks reservation admission before a caller performs target-specific
+    /// validation or lookup. Callers must still use a guarded mutation at their
+    /// commit boundary because a reservation can start after this check.
+    pub async fn admit_mutation(
+        &self,
+        customer_id: Uuid,
+        logical_target: &str,
+    ) -> Result<(), RepoError> {
+        let guard = self.begin(customer_id, logical_target).await?;
+        self.commit_without_identity_check(guard).await
+    }
+
     pub async fn guarded_mutation<F, Fut, T>(
         &self,
         customer_id: Uuid,

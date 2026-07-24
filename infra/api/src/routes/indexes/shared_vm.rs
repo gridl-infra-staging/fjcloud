@@ -626,32 +626,8 @@ pub(crate) async fn create_shared_deployment(
     destination: &AdmittedIndexDestination,
     vm: &crate::models::vm_inventory::VmInventory,
 ) -> Result<(Uuid, ResolvedFlapjackTarget), ApiError> {
-    // Shared-placement traffic authenticates with the shared VM secret, so a
-    // per-deployment node API key would be unused secret sprawl.
-    let node_id = format!("node-{}", Uuid::new_v4());
-
-    let deployment = state
-        .deployment_repo
-        .create(
-            destination.customer_id,
-            &node_id,
-            &destination.region,
-            "shared",
-            &vm.provider,
-            None,
-        )
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
-
-    state
-        .deployment_repo
-        .update_provisioning(
-            deployment.id,
-            &vm.id.to_string(),
-            "0.0.0.0",
-            &vm.hostname,
-            &vm.flapjack_url,
-        )
+    let deployment = crate::repos::PgDeploymentRepo::new(state.pool.clone())
+        .create_running_shared_deployment(destination.customer_id, &destination.region, vm)
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 

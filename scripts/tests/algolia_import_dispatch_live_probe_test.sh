@@ -144,11 +144,13 @@ method="GET"
 data_file=""
 url=""
 header_dump_file=""
+config_file=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -X|--request) method="$2"; shift 2 ;;
     --data|-d|--data-binary) data_file="${2#@}"; shift 2 ;;
     --config|-K)
+      config_file="$2"
       if [ -f "$2" ]; then
         cfg_url="$(sed -n "s/^url = \"\\(.*\\)\"$/\\1/p" "$2" | tail -1)"
         [ -n "$cfg_url" ] && url="$cfg_url"
@@ -180,6 +182,11 @@ case "$method $url" in
   "GET https://testapp123.algolia.net/1/indexes/"*)
     if [[ "$url" == *"browse"* ]]; then
       printf "{\"hits\":[{\"objectID\":\"doc-1\"}]}\n200"
+    elif [ -f "$WORK_DIR/source-index-created" ] \
+      && [ -n "$config_file" ] \
+      && grep -q "disposable-restricted-key" "$config_file"; then
+      touch "$WORK_DIR/restricted-key-readiness-observed"
+      printf "{\"name\":\"source\"}\n200"
     else
       printf "{\"message\":\"not found\"}\n404"
     fi
@@ -192,6 +199,7 @@ case "$method $url" in
     fi
     ;;
   "POST https://testapp123.algolia.net/1/indexes/"*"/batch")
+    touch "$WORK_DIR/source-index-created"
     if [ "${CURL_SCENARIO:-success}" = "unsafe_task_id" ]; then
       printf "{\"taskID\":\"task/../../keys\"}\n200"
     else

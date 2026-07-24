@@ -51,7 +51,6 @@ function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 			region: 'us-east-1'
 		},
 		source: {
-			appId: 'ALGOLIA_APP',
 			name: 'products'
 		},
 		summary: {
@@ -67,8 +66,7 @@ function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 			rulesImported: 0,
 			rulesRejected: 0
 		},
-		warnings: null,
-		error: { code: 'backend_unavailable', message: null },
+		error: { code: 'backend_unavailable' },
 		cancelRequestedAt: null,
 		resumeProvenance: null,
 		resumeDeadline: null,

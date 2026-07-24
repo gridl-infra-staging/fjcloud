@@ -45,7 +45,6 @@ function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 			region: 'us-east-1'
 		},
 		source: {
-			appId: 'ALGOLIA_APP',
 			name: 'products'
 		},
 		summary: {
@@ -61,7 +60,6 @@ function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 			rulesImported: 6,
 			rulesRejected: 1
 		},
-		warnings: null,
 		error: null,
 		cancelRequestedAt: null,
 		resumeProvenance: null,
@@ -137,14 +135,14 @@ describe('Recent Algolia imports', () => {
 				publicJob({
 					id: 'job alpha/tenant',
 					status: 'completed_with_warnings',
-					source: { appId: 'ALGOLIA_APP', name: 'products' },
+					source: { name: 'products' },
 					destination: { kind: 'create', target: 'products_migrated', region: 'us-east-1' },
 					updatedAt: '2026-07-18T10:05:00Z'
 				}),
 				publicJob({
 					id: 'job_beta',
 					status: 'verifying',
-					source: { appId: 'OTHER_APP', name: 'products_migrated' },
+					source: { name: 'products_migrated' },
 					destination: { kind: 'replace', target: 'products', region: 'us-west-2' },
 					updatedAt: '2026-07-19T11:05:00Z'
 				})
@@ -182,7 +180,7 @@ describe('Recent Algolia imports', () => {
 			page: page([
 				publicJob({
 					id: 'job_long',
-					source: { appId: 'ALGOLIA_APP', name: longName },
+					source: { name: longName },
 					destination: { kind: 'create', target: longTarget, region: 'us-east-1' }
 				})
 			]),
@@ -204,10 +202,10 @@ describe('Recent Algolia imports', () => {
 
 	it('emits one opaque cursor intent and retains accumulated rows through loading and error', async () => {
 		const actions = recentImportActions();
-		const first = publicJob({ id: 'job_first', source: { appId: 'ALGOLIA_APP', name: 'first' } });
+		const first = publicJob({ id: 'job_first', source: { name: 'first' } });
 		const second = publicJob({
 			id: 'job_second',
-			source: { appId: 'ALGOLIA_APP', name: 'second' }
+			source: { name: 'second' }
 		});
 		const { rerender } = render(RecentImports, {
 			page: page([first], 'opaque/cursor?2'),
@@ -256,7 +254,7 @@ describe('Recent Algolia imports', () => {
 
 	it('keeps the retained-row retry disabled while its next-page request is in flight', async () => {
 		const actions = recentImportActions();
-		const first = publicJob({ id: 'job_first', source: { appId: 'ALGOLIA_APP', name: 'first' } });
+		const first = publicJob({ id: 'job_first', source: { name: 'first' } });
 		const { rerender } = render(RecentImports, {
 			page: page([first], 'opaque/cursor?2'),
 			loading: false,

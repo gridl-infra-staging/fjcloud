@@ -7,9 +7,7 @@ use super::super::support::{
 
 #[tokio::test]
 async fn algolia_cloud_job_cancel_queued_owned_job_returns_accepted_public_cancelling() {
-    let Some(db) = connect_and_migrate("algolia_route_cancel_queued").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_cancel_queued").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([]);
     let (app, jwt, customer_id, _vm_id, http, _alerts) =
         setup_algolia_cancel_dispatch_app(db.pool.clone(), false, source_service).await;
@@ -28,8 +26,8 @@ async fn algolia_cloud_job_cancel_queued_owned_job_returns_accepted_public_cance
     assert_eq!(status, StatusCode::ACCEPTED, "cancel response body: {body}");
     assert_eq!(body["id"], id.to_string());
     assert_eq!(body["status"], "cancelling");
-    assert_eq!(body["source"]["appId"], "TESTAPP123");
-    assert_eq!(body["source"]["name"], "source_products");
+    assert_eq!(body["source"], json!({ "name": "source_products" }));
+    assert!(body["source"].get("appId").is_none());
     assert!(!body.to_string().contains("phys-secret-uid"));
     assert!(!body.to_string().contains("routing-secret-id"));
     assert!(!body.to_string().contains("idem-secret-cancel"));
@@ -38,9 +36,7 @@ async fn algolia_cloud_job_cancel_queued_owned_job_returns_accepted_public_cance
 
 #[tokio::test]
 async fn algolia_cloud_job_cancel_persists_before_send_and_retries_same_engine_intent() {
-    let Some(db) = connect_and_migrate("algolia_route_cancel_dispatch_retry").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_cancel_dispatch_retry").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([]);
     let (app, jwt, customer_id, vm_id, http, alerts) =
         setup_algolia_cancel_dispatch_app(db.pool.clone(), false, source_service).await;
@@ -123,9 +119,7 @@ async fn algolia_cloud_job_cancel_persists_before_send_and_retries_same_engine_i
 
 #[tokio::test]
 async fn algolia_cloud_job_cancel_retains_vm_and_backpressure_ambiguity() {
-    let Some(db) = connect_and_migrate("algolia_route_cancel_ambiguity").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_cancel_ambiguity").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([]);
     let (app, jwt, customer_id, vm_id, http, alerts) =
         setup_algolia_cancel_dispatch_app(db.pool.clone(), false, source_service).await;
@@ -179,9 +173,7 @@ async fn algolia_cloud_job_cancel_retains_vm_and_backpressure_ambiguity() {
 
 #[tokio::test]
 async fn algolia_cloud_job_cancel_too_late_retains_nonterminal_reconciliation_state() {
-    let Some(db) = connect_and_migrate("algolia_route_cancel_too_late").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_cancel_too_late").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([]);
     let (app, jwt, customer_id, vm_id, http, alerts) =
         setup_algolia_cancel_dispatch_app(db.pool.clone(), false, source_service).await;
@@ -227,10 +219,8 @@ async fn algolia_cloud_job_cancel_too_late_retains_nonterminal_reconciliation_st
 }
 
 #[tokio::test]
-async fn algolia_cloud_job_cancel_win_yields_handoff_without_premature_terminal_persistence() {
-    let Some(db) = connect_and_migrate("algolia_route_cancel_wins").await else {
-        return;
-    };
+async fn algolia_cloud_job_cancel_win_finalizes_terminal_truth() {
+    let db = connect_and_migrate_required("algolia_route_cancel_wins").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([]);
     let (app, jwt, customer_id, vm_id, http, alerts) =
         setup_algolia_cancel_dispatch_app(db.pool.clone(), false, source_service).await;
@@ -258,22 +248,32 @@ async fn algolia_cloud_job_cancel_win_yields_handoff_without_premature_terminal_
     .await;
 
     assert_eq!(status, StatusCode::ACCEPTED, "body: {body}");
-    assert_eq!(body["status"], "cancelling");
+    assert_eq!(body["status"], "cancelled");
     assert_eq!(body["publicationDisposition"], "unchanged");
     assert_eq!(body["resumable"], false);
     assert!(body["error"].is_null());
-    let persisted: (String, String, String, Option<DateTime<Utc>>) = sqlx::query_as(
-        "SELECT status, publication_disposition, engine_ack_state, cancel_requested_at
+    let persisted: (
+        String,
+        String,
+        String,
+        Option<DateTime<Utc>>,
+        Option<DateTime<Utc>>,
+    ) = sqlx::query_as(
+        "SELECT status, publication_disposition, engine_ack_state, cancel_requested_at, terminal_at
          FROM algolia_import_jobs WHERE id = $1",
     )
     .bind(id)
     .fetch_one(&db.pool)
     .await
-    .expect("read retained terminal handoff state");
-    assert_eq!(persisted.0, "cancelling");
+    .expect("read retained terminal fact state");
+    assert_eq!(persisted.0, "cancelled");
     assert_eq!(persisted.1, "unchanged");
-    assert_eq!(persisted.2, "pending");
+    assert_eq!(persisted.2, "outbox_pending");
     assert!(persisted.3.is_some());
+    assert_eq!(
+        persisted.4,
+        Some("2026-07-22T00:00:02Z".parse::<DateTime<Utc>>().unwrap())
+    );
     let requests = http.take_requests();
     assert_eq!(requests.len(), 1);
     assert_eq!(requests[0].method, reqwest::Method::POST);
@@ -283,9 +283,7 @@ async fn algolia_cloud_job_cancel_win_yields_handoff_without_premature_terminal_
 
 #[tokio::test]
 async fn algolia_cloud_job_cancel_rejects_deleted_customer_without_mutating_retained_job() {
-    let Some(db) = connect_and_migrate("algolia_route_cancel_deleted").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_cancel_deleted").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([]);
     let (app, jwt, customer_id) =
         setup_algolia_cloud_job_lifecycle_app(db.pool.clone(), true, source_service.clone()).await;
@@ -324,9 +322,7 @@ async fn algolia_cloud_job_cancel_rejects_deleted_customer_without_mutating_reta
 /// TODO: Document algolia_cloud_job_cancel_replays_cancelled_as_ok.
 #[tokio::test]
 async fn algolia_cloud_job_cancel_replays_cancelled_as_ok_without_engine_request() {
-    let Some(db) = connect_and_migrate("algolia_route_cancel_replay").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_cancel_replay").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([]);
     let (app, jwt, customer_id, _vm_id, http, _alerts) =
         setup_algolia_cancel_dispatch_app(db.pool.clone(), false, source_service).await;
@@ -398,9 +394,7 @@ async fn algolia_cloud_job_cancel_replays_cancelled_as_ok_without_engine_request
 
 #[tokio::test]
 async fn algolia_cloud_job_cancel_missing_and_foreign_return_identical_404() {
-    let Some(db) = connect_and_migrate("algolia_route_cancel_404").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_cancel_404").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([]);
     let (app, jwt, _customer_id) =
         setup_algolia_cloud_job_lifecycle_app(db.pool.clone(), true, source_service).await;
@@ -440,9 +434,7 @@ async fn algolia_cloud_job_cancel_missing_and_foreign_return_identical_404() {
 
 #[tokio::test]
 async fn algolia_cloud_job_cancel_non_cancellable_states_return_stable_409() {
-    let Some(db) = connect_and_migrate("algolia_route_cancel_refused").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_cancel_refused").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([]);
     let (app, jwt, customer_id, _vm_id, http, _alerts) =
         setup_algolia_cancel_dispatch_app(db.pool.clone(), true, source_service).await;
@@ -481,9 +473,7 @@ async fn algolia_cloud_job_cancel_non_cancellable_states_return_stable_409() {
 
 #[tokio::test]
 async fn algolia_cloud_job_cancel_rejects_api_key_body_before_mutation() {
-    let Some(db) = connect_and_migrate("algolia_route_cancel_body").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_cancel_body").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([]);
     let (app, jwt, customer_id, _vm_id, http, alerts) =
         setup_algolia_cancel_dispatch_app(db.pool.clone(), false, source_service).await;
@@ -532,9 +522,7 @@ async fn algolia_cloud_job_cancel_rejects_api_key_body_before_mutation() {
 
 #[tokio::test]
 async fn algolia_cloud_job_cancel_rejects_unknown_fields_before_mutation() {
-    let Some(db) = connect_and_migrate("algolia_route_cancel_unknown_body").await else {
-        return;
-    };
+    let db = connect_and_migrate_required("algolia_route_cancel_unknown_body").await;
     let source_service = FakeAlgoliaSourceLister::with_inspect([]);
     let (app, jwt, customer_id) =
         setup_algolia_cloud_job_lifecycle_app(db.pool.clone(), true, source_service).await;

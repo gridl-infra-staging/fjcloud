@@ -146,11 +146,15 @@ pub(super) async fn seed_retained_job_with_internals(
          (id, customer_id, tenant_id, algolia_app_id, destination_kind, logical_target,
           destination_region, destination_vm_id, physical_uid, routing_identity,
           source_name, idempotency_key, canonical_fingerprint, source_size_bytes,
+          warnings, error_code, error_message,
           lifecycle_generation, reserved_index_count, reserved_customer_storage_bytes,
           reserved_node_transient_bytes, created_at, updated_at)
          VALUES ($1, $2, $3, 'TESTAPP123', 'create', $3, 'us-east-1', $4,
                  'phys-secret-uid', 'routing-secret-id', 'source_products', $5,
-                 'sha256:secret-fingerprint', 4096, 1, 1, 100, 0, $6, $6)",
+                 'sha256:secret-fingerprint', 4096,
+                 '[{\"rawVendorPayload\":\"raw-warning-canary\"}]'::jsonb,
+                 'backend_unavailable', 'raw producer error canary',
+                 1, 1, 100, 0, $6, $6)",
     )
     .bind(id)
     .bind(customer_id)

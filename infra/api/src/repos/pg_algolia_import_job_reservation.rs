@@ -16,6 +16,19 @@ use crate::models::algolia_import_job::{
 use crate::repos::{AlgoliaImportJobAdmissionError, RepoError};
 
 impl PgAlgoliaImportJobRepo {
+    /// Count each active catalog target or unpublished create reservation once.
+    ///
+    /// A promoted create remains an active reservation until engine ACK. The
+    /// logical target already exists in the catalog at that point, so the
+    /// reservation must not consume a second slot.
+    pub async fn count_logical_index_slots(&self, customer_id: Uuid) -> Result<i64, RepoError> {
+        sqlx::query_scalar(&logical_index_slot_count_sql())
+            .bind(customer_id)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(repo_error)
+    }
+
     pub(super) async fn build_reservation_plan(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -30,8 +43,8 @@ impl PgAlgoliaImportJobRepo {
         let overrides = self
             .customer_quota_overrides_for_update(tx, job.customer_id())
             .await?;
-        let active_tenant_count = self
-            .active_tenant_count_for_update(tx, job.customer_id())
+        let active_logical_index_count = self
+            .logical_index_slot_count_for_update(tx, job.customer_id())
             .await?;
         let active_reservations = self
             .active_reservations_for_update(tx, job.customer_id())
@@ -73,9 +86,7 @@ impl PgAlgoliaImportJobRepo {
             reserved_node_transient_bytes,
         };
 
-        if active_tenant_count + active_reserved.reserved_index_count + reserved_index_count
-            > index_limit
-        {
+        if active_logical_index_count + reserved_index_count > index_limit {
             return Err(AlgoliaImportJobAdmissionError::Refused(
                 AlgoliaImportErrorCode::QuotaExceeded,
             ));
@@ -194,21 +205,16 @@ impl PgAlgoliaImportJobRepo {
         .map_err(repo_error)
     }
 
-    async fn active_tenant_count_for_update(
+    async fn logical_index_slot_count_for_update(
         &self,
         tx: &mut Transaction<'_, Postgres>,
         customer_id: Uuid,
     ) -> Result<i64, RepoError> {
-        sqlx::query_scalar(
-            "SELECT COUNT(*)
-             FROM customer_tenants ct
-             JOIN customer_deployments cd ON cd.id = ct.deployment_id
-             WHERE ct.customer_id = $1 AND cd.status != 'terminated'",
-        )
-        .bind(customer_id)
-        .fetch_one(&mut **tx)
-        .await
-        .map_err(repo_error)
+        sqlx::query_scalar(&logical_index_slot_count_sql())
+            .bind(customer_id)
+            .fetch_one(&mut **tx)
+            .await
+            .map_err(repo_error)
     }
 
     async fn current_customer_storage_bytes(
@@ -292,6 +298,30 @@ impl PgAlgoliaImportJobRepo {
         .ok_or(RepoError::NotFound)?;
         Ok(json_disk_bytes(&row.capacity) - json_disk_bytes(&row.current_load))
     }
+}
+
+fn logical_index_slot_count_sql() -> String {
+    format!(
+        "SELECT
+             (SELECT COUNT(*)
+              FROM customer_tenants ct
+              JOIN customer_deployments cd ON cd.id = ct.deployment_id
+              WHERE ct.customer_id = $1 AND cd.status != 'terminated')
+             +
+             (SELECT COALESCE(SUM(j.reserved_index_count), 0)::BIGINT
+              FROM algolia_import_jobs j
+              WHERE j.customer_id = $1
+                AND ({})
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM customer_tenants ct
+                    JOIN customer_deployments cd ON cd.id = ct.deployment_id
+                    WHERE ct.customer_id = j.customer_id
+                      AND ct.tenant_id = j.logical_target
+                      AND cd.status != 'terminated'
+                ))",
+        active_reservation_predicate()
+    )
 }
 
 fn positive_i64(value: Option<&Value>) -> Option<i64> {

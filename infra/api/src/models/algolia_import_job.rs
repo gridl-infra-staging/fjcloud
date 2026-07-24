@@ -191,6 +191,42 @@ pub struct AlgoliaSealScrubWork {
     pub engine_ack_state: AlgoliaImportEngineAckState,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlgoliaImportTerminalFact {
+    pub engine_job_id: Uuid,
+    pub status: AlgoliaImportJobStatus,
+    pub publication_disposition: AlgoliaImportPublicationDisposition,
+    pub summary: AlgoliaImportSummary,
+    pub error_code: Option<AlgoliaImportErrorCode>,
+    pub error_message: Option<String>,
+    pub terminal_at: DateTime<Utc>,
+}
+
+impl AlgoliaImportTerminalFact {
+    pub fn new(
+        engine_job_id: Uuid,
+        status: AlgoliaImportJobStatus,
+        publication_disposition: AlgoliaImportPublicationDisposition,
+        summary: AlgoliaImportSummary,
+        terminal_at: DateTime<Utc>,
+        error_code: Option<AlgoliaImportErrorCode>,
+        error_message: Option<String>,
+    ) -> Result<Self, &'static str> {
+        if !status.has_valid_terminal_disposition(publication_disposition) {
+            return Err("terminal fact has an invalid publication disposition");
+        }
+        Ok(Self {
+            engine_job_id,
+            status,
+            publication_disposition,
+            summary,
+            error_code,
+            error_message,
+            terminal_at,
+        })
+    }
+}
+
 impl AlgoliaImportEngineAckState {
     pub fn as_str(self) -> &'static str {
         match self {

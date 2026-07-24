@@ -22,6 +22,8 @@ use sqlx::PgPool;
 use tower::ServiceExt;
 use uuid::Uuid;
 
+use crate::common::catalog_live_binding::CatalogLiveBinding;
+
 fn sample_rate_card() -> RateCardRow {
     RateCardRow {
         id: Uuid::new_v4(),
@@ -48,12 +50,22 @@ async fn connect_and_migrate() -> Option<PgPool> {
     let pool = PgPool::connect(&url)
         .await
         .expect("connect to integration test DB");
-    sqlx::migrate!("../migrations")
-        .run(&pool)
-        .await
-        .expect("run migrations");
+    if !schema_already_migrated(&pool).await {
+        sqlx::migrate!("../migrations")
+            .run(&pool)
+            .await
+            .expect("run migrations");
+    }
 
     Some(pool)
+}
+
+async fn schema_already_migrated(pool: &PgPool) -> bool {
+    sqlx::query_scalar::<_, Option<String>>("SELECT to_regclass('public.customers')::text")
+        .fetch_one(pool)
+        .await
+        .expect("check migrated schema")
+        .is_some()
 }
 
 fn app_with_live_audit_pool(
@@ -286,6 +298,7 @@ async fn put_admin_tenants_id_writes_tenant_updated_audit_row() {
 #[tokio::test]
 #[ignore = "requires DATABASE_URL"]
 async fn delete_admin_tenants_id_writes_tenant_deleted_audit_row() {
+    let live_binding = CatalogLiveBinding::begin().await;
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
@@ -358,6 +371,9 @@ async fn delete_admin_tenants_id_writes_tenant_deleted_audit_row() {
     );
 
     cleanup_target(&pool, customer.id).await;
+    if let Some(binding) = live_binding {
+        binding.finish().await;
+    }
 }
 
 #[tokio::test]
@@ -457,6 +473,7 @@ async fn post_admin_customers_suspend_writes_customer_suspended_audit_row() {
 #[tokio::test]
 #[ignore = "requires DATABASE_URL"]
 async fn post_admin_customers_reactivate_writes_customer_reactivated_audit_row() {
+    let live_binding = CatalogLiveBinding::begin().await;
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
@@ -499,11 +516,15 @@ async fn post_admin_customers_reactivate_writes_customer_reactivated_audit_row()
     );
 
     cleanup_target(&pool, customer.id).await;
+    if let Some(binding) = live_binding {
+        binding.finish().await;
+    }
 }
 
 #[tokio::test]
 #[ignore = "requires DATABASE_URL"]
 async fn post_admin_customers_reactivate_deleted_writes_no_audit_row() {
+    let live_binding = CatalogLiveBinding::begin().await;
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
@@ -573,6 +594,9 @@ async fn post_admin_customers_reactivate_deleted_writes_no_audit_row() {
 
     cleanup_target(&pool, deleted.id).await;
     cleanup_target(&pool, suspended.id).await;
+    if let Some(binding) = live_binding {
+        binding.finish().await;
+    }
 }
 
 #[tokio::test]

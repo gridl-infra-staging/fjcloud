@@ -6,102 +6,13 @@ use api::services::algolia_import::{
 use serde_json::json;
 use std::sync::Arc;
 
-// ---------------------------------------------------------------------------
-// algolia_list_indexes
-// ---------------------------------------------------------------------------
-
-#[tokio::test]
-async fn algolia_list_indexes_posts_body_and_returns_upstream_response() {
-    let (http, ssm, proxy) = setup().await;
-    let api_key = ssm.get_secret("node-1").unwrap();
-
-    let upstream = json!({
-        "items": [
-            {"name": "products", "entries": 1234},
-            {"name": "users", "entries": 56}
-        ]
-    });
-    http.push_json_response(200, upstream.clone());
-
-    let body = json!({
-        "appId": "ALGOLIA_APP_ID",
-        "apiKey": "algolia-admin-key"
-    });
-
-    let result = proxy
-        .algolia_list_indexes(
-            "https://vm-a1.flapjack.foo",
-            "node-1",
-            "us-east-1",
-            body.clone(),
-        )
-        .await
-        .expect("algolia_list_indexes should succeed");
-
-    assert_eq!(result, upstream);
-
-    let requests = http.take_requests();
-    assert_eq!(requests.len(), 1);
-    assert_eq!(requests[0].method, reqwest::Method::POST);
-    assert_eq!(
-        requests[0].url,
-        "https://vm-a1.flapjack.foo/1/algolia-list-indexes"
-    );
-    assert_eq!(requests[0].api_key, api_key);
-    assert_eq!(requests[0].json_body, Some(body));
-}
-
-// ---------------------------------------------------------------------------
-// migrate_from_algolia
-// ---------------------------------------------------------------------------
-
-#[tokio::test]
-async fn migrate_from_algolia_posts_body_and_returns_upstream_response() {
-    let (http, ssm, proxy) = setup().await;
-    let api_key = ssm.get_secret("node-1").unwrap();
-
-    let upstream = json!({
-        "taskID": 42,
-        "status": "started"
-    });
-    http.push_json_response(200, upstream.clone());
-
-    let body = json!({
-        "appId": "ALGOLIA_APP_ID",
-        "apiKey": "algolia-admin-key",
-        "sourceIndex": "products"
-    });
-
-    let result = proxy
-        .migrate_from_algolia(
-            "https://vm-a1.flapjack.foo",
-            "node-1",
-            "us-east-1",
-            body.clone(),
-        )
-        .await
-        .expect("migrate_from_algolia should succeed");
-
-    assert_eq!(result, upstream);
-
-    let requests = http.take_requests();
-    assert_eq!(requests.len(), 1);
-    assert_eq!(requests[0].method, reqwest::Method::POST);
-    assert_eq!(
-        requests[0].url,
-        "https://vm-a1.flapjack.foo/1/migrate-from-algolia"
-    );
-    assert_eq!(requests[0].api_key, api_key);
-    assert_eq!(requests[0].json_body, Some(body));
-}
-
 #[tokio::test]
 async fn async_algolia_migration_methods_use_authenticated_admin_transport() {
     let (http, ssm, proxy) = setup().await;
     let api_key = ssm.get_secret("node-1").unwrap();
     let service = AlgoliaImportService::new(Arc::new(proxy));
     let upstream = json!({
-        "jobId": "engine-job-1",
+        "jobId": "9f11d0a0-4443-44d4-b6c6-1ed71dbeb0fb",
         "phase": "submitted",
         "disposition": "running",
         "createdAt": "2026-07-22T00:00:00Z",
@@ -170,4 +81,38 @@ async fn async_algolia_migration_methods_use_authenticated_admin_transport() {
     );
     assert_eq!(requests[1].api_key, api_key);
     assert_eq!(requests[1].json_body, None);
+
+    http.push_text_response(204, "");
+    service
+        .acknowledge(
+            EngineTarget::new("https://vm-a1.flapjack.foo", "node-1", "us-east-1"),
+            "engine-job-1",
+        )
+        .await
+        .expect("acknowledge should accept a successful empty response");
+    let requests = http.take_requests();
+    assert_eq!(requests[2].method, reqwest::Method::POST);
+    assert_eq!(
+        requests[2].url,
+        "https://vm-a1.flapjack.foo/1/migrations/algolia/engine-job-1/acknowledge"
+    );
+    assert_eq!(requests[2].api_key, api_key);
+    assert_eq!(requests[2].json_body, None);
+}
+
+#[tokio::test]
+async fn async_algolia_migration_acknowledge_rejects_non_success_status() {
+    let (http, _, proxy) = setup().await;
+    let service = AlgoliaImportService::new(Arc::new(proxy));
+    http.push_json_response(409, json!({"code": "ack_conflict"}));
+
+    let error = service
+        .acknowledge(
+            EngineTarget::new("https://vm-a1.flapjack.foo", "node-1", "us-east-1"),
+            "engine-job-1",
+        )
+        .await
+        .expect_err("acknowledge must reject non-2xx responses");
+
+    assert!(format!("{error}").contains("HTTP 409"));
 }

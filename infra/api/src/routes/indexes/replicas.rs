@@ -108,20 +108,9 @@ pub async fn delete_replica(
     Path((name, replica_id)): Path<(String, Uuid)>,
 ) -> Result<impl IntoResponse, ApiError> {
     record_caller("routes.indexes.lifecycle.delete_replica");
-    let summaries = state
-        .replica_service
-        .list_replicas(auth.customer_id, &name)
-        .await
-        .map_err(map_replica_error)?;
-    if !summaries.iter().any(|r| r.id == replica_id) {
-        return Err(ApiError::NotFound(format!(
-            "replica {replica_id} not found for index {name}"
-        )));
-    }
-
     state
         .replica_service
-        .remove_replica(auth.customer_id, replica_id)
+        .remove_replica(auth.customer_id, &name, replica_id)
         .await
         .map_err(map_replica_error)?;
 

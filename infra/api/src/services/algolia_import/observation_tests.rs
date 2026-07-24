@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde_json::json;
 use uuid::Uuid;
 
@@ -8,8 +9,7 @@ use crate::models::algolia_import_job::{
 
 use super::{
     AlgoliaImportObservationCursor, AlgoliaImportService, AlgoliaImportStatusObservation,
-    AlgoliaImportStatusObservationError, AlgoliaImportTerminalHandoff, AsyncMigrationPhase,
-    AsyncMigrationStatusResponse,
+    AlgoliaImportStatusObservationError, AsyncMigrationPhase, AsyncMigrationStatusResponse,
 };
 
 const ENGINE_JOB_ID: &str = "9f11d0a0-4443-44d4-b6c6-1ed71dbeb0fb";
@@ -129,17 +129,22 @@ fn status_observation_maps_only_the_pinned_terminal_outcomes() {
             response(AsyncMigrationPhase::Activating, disposition, 20, 20),
         )
         .unwrap();
-        let AlgoliaImportStatusObservation::Terminal(handoff) = observed else {
-            panic!("{disposition} must produce a terminal handoff");
+        let AlgoliaImportStatusObservation::Terminal(fact) = observed else {
+            panic!("{disposition} must produce a terminal fact");
         };
-        assert_eq!(handoff.status, expected_status, "{kind:?} {disposition}");
+        assert_eq!(fact.engine_job_id, Uuid::parse_str(ENGINE_JOB_ID).unwrap());
+        assert_eq!(fact.status, expected_status, "{kind:?} {disposition}");
         assert_eq!(
-            handoff.publication_disposition, expected_publication,
+            fact.publication_disposition, expected_publication,
             "{kind:?} {disposition}"
         );
-        assert_eq!(handoff.summary.documents_imported, 20);
-        assert_eq!(handoff.error_code, None);
-        assert_eq!(handoff.error_message, None);
+        assert_eq!(fact.summary.documents_imported, 20);
+        assert_eq!(
+            fact.terminal_at,
+            "2026-07-22T00:00:02Z".parse::<DateTime<Utc>>().unwrap()
+        );
+        assert_eq!(fact.error_code, None);
+        assert_eq!(fact.error_message, None);
     }
 }
 
@@ -173,7 +178,7 @@ fn status_observation_keeps_cancelling_running_and_closes_terminal_race_matrix()
     )
     .expect("cancel may win the race");
     let AlgoliaImportStatusObservation::Terminal(cancelled) = cancelled else {
-        panic!("cancelled response must produce a terminal handoff");
+        panic!("cancelled response must produce a terminal fact");
     };
     assert_eq!(cancelled.status, AlgoliaImportJobStatus::Cancelled);
     assert_eq!(
@@ -187,7 +192,7 @@ fn status_observation_keeps_cancelling_running_and_closes_terminal_race_matrix()
     )
     .expect("promotion may win after cancel intent");
     let AlgoliaImportStatusObservation::Terminal(promoted) = promoted else {
-        panic!("promoted response must produce a terminal handoff");
+        panic!("promoted response must produce a terminal fact");
     };
     assert_eq!(promoted.status, AlgoliaImportJobStatus::Completed);
     assert_eq!(
@@ -199,14 +204,18 @@ fn status_observation_keeps_cancelling_running_and_closes_terminal_race_matrix()
         AlgoliaImportPublicationDisposition::Promoted,
         AlgoliaImportPublicationDisposition::NotStarted,
     ] {
-        assert!(AlgoliaImportTerminalHandoff::new(
-            AlgoliaImportJobStatus::Cancelled,
-            invalid_publication,
-            AlgoliaImportSummary::default(),
-            None,
-            None,
-        )
-        .is_err());
+        assert!(
+            crate::models::algolia_import_job::AlgoliaImportTerminalFact::new(
+                Uuid::parse_str(ENGINE_JOB_ID).unwrap(),
+                AlgoliaImportJobStatus::Cancelled,
+                invalid_publication,
+                AlgoliaImportSummary::default(),
+                "2026-07-22T00:00:02Z".parse().unwrap(),
+                None,
+                None,
+            )
+            .is_err()
+        );
     }
 }
 

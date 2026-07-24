@@ -114,7 +114,6 @@ function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 			region: 'us-east-1'
 		},
 		source: {
-			appId: 'ALGOLIA_APP',
 			name: 'products'
 		},
 		summary: {
@@ -130,7 +129,6 @@ function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 			rulesImported: 6,
 			rulesRejected: 1
 		},
-		warnings: { ignored: 'must not be stringified' },
 		error: null,
 		cancelRequestedAt: null,
 		resumeProvenance: null,
@@ -210,11 +208,7 @@ describe('Algolia import job presentation seam', () => {
 	});
 
 	it.each(ERROR_PRESENTATIONS)('maps backend error %s to stable copy', (code, expected) => {
-		const producerMessage = `producer detail for ${code}`;
-
-		expect(describeAlgoliaImportError({ code, message: producerMessage })).toBe(expected);
-		expect(describeAlgoliaImportError({ code, message: null })).toBe(expected);
-		expect(expected).not.toContain(producerMessage);
+		expect(describeAlgoliaImportError({ code })).toBe(expected);
 	});
 
 	it('presents no failure copy when the backend reports no error', () => {
@@ -258,7 +252,7 @@ describe('Algolia import job presentation seam', () => {
 						},
 						status: 'failed',
 						publicationDisposition,
-						error: { code: 'destination_changed', message: null }
+						error: { code: 'destination_changed' }
 					})
 				)
 			).toEqual({
@@ -404,7 +398,7 @@ describe('Algolia import job presentation seam', () => {
 						status,
 						resumable: true,
 						publicationDisposition: 'unchanged',
-						error: { code, message: null }
+						error: { code }
 					}),
 					undefined,
 					{ cancel: false, resume: true, replace: false }
@@ -425,7 +419,7 @@ describe('Algolia import job presentation seam', () => {
 					status: 'failed',
 					resumable: false,
 					publicationDisposition: 'unchanged',
-					error: { code: 'not_resumable', message: null }
+					error: { code: 'not_resumable' }
 				}),
 				undefined,
 				{ cancel: false, resume: true, replace: false }
@@ -447,7 +441,7 @@ describe('Algolia import job presentation seam', () => {
 						status: 'interrupted',
 						resumable: true,
 						publicationDisposition: 'unchanged',
-						error: { code: 'interrupted', message: null }
+						error: { code: 'interrupted' }
 					}),
 					{
 						admitted: false,

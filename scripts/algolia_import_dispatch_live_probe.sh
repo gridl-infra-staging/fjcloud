@@ -10,6 +10,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/env.sh"
 # shellcheck source=scripts/lib/flapjack_binary.sh
 source "$SCRIPT_DIR/lib/flapjack_binary.sh"
+# shellcheck source=scripts/lib/algolia_import_live_probe_common.sh
+source "$SCRIPT_DIR/lib/algolia_import_live_probe_common.sh"
 # shellcheck source=scripts/lib/integration_db_access.sh
 source "$SCRIPT_DIR/lib/integration_db_access.sh"
 # shellcheck source=scripts/lib/integration_stack_env.sh
@@ -139,11 +141,7 @@ write_url_config() {
 }
 
 generate_probe_secret() {
-    python3 - <<'PY'
-import secrets
-
-print(secrets.token_urlsafe(32))
-PY
+    algolia_import_probe_generate_secret
 }
 
 capture_http_response() {
@@ -255,20 +253,15 @@ validate_phase_set() {
 # retained job/key evidence, SQL literals. Keep that boundary deliberately
 # narrower than the external APIs so response data can never become syntax.
 safe_response_identifier() {
-    local value="$1"
-    [ "${#value}" -le 256 ] && [[ "$value" =~ ^[A-Za-z0-9_-]+$ ]]
+    algolia_import_probe_safe_response_identifier "$1"
 }
 
 safe_header_value() {
-    local value="$1"
-    [ -n "$value" ] && [ "${#value}" -le 4096 ] \
-        && [[ "$value" != *$'\r'* ]] && [[ "$value" != *$'\n'* ]]
+    algolia_import_probe_safe_header_value "$1"
 }
 
 safe_opaque_token() {
-    local value="$1"
-    safe_header_value "$value" && [[ "$value" != *\"* ]] \
-        && [[ "$value" != *\\* ]]
+    algolia_import_probe_safe_opaque_token "$1"
 }
 
 load_algolia_secrets() {
@@ -349,17 +342,7 @@ api_request() {
 }
 
 wait_for_algolia_task() {
-    local index="$1"
-    local task_id="$2"
-    local status
-    for _ in 1 2 3 4 5; do
-        algolia_request "200 404" GET "/1/indexes/$index/task/$task_id" || return 1
-        [ "$HTTP_STATUS" = "404" ] && return 0
-        status="$(json_field "$HTTP_BODY" status 2>/dev/null || true)"
-        [ "$status" = "published" ] && return 0
-        sleep 1
-    done
-    return 1
+    algolia_import_probe_wait_for_algolia_task "$@"
 }
 
 prepare_runtime() {
@@ -611,6 +594,8 @@ create_algolia_fixture() {
     safe_response_identifier "$DISPOSABLE_KEY" \
         || finish_action_required "invalid_response_identifier"
     CREATED_KEYS+=("$DISPOSABLE_KEY")
+    algolia_import_probe_wait_for_restricted_source_key "$SOURCE_INDEX" "$DISPOSABLE_KEY" \
+        || finish_action_required "inconclusive_evidence"
 }
 
 register_and_login() {
@@ -656,24 +641,7 @@ delete_node_key_warmup_index() {
 
 obtain_target_envelope() {
     CURRENT_STEP="destination_eligibility"
-    local payload
-    payload="$(secure_temp_file)"
-    write_json_file "$payload" "{\"phase\":\"provider\",\"mode\":\"create\",\"target\":{\"region\":\"us-east-1\",\"name\":\"$TARGET_INDEX\"}}"
-    api_request "200" POST "/migration/algolia/destination-eligibility" "$payload" "" \
-        || finish_action_required "endpoint_unavailable"
-    PROVIDER_TOKEN="$(json_field "$HTTP_BODY" eligibilityToken 2>/dev/null || true)"
-    [ -n "$PROVIDER_TOKEN" ] || finish_action_required "inconclusive_evidence"
-    safe_opaque_token "$PROVIDER_TOKEN" \
-        || finish_action_required "invalid_response_identifier"
-
-    payload="$(secure_temp_file)"
-    write_json_file "$payload" "{\"phase\":\"target\",\"mode\":\"create\",\"target\":{\"region\":\"us-east-1\",\"name\":\"$TARGET_INDEX\"},\"eligibilityToken\":\"$PROVIDER_TOKEN\"}"
-    api_request "200" POST "/migration/algolia/destination-eligibility" "$payload" "" \
-        || finish_action_required "endpoint_unavailable"
-    TARGET_TOKEN="$(json_field "$HTTP_BODY" eligibilityToken 2>/dev/null || true)"
-    [ -n "$TARGET_TOKEN" ] || finish_action_required "inconclusive_evidence"
-    safe_opaque_token "$TARGET_TOKEN" \
-        || finish_action_required "invalid_response_identifier"
+    algolia_import_probe_obtain_target_envelope "$TARGET_INDEX"
 }
 
 create_job_once() {
@@ -1006,15 +974,7 @@ run_restart_reconciliation_phase() {
 }
 
 delete_algolia_index() {
-    local index="$1"
-    local task_id
-    curl_http "200 204 404" --config "$ALGOLIA_AUTH_CONFIG" -X DELETE "$(algolia_url "/1/indexes/$index")" || return 1
-    [ "$HTTP_STATUS" = "404" ] && return 0
-    task_id="$(json_field "$HTTP_BODY" taskID 2>/dev/null || true)"
-    if [ -n "$task_id" ]; then
-        safe_response_identifier "$task_id" || return 1
-        wait_for_algolia_task "$index" "$task_id" || return 1
-    fi
+    algolia_import_probe_delete_algolia_index "$1"
 }
 
 main() {

@@ -57,6 +57,7 @@ use crate::common::algolia_import_reservation_lifetime::{
     force_reservation_lifetime_case, reservation_lifetime_denominator, ReservationExpectation,
     ReservationLifetimeCase,
 };
+use crate::common::catalog_live_binding::CatalogLiveBinding;
 use crate::common::engine_index_identity_test_support::{
     assert_migration_request_sequence, ExpectedMigrationRequest,
 };
@@ -79,6 +80,8 @@ mod catalog_lifecycle_lease_invariants;
 mod catalog_lifecycle_lease_race_matrix;
 #[path = "catalog_lifecycle_lease_remote_races.rs"]
 mod catalog_lifecycle_lease_remote_races;
+#[path = "catalog_live_caller_admission.rs"]
+mod catalog_live_caller_admission;
 
 #[derive(Debug, Clone, Deserialize)]
 struct CatalogLifecycleInventory {
@@ -92,6 +95,10 @@ struct CatalogLifecycleWriter {
     owner_path: String,
     source_anchor: String,
     disposition: String,
+    live_caller_key: String,
+    live_caller_command: String,
+    live_scenario_key: String,
+    live_phase: String,
 }
 
 /// Hand-calculated lifecycle acceptance oracle set.
@@ -1148,11 +1155,11 @@ const ROUTE_SPRINT_SCOPES: &[(&str, &str)] = &[
     ("infra/api/src/repos/pg_tenant_repo.rs", "create"),
     (
         "infra/api/src/repos/pg_tenant_repo.rs",
-        "create_lifecycle_intent",
+        "create_lifecycle_intent_tx",
     ),
     (
         "infra/api/src/repos/pg_tenant_repo.rs",
-        "publish_lifecycle_placement",
+        "publish_lifecycle_placement_tx",
     ),
     (
         "infra/api/src/repos/pg_tenant_repo.rs",
@@ -1160,238 +1167,6 @@ const ROUTE_SPRINT_SCOPES: &[(&str, &str)] = &[
     ),
     ("infra/api/src/repos/pg_tenant_repo.rs", "set_vm_id"),
     ("infra/api/src/repos/pg_tenant_repo.rs", "delete"),
-];
-
-const ROUTE_OWNER_COVERAGE: &[CoverageRegistration] = &[
-    CoverageRegistration {
-        scenario: "create_index_on_shared_vm_rejects_active_import_reservation",
-        owner_path: "infra/api/src/routes/indexes/shared_vm.rs",
-        function_name: "create_index_on_shared_vm",
-        source_anchor: "tenant_repo.create_lifecycle_intent",
-    },
-    CoverageRegistration {
-        scenario: "create_index_on_shared_vm_rejects_active_import_reservation",
-        owner_path: "infra/api/src/routes/indexes/shared_vm.rs",
-        function_name: "create_index_on_shared_vm",
-        source_anchor: "tenant_repo.publish_lifecycle_placement",
-    },
-    CoverageRegistration {
-        scenario: "delete_index_remote_failure_rolls_back_deleting_intent",
-        owner_path: "infra/api/src/routes/indexes/lifecycle.rs",
-        function_name: "rollback_shared_vm_delete_intent",
-        source_anchor: "tenant_repo.publish_lifecycle_placement",
-    },
-    CoverageRegistration {
-        scenario: "delete_index_rejects_active_replace_reservation",
-        owner_path: "infra/api/src/routes/indexes/lifecycle.rs",
-        function_name: "delete_index",
-        source_anchor: "flapjack_proxy.delete_index",
-    },
-    CoverageRegistration {
-        scenario: "seed_index_rejects_active_import_reservation",
-        owner_path: "infra/api/src/routes/admin/indexes.rs",
-        function_name: "seed_index",
-        source_anchor: "tenant_repo.create_lifecycle_intent",
-    },
-    CoverageRegistration {
-        scenario: "seed_index_publishes_provisioning_intent_before_remote_secret_work",
-        owner_path: "infra/api/src/routes/admin/indexes.rs",
-        function_name: "publish_seed_intent",
-        source_anchor: "tenant_repo.publish_lifecycle_placement",
-    },
-    CoverageRegistration {
-        scenario: "seed_index_publishes_provisioning_intent_before_remote_secret_work",
-        owner_path: "infra/api/src/routes/admin/indexes.rs",
-        function_name: "rollback_seed_intent",
-        source_anchor: "tenant_repo.delete",
-    },
-    CoverageRegistration {
-        scenario: "resolve_existing_seed_index_rejects_active_replace_reservation",
-        owner_path: "infra/api/src/routes/admin/indexes.rs",
-        function_name: "resolve_existing_seed_index",
-        source_anchor: "tenant_repo.publish_lifecycle_placement",
-    },
-    CoverageRegistration {
-        scenario: "pg_tenant_repo_create_rejects_active_import_reservation",
-        owner_path: "infra/api/src/repos/pg_tenant_repo.rs",
-        function_name: "create",
-        source_anchor: "pg_tenant_repo.create",
-    },
-    CoverageRegistration {
-        scenario: "tenant_repo_creates_non_discoverable_provisioning_intent_atomically",
-        owner_path: "infra/api/src/repos/pg_tenant_repo.rs",
-        function_name: "create_lifecycle_intent",
-        source_anchor: "pg_tenant_repo.create",
-    },
-    CoverageRegistration {
-        scenario: "tenant_repo_publish_placement_rejects_identity_drift_without_changes",
-        owner_path: "infra/api/src/repos/pg_tenant_repo.rs",
-        function_name: "publish_lifecycle_placement",
-        source_anchor: "pg_tenant_repo.set_vm_id",
-    },
-    CoverageRegistration {
-        scenario: "tenant_repo_delete_intent_rejects_identity_drift_without_changes",
-        owner_path: "infra/api/src/repos/pg_tenant_repo.rs",
-        function_name: "publish_delete_lifecycle_intent",
-        source_anchor: "pg_tenant_repo.set_tier",
-    },
-    CoverageRegistration {
-        scenario: "pg_tenant_repo_set_vm_id_rejects_active_import_reservation",
-        owner_path: "infra/api/src/repos/pg_tenant_repo.rs",
-        function_name: "set_vm_id",
-        source_anchor: "pg_tenant_repo.set_vm_id",
-    },
-    CoverageRegistration {
-        scenario: "pg_tenant_repo_delete_rejects_active_replace_reservation",
-        owner_path: "infra/api/src/repos/pg_tenant_repo.rs",
-        function_name: "delete",
-        source_anchor: "pg_tenant_repo.delete",
-    },
-];
-
-const SERVICE_OWNER_COVERAGE: &[CoverageRegistration] = &[
-    CoverageRegistration {
-        scenario: "cold_tier_snapshot_rejects_active_replace_reservation",
-        owner_path: "infra/api/src/services/cold_tier/pipeline.rs",
-        function_name: "begin_snapshot_record",
-        source_anchor: "tenant_repo.set_tier",
-    },
-    CoverageRegistration {
-        scenario: "cold_tier_rollback_rejects_identity_drift_for_snapshot_state",
-        owner_path: "infra/api/src/services/cold_tier/pipeline.rs",
-        function_name: "rollback_tenant_snapshot_state",
-        source_anchor: "tenant_repo.set_cold_snapshot_id",
-    },
-    CoverageRegistration {
-        scenario: "cold_tier_rollback_rejects_identity_drift_for_snapshot_state",
-        owner_path: "infra/api/src/services/cold_tier/pipeline.rs",
-        function_name: "rollback_tenant_snapshot_state",
-        source_anchor: "tenant_repo.set_tier",
-    },
-    CoverageRegistration {
-        scenario: "cold_tier_rollback_rejects_identity_drift_for_snapshot_state",
-        owner_path: "infra/api/src/services/cold_tier/pipeline.rs",
-        function_name: "rollback_tenant_snapshot_state",
-        source_anchor: "tenant_repo.set_vm_id",
-    },
-    CoverageRegistration {
-        scenario: "cold_tier_transition_rejects_active_replace_reservation",
-        owner_path: "infra/api/src/services/cold_tier/pipeline.rs",
-        function_name: "transition_tenant_to_cold_storage",
-        source_anchor: "tenant_repo.clear_vm_id",
-    },
-    CoverageRegistration {
-        scenario: "cold_tier_transition_rejects_active_replace_reservation",
-        owner_path: "infra/api/src/services/cold_tier/pipeline.rs",
-        function_name: "transition_tenant_to_cold_storage",
-        source_anchor: "tenant_repo.set_cold_snapshot_id",
-    },
-    CoverageRegistration {
-        scenario: "migration_execute_failure_reset_rejects_identity_drift",
-        owner_path: "infra/api/src/services/migration/mod.rs",
-        function_name: "reset_tenant_tier_after_execute_failure",
-        source_anchor: "tenant_repo.set_tier",
-    },
-    CoverageRegistration {
-        scenario: "migration_begin_rejects_active_replace_reservation",
-        owner_path: "infra/api/src/services/migration/mod.rs",
-        function_name: "begin_migration_intent",
-        source_anchor: "tenant_repo.set_tier",
-    },
-    CoverageRegistration {
-        scenario: "migration_finalize_protocol_rejects_identity_drift",
-        owner_path: "infra/api/src/services/migration/protocol.rs",
-        function_name: "finalize_protocol",
-        source_anchor: "tenant_repo.set_tier",
-    },
-    CoverageRegistration {
-        scenario: "migration_finalize_protocol_rejects_identity_drift",
-        owner_path: "infra/api/src/services/migration/protocol.rs",
-        function_name: "finalize_protocol",
-        source_anchor: "tenant_repo.set_vm_id",
-    },
-    CoverageRegistration {
-        scenario:
-            "migration_execute_failure_recovery_rejects_identity_drift_without_source_overwrite",
-        owner_path: "infra/api/src/services/migration/recovery.rs",
-        function_name: "recover_source_on_failure",
-        source_anchor: "tenant_repo.publish_lifecycle_placement",
-    },
-    CoverageRegistration {
-        scenario: "migration_rollback_rejects_active_replace_reservation_before_remote_work",
-        owner_path: "infra/api/src/services/migration/recovery.rs",
-        function_name: "publish_rollback",
-        source_anchor: "tenant_repo.publish_lifecycle_placement",
-    },
-    CoverageRegistration {
-        scenario: "region_failover_rejects_active_replace_reservation",
-        owner_path: "infra/api/src/services/region_failover.rs",
-        function_name: "try_failover_tenant",
-        source_anchor: "tenant_repo.set_vm_id",
-    },
-    CoverageRegistration {
-        scenario: "replica_service_create_replica_rejects_active_replace_reservation",
-        owner_path: "infra/api/src/services/replica.rs",
-        function_name: "create_replica",
-        source_anchor: "replica_repo.create",
-    },
-    CoverageRegistration {
-        scenario: "replica_service_remove_replica_rejects_active_replace_reservation",
-        owner_path: "infra/api/src/services/replica.rs",
-        function_name: "remove_replica",
-        source_anchor: "replica_repo.delete",
-    },
-    CoverageRegistration {
-        scenario: "restore_execute_restore_inner_rejects_identity_drift",
-        owner_path: "infra/api/src/services/restore.rs",
-        function_name: "execute_restore_inner",
-        source_anchor: "tenant_repo.set_cold_snapshot_id",
-    },
-    CoverageRegistration {
-        scenario: "restore_execute_restore_inner_rejects_identity_drift",
-        owner_path: "infra/api/src/services/restore.rs",
-        function_name: "execute_restore_inner",
-        source_anchor: "tenant_repo.set_tier",
-    },
-    CoverageRegistration {
-        scenario: "restore_execute_restore_inner_rejects_identity_drift",
-        owner_path: "infra/api/src/services/restore.rs",
-        function_name: "execute_restore_inner",
-        source_anchor: "tenant_repo.set_vm_id",
-    },
-    CoverageRegistration {
-        scenario: "restore_handle_restore_failure_rejects_identity_drift",
-        owner_path: "infra/api/src/services/restore.rs",
-        function_name: "handle_restore_failure",
-        source_anchor: "tenant_repo.set_tier",
-    },
-    CoverageRegistration {
-        scenario: "restore_service_initiate_restore_rejects_active_replace_reservation",
-        owner_path: "infra/api/src/services/restore.rs",
-        function_name: "initiate_restore",
-        source_anchor: "tenant_repo.set_tier",
-    },
-];
-
-const F5P1_SOFT_DELETE_PRIVACY_COVERAGE: &[CoverageRegistration] = &[
-    CoverageRegistration {
-        scenario: "soft_delete_increments_lifecycle_generation_exactly_once",
-        owner_path: "infra/api/src/repos/pg_customer_repo/lifecycle.rs",
-        function_name: "soft_delete",
-        source_anchor: "pg_customer_repo.soft_delete",
-    },
-    CoverageRegistration {
-        scenario: "delete_account_soft_delete_retains_row_for_audit_visibility",
-        owner_path: "infra/api/src/routes/account.rs",
-        function_name: "delete_account",
-        source_anchor: "customer_repo.soft_delete",
-    },
-    CoverageRegistration {
-        scenario: "delete_admin_tenants_id_writes_tenant_deleted_audit_row",
-        owner_path: "infra/api/src/routes/admin/tenants.rs",
-        function_name: "delete_tenant",
-        source_anchor: "customer_repo.soft_delete",
-    },
 ];
 
 const F5P1_EXECUTABLE_SCENARIO_SOURCES: &[ExecutableScenarioSource<'static>] = &[
@@ -1415,33 +1190,6 @@ const F5P1_EXECUTABLE_SCENARIO_SOURCES: &[ExecutableScenarioSource<'static>] = &
         test_source: include_str!("admin_audit_view_test.rs"),
         test_module: "admin_audit_view_test",
         harness_source: include_str!("../auth_admin.rs"),
-    },
-];
-
-const F5P2_HARD_DELETE_PRIVACY_WRITERS: &[CoverageRegistration] = &[
-    CoverageRegistration {
-        scenario: "hard_delete_removes_customer_and_dependents_then_404s_on_repeat",
-        owner_path: "infra/api/src/repos/pg_customer_repo/hard_delete.rs",
-        function_name: "delete_customer_dependents",
-        source_anchor: "pg_index_replica_repo.delete",
-    },
-    CoverageRegistration {
-        scenario: "hard_delete_removes_customer_and_dependents_then_404s_on_repeat",
-        owner_path: "infra/api/src/repos/pg_customer_repo/hard_delete.rs",
-        function_name: "delete_customer_dependents",
-        source_anchor: "pg_tenant_repo.delete",
-    },
-    CoverageRegistration {
-        scenario: "hard_delete_removes_customer_and_dependents_then_404s_on_repeat",
-        owner_path: "infra/api/src/repos/pg_customer_repo/hard_delete.rs",
-        function_name: "hard_delete",
-        source_anchor: "pg_customer_repo.hard_delete",
-    },
-    CoverageRegistration {
-        scenario: "retention_job_erases_only_api_selected_eligible_customer",
-        owner_path: "infra/api/src/routes/admin/tenants.rs",
-        function_name: "hard_erase_customer",
-        source_anchor: "customer_repo.hard_delete",
     },
 ];
 
@@ -1642,6 +1390,35 @@ fn catalog_lifecycle_inventory_metadata_mutations_fail_closed() {
             format!(
                 "source_anchor mismatch for {block_id}: fixture=tenant_repo.drifted observed={block_source_anchor}"
             ),
+        ),
+        (
+            "missing_live_caller_key",
+            {
+                let mut inventory = inventory.clone();
+                writer_mut(&mut inventory, &block_id).live_caller_key.clear();
+                inventory
+            },
+            format!("live_caller_key is required for {block_id}"),
+        ),
+        (
+            "missing_live_scenario_key",
+            {
+                let mut inventory = inventory.clone();
+                writer_mut(&mut inventory, &block_id)
+                    .live_scenario_key
+                    .clear();
+                inventory
+            },
+            format!("live_scenario_key is required for {block_id}"),
+        ),
+        (
+            "unknown_live_phase",
+            {
+                let mut inventory = inventory.clone();
+                writer_mut(&mut inventory, &block_id).live_phase = "probe_only".to_string();
+                inventory
+            },
+            format!("unknown live_phase for {block_id}: probe_only"),
         ),
         (
             "drifted_block_without_change_class",
@@ -2231,9 +2008,10 @@ fn catalog_lifecycle_acceptance_oracle_does_not_duplicate_writer_denominator() {
 fn soft_delete_privacy_transition_denominator_rejects_missing_duplicate_new_and_unexercised_writers(
 ) {
     let inventory = inventory_by_key();
-    let missing_registration = F5P1_SOFT_DELETE_PRIVACY_COVERAGE[0];
+    let baseline = lifecycle_exclusion_coverage_registrations(&inventory);
+    let missing_registration = baseline[0];
     let missing_id = registration_id(&missing_registration);
-    let duplicate_registration = F5P1_SOFT_DELETE_PRIVACY_COVERAGE[1];
+    let duplicate_registration = baseline[1];
     let duplicate_id = registration_id(&duplicate_registration);
     let synthetic_registration = CoverageRegistration {
         scenario: "synthetic_new_soft_delete_writer",
@@ -2244,22 +2022,22 @@ fn soft_delete_privacy_transition_denominator_rejects_missing_duplicate_new_and_
     let synthetic_id = registration_id(&synthetic_registration);
     let unexercised_registration = CoverageRegistration {
         scenario: "",
-        ..F5P1_SOFT_DELETE_PRIVACY_COVERAGE[2]
+        ..baseline[2]
     };
     let unexercised_id = registration_id(&unexercised_registration);
     let stale_scenario_registration = CoverageRegistration {
         scenario: "stale_soft_delete_scenario_name",
-        ..F5P1_SOFT_DELETE_PRIVACY_COVERAGE[0]
+        ..baseline[0]
     };
     let stale_scenario_id = registration_id(&stale_scenario_registration);
-    let mut swapped_registrations = F5P1_SOFT_DELETE_PRIVACY_COVERAGE.to_vec();
-    swapped_registrations[0].scenario = F5P1_SOFT_DELETE_PRIVACY_COVERAGE[1].scenario;
-    swapped_registrations[1].scenario = F5P1_SOFT_DELETE_PRIVACY_COVERAGE[0].scenario;
+    let mut swapped_registrations = baseline.clone();
+    swapped_registrations[0].scenario = baseline[1].scenario;
+    swapped_registrations[1].scenario = baseline[0].scenario;
     let swapped_ids = BTreeSet::from([
         registration_id(&swapped_registrations[0]),
         registration_id(&swapped_registrations[1]),
     ]);
-    let mut reused_scenario_registrations = F5P1_SOFT_DELETE_PRIVACY_COVERAGE.to_vec();
+    let mut reused_scenario_registrations = baseline.clone();
     reused_scenario_registrations[0].scenario = duplicate_registration.scenario;
     let reused_scenario_id = registration_id(&reused_scenario_registrations[0]);
 
@@ -2267,7 +2045,7 @@ fn soft_delete_privacy_transition_denominator_rejects_missing_duplicate_new_and_
         (
             "missing",
             {
-                let mut registrations = F5P1_SOFT_DELETE_PRIVACY_COVERAGE.to_vec();
+                let mut registrations = baseline.clone();
                 registrations.remove(0);
                 registrations
             },
@@ -2279,7 +2057,7 @@ fn soft_delete_privacy_transition_denominator_rejects_missing_duplicate_new_and_
         (
             "duplicate",
             {
-                let mut registrations = F5P1_SOFT_DELETE_PRIVACY_COVERAGE.to_vec();
+                let mut registrations = baseline.clone();
                 registrations.push(duplicate_registration);
                 registrations
             },
@@ -2292,12 +2070,12 @@ fn soft_delete_privacy_transition_denominator_rejects_missing_duplicate_new_and_
         (
             "synthetic",
             {
-                let mut registrations = F5P1_SOFT_DELETE_PRIVACY_COVERAGE.to_vec();
+                let mut registrations = baseline.clone();
                 registrations[0] = synthetic_registration;
                 registrations
             },
             CoverageValidation {
-                missing: BTreeSet::from([registration_id(&F5P1_SOFT_DELETE_PRIVACY_COVERAGE[0])]),
+                missing: BTreeSet::from([registration_id(&baseline[0])]),
                 unknown: BTreeSet::from([synthetic_id]),
                 ..CoverageValidation::default()
             },
@@ -2305,7 +2083,7 @@ fn soft_delete_privacy_transition_denominator_rejects_missing_duplicate_new_and_
         (
             "unexercised",
             {
-                let mut registrations = F5P1_SOFT_DELETE_PRIVACY_COVERAGE.to_vec();
+                let mut registrations = baseline.clone();
                 registrations[2] = unexercised_registration;
                 registrations
             },
@@ -2318,7 +2096,7 @@ fn soft_delete_privacy_transition_denominator_rejects_missing_duplicate_new_and_
         (
             "stale_scenario",
             {
-                let mut registrations = F5P1_SOFT_DELETE_PRIVACY_COVERAGE.to_vec();
+                let mut registrations = baseline.clone();
                 registrations[0] = stale_scenario_registration;
                 registrations
             },
@@ -2361,11 +2139,9 @@ fn soft_delete_privacy_transition_denominator_rejects_missing_duplicate_new_and_
 #[test]
 fn soft_delete_privacy_transition_exercises_match_f5p1_inventory_once() {
     let inventory = inventory_by_key();
+    let registrations = lifecycle_exclusion_coverage_registrations(&inventory);
     assert_eq!(
-        validate_soft_delete_privacy_transition_exercises(
-            F5P1_SOFT_DELETE_PRIVACY_COVERAGE,
-            &inventory
-        ),
+        validate_soft_delete_privacy_transition_exercises(&registrations, &inventory),
         CoverageValidation::default(),
         "F5P1 soft-delete privacy coverage must exercise each canonical inventory writer exactly once"
     );
@@ -2374,7 +2150,8 @@ fn soft_delete_privacy_transition_exercises_match_f5p1_inventory_once() {
 #[test]
 fn soft_delete_privacy_transition_denominator_rejects_unregistered_test_scenarios() {
     let inventory = inventory_by_key();
-    let registration = F5P1_SOFT_DELETE_PRIVACY_COVERAGE[0];
+    let registrations = lifecycle_exclusion_coverage_registrations(&inventory);
+    let registration = registrations[0];
     let registration_id = registration_id(&registration);
     let scenario_source = F5P1_EXECUTABLE_SCENARIO_SOURCES[0];
     let test_attribute = format!("#[tokio::test]\nasync fn {}", scenario_source.scenario);
@@ -2414,11 +2191,13 @@ fn soft_delete_privacy_transition_denominator_rejects_unregistered_test_scenario
         ("missing_test_attribute", sources_without_test_attribute),
         ("missing_module_route", sources_without_module_route),
     ] {
-        let executable_scenarios = executable_scenarios_from_sources(&sources);
+        let executable_scenarios =
+            executable_registration_scenarios_from_sources(&sources, &registrations);
         assert_eq!(
             validate_soft_delete_privacy_transition_exercises_with_scenarios(
-                F5P1_SOFT_DELETE_PRIVACY_COVERAGE,
+                &registrations,
                 &inventory,
+                &registrations,
                 &executable_scenarios,
             ),
             expected,
@@ -2432,7 +2211,8 @@ fn privacy_transition_partition_assigns_hard_delete_writers_to_f5p2_and_excludes
     let inventory = inventory_by_key();
     let privacy_ids = privacy_transition_inventory_ids(&inventory);
     let f5p1_ids = f5p1_soft_delete_privacy_inventory_ids(&inventory);
-    let f5p2_ids = F5P2_HARD_DELETE_PRIVACY_WRITERS
+    let f5p2_registrations = privacy_erasure_coverage_registrations(&inventory);
+    let f5p2_ids = f5p2_registrations
         .iter()
         .map(registration_id)
         .collect::<BTreeSet<_>>();
@@ -2450,7 +2230,7 @@ fn privacy_transition_partition_assigns_hard_delete_writers_to_f5p2_and_excludes
         "privacy_transition writers must partition exactly into F5P1 soft-delete and F5P2 hard-delete sets"
     );
 
-    for registration in F5P2_HARD_DELETE_PRIVACY_WRITERS {
+    for registration in &f5p2_registrations {
         let key = inventory_key(
             registration.owner_path,
             registration.function_name,
@@ -2487,11 +2267,12 @@ fn hard_delete_privacy_transition_exercises_match_f5p2_inventory_once() {
     let inventory = inventory_by_key();
     let privacy_ids = privacy_transition_inventory_ids(&inventory);
     let f5p1_ids = f5p1_soft_delete_privacy_inventory_ids(&inventory);
+    let registrations = privacy_erasure_coverage_registrations(&inventory);
     let expected_f5p2_ids = privacy_ids
         .difference(&f5p1_ids)
         .cloned()
         .collect::<BTreeSet<_>>();
-    let registered_f5p2_ids = F5P2_HARD_DELETE_PRIVACY_WRITERS
+    let registered_f5p2_ids = registrations
         .iter()
         .map(registration_id)
         .collect::<BTreeSet<_>>();
@@ -2521,10 +2302,7 @@ fn hard_delete_privacy_transition_exercises_match_f5p2_inventory_once() {
         "F5P1 and F5P2 writer sets must cover the full canonical privacy-transition inventory"
     );
     assert_eq!(
-        validate_hard_delete_privacy_transition_exercises(
-            F5P2_HARD_DELETE_PRIVACY_WRITERS,
-            &inventory,
-        ),
+        validate_hard_delete_privacy_transition_exercises(&registrations, &inventory),
         CoverageValidation::default(),
         "F5P2 hard-delete privacy coverage must link every canonical writer to its expected executable scenario"
     );
@@ -2541,7 +2319,7 @@ fn hard_delete_privacy_transition_exercises_match_f5p2_inventory_once() {
 #[test]
 fn hard_delete_privacy_transition_denominator_rejects_malformed_registrations() {
     let inventory = inventory_by_key();
-    let baseline = F5P2_HARD_DELETE_PRIVACY_WRITERS.to_vec();
+    let baseline = privacy_erasure_coverage_registrations(&inventory);
 
     let missing_registration = baseline[0];
     let missing_id = registration_id(&missing_registration);
@@ -2562,7 +2340,7 @@ fn hard_delete_privacy_transition_denominator_rejects_malformed_registrations() 
         scenario: "stale_hard_delete_scenario_name",
         ..baseline[0]
     };
-    let f5p1_registration = F5P1_SOFT_DELETE_PRIVACY_COVERAGE[0];
+    let f5p1_registration = lifecycle_exclusion_coverage_registrations(&inventory)[0];
     let f5p1_id = registration_id(&f5p1_registration);
     let wrong_disposition_registration = CoverageRegistration {
         scenario: baseline[0].scenario,
@@ -2714,8 +2492,8 @@ fn hard_delete_privacy_transition_denominator_rejects_malformed_registrations() 
 fn route_owner_coverage_registrations_match_blocking_inventory_ids_once() {
     let inventory = inventory_by_key();
     let expected_ids = route_inventory_ids(&blocking_inventory_by_key());
-    let validation =
-        validate_coverage_registrations(ROUTE_OWNER_COVERAGE, &expected_ids, &inventory);
+    let registrations = route_owner_coverage_registrations(&inventory);
+    let validation = validate_coverage_registrations(&registrations, &expected_ids, &inventory);
     assert_eq!(
         validation,
         CoverageValidation::default(),
@@ -2727,10 +2505,11 @@ fn route_owner_coverage_registrations_match_blocking_inventory_ids_once() {
 fn service_owner_coverage_validator_rejects_bad_registrations() {
     let inventory = inventory_by_key();
     let expected_ids = service_inventory_ids(&blocking_inventory_by_key());
+    let baseline = service_owner_coverage_registrations(&inventory);
 
-    let missing_registration = SERVICE_OWNER_COVERAGE[0];
+    let missing_registration = baseline[0];
     let missing_id = registration_id(&missing_registration);
-    let duplicate_id = registration_id(&SERVICE_OWNER_COVERAGE[1]);
+    let duplicate_id = registration_id(&baseline[1]);
     let unknown_registration = CoverageRegistration {
         scenario: "unknown_writer_negative_case",
         owner_path: "infra/api/src/services/restore.rs",
@@ -2757,7 +2536,7 @@ fn service_owner_coverage_validator_rejects_bad_registrations() {
         (
             "missing",
             {
-                let mut registrations = SERVICE_OWNER_COVERAGE.to_vec();
+                let mut registrations = baseline.clone();
                 registrations.remove(0);
                 registrations
             },
@@ -2769,8 +2548,8 @@ fn service_owner_coverage_validator_rejects_bad_registrations() {
         (
             "duplicate",
             {
-                let mut registrations = SERVICE_OWNER_COVERAGE.to_vec();
-                registrations.push(SERVICE_OWNER_COVERAGE[1]);
+                let mut registrations = baseline.clone();
+                registrations.push(baseline[1]);
                 registrations
             },
             CoverageValidation {
@@ -2781,7 +2560,7 @@ fn service_owner_coverage_validator_rejects_bad_registrations() {
         (
             "unknown",
             {
-                let mut registrations = SERVICE_OWNER_COVERAGE.to_vec();
+                let mut registrations = baseline.clone();
                 registrations[0] = unknown_registration;
                 registrations
             },
@@ -2794,7 +2573,7 @@ fn service_owner_coverage_validator_rejects_bad_registrations() {
         (
             "wrong_disposition",
             {
-                let mut registrations = SERVICE_OWNER_COVERAGE.to_vec();
+                let mut registrations = baseline.clone();
                 registrations[0] = non_blocking_registration;
                 registrations
             },
@@ -2807,7 +2586,7 @@ fn service_owner_coverage_validator_rejects_bad_registrations() {
         (
             "extra",
             {
-                let mut registrations = SERVICE_OWNER_COVERAGE.to_vec();
+                let mut registrations = baseline.clone();
                 registrations.push(extra_registration);
                 registrations
             },
@@ -2831,8 +2610,8 @@ fn service_owner_coverage_validator_rejects_bad_registrations() {
 fn service_owner_coverage_registrations_match_blocking_inventory_ids_once() {
     let inventory = inventory_by_key();
     let expected_ids = service_inventory_ids(&blocking_inventory_by_key());
-    let validation =
-        validate_coverage_registrations(SERVICE_OWNER_COVERAGE, &expected_ids, &inventory);
+    let registrations = service_owner_coverage_registrations(&inventory);
+    let validation = validate_coverage_registrations(&registrations, &expected_ids, &inventory);
     assert_eq!(
         validation,
         CoverageValidation::default(),
@@ -2840,14 +2619,43 @@ fn service_owner_coverage_registrations_match_blocking_inventory_ids_once() {
     );
 }
 
+#[test]
+fn coverage_registrations_are_derived_from_live_fixture_metadata() {
+    let inventory = inventory_by_key();
+    let catalog_registrations = catalog_phase_coverage_registrations(&inventory);
+    let lifecycle_registrations = lifecycle_exclusion_coverage_registrations(&inventory);
+    let privacy_registrations = privacy_erasure_coverage_registrations(&inventory);
+
+    assert_eq!(
+        catalog_registrations.len(),
+        41,
+        "catalog phase registrations must come from the 41 fixture live-phase rows"
+    );
+    assert_eq!(
+        lifecycle_registrations.len(),
+        3,
+        "lifecycle phase registrations must come from the 3 fixture live-phase rows"
+    );
+    assert_eq!(
+        privacy_registrations.len(),
+        4,
+        "privacy-erasure registrations must come from the 4 fixture live-phase rows"
+    );
+}
+
 fn validate_soft_delete_privacy_transition_exercises(
     registrations: &[CoverageRegistration],
     inventory: &BTreeMap<(String, String), CatalogLifecycleWriter>,
 ) -> CoverageValidation {
-    let executable_scenarios = f5p1_executable_scenarios();
+    let canonical_registrations = lifecycle_exclusion_coverage_registrations(inventory);
+    let executable_scenarios = executable_registration_scenarios_from_sources(
+        F5P1_EXECUTABLE_SCENARIO_SOURCES,
+        &canonical_registrations,
+    );
     validate_soft_delete_privacy_transition_exercises_with_scenarios(
         registrations,
         inventory,
+        &canonical_registrations,
         &executable_scenarios,
     )
 }
@@ -2855,16 +2663,17 @@ fn validate_soft_delete_privacy_transition_exercises(
 fn validate_soft_delete_privacy_transition_exercises_with_scenarios(
     registrations: &[CoverageRegistration],
     inventory: &BTreeMap<(String, String), CatalogLifecycleWriter>,
+    canonical_registrations: &[CoverageRegistration],
     executable_scenarios: &BTreeSet<&'static str>,
 ) -> CoverageValidation {
     let expected_ids = f5p1_soft_delete_privacy_inventory_ids(inventory);
     let expected_scenarios = F5P1_EXECUTABLE_SCENARIO_SOURCES
         .iter()
         .map(|source| {
-            let registration = F5P1_SOFT_DELETE_PRIVACY_COVERAGE
+            let registration = canonical_registrations
                 .get(source.coverage_registration_index)
                 .expect("F5P1 executable scenario must reference a coverage registration");
-            (registration_id(registration), source.scenario)
+            (registration_id(registration), registration.scenario)
         })
         .collect::<BTreeMap<_, _>>();
     validate_coverage_registrations_for_disposition(
@@ -2886,14 +2695,18 @@ fn validate_hard_delete_privacy_transition_exercises(
         .difference(&f5p1_soft_delete_privacy_inventory_ids(inventory))
         .cloned()
         .collect::<BTreeSet<_>>();
-    let executable_scenarios = executable_scenarios_from_sources(F5P2_EXECUTABLE_SCENARIO_SOURCES);
+    let canonical_registrations = privacy_erasure_coverage_registrations(inventory);
+    let executable_scenarios = executable_registration_scenarios_from_sources(
+        F5P2_EXECUTABLE_SCENARIO_SOURCES,
+        &canonical_registrations,
+    );
     let expected_scenarios = F5P2_EXECUTABLE_SCENARIO_SOURCES
         .iter()
         .map(|source| {
-            let registration = F5P2_HARD_DELETE_PRIVACY_WRITERS
+            let registration = canonical_registrations
                 .get(source.coverage_registration_index)
                 .expect("F5P2 executable scenario must reference a coverage registration");
-            (registration_id(registration), source.scenario)
+            (registration_id(registration), registration.scenario)
         })
         .collect::<BTreeMap<_, _>>();
 
@@ -2908,19 +2721,21 @@ fn validate_hard_delete_privacy_transition_exercises(
     )
 }
 
-fn f5p1_executable_scenarios() -> BTreeSet<&'static str> {
-    executable_scenarios_from_sources(F5P1_EXECUTABLE_SCENARIO_SOURCES)
-}
-
-fn executable_scenarios_from_sources(
+fn executable_registration_scenarios_from_sources(
     scenario_sources: &[ExecutableScenarioSource<'_>],
+    registrations: &[CoverageRegistration],
 ) -> BTreeSet<&'static str> {
     scenario_sources
         .iter()
-        .filter_map(|source| {
-            (source_has_test_attribute(source.test_source, source.scenario)
-                && harness_routes_test_module(source.harness_source, source.test_module))
-            .then_some(source.scenario)
+        .filter(|source| {
+            source_has_test_attribute(source.test_source, source.scenario)
+                && harness_routes_test_module(source.harness_source, source.test_module)
+        })
+        .map(|source| {
+            registrations
+                .get(source.coverage_registration_index)
+                .expect("executable scenario must reference a coverage registration")
+                .scenario
         })
         .collect()
 }
@@ -3086,12 +2901,11 @@ fn validate_coverage_registrations_for_disposition(
 fn route_inventory_ids(
     inventory: &BTreeMap<(String, String), CatalogLifecycleWriter>,
 ) -> BTreeSet<String> {
-    let route_inventory_ids = inventory
+    inventory
         .values()
         .filter(|writer| route_sprint_scope_contains(writer))
         .map(|writer| writer.id.clone())
-        .collect::<BTreeSet<_>>();
-    route_inventory_ids
+        .collect::<BTreeSet<_>>()
 }
 
 fn service_inventory_ids(
@@ -3102,6 +2916,73 @@ fn service_inventory_ids(
         .filter(|writer| writer.owner_path.starts_with("infra/api/src/services/"))
         .map(|writer| writer.id.clone())
         .collect()
+}
+
+fn route_owner_coverage_registrations(
+    inventory: &BTreeMap<(String, String), CatalogLifecycleWriter>,
+) -> Vec<CoverageRegistration> {
+    inventory
+        .values()
+        .filter(|writer| writer.live_phase == "catalog" && route_sprint_scope_contains(writer))
+        .map(coverage_registration_from_writer)
+        .collect()
+}
+
+fn service_owner_coverage_registrations(
+    inventory: &BTreeMap<(String, String), CatalogLifecycleWriter>,
+) -> Vec<CoverageRegistration> {
+    inventory
+        .values()
+        .filter(|writer| {
+            writer.live_phase == "catalog"
+                && writer.owner_path.starts_with("infra/api/src/services/")
+        })
+        .map(coverage_registration_from_writer)
+        .collect()
+}
+
+fn catalog_phase_coverage_registrations(
+    inventory: &BTreeMap<(String, String), CatalogLifecycleWriter>,
+) -> Vec<CoverageRegistration> {
+    live_phase_coverage_registrations(inventory, "catalog")
+}
+
+fn lifecycle_exclusion_coverage_registrations(
+    inventory: &BTreeMap<(String, String), CatalogLifecycleWriter>,
+) -> Vec<CoverageRegistration> {
+    live_phase_coverage_registrations(inventory, "lifecycle_exclusion")
+}
+
+fn privacy_erasure_coverage_registrations(
+    inventory: &BTreeMap<(String, String), CatalogLifecycleWriter>,
+) -> Vec<CoverageRegistration> {
+    live_phase_coverage_registrations(inventory, "privacy_erasure")
+}
+
+fn live_phase_coverage_registrations(
+    inventory: &BTreeMap<(String, String), CatalogLifecycleWriter>,
+    live_phase: &str,
+) -> Vec<CoverageRegistration> {
+    inventory
+        .values()
+        .filter(|writer| writer.live_phase == live_phase)
+        .map(coverage_registration_from_writer)
+        .collect()
+}
+
+fn coverage_registration_from_writer(writer: &CatalogLifecycleWriter) -> CoverageRegistration {
+    let function_name = fixture_function_name(&writer.id)
+        .expect("fixture ID must include function slug for coverage registration");
+    CoverageRegistration {
+        scenario: leak_test_str(&writer.live_scenario_key),
+        owner_path: leak_test_str(&writer.owner_path),
+        function_name: leak_test_str(function_name),
+        source_anchor: leak_test_str(&writer.source_anchor),
+    }
+}
+
+fn leak_test_str(value: &str) -> &'static str {
+    Box::leak(value.to_string().into_boxed_str())
 }
 
 fn registration_id(registration: &CoverageRegistration) -> String {
@@ -3209,6 +3090,29 @@ fn validate_fixture(inventory: &CatalogLifecycleInventory) -> FixtureShape {
         }
         if writer.source_anchor.trim().is_empty() {
             findings.insert(format!("source_anchor is required for {}", writer.id));
+        }
+        if writer.live_caller_key.trim().is_empty() {
+            findings.insert(format!("live_caller_key is required for {}", writer.id));
+        }
+        if !matches!(
+            writer.live_caller_command.as_str(),
+            "invoke_catalog_blocking_writer"
+                | "invoke_lifecycle_soft_delete_writer"
+                | "invoke_privacy_erasure_dependency_gate"
+        ) {
+            findings.insert(format!("live_caller_command is required for {}", writer.id));
+        }
+        if writer.live_scenario_key.trim().is_empty() {
+            findings.insert(format!("live_scenario_key is required for {}", writer.id));
+        }
+        if !matches!(
+            writer.live_phase.as_str(),
+            "catalog" | "lifecycle_exclusion" | "privacy_erasure"
+        ) {
+            findings.insert(format!(
+                "unknown live_phase for {}: {}",
+                writer.id, writer.live_phase
+            ));
         }
         if let Some(function_name) = fixture_function_name(&writer.id) {
             let expected_id = writer_id(&writer.owner_path, function_name, &writer.source_anchor);
@@ -5670,6 +5574,10 @@ async fn delete_index_rejects_active_replace_reservation() {
 
 #[tokio::test]
 async fn seed_index_rejects_active_import_reservation() {
+    assert_seed_index_rejects_active_import_reservation().await;
+}
+
+async fn assert_seed_index_rejects_active_import_reservation() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_admin_seed_blocks").await else {
         return;
     };
@@ -5762,6 +5670,10 @@ async fn seed_index_publishes_provisioning_intent_before_remote_secret_work() {
 
 #[tokio::test]
 async fn resolve_existing_seed_index_rejects_active_replace_reservation() {
+    assert_resolve_existing_seed_index_rejects_active_replace_reservation().await;
+}
+
+async fn assert_resolve_existing_seed_index_rejects_active_replace_reservation() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_admin_resolve_blocks").await else {
         return;
     };
@@ -6095,6 +6007,10 @@ async fn set_vm_flapjack_url(pool: &PgPool, vm_id: Uuid, url: &str) {
 
 #[tokio::test]
 async fn replica_service_create_replica_rejects_active_replace_reservation() {
+    assert_replica_service_create_replica_rejects_active_reservation().await;
+}
+
+async fn assert_replica_service_create_replica_rejects_active_reservation() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_replica_create_blocks").await else {
         return;
     };
@@ -6217,6 +6133,10 @@ async fn assert_replica_create_race_after_intent() {
 
 #[tokio::test]
 async fn replica_service_remove_replica_rejects_active_replace_reservation() {
+    assert_replica_service_remove_replica_rejects_active_reservation().await;
+}
+
+async fn assert_replica_service_remove_replica_rejects_active_reservation() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_replica_remove_blocks").await else {
         return;
     };
@@ -6246,7 +6166,9 @@ async fn replica_service_remove_replica_rejects_active_replace_reservation() {
         let service = guarded_replica_service(&db.pool);
 
         let before = service_window_snapshot(&db.pool, customer, "products").await;
-        let result = service.remove_replica(customer, replica.id).await;
+        let result = service
+            .remove_replica(customer, "products", replica.id)
+            .await;
 
         assert!(
             matches!(result, Err(ReplicaError::DestinationConflict)),
@@ -6320,7 +6242,7 @@ async fn assert_replica_remove_race_after_intent() {
     );
 
     service
-        .remove_replica(customer, target_replica.id)
+        .remove_replica(customer, "products", target_replica.id)
         .await
         .expect("service-window owner removes the replica after excluding admission");
 
@@ -6374,6 +6296,10 @@ async fn assert_replica_remove_race_after_intent() {
 
 #[tokio::test]
 async fn region_failover_rejects_active_replace_reservation() {
+    assert_region_failover_rejects_active_reservation().await;
+}
+
+async fn assert_region_failover_rejects_active_reservation() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_failover_blocks").await else {
         return;
     };
@@ -6587,6 +6513,10 @@ async fn assert_region_failover_promotion_race_after_intent() {
 
 #[tokio::test]
 async fn restore_service_initiate_restore_rejects_active_replace_reservation() {
+    assert_restore_service_initiate_restore_rejects_active_reservation().await;
+}
+
+async fn assert_restore_service_initiate_restore_rejects_active_reservation() {
     for kind in [
         ActiveReservationKind::Import,
         ActiveReservationKind::Replacement,
@@ -6923,6 +6853,10 @@ async fn restore_handle_restore_failure_rejects_identity_drift() {
 
 #[tokio::test]
 async fn cold_tier_snapshot_rejects_active_replace_reservation() {
+    assert_cold_tier_snapshot_rejects_active_replace_reservation().await;
+}
+
+async fn assert_cold_tier_snapshot_rejects_active_replace_reservation() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_cold_tier_blocks").await else {
         return;
     };
@@ -6989,6 +6923,10 @@ async fn cold_tier_snapshot_rejects_active_replace_reservation() {
 /// [`cold_tier_snapshot_rejects_active_replace_reservation`].
 #[tokio::test]
 async fn cold_tier_snapshot_rejects_active_import_reservation() {
+    assert_cold_tier_snapshot_rejects_active_import_reservation().await;
+}
+
+async fn assert_cold_tier_snapshot_rejects_active_import_reservation() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_cold_tier_import_blocks").await else {
         return;
     };
@@ -7561,6 +7499,10 @@ async fn cold_tier_rollback_blocks_admission_during_compensation() {
 
 #[tokio::test]
 async fn migration_begin_rejects_active_replace_reservation() {
+    assert_migration_begin_rejects_all_active_reservations().await;
+}
+
+async fn assert_migration_begin_rejects_all_active_reservations() {
     for kind in [
         ActiveReservationKind::Import,
         ActiveReservationKind::Replacement,
@@ -8040,6 +7982,10 @@ fn queue_migration_intent_window_http(
 
 #[tokio::test]
 async fn migration_rollback_rejects_active_replace_reservation_before_remote_work() {
+    assert_migration_rollback_rejects_active_reservation_before_remote_work().await;
+}
+
+async fn assert_migration_rollback_rejects_active_reservation_before_remote_work() {
     for kind in [
         ActiveReservationKind::Import,
         ActiveReservationKind::Replacement,
@@ -8427,7 +8373,9 @@ async fn assert_expired_replace_blocks_replica_remove(
     );
     let before_replicas = replica_rows(pool, customer, "products").await;
 
-    let result = service.remove_replica(customer, replica.id).await;
+    let result = service
+        .remove_replica(customer, "products", replica.id)
+        .await;
 
     assert!(matches!(result, Err(ReplicaError::DestinationConflict)));
     assert_eq!(

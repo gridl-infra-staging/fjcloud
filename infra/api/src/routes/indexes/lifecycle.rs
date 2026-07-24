@@ -72,7 +72,7 @@ pub(crate) async fn admit_new_index_destination(
 
     let count = state
         .tenant_repo
-        .count_by_customer(customer_id)
+        .count_logical_index_slots(customer_id)
         .await
         .map_err(ApiError::from)?;
     if customer.billing_plan_enum() == BillingPlan::Free {

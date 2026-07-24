@@ -1,12 +1,13 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::models::tenant::{CustomerTenant, CustomerTenantSummary};
 use crate::repos::algolia_import_job_repo::CatalogLifecycleTargetIdentity;
 use crate::repos::error::{is_unique_violation, RepoError};
 use crate::repos::tenant_repo::TenantRepo;
+use crate::repos::PgAlgoliaImportJobRepo;
 
 pub struct PgTenantRepo {
     pool: PgPool,
@@ -15,6 +16,83 @@ pub struct PgTenantRepo {
 impl PgTenantRepo {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
+    }
+
+    pub async fn create_lifecycle_intent_tx(
+        tx: &mut Transaction<'_, Postgres>,
+        customer_id: Uuid,
+        tenant_id: &str,
+        deployment_id: Uuid,
+        tier: &str,
+    ) -> Result<CustomerTenant, RepoError> {
+        sqlx::query_as::<_, CustomerTenant>(
+            "INSERT INTO customer_tenants (customer_id, tenant_id, deployment_id, tier) \
+             VALUES ($1, $2, $3, $4) RETURNING *",
+        )
+        .bind(customer_id)
+        .bind(tenant_id)
+        .bind(deployment_id)
+        .bind(tier)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(|error| {
+            if is_unique_violation(&error) {
+                RepoError::Conflict(format!(
+                    "index '{tenant_id}' already exists for this customer"
+                ))
+            } else {
+                RepoError::Other(error.to_string())
+            }
+        })
+    }
+
+    pub async fn publish_lifecycle_placement_tx(
+        tx: &mut Transaction<'_, Postgres>,
+        customer_id: Uuid,
+        tenant_id: &str,
+        expected_identity: &CatalogLifecycleTargetIdentity,
+        vm_id: Option<Uuid>,
+    ) -> Result<CustomerTenant, RepoError> {
+        let published = sqlx::query_as::<_, CustomerTenant>(
+            "UPDATE customer_tenants SET vm_id = $4, tier = 'active'
+             WHERE customer_id = $1
+               AND tenant_id = $2
+               AND deployment_id = $3
+               AND vm_id IS NOT DISTINCT FROM $5
+               AND tier = $6
+               AND cold_snapshot_id IS NOT DISTINCT FROM $7
+               AND service_type = $8
+             RETURNING *",
+        )
+        .bind(customer_id)
+        .bind(tenant_id)
+        .bind(expected_identity.deployment_id)
+        .bind(vm_id)
+        .bind(expected_identity.vm_id)
+        .bind(&expected_identity.tier)
+        .bind(expected_identity.cold_snapshot_id)
+        .bind(&expected_identity.service_type)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|error| RepoError::Other(error.to_string()))?;
+
+        if let Some(tenant) = published {
+            return Ok(tenant);
+        }
+
+        let exists: Option<(Uuid,)> = sqlx::query_as(
+            "SELECT deployment_id FROM customer_tenants WHERE customer_id = $1 AND tenant_id = $2",
+        )
+        .bind(customer_id)
+        .bind(tenant_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|error| RepoError::Other(error.to_string()))?;
+        if exists.is_some() {
+            Err(RepoError::Conflict("destination_changed".into()))
+        } else {
+            Err(RepoError::NotFound)
+        }
     }
 }
 
@@ -55,25 +133,18 @@ impl TenantRepo for PgTenantRepo {
         deployment_id: Uuid,
         tier: &str,
     ) -> Result<CustomerTenant, RepoError> {
-        sqlx::query_as::<_, CustomerTenant>(
-            "INSERT INTO customer_tenants (customer_id, tenant_id, deployment_id, tier) \
-             VALUES ($1, $2, $3, $4) RETURNING *",
-        )
-        .bind(customer_id)
-        .bind(tenant_id)
-        .bind(deployment_id)
-        .bind(tier)
-        .fetch_one(&self.pool)
-        .await
-        .map_err(|e| {
-            if is_unique_violation(&e) {
-                RepoError::Conflict(format!(
-                    "index '{tenant_id}' already exists for this customer"
-                ))
-            } else {
-                RepoError::Other(e.to_string())
-            }
-        })
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|error| RepoError::Other(error.to_string()))?;
+        let tenant =
+            Self::create_lifecycle_intent_tx(&mut tx, customer_id, tenant_id, deployment_id, tier)
+                .await?;
+        tx.commit()
+            .await
+            .map_err(|error| RepoError::Other(error.to_string()))?;
+        Ok(tenant)
     }
 
     async fn publish_delete_lifecycle_intent(
@@ -133,46 +204,23 @@ impl TenantRepo for PgTenantRepo {
         expected_identity: &CatalogLifecycleTargetIdentity,
         vm_id: Option<Uuid>,
     ) -> Result<CustomerTenant, RepoError> {
-        let published = sqlx::query_as::<_, CustomerTenant>(
-            "UPDATE customer_tenants SET vm_id = $4, tier = 'active'
-             WHERE customer_id = $1
-               AND tenant_id = $2
-               AND deployment_id = $3
-               AND vm_id IS NOT DISTINCT FROM $5
-               AND tier = $6
-               AND cold_snapshot_id IS NOT DISTINCT FROM $7
-               AND service_type = $8
-             RETURNING *",
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|error| RepoError::Other(error.to_string()))?;
+        let tenant = Self::publish_lifecycle_placement_tx(
+            &mut tx,
+            customer_id,
+            tenant_id,
+            expected_identity,
+            vm_id,
         )
-        .bind(customer_id)
-        .bind(tenant_id)
-        .bind(expected_identity.deployment_id)
-        .bind(vm_id)
-        .bind(expected_identity.vm_id)
-        .bind(&expected_identity.tier)
-        .bind(expected_identity.cold_snapshot_id)
-        .bind(&expected_identity.service_type)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| RepoError::Other(e.to_string()))?;
-
-        if let Some(tenant) = published {
-            return Ok(tenant);
-        }
-
-        let exists: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT deployment_id FROM customer_tenants WHERE customer_id = $1 AND tenant_id = $2",
-        )
-        .bind(customer_id)
-        .bind(tenant_id)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| RepoError::Other(e.to_string()))?;
-        if exists.is_some() {
-            Err(RepoError::Conflict("destination_changed".into()))
-        } else {
-            Err(RepoError::NotFound)
-        }
+        .await?;
+        tx.commit()
+            .await
+            .map_err(|error| RepoError::Other(error.to_string()))?;
+        Ok(tenant)
     }
 
     async fn remove_lifecycle_intent(
@@ -291,6 +339,12 @@ impl TenantRepo for PgTenantRepo {
         .map_err(|e| RepoError::Other(e.to_string()))?;
 
         Ok(row.0)
+    }
+
+    async fn count_logical_index_slots(&self, customer_id: Uuid) -> Result<i64, RepoError> {
+        PgAlgoliaImportJobRepo::new(self.pool.clone())
+            .count_logical_index_slots(customer_id)
+            .await
     }
 
     async fn find_by_deployment(

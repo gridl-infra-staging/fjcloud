@@ -433,6 +433,7 @@ async fn resumable_credential_failure_keeps_target_excluded_through_resume_race(
 /// target rows, and the refused read holds no lock and mutates nothing.
 #[tokio::test]
 async fn soft_deleted_customer_snapshot_eligibility_refuses_while_target_retained() {
+    let live_binding = CatalogLiveBinding::begin().await;
     let Some(db) = connect_and_migrate("catalog_lifecycle_soft_delete_snapshot").await else {
         return;
     };
@@ -499,4 +500,7 @@ async fn soft_deleted_customer_snapshot_eligibility_refuses_while_target_retaine
         after_operations[0].lifecycle_generation, reserved_generation,
         "retained reservation must keep its pre-delete generation G"
     );
+    if let Some(binding) = live_binding {
+        binding.finish().await;
+    }
 }

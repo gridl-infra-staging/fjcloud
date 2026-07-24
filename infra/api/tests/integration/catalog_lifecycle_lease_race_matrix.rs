@@ -507,11 +507,11 @@ fn blocking_inventory_ids() -> BTreeSet<String> {
 }
 
 fn race_matrix_scenarios() -> Vec<RaceMatrixScenario> {
-    ROUTE_OWNER_COVERAGE
-        .iter()
-        .chain(SERVICE_OWNER_COVERAGE.iter())
-        .chain(extra_race_matrix_coverage_registrations().iter())
-        .copied()
+    let inventory = inventory_by_key();
+    route_owner_coverage_registrations(&inventory)
+        .into_iter()
+        .chain(service_owner_coverage_registrations(&inventory))
+        .chain(extra_race_matrix_coverage_registrations().iter().copied())
         .map(race_matrix_scenario)
         .collect()
 }

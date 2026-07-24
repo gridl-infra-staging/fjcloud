@@ -69,15 +69,16 @@ import copy
 import hashlib
 import json
 import pathlib
+import subprocess
 import sys
 
 git_root = pathlib.Path(sys.argv[1])
 fixture_path = pathlib.Path(sys.argv[2])
 pinned_sha = sys.argv[3]
 
-def action_required(message: str) -> None:
+def action_required(message: str, exit_code: int = 1) -> None:
     print(f"ACTION_REQUIRED: {message}", file=sys.stderr)
-    raise SystemExit(1)
+    raise SystemExit(exit_code)
 
 def load_json(path: pathlib.Path) -> dict:
     try:
@@ -113,6 +114,106 @@ def path_method(payload: dict, path: str, method: str) -> None:
         action_required(f"OpenAPI artifact is missing path {path}")
     if method.lower() not in path_value:
         action_required(f"OpenAPI artifact is missing {method} {path}")
+
+def validate_required_runtime_routes(fixture: dict, payload: dict) -> None:
+    routes = fixture.get("required_runtime_routes")
+    if not isinstance(routes, dict) or not routes:
+        action_required("fixture required_runtime_routes must be a nonempty object")
+    for name, route in routes.items():
+        if not isinstance(name, str) or not isinstance(route, dict):
+            action_required("fixture required_runtime_routes entries must be named objects")
+        method = route.get("method")
+        path = route.get("path")
+        if not isinstance(method, str) or not isinstance(path, str):
+            action_required(f"fixture required runtime route {name} must define method and path")
+        paths = payload.get("paths", {})
+        path_value = paths.get(path)
+        if not isinstance(path_value, dict) or method.lower() not in path_value:
+            action_required(
+                f"OpenAPI artifact is missing required runtime route {method} {path}",
+                exit_code=3,
+            )
+        if name == "acknowledge":
+            validate_acknowledgement_contract(fixture, path_value[method.lower()])
+
+def validate_acknowledgement_contract(fixture: dict, operation: dict) -> None:
+    expected = fixture.get("acknowledgement_contract")
+    if not isinstance(expected, dict) or not expected:
+        action_required("fixture acknowledgement_contract must be a nonempty object")
+    if not isinstance(operation, dict):
+        action_required("OpenAPI artifact ACK operation must be an object", exit_code=3)
+    observed = operation.get("x-fjcloud-terminal-ack-contract")
+    if observed != expected:
+        action_required(
+            "OpenAPI artifact ACK route is missing required authentication/durability/idempotency/absence contract",
+            exit_code=3,
+        )
+
+def acknowledgement_known_answer_config(fixture: dict) -> tuple[list[str], str]:
+    known_answer = fixture.get("acknowledgement_known_answer")
+    if not isinstance(known_answer, dict):
+        action_required("fixture acknowledgement_known_answer must be an object")
+    command = known_answer.get("command")
+    success_marker = known_answer.get("success_marker")
+    if (
+        not isinstance(command, list)
+        or not command
+        or any(not isinstance(argument, str) or not argument for argument in command)
+        or not isinstance(success_marker, str)
+        or not success_marker
+    ):
+        action_required(
+            "fixture acknowledgement_known_answer must define command and success_marker"
+        )
+    if command[0] != "bash" or len(command) != 2:
+        action_required("engine ACK known-answer command must be one pinned bash script")
+    return command, success_marker
+
+def require_pinned_known_answer_script(command: list[str]) -> None:
+    script_path = pathlib.PurePosixPath(command[1])
+    if script_path.is_absolute() or ".." in script_path.parts:
+        action_required("engine ACK known-answer script path must stay inside the engine checkout")
+    script_file = git_root / script_path
+    if not script_file.is_file() or script_file.is_symlink():
+        action_required("engine ACK known-answer script is missing", exit_code=3)
+    tracked = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", command[1]],
+        cwd=git_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    clean = subprocess.run(
+        ["git", "diff", "--quiet", "HEAD", "--", command[1]],
+        cwd=git_root,
+        check=False,
+    )
+    if tracked.returncode != 0 or clean.returncode != 0:
+        action_required(
+            "engine ACK known-answer script must be the pinned tracked source",
+            exit_code=3,
+        )
+
+def run_acknowledgement_known_answer(fixture: dict) -> None:
+    command, success_marker = acknowledgement_known_answer_config(fixture)
+    require_pinned_known_answer_script(command)
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=git_root,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        action_required("engine ACK known-answer test could not run", exit_code=3)
+    output_lines = completed.stdout.splitlines()
+    if completed.returncode != 0 or output_lines.count(success_marker) != 1:
+        action_required(
+            "engine ACK known-answer test did not prove authentication/durability/idempotency/absence semantics",
+            exit_code=3,
+        )
 
 def sorted_required(payload: dict, name: str) -> list[str]:
     value = schema(payload, name).get("required", [])
@@ -215,6 +316,7 @@ for artifact in fixture_artifacts:
         action_required(f"invalid UTF-8 in OpenAPI artifact {rel_path}: {exc}")
     except json.JSONDecodeError as exc:
         action_required(f"invalid JSON in OpenAPI artifact {rel_path}: {exc}")
+    validate_required_runtime_routes(fixture, artifact_payload)
     extracted = extract_contract(artifact_payload)
     if extracted != expected_without_meta:
         action_required(f"OpenAPI artifact {rel_path} normalized contract differs from fixture")
@@ -223,5 +325,6 @@ for artifact in fixture_artifacts:
     elif extracted != baseline_contract:
         action_required(f"OpenAPI artifact {rel_path} normalized contract differs from first artifact")
 
+run_acknowledgement_known_answer(fixture)
 print("Algolia migration engine contract is current")
 PY

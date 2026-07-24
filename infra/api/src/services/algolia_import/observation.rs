@@ -2,12 +2,12 @@ use uuid::Uuid;
 
 use crate::models::algolia_import_job::{
     AlgoliaImportDestinationKind, AlgoliaImportJobStatus, AlgoliaImportPublicationDisposition,
-    AlgoliaImportSummary,
+    AlgoliaImportSummary, AlgoliaImportTerminalFact,
 };
 
 use super::{
-    AlgoliaImportService, AlgoliaImportTerminalHandoff, AsyncMigrationDisposition,
-    AsyncMigrationExportProgress, AsyncMigrationPhase, AsyncMigrationStatusResponse,
+    AlgoliaImportService, AsyncMigrationDisposition, AsyncMigrationExportProgress,
+    AsyncMigrationPhase, AsyncMigrationStatusResponse,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,7 +43,7 @@ pub struct AlgoliaImportRunningObservation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AlgoliaImportStatusObservation {
     Running(AlgoliaImportRunningObservation),
-    Terminal(AlgoliaImportTerminalHandoff),
+    Terminal(AlgoliaImportTerminalFact),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -58,8 +58,8 @@ pub enum AlgoliaImportStatusObservationError {
     ProgressOutOfRange,
     #[error("cloud job status cannot consume a running engine observation")]
     UnsupportedCurrentStatus,
-    #[error("engine terminal observation violates the cloud handoff contract")]
-    InvalidTerminalHandoff,
+    #[error("engine terminal observation violates the cloud terminal fact contract")]
+    InvalidTerminalFact,
 }
 
 impl AlgoliaImportService {
@@ -83,16 +83,25 @@ impl AlgoliaImportService {
                 },
             )),
             AsyncMigrationDisposition::Succeeded => terminal_observation(
+                cursor.engine_job_id,
                 AlgoliaImportJobStatus::Completed,
                 AlgoliaImportPublicationDisposition::Promoted,
                 summary,
+                response
+                    .terminal_at
+                    .expect("terminal response is validated"),
             ),
             AsyncMigrationDisposition::Cancelled => terminal_observation(
+                cursor.engine_job_id,
                 AlgoliaImportJobStatus::Cancelled,
                 AlgoliaImportPublicationDisposition::Unchanged,
                 summary,
+                response
+                    .terminal_at
+                    .expect("terminal response is validated"),
             ),
             AsyncMigrationDisposition::Failed => terminal_observation(
+                cursor.engine_job_id,
                 AlgoliaImportJobStatus::Failed,
                 match cursor.destination_kind {
                     AlgoliaImportDestinationKind::Create => {
@@ -103,6 +112,9 @@ impl AlgoliaImportService {
                     }
                 },
                 summary,
+                response
+                    .terminal_at
+                    .expect("terminal response is validated"),
             ),
         }
     }
@@ -186,11 +198,21 @@ fn merge_export_progress(
 }
 
 fn terminal_observation(
+    engine_job_id: Uuid,
     status: AlgoliaImportJobStatus,
     publication_disposition: AlgoliaImportPublicationDisposition,
     summary: AlgoliaImportSummary,
+    terminal_at: chrono::DateTime<chrono::Utc>,
 ) -> Result<AlgoliaImportStatusObservation, AlgoliaImportStatusObservationError> {
-    AlgoliaImportTerminalHandoff::new(status, publication_disposition, summary, None, None)
-        .map(AlgoliaImportStatusObservation::Terminal)
-        .map_err(|_| AlgoliaImportStatusObservationError::InvalidTerminalHandoff)
+    AlgoliaImportTerminalFact::new(
+        engine_job_id,
+        status,
+        publication_disposition,
+        summary,
+        terminal_at,
+        None,
+        None,
+    )
+    .map(AlgoliaImportStatusObservation::Terminal)
+    .map_err(|_| AlgoliaImportStatusObservationError::InvalidTerminalFact)
 }

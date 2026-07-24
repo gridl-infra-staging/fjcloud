@@ -24,7 +24,6 @@ stripe_account_require_flag_value() {
     printf '%s\n' "$flag_value"
 }
 
-# TODO: Document stripe_account_resolve_secret_key.
 stripe_account_resolve_secret_key() {
     local account_name="${1:-}"
     local suffixed_var=""

@@ -27,9 +27,6 @@ function slugify(input: string): string {
 	return slug.length > 0 ? slug : 'query';
 }
 
-/**
- * TODO: Document createMerchandisingRule.
- */
 export function createMerchandisingRule({
 	query,
 	description,

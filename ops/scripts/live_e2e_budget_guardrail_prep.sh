@@ -49,7 +49,6 @@ Usage:
 USAGE
 }
 
-# TODO: Document parse_args_token.
 parse_args_token() {
     local token="$1"
     local next_value="${2:-}"
@@ -124,7 +123,6 @@ parse_args() {
     done
 }
 
-# TODO: Document validate_required_args.
 validate_required_args() {
     if [ "$SHOW_HELP" -eq 1 ]; then
         return 0
@@ -204,7 +202,6 @@ validate_role_name_value() {
     fi
 }
 
-# TODO: Document validate_input_values.
 validate_input_values() {
     if [ -n "$LIVE_E2E_MONTHLY_SPEND_LIMIT_USD" ] && ! validate_positive_number "$LIVE_E2E_MONTHLY_SPEND_LIMIT_USD"; then
         fail_closed "--monthly-spend-limit-usd must be greater than 0"
@@ -292,7 +289,6 @@ collect_redaction_values_from_environment() {
     done < <(env)
 }
 
-# TODO: Document collect_redaction_values_from_env_file.
 collect_redaction_values_from_env_file() {
     local env_file="$1"
     local line parse_status key value
@@ -366,7 +362,6 @@ aws_cli() {
     AWS_PAGER="" aws --no-cli-pager --region "$LIVE_E2E_REGION" "$@"
 }
 
-# TODO: Document run_aws_discovery.
 run_aws_discovery() {
     local label="$1"
     shift
@@ -400,7 +395,6 @@ run_aws_discovery() {
     printf '%s' "$stdout_payload"
 }
 
-# TODO: Document extract_account_id_from_caller_identity_payload.
 extract_account_id_from_caller_identity_payload() {
     local payload="$1"
     python3 - "$payload" <<'PY'
@@ -424,7 +418,6 @@ if account and re.fullmatch(r"[0-9]{12}", account):
 PY
 }
 
-# TODO: Document derive_budget_account_id.
 derive_budget_account_id() {
     local caller_identity_payload="$1"
     local account_id
@@ -442,7 +435,6 @@ derive_budget_account_id() {
     printf '%s\n' "$account_id"
 }
 
-# TODO: Document extract_unique_api_instance_id.
 extract_unique_api_instance_id() {
     local payload="$1"
     python3 - "$payload" <<'PY'
@@ -471,7 +463,6 @@ if len(matches) == 1:
 PY
 }
 
-# TODO: Document extract_unique_db_instance_identifier.
 extract_unique_db_instance_identifier() {
     local payload="$1"
     local identifier_prefix="$2"
@@ -501,7 +492,6 @@ if len(matches) == 1:
 PY
 }
 
-# TODO: Document extract_unique_alb_arn_suffix.
 extract_unique_alb_arn_suffix() {
     local payload="$1"
     local suffix_prefix="$2"
@@ -555,7 +545,6 @@ discover_alb_arn_suffix() {
     extract_unique_alb_arn_suffix "$payload" "$(canonical_resource_name alb_suffix_prefix)"
 }
 
-# TODO: Document run_read_only_aws_discovery.
 run_read_only_aws_discovery() {
     local account_id caller_identity_payload
     caller_identity_payload="$(run_aws_discovery "caller_identity" sts get-caller-identity)"
@@ -591,7 +580,6 @@ missing_fields_include_non_monitoring_requirements() {
     return 1
 }
 
-# TODO: Document collect_missing_fields.
 collect_missing_fields() {
     MISSING_FIELDS=()
     MISSING_FLAGS=()
@@ -626,7 +614,6 @@ print(json.dumps(sys.argv[1:]))
 PY
 }
 
-# TODO: Document summary_json.
 summary_json() {
     local status="$1"
     local reason="$2"
@@ -671,7 +658,6 @@ print(json.dumps(payload, sort_keys=True))
 PY
 }
 
-# TODO: Document proposal_variables_json.
 proposal_variables_json() {
     python3 - "$LIVE_E2E_ENV" "$LIVE_E2E_REGION" "$LIVE_E2E_MONTHLY_SPEND_LIMIT_USD" "$LIVE_E2E_ENABLE_ACTION_PROPOSAL" "$LIVE_E2E_BUDGET_ACTION_PRINCIPAL_ARN" "$LIVE_E2E_BUDGET_ACTION_POLICY_ARN" "$LIVE_E2E_BUDGET_ACTION_ROLE_NAME" "$LIVE_E2E_BUDGET_ACTION_EXECUTION_ROLE_ARN" "$LIVE_E2E_API_INSTANCE_ID" "$LIVE_E2E_DB_INSTANCE_IDENTIFIER" "$LIVE_E2E_ALB_ARN_SUFFIX" <<'PY'
 import json
@@ -711,7 +697,6 @@ print(json.dumps(sys.argv[1]))
 PY
 }
 
-# TODO: Document write_proposal_file.
 write_proposal_file() {
     local action_enabled_literal="false"
     local env_literal region_literal api_instance_literal db_identifier_literal alb_suffix_literal
@@ -770,7 +755,6 @@ emit_proposal_summary() {
     printf '%s\n' "$summary_payload"
 }
 
-# TODO: Document main.
 main() {
     parse_args "$@" || exit 2
     validate_required_args || exit $?

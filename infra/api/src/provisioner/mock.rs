@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/provisioner/mock.rs.
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -243,7 +242,6 @@ impl VmProvisioner for MockVmProvisioner {
         Ok(vm.status.clone())
     }
 
-    /// TODO: Document MockVmProvisioner.find_running_vm_by_hostname.
     async fn find_running_vm_by_hostname(
         &self,
         provider: &str,
@@ -270,7 +268,6 @@ impl VmProvisioner for MockVmProvisioner {
         }
     }
 
-    /// TODO: Document MockVmProvisioner.find_managed_vm_by_hostname.
     async fn find_managed_vm_by_hostname(
         &self,
         provider: &str,

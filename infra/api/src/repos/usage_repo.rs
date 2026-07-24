@@ -1,4 +1,3 @@
-//! Stub summary for usage_repo.rs.
 use async_trait::async_trait;
 use chrono::{Duration, NaiveDate, Utc};
 use serde::Serialize;
@@ -33,7 +32,6 @@ pub fn rolling_window_for_days(days: u32) -> Result<(NaiveDate, NaiveDate), Repo
     window_for_days_ending_on(Utc::now().date_naive(), days)
 }
 
-/// TODO: Document UsageRepo.
 #[async_trait]
 pub trait UsageRepo {
     async fn get_daily_usage(

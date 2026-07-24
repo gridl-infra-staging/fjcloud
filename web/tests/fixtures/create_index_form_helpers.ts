@@ -1,11 +1,5 @@
-/**
- * @module Stub summary for create_index_form_helpers.ts.
- */
 import type { Page } from '@playwright/test';
 
-/**
- * TODO: Document chooseFirstAvailableRegion.
- */
 export async function chooseFirstAvailableRegion(page: Page): Promise<string | undefined> {
 	const form = page.getByTestId('create-index-form');
 	// We need raw radio access to read the runtime region ids and click the matching card label.

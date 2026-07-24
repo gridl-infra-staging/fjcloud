@@ -1,5 +1,3 @@
-//! Stub summary for local.rs.
-
 use async_trait::async_trait;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
@@ -240,7 +238,6 @@ impl LocalStripeService {
         }
     }
 
-    /// TODO: Document LocalStripeService.payment_outcome_for_payment_method.
     fn payment_outcome_for_payment_method(
         default_payment_method: Option<&str>,
     ) -> (String, i64, Option<StripeLastPaymentError>, &'static str) {
@@ -321,7 +318,6 @@ impl StripeService for LocalStripeService {
         })
     }
 
-    /// TODO: Document LocalStripeService.list_payment_methods.
     async fn list_payment_methods(
         &self,
         stripe_customer_id: &str,
@@ -415,7 +411,6 @@ impl StripeService for LocalStripeService {
         })
     }
 
-    /// TODO: Document LocalStripeService.pay_invoice.
     async fn pay_invoice(&self, stripe_invoice_id: &str) -> Result<PaidInvoice, StripeError> {
         let mut state = self.state.lock().unwrap();
         let invoice_index = state
@@ -469,7 +464,6 @@ impl StripeService for LocalStripeService {
         })
     }
 
-    /// TODO: Document LocalStripeService.void_invoice.
     async fn void_invoice(&self, stripe_invoice_id: &str) -> Result<PaidInvoice, StripeError> {
         let mut state = self.state.lock().unwrap();
         let invoice = state
@@ -502,7 +496,6 @@ impl StripeService for LocalStripeService {
         })
     }
 
-    /// TODO: Document LocalStripeService.lookup_charge_fallback_fields.
     async fn lookup_charge_fallback_fields(
         &self,
         charge_id: &str,
@@ -629,7 +622,6 @@ mod tests {
         assert_eq!(state.customers[0].email, "bob@test.com");
     }
 
-    /// TODO: Document detach_payment_method_removes_from_state.
     #[tokio::test]
     async fn detach_payment_method_removes_from_state() {
         let service = test_service();
@@ -665,7 +657,6 @@ mod tests {
         );
     }
 
-    /// TODO: Document create_invoice_queues_webhook.
     #[tokio::test]
     async fn create_invoice_queues_webhook() {
         let (service, _dispatcher) = LocalStripeService::new(
@@ -690,7 +681,6 @@ mod tests {
     // Webhook signature tests
     // -----------------------------------------------------------------------
 
-    /// TODO: Document generate_webhook_signature_matches_live_verification.
     #[test]
     fn generate_webhook_signature_matches_live_verification() {
         let secret = "whsec_test_secret";

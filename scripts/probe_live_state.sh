@@ -57,7 +57,6 @@ if [ ! -f "$SECRET_FILE" ]; then
   exit 2
 fi
 
-# TODO: Document load_secret_env_file.
 load_secret_env_file() {
   local secret_file="$1"
   local parsed_exports
@@ -199,7 +198,6 @@ append_curl_user_config() {
   append_curl_config_value "$1" user "$2"
 }
 
-# TODO: Document redact_cloudflare_pages_env_values.
 redact_cloudflare_pages_env_values() {
   local json_path="$1"
 
@@ -934,7 +932,6 @@ fi
 # 7b. Managed EC2 fleet + data-plane
 # ---------------------------------------------------------------------------
 
-# TODO: Document fleet_dataplane_probe_valid_classification.
 fleet_dataplane_probe_valid_classification() {
   local output="$1" rc="$2"
   local token_line status
@@ -961,7 +958,6 @@ fleet_dataplane_probe_valid_classification() {
   esac
 }
 
-# TODO: Document fleet_dataplane_read_classifier_stdout.
 fleet_dataplane_read_classifier_stdout() {
   local stdout_path="$1"
   read_single_utf8_classifier_line "$stdout_path"
@@ -1009,7 +1005,6 @@ fleet_dataplane_probe_reason() {
   printf '%s\n' "$token_line" | sed -n 's/^FLEET_STATUS: [A-Z_]* reason=\([a-z0-9_]*\)$/\1/p'
 }
 
-# TODO: Document fleet_dataplane_write_missing_credentials_evidence.
 fleet_dataplane_write_missing_credentials_evidence() {
   local evidence_path="$1" observed_at_epoch="$2"
   python3 - "$evidence_path" "$observed_at_epoch" <<'PY'
@@ -1034,7 +1029,6 @@ with open(path, "w", encoding="utf-8") as fh:
 PY
 }
 
-# TODO: Document fleet_dataplane_collect_evidence.
 fleet_dataplane_collect_evidence() {
   local evidence_path="$1" observed_at_epoch="$2" reused_ami_pointers="$3"
   python3 - "$evidence_path" "$observed_at_epoch" "$reused_ami_pointers" <<'PY'

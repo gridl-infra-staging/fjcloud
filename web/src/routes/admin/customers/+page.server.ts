@@ -1,7 +1,4 @@
 /**
- * @module Stub summary for +page.server.ts.
- */
-/**
  */
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
@@ -54,9 +51,6 @@ function toCustomerListItem(tenant: AdminTenant): AdminCustomerListItem {
 	};
 }
 
-/**
- * TODO: Document load.
- */
 export const load: PageServerLoad = async ({ fetch, depends, cookies, platform }) => {
 	depends('admin:customers:list');
 	requireAdminSession(cookies, platform?.env);

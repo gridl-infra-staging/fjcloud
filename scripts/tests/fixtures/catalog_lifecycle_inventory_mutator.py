@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Stub summary for scripts/tests/fixtures/catalog_lifecycle_inventory_mutator.py."""
 import copy
 import json
 import sys
@@ -32,7 +31,6 @@ def find_writer(payload, label):
 
 
 def mutate(payload, mutation):
-    """TODO: Document mutate."""
     if mutation.startswith("remove:"):
         removed_id = SOFT_CONTRACTS[mutation.split(":", 1)[1]][0]
         payload["writers"] = [

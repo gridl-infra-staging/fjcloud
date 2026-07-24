@@ -23,7 +23,6 @@ source "$REPO_ROOT/scripts/lib/psql_path.sh"
 # shellcheck source=scripts/lib/staging_db.sh
 source "$REPO_ROOT/scripts/lib/staging_db.sh"
 
-# TODO: Document usage.
 usage() {
     cat <<'USAGE'
 Usage:

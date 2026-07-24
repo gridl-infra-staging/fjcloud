@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-//! Stub summary for infra/api/tests/common/support/pg_schema_harness.rs.
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -18,7 +17,6 @@ pub struct DbHarness {
 }
 
 impl Drop for DbHarness {
-    /// TODO: Document DbHarness.drop.
     fn drop(&mut self) {
         let schema = self.schema.clone();
         let backend_pid = self.backend_pid;
@@ -51,7 +49,6 @@ impl Drop for DbHarness {
     }
 }
 
-/// TODO: Document connect_and_migrate.
 pub async fn connect_and_migrate(schema_prefix: &str) -> Option<DbHarness> {
     let url = match std::env::var("DATABASE_URL") {
         Ok(url) => url,
@@ -98,7 +95,6 @@ pub async fn connect_and_migrate(schema_prefix: &str) -> Option<DbHarness> {
     })
 }
 
-/// TODO: Document pool_in_schema.
 pub async fn pool_in_schema(schema: &str, max_connections: u32) -> PgPool {
     let database_url = require_database_url(std::env::var("DATABASE_URL"));
     let quoted_schema = quote_pg_identifier(schema);

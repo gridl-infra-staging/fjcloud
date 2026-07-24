@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/routes/admin/broadcast.rs.
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -71,7 +70,6 @@ enum BroadcastDeliveryOutcome {
     InvalidRequest(String),
 }
 
-/// TODO: Document validate_broadcast_request.
 fn validate_broadcast_request(req: &BroadcastRequest) -> Result<(), ApiError> {
     if req.subject.trim().is_empty() {
         return Err(ApiError::BadRequest("subject must not be empty".into()));
@@ -113,7 +111,6 @@ async fn list_non_deleted_customers(state: &AppState) -> Result<Vec<Customer>, A
         .collect())
 }
 
-/// TODO: Document persist_email_log_best_effort.
 async fn persist_email_log_best_effort(
     state: &AppState,
     recipient_email: &str,
@@ -142,7 +139,6 @@ async fn persist_email_log_best_effort(
     }
 }
 
-/// TODO: Document deliver_broadcast_recipient.
 async fn deliver_broadcast_recipient(task: BroadcastDeliveryTask) -> BroadcastDeliveryOutcome {
     let send_result = task
         .state
@@ -226,7 +222,6 @@ fn fill_broadcast_delivery_window(
     }
 }
 
-/// TODO: Document broadcast_email.
 pub async fn broadcast_email(
     _auth: AdminAuth,
     State(state): State<AppState>,

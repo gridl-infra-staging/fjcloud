@@ -88,7 +88,6 @@ for raw in sys.argv[1].split(","):
 PY
 }
 
-# TODO: Document run_allowlisted_rehearsal_resets.
 run_allowlisted_rehearsal_resets() {
     local allowlist tenant reset_output reset_rc reset_result reset_classification reset_detail reset_count
 
@@ -361,7 +360,6 @@ print(json.dumps(lookup))
 PY
 )"
 
-# TODO: Document body_matches_invoice.
 body_matches_invoice() {
     local body="$1" candidate_id="$2"
     if [[ "$body" == *"$candidate_id"* ]]; then

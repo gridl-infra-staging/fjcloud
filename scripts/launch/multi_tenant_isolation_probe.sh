@@ -62,7 +62,6 @@ probe_require_value() {
   esac
 }
 
-# TODO: Document probe_parse_args.
 probe_parse_args() {
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -151,7 +150,6 @@ probe_prepare_output_workspace() {
   mkdir -p "$PROBE_OUTPUT_DIR"
 }
 
-# TODO: Document probe_finalize_output_workspace.
 probe_finalize_output_workspace() {
   local verdict="$1"
   local final_dir canonical_base
@@ -224,7 +222,6 @@ probe_read_count_file() {
   return 0
 }
 
-# TODO: Document probe_call_owner_counter_callback.
 probe_call_owner_counter_callback() {
   local callback_name="$1"
   shift
@@ -244,7 +241,6 @@ probe_call_owner_counter_callback() {
   return 0
 }
 
-# TODO: Document probe_cleanup_manifest_json.
 probe_cleanup_manifest_json() {
   local tenants_json=""
   if [ -n "$PROBE_CREATED_TENANTS" ]; then
@@ -273,7 +269,6 @@ probe_write_cleanup_manifest() {
   probe_cleanup_manifest_json > "$cleanup_path"
 }
 
-# TODO: Document probe_record_artifacts.
 probe_record_artifacts() {
   mkdir -p "$PROBE_OUTPUT_DIR"
   local summary_path="$PROBE_OUTPUT_DIR/summary.json"
@@ -329,7 +324,6 @@ probe_teardown_created_tenants() {
   probe_teardown_tenant_letters "$PROBE_CREATED_TENANTS"
 }
 
-# TODO: Document probe_teardown_tenant_letters.
 probe_teardown_tenant_letters() {
   local tenant_letters_csv="$1"
   if [ -z "$tenant_letters_csv" ]; then
@@ -360,7 +354,6 @@ probe_teardown_tenant_letters() {
   IFS="$old_ifs"
 }
 
-# TODO: Document probe_manifest_created_tenants_csv.
 probe_manifest_created_tenants_csv() {
   local manifest_path="$PROBE_OUTPUT_DIR/cleanup_manifest.json"
   if [ ! -f "$manifest_path" ]; then
@@ -412,7 +405,6 @@ probe_consume_startup_cleanup_manifest() {
   probe_clear_manifest_created_tenants
 }
 
-# TODO: Document probe_run.
 probe_run() {
   probe_prepare_output_workspace
   if [ "$PROBE_DRY_RUN" = "true" ] && [ "$PROBE_RESTART_API_ONCE" = "true" ]; then

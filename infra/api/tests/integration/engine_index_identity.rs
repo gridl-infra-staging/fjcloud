@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/tests/integration/engine_index_identity.rs.
 use std::sync::Arc;
 
 use api::models::vm_inventory::{NewVmInventory, VmInventory};
@@ -33,7 +32,6 @@ fn caller_denominator() -> &'static [CallerExpectation] {
     engine_index_identity_callers()
 }
 
-/// TODO: Document caller_denominator_inventory_is_complete.
 #[test]
 fn caller_denominator_inventory_is_complete() {
     let ids: Vec<_> = caller_denominator()
@@ -105,7 +103,6 @@ fn json_request(method: Method, uri: &str, jwt: &str, body: Value) -> Request<Bo
         .unwrap()
 }
 
-/// TODO: Document shared_index_app.
 async fn shared_index_app(
     index_name: &str,
     node_secret_manager: Arc<MockNodeSecretManager>,
@@ -172,7 +169,6 @@ async fn shared_index_app(
     (app, http_client, vm, node_key, customer_id)
 }
 
-/// TODO: Document shared_state_same_name_index_app.
 async fn shared_state_same_name_index_app() -> (
     axum::Router,
     Arc<MockFlapjackHttpClient>,
@@ -238,7 +234,6 @@ async fn shared_state_same_name_index_app() -> (
     (app, http_client, node_key, alice.id, bob.id)
 }
 
-/// TODO: Document two_customers_with_same_logical_index_use_distinct_physical_uids.
 #[tokio::test]
 async fn two_customers_with_same_logical_index_use_distinct_physical_uids() {
     let (app, http_client, node_key, alice_id, bob_id) = shared_state_same_name_index_app().await;
@@ -275,7 +270,6 @@ async fn two_customers_with_same_logical_index_use_distinct_physical_uids() {
     );
 }
 
-/// TODO: Document source_deletion_uses_physical_uid_and_node_secret.
 #[tokio::test]
 async fn source_deletion_uses_physical_uid_and_node_secret() {
     let (app, http_client, _vm, node_key, customer_id) =
@@ -304,7 +298,6 @@ async fn source_deletion_uses_physical_uid_and_node_secret() {
     );
 }
 
-/// TODO: Document replica_routes_are_catalog_only_and_keep_terminal_semantics.
 #[tokio::test]
 async fn replica_routes_are_catalog_only_and_keep_terminal_semantics() {
     let (app, http_client, _vm, _node_key, customer_id) =
@@ -359,7 +352,6 @@ async fn replica_routes_are_catalog_only_and_keep_terminal_semantics() {
     assert_eq!(http_client.take_requests().len(), 0);
 }
 
-/// TODO: Document admin_catalog_list_routes_are_catalog_only.
 #[tokio::test]
 async fn admin_catalog_list_routes_are_catalog_only() {
     let (app, http_client, _vm, _node_key, customer_id) =
@@ -402,7 +394,6 @@ async fn admin_catalog_list_routes_are_catalog_only() {
     assert_eq!(http_client.take_requests().len(), 0);
 }
 
-/// TODO: Document rollback_cleanup_uses_physical_uid_and_node_secret.
 #[tokio::test]
 async fn rollback_cleanup_uses_physical_uid_and_node_secret() {
     let fixture = MigrationFixture::setup(INDEX_NAME).await;
@@ -452,7 +443,6 @@ async fn rollback_cleanup_uses_physical_uid_and_node_secret() {
     );
 }
 
-/// TODO: Document rollback_refuses_missing_intent_target_identity_before_cleanup.
 #[tokio::test]
 async fn rollback_refuses_missing_intent_target_identity_before_cleanup() {
     let fixture = MigrationFixture::setup(INDEX_NAME).await;
@@ -486,7 +476,6 @@ async fn rollback_refuses_missing_intent_target_identity_before_cleanup() {
     );
 }
 
-/// TODO: Document failure_recovery_cleanup_uses_physical_uid_and_node_secret.
 #[tokio::test]
 async fn failure_recovery_cleanup_uses_physical_uid_and_node_secret() {
     let fixture = MigrationFixture::setup(INDEX_NAME).await;
@@ -529,7 +518,6 @@ async fn failure_recovery_cleanup_uses_physical_uid_and_node_secret() {
     assert_migration_request_sequence(&requests, &expected);
 }
 
-/// TODO: Document failure_recovery_cleanup_auth_failure_keeps_source_routing_visible.
 #[tokio::test]
 async fn failure_recovery_cleanup_auth_failure_keeps_source_routing_visible() {
     let fixture = MigrationFixture::setup(INDEX_NAME).await;
@@ -597,7 +585,6 @@ async fn failure_recovery_cleanup_auth_failure_keeps_source_routing_visible() {
     assert_migration_request_sequence(&requests, &expected);
 }
 
-/// TODO: Document admin_migration_completion_uses_physical_uid_and_node_secret.
 #[tokio::test]
 async fn admin_migration_completion_uses_physical_uid_and_node_secret() {
     let fixture = MigrationFixture::setup(INDEX_NAME).await;

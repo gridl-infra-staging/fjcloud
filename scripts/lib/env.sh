@@ -163,7 +163,6 @@ derive_staging_dunning_inbox_env_defaults() {
     fi
 }
 
-# TODO: Document hydrate_staging_tool_env_from_ssm.
 hydrate_staging_tool_env_from_ssm() {
     local environment="${1:-staging}"
     local hydrator_dir hydrator output filtered_output line

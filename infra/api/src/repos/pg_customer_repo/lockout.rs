@@ -3,7 +3,6 @@ use uuid::Uuid;
 
 use crate::repos::error::RepoError;
 
-/// TODO: Document record_failed_login.
 pub(super) async fn record_failed_login(pool: &PgPool, id: Uuid) -> Result<Option<i64>, RepoError> {
     use crate::auth::lockout::{LOGIN_LOCK_DURATION, LOGIN_THRESHOLD, LOGIN_WINDOW};
 
@@ -61,7 +60,6 @@ pub(super) async fn record_failed_login(pool: &PgPool, id: Uuid) -> Result<Optio
     Ok(row.and_then(|(lockout_remaining,)| lockout_remaining))
 }
 
-/// TODO: Document record_successful_login.
 pub(super) async fn record_successful_login(pool: &PgPool, id: Uuid) -> Result<bool, RepoError> {
     let result = sqlx::query(
         "UPDATE customers SET \
@@ -79,7 +77,6 @@ pub(super) async fn record_successful_login(pool: &PgPool, id: Uuid) -> Result<b
     Ok(result.rows_affected() > 0)
 }
 
-/// TODO: Document login_lockout_remaining.
 pub(super) async fn login_lockout_remaining(
     pool: &PgPool,
     id: Uuid,

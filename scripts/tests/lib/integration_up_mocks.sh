@@ -9,7 +9,6 @@ SCRIPT_DIR_MOCKS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=test_helpers.sh
 source "$SCRIPT_DIR_MOCKS/test_helpers.sh"
 
-# TODO: Document write_fake_api_binary.
 write_fake_api_binary() {
     local api_bin="$1"
     mkdir -p "$(dirname "$api_bin")"
@@ -43,7 +42,6 @@ MOCK
     chmod +x "$metering_bin"
 }
 
-# TODO: Document create_fake_api_binary.
 create_fake_api_binary() {
     local api_bin="$REPO_ROOT/infra/target/debug/fjcloud-api"
     local backup_file=""

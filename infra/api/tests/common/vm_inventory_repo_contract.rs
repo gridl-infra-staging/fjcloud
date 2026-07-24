@@ -1,5 +1,3 @@
-//! Stub summary for infra/api/tests/common/vm_inventory_repo_contract.rs.
-
 use api::repos::{
     PgVmInventoryRepo, VmDecommissionResult, VmInventoryRepo, VmRetirementAssessment,
     VmRetirementBlocker, VmRetirementConflict,
@@ -12,7 +10,6 @@ use super::vm_inventory_reference_guard_fixtures::{
     EXPECTED_VM_REFERENCE_COLUMNS,
 };
 
-/// TODO: Document assert_exact_live_reference_blockers.
 pub async fn assert_exact_live_reference_blockers(pool: &PgPool) {
     let vm_id = insert_vm(pool, "repo-blocked-vm", "active").await;
     let other_vm_id = insert_vm(pool, "repo-blocker-peer", "active").await;
@@ -30,7 +27,6 @@ pub async fn assert_exact_live_reference_blockers(pool: &PgPool) {
     );
 }
 
-/// TODO: Document assert_structured_identity_and_status_conflicts.
 pub async fn assert_structured_identity_and_status_conflicts(pool: &PgPool) {
     let repo = PgVmInventoryRepo::new(pool.clone());
     let unknown_vm_id = Uuid::new_v4();
@@ -63,7 +59,6 @@ pub async fn assert_structured_identity_and_status_conflicts(pool: &PgPool) {
     );
 }
 
-/// TODO: Document assert_decommissions_once_and_repeats_idempotently.
 pub async fn assert_decommissions_once_and_repeats_idempotently(pool: &PgPool) {
     let vm_id = insert_vm(pool, "repo-retired-vm", "active").await;
     let repo = PgVmInventoryRepo::new(pool.clone());
@@ -92,7 +87,6 @@ pub async fn assert_decommissions_once_and_repeats_idempotently(pool: &PgPool) {
     );
 }
 
-/// TODO: Document assert_rejects_blocked_unknown_and_non_active_retirement.
 pub async fn assert_rejects_blocked_unknown_and_non_active_retirement(pool: &PgPool) {
     let blocked_vm_id = insert_vm(pool, "repo-blocked-retirement", "active").await;
     let draining_vm_id = insert_vm(pool, "repo-non-active", "draining").await;

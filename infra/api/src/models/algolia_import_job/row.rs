@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/models/algolia_import_job/row.rs.
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
@@ -8,7 +7,6 @@ use super::{
     AlgoliaImportPublicationDisposition, AlgoliaImportSummary,
 };
 
-/// TODO: Document AlgoliaImportJobRow.
 #[derive(sqlx::FromRow)]
 pub(crate) struct AlgoliaImportJobRow {
     pub id: Uuid,
@@ -66,7 +64,6 @@ pub(crate) struct AlgoliaImportJobRow {
 }
 
 impl From<AlgoliaImportJobRow> for AlgoliaImportJob {
-    /// TODO: Document AlgoliaImportJob.from.
     fn from(row: AlgoliaImportJobRow) -> Self {
         let summary = AlgoliaImportSummary {
             documents_expected: row.documents_expected,
@@ -136,7 +133,6 @@ fn parse_destination_kind(value: &str) -> AlgoliaImportDestinationKind {
     }
 }
 
-/// TODO: Document parse_status.
 fn parse_status(value: &str) -> AlgoliaImportJobStatus {
     match value {
         "queued" => AlgoliaImportJobStatus::Queued,
@@ -186,7 +182,6 @@ fn parse_dispatch_intent_state(value: &str) -> AlgoliaImportDispatchIntentState 
     }
 }
 
-/// TODO: Document parse_error_code.
 fn parse_error_code(value: &str) -> AlgoliaImportErrorCode {
     match value {
         "invalid_credentials" => AlgoliaImportErrorCode::InvalidCredentials,

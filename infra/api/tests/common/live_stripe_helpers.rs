@@ -78,7 +78,6 @@ pub fn stripe_price_starter_configured() -> bool {
     stripe_price_starter_id().is_some()
 }
 
-/// TODO: Document expected_starter_unit_amount_cents.
 pub fn expected_starter_unit_amount_cents() -> Result<i64, String> {
     let raw = std::env::var(STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV).map_err(|_| {
         format!(
@@ -119,7 +118,6 @@ fn api_base() -> String {
         .unwrap_or_else(|_| DEFAULT_INTEGRATION_API_BASE.to_string())
 }
 
-/// TODO: Document endpoint_reachable.
 async fn endpoint_reachable(base_url: &str) -> bool {
     let parsed = match reqwest::Url::parse(base_url) {
         Ok(url) => url,
@@ -142,7 +140,6 @@ async fn endpoint_reachable(base_url: &str) -> bool {
     .is_ok_and(|result| result.is_ok())
 }
 
-/// TODO: Document db_url.
 fn db_url() -> String {
     if let Ok(url) = std::env::var("INTEGRATION_DB_URL") {
         return url;
@@ -186,7 +183,6 @@ pub fn build_live_stripe_handles() -> LiveStripeHandles {
     }
 }
 
-/// TODO: Document validate_stripe_key_live.
 pub async fn validate_stripe_key_live() -> Result<(), String> {
     let key = match std::env::var("STRIPE_SECRET_KEY") {
         Ok(key) if !key.is_empty() => key,
@@ -212,7 +208,6 @@ pub async fn delete_stripe_customer(client: &stripe::Client, customer_id: &str) 
     }
 }
 
-/// TODO: Document try_attach_test_payment_method.
 pub async fn try_attach_test_payment_method(
     client: &stripe::Client,
     customer_id: &str,
@@ -296,7 +291,6 @@ pub async fn create_clock_bound_customer(
     Ok(customer.id.to_string())
 }
 
-/// TODO: Document create_trialing_subscription_for_price.
 pub async fn create_trialing_subscription_for_price(
     client: &stripe::Client,
     customer_id: &str,
@@ -325,7 +319,6 @@ pub async fn create_trialing_subscription_for_price(
         .map_err(|err| format!("failed creating trialing subscription: {err}"))
 }
 
-/// TODO: Document advance_test_clock_and_wait_ready.
 pub async fn advance_test_clock_and_wait_ready(
     client: &stripe::Client,
     test_clock_id: &str,
@@ -369,7 +362,6 @@ pub async fn advance_test_clock_and_wait_ready(
     .await
 }
 
-/// TODO: Document poll_paid_invoice_for_subscription.
 pub async fn poll_paid_invoice_for_subscription(
     client: &stripe::Client,
     subscription_id: &str,
@@ -410,7 +402,6 @@ pub async fn retrieve_subscription(
         .map_err(|err| format!("failed retrieving subscription {subscription_id}: {err}"))
 }
 
-/// TODO: Document cleanup_test_clock_cycle.
 pub async fn cleanup_test_clock_cycle(
     client: &stripe::Client,
     subscription_id: Option<&str>,
@@ -461,7 +452,6 @@ pub async fn cleanup_test_clock_cycle(
     }
 }
 
-/// TODO: Document validate_stripe_webhook_delivery.
 pub async fn validate_stripe_webhook_delivery() -> Result<WebhookProbeResult, String> {
     let start = Instant::now();
 
@@ -574,7 +564,6 @@ pub async fn validate_stripe_webhook_delivery() -> Result<WebhookProbeResult, St
 
 static STRIPE_WEBHOOK_AVAILABLE: OnceCell<bool> = OnceCell::const_new();
 
-/// TODO: Document stripe_webhook_available.
 pub async fn stripe_webhook_available() -> bool {
     *STRIPE_WEBHOOK_AVAILABLE
         .get_or_init(|| async {
@@ -626,7 +615,6 @@ mod tests {
         }
     }
 
-    /// TODO: Document expected_starter_amount_requires_positive_integer_env_value.
     #[test]
     fn expected_starter_amount_requires_positive_integer_env_value() {
         let _guard = super::test_env_lock();

@@ -1,4 +1,3 @@
-//! Stub summary for infra/metering-agent/src/config.rs.
 use std::net::IpAddr;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -276,7 +275,6 @@ where
         .filter(|value| !value.is_empty())
 }
 
-/// TODO: Document parse_host_metrics_config.
 fn parse_host_metrics_config<F>(read: &F) -> Result<HostMetricsConfig, ConfigError>
 where
     F: Fn(&str) -> Result<String, std::env::VarError>,
@@ -332,7 +330,6 @@ fn validate_https_or_loopback_url(var: &str, raw: &str) -> Result<String, Config
     Ok(url.as_str().trim_end_matches('/').to_string())
 }
 
-/// TODO: Document parse_http_url.
 fn parse_http_url(var: &str, raw: &str) -> Result<reqwest::Url, ConfigError> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
@@ -445,7 +442,6 @@ mod tests {
         assert_eq!(cfg.vm_id, None);
     }
 
-    /// TODO: Document host_metrics_config_accepts_explicit_values.
     #[test]
     fn host_metrics_config_accepts_explicit_values() {
         let expected_vm_id = uuid::Uuid::parse_str("4fa85f64-5717-4562-b3fc-2c963f66afa6")
@@ -678,7 +674,6 @@ mod tests {
         );
     }
 
-    /// TODO: Document alert_webhook_urls_keep_both_channels_when_present.
     #[test]
     fn alert_webhook_urls_keep_both_channels_when_present() {
         let cfg = Config::from_reader(|key| match key {
@@ -717,7 +712,6 @@ mod tests {
         assert_eq!(cfg.environment, "unknown");
     }
 
-    /// TODO: Document alert_webhook_urls_trim_whitespace_independently.
     #[test]
     fn alert_webhook_urls_trim_whitespace_independently() {
         let cfg = Config::from_reader(|key| match key {

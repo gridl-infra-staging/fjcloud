@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/services/provisioning.rs.
 use std::sync::Arc;
 
 use tracing::{error, info};
@@ -101,7 +100,6 @@ impl ProvisioningService {
         }
     }
 
-    /// TODO: Document ProvisioningService.with_engine_health_client_for_test.
     pub fn with_engine_health_client_for_test(
         self: Arc<Self>,
         engine_health_client: Arc<dyn HealthCheckClient>,
@@ -207,7 +205,6 @@ impl ProvisioningService {
         Ok(deployment)
     }
 
-    /// TODO: Document ProvisioningService.complete_provisioning.
     pub async fn complete_provisioning(
         &self,
         deployment_id: Uuid,

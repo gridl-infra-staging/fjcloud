@@ -11,9 +11,6 @@ export type MetricsPayload = {
 	error: MetricsLoadError | null;
 };
 
-/**
- * TODO: Document customerSafeMetricsError.
- */
 function customerSafeMetricsError(error: ApiRequestError): MetricsLoadError {
 	if (error.status === 401 || error.status === 403) {
 		return {

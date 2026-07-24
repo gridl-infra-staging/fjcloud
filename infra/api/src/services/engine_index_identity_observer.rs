@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/services/engine_index_identity_observer.rs.
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
@@ -11,7 +10,6 @@ use crate::services::replication_error::{INTERNAL_APP_ID_HEADER, INTERNAL_AUTH_H
 const OBSERVED_CALLERS_FILE_ENV: &str = "ENGINE_INDEX_IDENTITY_OBSERVED_CALLERS_FILE";
 pub const OBSERVED_UPSTREAM_AUTH_HEADER_PATTERN: &str = "sha256:*";
 
-/// TODO: Document record_caller.
 pub fn record_caller(caller_id: &str) {
     let Ok(path) = std::env::var(OBSERVED_CALLERS_FILE_ENV) else {
         return;
@@ -43,7 +41,6 @@ pub struct PhysicalCallerObservation<'a> {
     pub http_status: u16,
 }
 
-/// TODO: Document record_physical_caller.
 pub fn record_physical_caller(caller_id: &str, observation: PhysicalCallerObservation<'_>) {
     let Ok(path) = std::env::var(OBSERVED_CALLERS_FILE_ENV) else {
         return;
@@ -82,7 +79,6 @@ fn write_observed_physical_caller(
     write_observed_callers(path, callers)
 }
 
-/// TODO: Document write_observed_callers.
 fn write_observed_callers(path: &Path, callers: BTreeMap<String, Value>) -> std::io::Result<()> {
     let caller_rows = callers.into_values().collect::<Vec<_>>();
 
@@ -118,7 +114,6 @@ fn catalog_caller_row(caller_id: &str) -> Value {
     })
 }
 
-/// TODO: Document physical_caller_row.
 fn physical_caller_row(caller_id: &str, observation: PhysicalCallerObservation<'_>) -> Value {
     json!({
         "caller_id": caller_id,
@@ -145,7 +140,6 @@ fn auth_header_proof(value: &str) -> String {
     format!("sha256:{}", hex::encode(Sha256::digest(value.as_bytes())))
 }
 
-/// TODO: Document read_observed_callers.
 fn read_observed_callers(path: &Path) -> std::io::Result<BTreeMap<String, Value>> {
     if !path.exists() {
         return Ok(BTreeMap::new());
@@ -170,7 +164,6 @@ fn read_observed_callers(path: &Path) -> std::io::Result<BTreeMap<String, Value>
 mod tests {
     use super::*;
 
-    /// TODO: Document write_observed_caller_deduplicates_and_preserves_structured_state.
     #[test]
     fn write_observed_caller_deduplicates_and_preserves_structured_state() {
         let dir = std::env::temp_dir().join(format!(
@@ -204,7 +197,6 @@ mod tests {
         fs::remove_dir_all(&dir).expect("remove temp dir");
     }
 
-    /// TODO: Document write_observed_physical_caller_preserves_boundary_evidence.
     #[test]
     fn write_observed_physical_caller_preserves_boundary_evidence() {
         let dir = std::env::temp_dir().join(format!(

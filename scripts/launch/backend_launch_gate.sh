@@ -67,7 +67,6 @@ except Exception:
 ' <<< "$output_json"
 }
 
-# TODO: Document _run_sub_gate.
 _run_sub_gate() {
     local name="$1"
     local command="$2"
@@ -133,7 +132,6 @@ JSON
     bash "$REPO_ROOT/scripts/reliability/run_backend_reliability_gate.sh" --load-only
 }
 
-# TODO: Document _invoke_commerce_gate.
 _invoke_commerce_gate() {
     if [ "${DRY_RUN:-0}" = "1" ]; then
         local commerce_json commerce_exit=0
@@ -172,7 +170,6 @@ print(json.dumps(data, sort_keys=True))
     bash "$REPO_ROOT/scripts/live-backend-gate.sh" --skip-rust-tests
 }
 
-# TODO: Document _invoke_ci_cd_gate.
 _invoke_ci_cd_gate() {
     if [ "${DRY_RUN:-0}" = "1" ]; then
         cat <<'JSON'
@@ -210,7 +207,6 @@ JSON
     esac
 }
 
-# TODO: Document _build_verdict_json.
 _build_verdict_json() {
     GATE_NAMES="$(printf '%s\x1f' "${_GATE_NAMES[@]}")" \
     GATE_STATUSES="$(printf '%s\x1f' "${_GATE_STATUSES[@]}")" \
@@ -265,7 +261,6 @@ print(json.dumps({"verdict": verdict, "timestamp": timestamp, "gates": gates}, s
 '
 }
 
-# TODO: Document _archive_evidence.
 _archive_evidence() {
     local verdict_json="$1"
     local evidence_dir="${LAUNCH_GATE_EVIDENCE_DIR:-$REPO_ROOT/docs/launch/evidence}"
@@ -284,7 +279,6 @@ _archive_evidence() {
     echo "[evidence] Archived to: $evidence_path" >&2
 }
 
-# TODO: Document run_backend_launch_gate.
 run_backend_launch_gate() {
     LAUNCH_GATE_SHA=""
     LAUNCH_GATE_ENV="staging"

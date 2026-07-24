@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for web/src/routes/console/indexes/[name]/+page.server.ts.
- */
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { createApiClient } from '$lib/server/api';
@@ -110,9 +107,6 @@ async function loadExperimentForLifecycleAction(
 	return await api.getExperiment(indexName, experimentID);
 }
 
-/**
- * TODO: Document ensureExperimentActionAllowed.
- */
 function ensureExperimentActionAllowed(
 	action: ExperimentLifecycleAction,
 	experiment: Experiment
@@ -135,9 +129,6 @@ function ensureExperimentActionAllowed(
 	}
 }
 
-/**
- * TODO: Document load.
- */
 export const load: PageServerLoad = async ({ locals, params, url, depends }) => {
 	depends?.(metricsDependencyKey(params.name));
 	depends?.(infrastructureDependencyKey(params.name));

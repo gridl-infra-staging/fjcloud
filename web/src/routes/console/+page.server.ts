@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for +page.server.ts.
- */
 import type { PageServerLoad } from './$types';
 import type {
 	UsageSummaryResponse,
@@ -33,9 +30,6 @@ type FreeTierProgress = {
 	indexes: { used: number; limit: number };
 };
 
-/**
- * TODO: Document deriveFreeTierProgress.
- */
 function deriveFreeTierProgress(
 	planContext: DashboardPlanContext,
 	usage: UsageSummaryResponse,
@@ -65,9 +59,6 @@ function deriveFreeTierProgress(
 	};
 }
 
-/**
- * TODO: Document load.
- */
 export const load: PageServerLoad = async ({ locals, url, parent }) => {
 	const api = createApiClient(locals.user?.token);
 	const month = url.searchParams.get('month') ?? undefined;

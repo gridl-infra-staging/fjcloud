@@ -1,7 +1,5 @@
-//! Stub summary for infra/api/src/config.rs.
 use thiserror::Error;
 
-/// TODO: Document Config.
 #[derive(Debug, Clone)]
 pub struct Config {
     pub database_url: String,
@@ -133,7 +131,6 @@ impl Config {
     }
 }
 
-/// TODO: Document parse_optional_oauth_pair.
 fn parse_optional_oauth_pair<F>(
     read: &F,
     id_key: &str,
@@ -224,7 +221,6 @@ mod tests {
         ]))
     }
 
-    /// TODO: Document loads_all_required_fields.
     #[test]
     fn loads_all_required_fields() {
         let cfg = Config::from_reader(valid_env()).expect("should parse valid config");
@@ -423,7 +419,6 @@ mod tests {
         assert_eq!(cfg.jwt_secret, secret_32);
     }
 
-    /// TODO: Document oauth_pairs_are_optional_and_trimmed_when_present.
     #[test]
     fn oauth_pairs_are_optional_and_trimmed_when_present() {
         let cfg = Config::from_reader(reader(HashMap::from([
@@ -516,7 +511,6 @@ mod tests {
         assert!(!cfg.algolia_migration_enabled);
     }
 
-    /// TODO: Document algolia_migration_enabled_parses_true_and_false.
     #[test]
     fn algolia_migration_enabled_parses_true_and_false() {
         let enabled = Config::from_reader(reader(HashMap::from([
@@ -538,7 +532,6 @@ mod tests {
         assert!(!disabled.algolia_migration_enabled);
     }
 
-    /// TODO: Document dunning_emails_disabled_parses_true_and_false.
     #[test]
     fn dunning_emails_disabled_parses_true_and_false() {
         let enabled = Config::from_reader(reader(HashMap::from([

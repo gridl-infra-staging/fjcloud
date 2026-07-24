@@ -33,7 +33,6 @@ job_block() {
   ' "$workflow_file"
 }
 
-# TODO: Document assert_deploy_staging_uses_only_pinned_configure_aws_credentials.
 assert_deploy_staging_uses_only_pinned_configure_aws_credentials() {
   local block action_lines invalid_lines
   block="$(job_block "deploy-staging")"
@@ -51,7 +50,6 @@ assert_deploy_staging_uses_only_pinned_configure_aws_credentials() {
   fi
 }
 
-# TODO: Document assert_deploy_staging_role_to_assume_secret_only.
 assert_deploy_staging_role_to_assume_secret_only() {
   local block role_lines invalid_lines
   block="$(job_block "deploy-staging")"
@@ -69,7 +67,6 @@ assert_deploy_staging_role_to_assume_secret_only() {
   fi
 }
 
-# TODO: Document assert_aws_actions_in_line_range_exact.
 assert_aws_actions_in_line_range_exact() {
   local file="$1"
   local start_line="$2"

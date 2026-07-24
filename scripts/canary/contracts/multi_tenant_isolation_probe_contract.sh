@@ -15,7 +15,6 @@ FAIL_COUNT=0
 pass() { echo "PASS: $1"; PASS_COUNT=$((PASS_COUNT + 1)); }
 fail() { echo "FAIL: $*" >&2; FAIL_COUNT=$((FAIL_COUNT + 1)); }
 
-# TODO: Document run_contract_case.
 run_contract_case() {
   local mode="$1"
   local expected_exit="$2"
@@ -93,7 +92,6 @@ run_contract_case() {
   fi
 }
 
-# TODO: Document run_non_dry_runtime_wiring_case.
 run_non_dry_runtime_wiring_case() {
   local out_dir
   out_dir="$(mktemp -d)"
@@ -120,7 +118,6 @@ JSON
     }
     tenant_mapping_path() { printf '/tmp/probe-contract-%s.json' "$1"; }
     node_api_key_for_url() { printf 'node-key-%s' "$1"; }
-    # TODO: Document run_direct_write_loop.
     run_direct_write_loop() {
       local flapjack_url="$1" flapjack_uid="$2"
       local tenant_letter
@@ -152,7 +149,6 @@ JSON
     probe_owner_query_hit_count() { printf '0'; }
     probe_owner_cross_tenant_leak_count() { printf '0'; }
     probe_owner_health_status_code() { printf '200'; }
-    # TODO: Document admin_call.
     admin_call() {
       local method="$1" path="$2"
       if [ "$#" -ne 2 ]; then
@@ -219,7 +215,6 @@ JSON
   assert_contains "$output" '"restart_window_end_epoch":200' "non-dry summary should include bounded restart-window end"
 }
 
-# TODO: Document run_non_dry_persists_cleanup_manifest_before_failure_case.
 run_non_dry_persists_cleanup_manifest_before_failure_case() {
   local out_dir
   out_dir="$(mktemp -d)"
@@ -273,7 +268,6 @@ JSON
   assert_contains "$cleanup_content" '"A"' "mid-run failure should still leave created tenant A in cleanup manifest"
 }
 
-# TODO: Document run_non_dry_ignores_probe_local_counter_injection_case.
 run_non_dry_ignores_probe_local_counter_injection_case() {
   local out_dir
   out_dir="$(mktemp -d)"
@@ -518,7 +512,6 @@ JSON
   fi
 }
 
-# TODO: Document run_non_dry_window_bounded_fail_fast_case.
 run_non_dry_window_bounded_fail_fast_case() {
   local out_dir
   out_dir="$(mktemp -d)"
@@ -580,7 +573,6 @@ JSON
   assert_contains "$summary_content" '"fail_fast_responses_during_window":1' "window-bounded fail-fast callback should ignore out-of-window failures"
 }
 
-# TODO: Document run_non_dry_detects_leak_and_noisy_observations_case.
 run_non_dry_detects_leak_and_noisy_observations_case() {
   local out_dir
   out_dir="$(mktemp -d)"
@@ -653,7 +645,6 @@ JSON
   assert_eq "$exit_code" "1" "non-dry assert should fail when owner-reported leak/noisy observations are non-zero"
 }
 
-# TODO: Document run_restart_invocation_midpoint_case.
 run_restart_invocation_midpoint_case() {
   local out_dir
   out_dir="$(mktemp -d)"
@@ -707,7 +698,6 @@ JSON
   assert_contains "$restart_states" 'true' "midpoint restart case should invoke restart while write traffic is still active"
 }
 
-# TODO: Document run_probe_teardown_case.
 run_probe_teardown_case() {
   local out_dir
   out_dir="$(mktemp -d)"
@@ -760,7 +750,6 @@ JSON
   assert_not_contains "$admin_calls" 'DELETE /admin/tenants/customer-B' "probe teardown should not delete pre-existing tenant B"
 }
 
-# TODO: Document run_non_dry_requires_all_mappings_before_peer_counters_case.
 run_non_dry_requires_all_mappings_before_peer_counters_case() {
   local out_dir
   out_dir="$(mktemp -d)"
@@ -824,7 +813,6 @@ JSON
   assert_eq "$exit_code" "0" "non-dry assert should pass only when peer counters run after all tenant mappings are provisioned"
 }
 
-# TODO: Document run_non_dry_fails_when_peer_query_probe_fails_case.
 run_non_dry_fails_when_peer_query_probe_fails_case() {
   local out_dir
   out_dir="$(mktemp -d)"
@@ -881,7 +869,6 @@ JSON
   assert_contains "$output" 'runtime counters were not collected' "peer query probe failure should fail closed via runtime-counter guard"
 }
 
-# TODO: Document run_non_dry_consumes_startup_cleanup_manifest_case.
 run_non_dry_consumes_startup_cleanup_manifest_case() {
   local out_dir
   out_dir="$(mktemp -d)"
@@ -945,7 +932,6 @@ JSON
   assert_contains "$admin_calls" 'DELETE /admin/tenants/customer-A' "startup should consume prior cleanup manifest and delete stranded tenant A before new provisioning"
 }
 
-# TODO: Document run_non_dry_uses_visibility_callback_not_search_count_case.
 run_non_dry_uses_visibility_callback_not_search_count_case() {
   local out_dir
   out_dir="$(mktemp -d)"
@@ -993,7 +979,6 @@ JSON
   assert_contains "$summary_content" '"silent_drops":3' "silent-drops must derive from callback-backed visible count (5 - (0 + 2) = 3)"
 }
 
-# TODO: Document run_non_dry_leak_counter_rejects_loose_fulltext_case.
 run_non_dry_leak_counter_rejects_loose_fulltext_case() {
   local out_dir
   out_dir="$(mktemp -d)"
@@ -1047,7 +1032,6 @@ JSON
   assert_contains "$summary_content" '"cross_tenant_leaks":0' "leak counter must avoid loose full-text query terms that produce false positives"
 }
 
-# TODO: Document run_non_dry_empty_restart_window_visible_count_is_zero_case.
 run_non_dry_empty_restart_window_visible_count_is_zero_case() {
   local out_dir
   out_dir="$(mktemp -d)"
@@ -1096,7 +1080,6 @@ JSON
   assert_contains "$summary_content" '"silent_drops":4' "silent-drops should use zero-visible callback result instead of fallback search-loop count"
 }
 
-# TODO: Document run_non_dry_invalid_visibility_callback_rejects_assert_case.
 run_non_dry_invalid_visibility_callback_rejects_assert_case() {
   local out_dir
   out_dir="$(mktemp -d)"
@@ -1141,7 +1124,6 @@ JSON
   assert_contains "$(cat "$output_file")" 'runtime counters were not collected' "invalid visibility callback must mark runtime counters incomplete"
 }
 
-# TODO: Document run_non_dry_invalid_restart_window_writes_callback_rejects_assert_case.
 run_non_dry_invalid_restart_window_writes_callback_rejects_assert_case() {
   local out_dir
   out_dir="$(mktemp -d)"
@@ -1186,7 +1168,6 @@ JSON
   assert_contains "$(cat "$output_file")" 'runtime counters were not collected' "invalid restart-window write-scope callback must mark runtime counters incomplete"
 }
 
-# TODO: Document run_flag_parse_case.
 run_flag_parse_case() {
   local out_dir
   out_dir="$(mktemp -d)"

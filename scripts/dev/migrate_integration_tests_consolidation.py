@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""
-Stub summary for scripts/dev/migrate_integration_tests_consolidation.py.
-"""
 
 from __future__ import annotations
 
@@ -49,7 +46,6 @@ def move_with_git(src: Path, dst: Path) -> None:
 
 
 def migrate() -> None:
-    """TODO: Document migrate."""
     INTEGRATION_DIR.mkdir(parents=True, exist_ok=True)
 
     top_level_rs = sorted(

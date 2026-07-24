@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/router/route_assembly.rs.
 use axum::{
     extract::DefaultBodyLimit,
     middleware,
@@ -28,7 +27,6 @@ use utoipa_scalar::{Scalar, Servable as _};
 
 const BROWSER_ERROR_ROUTE_BODY_LIMIT_BYTES: usize = 4096;
 
-/// TODO: Document build_auth_rate_limited_routes.
 pub(super) fn build_auth_rate_limited_routes(
     auth_rate_limit_state: super::middleware::AuthRateLimitState,
 ) -> Router<AppState> {
@@ -61,7 +59,6 @@ pub(super) fn build_auth_rate_limited_routes(
         ))
 }
 
-/// TODO: Document build_tenant_routes.
 pub(super) fn build_tenant_routes(
     state: &AppState,
     rate_config: &super::RateLimitConfig,
@@ -121,7 +118,6 @@ pub(super) fn build_router_without_layers(
         .nest("/v1", super::v1_routes())
 }
 
-/// TODO: Document nest_admin_routes_with_optional_rate_limit.
 pub(super) fn nest_admin_routes_with_optional_rate_limit(
     router: Router<AppState>,
     rate_config: &super::RateLimitConfig,
@@ -410,7 +406,6 @@ fn add_index_experiment_debug_and_key_routes(router: Router<AppState>) -> Router
         .route("/indexes/:name/keys", post(indexes::create_key))
 }
 
-/// TODO: Document add_migration_routes.
 fn add_migration_routes(router: Router<AppState>) -> Router<AppState> {
     router
         .route(

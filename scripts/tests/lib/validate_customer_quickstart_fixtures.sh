@@ -152,7 +152,6 @@ CURL
     chmod +x "$path"
 }
 
-# TODO: Document write_curl_stub_health_success_other_status.
 write_curl_stub_health_success_other_status() {
     write_curl_stub_with_status "$1" "$2" "1"
 }
@@ -169,7 +168,6 @@ ROUNDTRIP
     chmod +x "$path"
 }
 
-# TODO: Document write_quickstart_fixture_doc.
 write_quickstart_fixture_doc() {
     local quickstart_doc="$1"
     cat > "$quickstart_doc" <<'QUICKSTART'
@@ -202,7 +200,6 @@ curl -X POST "$API_BASE_URL/indexes/$INDEX_NAME/search"
 QUICKSTART
 }
 
-# TODO: Document write_migration_fixture_doc.
 write_migration_fixture_doc() {
     local migration_doc="$1"
     cat > "$migration_doc" <<'MIGRATION'
@@ -266,7 +263,6 @@ curl -X PUT "$API_BASE_URL/indexes/$INDEX_NAME/rules/$RULE_ID"
 MIGRATION
 }
 
-# TODO: Document write_fixture_docs.
 write_fixture_docs() {
     local tmp_dir="$1"
     local variant="${2:-complete}"
@@ -327,7 +323,6 @@ run_index_search_step() { printf 'flow|index_search\n' >> "${QUICKSTART_FLOW_LOG
 run_delete_index_step() { printf 'flow|delete_index\n' >> "${QUICKSTART_FLOW_LOG:?}"; }
 run_delete_account_step() { printf 'flow|delete_account\n' >> "${QUICKSTART_FLOW_LOG:?}"; }
 run_admin_cleanup_step() { printf 'flow|admin_cleanup\n' >> "${QUICKSTART_FLOW_LOG:?}"; }
-# TODO: Document tenant_call.
 tenant_call() {
     local method="$1"
     local path="$2"

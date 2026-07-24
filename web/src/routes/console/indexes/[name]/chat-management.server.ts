@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for chat-management.server.ts.
- */
 import { fail } from '@sveltejs/kit';
 import { createApiClient } from '$lib/server/api';
 import type { IndexChatRequest, IndexChatResponse } from '$lib/api/types';
@@ -25,9 +22,6 @@ function failForDashboardAction<T extends Record<string, unknown>>(error: unknow
 const CHAT_QUERY_MAX_LENGTH = 2000;
 const CHAT_CONVERSATION_HISTORY_MAX_ENTRIES = 100;
 
-/**
- * TODO: Document chatAction.
- */
 export async function chatAction({ request, indexName, token }: ChatActionArgs) {
 	const data = await request.formData();
 	const query = (data.get('query') as string)?.trim() ?? '';

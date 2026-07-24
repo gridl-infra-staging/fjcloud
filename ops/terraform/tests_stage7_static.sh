@@ -39,7 +39,6 @@ assert_active_count_at_least() {
 # an assertion to a single resource block. They are still available here via
 # the `source test_helpers.sh` above.
 
-# TODO: Document assert_file_contains_multiline_regex.
 assert_file_contains_multiline_regex() {
   local file="$1"
   local pattern="$2"

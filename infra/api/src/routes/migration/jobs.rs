@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/routes/migration/jobs.rs.
 use std::fmt;
 
 use axum::extract::{Path, Query, State};
@@ -87,7 +86,6 @@ impl fmt::Debug for ResumeAlgoliaImportJobRequest {
     }
 }
 
-/// TODO: Document PublicAlgoliaImportJob.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicAlgoliaImportJob {
@@ -158,7 +156,6 @@ pub struct PublicAlgoliaImportJobPage {
         (status = 503, description = "Migration admission disabled or repository backpressured", body = crate::errors::MigrationErrorResponse),
     )
 )]
-/// TODO: Document create_algolia_import_job.
 pub async fn create_algolia_import_job(
     auth: AuthenticatedTenant,
     State(state): State<AppState>,
@@ -258,7 +255,6 @@ pub async fn create_algolia_import_job(
     ))
 }
 
-/// TODO: Document map_submit_admission_error.
 fn map_submit_admission_error(error: AlgoliaImportAdmissionError) -> ApiError {
     match error {
         AlgoliaImportAdmissionError::Source(error) => map_algolia_source_error(error),
@@ -276,7 +272,6 @@ fn map_submit_admission_error(error: AlgoliaImportAdmissionError) -> ApiError {
     }
 }
 
-/// TODO: Document public_algolia_import_job.
 pub(super) fn public_algolia_import_job(job: AlgoliaImportJob) -> PublicAlgoliaImportJob {
     PublicAlgoliaImportJob {
         id: job.id,
@@ -407,7 +402,6 @@ pub async fn get_algolia_import_job(
         (status = 409, description = "Job state cannot be cancelled", body = crate::errors::MigrationErrorResponse),
     )
 )]
-/// TODO: Document cancel_algolia_import_job.
 pub async fn cancel_algolia_import_job(
     auth: AuthenticatedTenant,
     State(state): State<AppState>,
@@ -460,7 +454,6 @@ pub async fn cancel_algolia_import_job(
         (status = 503, description = "Migration resume disabled or repository backpressured", body = crate::errors::MigrationErrorResponse),
     )
 )]
-/// TODO: Document resume_algolia_import_job.
 pub async fn resume_algolia_import_job(
     auth: AuthenticatedTenant,
     State(state): State<AppState>,
@@ -556,7 +549,6 @@ mod tests {
         AlgoliaImportPublicationDisposition, AlgoliaImportSummary,
     };
 
-    /// TODO: Document public_algolia_import_job_serializes_lifecycle_fields.
     #[test]
     fn public_algolia_import_job_serializes_lifecycle_fields() {
         let serialized =
@@ -647,7 +639,6 @@ mod tests {
         assert_eq!(validate_resume_candidate(&job), Ok(()));
     }
 
-    /// TODO: Document import_job_with_lifecycle_fields.
     fn import_job_with_lifecycle_fields() -> AlgoliaImportJob {
         let created_at = Utc.with_ymd_and_hms(2026, 7, 18, 10, 0, 0).unwrap();
         let updated_at = Utc.with_ymd_and_hms(2026, 7, 18, 10, 5, 0).unwrap();

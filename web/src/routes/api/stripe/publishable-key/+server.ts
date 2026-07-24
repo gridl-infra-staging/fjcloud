@@ -1,11 +1,5 @@
-/**
- * @module Stub summary for +server.ts.
- */
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-/**
- * TODO: Document GET.
- */
 export const GET: RequestHandler = async ({ locals }) => {
 	if (!locals.user) {
 		return json({ error: 'unauthorized' }, { status: 401 });

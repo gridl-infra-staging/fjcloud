@@ -90,7 +90,6 @@ rollback_contract_probe() {
   fi
 }
 
-# TODO: Document rollback_probe_pre_admission.
 rollback_probe_pre_admission() {
   local manifest="$1" expected_served_sha="$2"
   local legacy_mirror manifest_mirror manifest_dev frozen_mirror
@@ -234,7 +233,6 @@ rollback_verify_ack_outage_contract() {
   fi
 }
 
-# TODO: Document rollback_verify_protocol_fixture_manifest.
 rollback_verify_protocol_fixture_manifest() {
   local manifest="$1"
   local missing invalid required canonical
@@ -325,7 +323,6 @@ rollback_protocol_fixtures_json() {
   ]'
 }
 
-# TODO: Document rollback_write_release_manifest.
 rollback_write_release_manifest() {
   local output_path="$1" dev_sha="$2" mirror_sha="$3" artifact="$4"
   [[ "$dev_sha" =~ ^[0-9a-f]{40}$ && "$mirror_sha" =~ ^[0-9a-f]{40}$ ]] || {
@@ -373,7 +370,6 @@ rollback_write_release_manifest() {
     }' > "$output_path"
 }
 
-# TODO: Document rollback_probe_candidate_runtime.
 rollback_probe_candidate_runtime() {
   local artifact="$1" database_copy="$2" manifest="$3" expected_sha="$4" epoch="$5"
   rollback_require_runtime_commands || return $?
@@ -477,7 +473,6 @@ rollback_pg_command() {
   fi
 }
 
-# TODO: Document rollback_restore_postgres_snapshot.
 rollback_restore_postgres_snapshot() {
   local database_copy="$1"
   rollback_pg_command initdb \
@@ -514,7 +509,6 @@ rollback_schema_hash() {
     | rollback_stream_sha256
 }
 
-# TODO: Document rollback_start_artifact_candidate.
 rollback_start_artifact_candidate() {
   local artifact="$1" manifest="$2"
   local component_path candidate_api candidate_exec origin port s3_port
@@ -565,7 +559,6 @@ rollback_start_artifact_candidate() {
   ROLLBACK_CANDIDATE_PID=$!
 }
 
-# TODO: Document rollback_load_candidate_environment.
 rollback_load_candidate_environment() {
   local env_file="${ROLLBACK_CANDIDATE_ENV_FILE:-}"
   [[ -z "$env_file" ]] && return 0
@@ -586,7 +579,6 @@ rollback_load_candidate_environment() {
   done < "$env_file"
 }
 
-# TODO: Document rollback_wait_for_candidate.
 rollback_wait_for_candidate() {
   local manifest="$1" url
   url=$(rollback_manifest_value "$manifest" '.served_version_url')
@@ -618,7 +610,6 @@ rollback_verify_protocol_fixtures() {
   rollback_verify_job_phase_fixtures "$manifest"
 }
 
-# TODO: Document rollback_verify_job_phase_fixtures.
 rollback_verify_job_phase_fixtures() {
   local manifest="$1" reconcile_url phase fixture
   reconcile_url=$(jq -r '.protocol_fixtures[] | select(.feature == "algolia_import_reconcile") | .url' "$manifest")
@@ -637,7 +628,6 @@ rollback_verify_job_phase_fixtures() {
   done < <(rollback_job_phases_json | jq -r '.[]')
 }
 
-# TODO: Document rollback_run_known_answer_fixture.
 rollback_run_known_answer_fixture() {
   local feature="$1" fixture="$2"
   local method url expected_status request_body expected_body response_file actual_status

@@ -1,4 +1,3 @@
-//! Stub summary for infra/metering-agent/src/storage.rs.
 use chrono::Utc;
 
 use super::record;
@@ -212,7 +211,6 @@ mod tests {
         payload: Arc<String>,
     }
 
-    /// TODO: Document spawn_cold_storage_server.
     async fn spawn_cold_storage_server(
         state: HeaderCaptureState,
     ) -> (String, tokio::task::JoinHandle<()>) {
@@ -431,7 +429,6 @@ mod tests {
         server.abort();
     }
 
-    /// TODO: Document fetch_cold_storage_usage_sends_internal_key_header.
     #[tokio::test]
     async fn fetch_cold_storage_usage_sends_internal_key_header() {
         let observed_key = Arc::new(std::sync::Mutex::new(None));

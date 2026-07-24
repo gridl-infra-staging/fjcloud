@@ -46,7 +46,6 @@ log() { printf '%s\n' "$*" >&2; }
 STRIPE_HTTP_CODE=""
 STRIPE_BODY=""
 
-# TODO: Document stripe_request.
 stripe_request() {
     local method="$1"
     local path="$2"
@@ -69,7 +68,6 @@ stripe_request() {
     return 0
 }
 
-# TODO: Document require_http_success.
 require_http_success() {
     local step_name="$1"
     shift

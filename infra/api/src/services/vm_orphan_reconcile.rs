@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/services/vm_orphan_reconcile.rs.
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -178,7 +177,6 @@ impl VmOrphanReconciler {
         self.reconcile_at(Utc::now()).await
     }
 
-    /// TODO: Document VmOrphanReconciler.reconcile_at.
     async fn reconcile_at(&self, now: DateTime<Utc>) -> VmOrphanReport {
         let inventory = self.load_inventory().await;
         let dns = self.load_dns().await;
@@ -225,7 +223,6 @@ impl VmOrphanReconciler {
         }
     }
 
-    /// TODO: Document VmOrphanReconciler.load_inventory.
     async fn load_inventory(&self) -> InventoryFacts {
         match self.dependencies.inventory.list_non_decommissioned().await {
             Ok(rows) => {
@@ -257,7 +254,6 @@ impl VmOrphanReconciler {
         }
     }
 
-    /// TODO: Document VmOrphanReconciler.load_dns.
     async fn load_dns(&self) -> DnsFacts {
         match self.dependencies.dns.list_a_records().await {
             Ok(records) => DnsFacts {
@@ -281,7 +277,6 @@ impl VmOrphanReconciler {
         }
     }
 
-    /// TODO: Document VmOrphanReconciler.load_ssm.
     async fn load_ssm(&self) -> SsmFacts {
         match self.dependencies.secrets.list_node_api_keys().await {
             Ok(records) => SsmFacts {
@@ -305,7 +300,6 @@ impl VmOrphanReconciler {
         }
     }
 
-    /// TODO: Document VmOrphanReconciler.resolve_instances.
     async fn resolve_instances(&self, inventory: &[VmInventory]) -> InstanceFacts {
         let mut protected_node_ids = HashSet::new();
         let mut matches = Vec::new();
@@ -350,7 +344,6 @@ impl VmOrphanReconciler {
         }
     }
 
-    /// TODO: Document VmOrphanReconciler.classify_dns_orphans.
     async fn classify_dns_orphans(
         &self,
         records: &[DnsARecord],
@@ -376,7 +369,6 @@ impl VmOrphanReconciler {
         orphans
     }
 
-    /// TODO: Document VmOrphanReconciler.classify_ssm_orphans.
     async fn classify_ssm_orphans(
         &self,
         records: &[NodeSecretRecord],
@@ -415,7 +407,6 @@ impl VmOrphanReconciler {
     }
 }
 
-/// TODO: Document build_non_orphan_matches.
 fn build_non_orphan_matches(
     matches: &[(VmInventory, VmInstance)],
     dns_records: &[DnsARecord],

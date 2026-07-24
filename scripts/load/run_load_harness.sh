@@ -138,7 +138,6 @@ ensure_live_env_prereqs() {
     fi
 }
 
-# TODO: Document apply_k6_profile_defaults.
 apply_k6_profile_defaults() {
     local profile="$1"
 
@@ -299,7 +298,6 @@ _resolve_k6_mode() {
     esac
 }
 
-# TODO: Document run_live_workload_into_dir.
 run_live_workload_into_dir() {
     local result_dir="$1"
     local k6_mode="$2"
@@ -378,7 +376,6 @@ run_live_workload_into_dir() {
     done
 }
 
-# TODO: Document run_live_mode.
 run_live_mode() {
     if ! command -v k6 >/dev/null 2>&1; then
         emit_k6_skip_json

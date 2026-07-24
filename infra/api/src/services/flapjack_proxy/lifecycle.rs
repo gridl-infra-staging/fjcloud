@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/services/flapjack_proxy/lifecycle.rs.
 use super::{
     FlapjackApiKey, FlapjackIndexInfo, FlapjackIndexListResponse, FlapjackProxy, ProxyError,
 };
@@ -40,7 +39,6 @@ impl FlapjackProxy {
             .map(|_| ())
     }
 
-    /// TODO: Document FlapjackProxy.delete_index_with_auth_observation.
     pub async fn delete_index_with_auth_observation(
         &self,
         flapjack_url: &str,

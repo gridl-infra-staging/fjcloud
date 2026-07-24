@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for EditorDialog.validation.ts.
- */
 import type {
 	EditorDialogArrayFieldSchema,
 	EditorDialogFieldSchema,
@@ -17,9 +14,6 @@ import {
 	normalizeSimpleFieldValue
 } from './EditorDialog.normalize';
 
-/**
- * TODO: Document requiredSimpleFieldError.
- */
 export function requiredSimpleFieldError(
 	field: EditorDialogSimpleFieldSchema,
 	value: unknown
@@ -52,9 +46,6 @@ export function requiredSimpleFieldError(
 	return null;
 }
 
-/**
- * TODO: Document simpleFieldConstraintError.
- */
 export function simpleFieldConstraintError(
 	field: EditorDialogSimpleFieldSchema,
 	value: unknown
@@ -118,9 +109,6 @@ export function simpleFieldConstraintError(
 	}
 }
 
-/**
- * TODO: Document requiredFieldError.
- */
 export function requiredFieldError(field: EditorDialogFieldSchema, value: unknown): string | null {
 	if (!field.required) {
 		return null;
@@ -137,9 +125,6 @@ export function requiredFieldError(field: EditorDialogFieldSchema, value: unknow
 	return requiredSimpleFieldError(field, value);
 }
 
-/**
- * TODO: Document groupRowValidationError.
- */
 export function groupRowValidationError(
 	group: EditorDialogGroupFieldSchema,
 	rowValue: unknown,
@@ -166,9 +151,6 @@ export function groupRowValidationError(
 	return null;
 }
 
-/**
- * TODO: Document arrayRowValidationError.
- */
 export function arrayRowValidationError(
 	field: EditorDialogArrayFieldSchema,
 	rowValue: unknown,
@@ -193,9 +175,6 @@ export function arrayRowValidationError(
 	return null;
 }
 
-/**
- * TODO: Document validateForm.
- */
 export function validateForm(
 	allFields: EditorDialogFieldSchema[],
 	allValues: EditorDialogValues
@@ -253,9 +232,6 @@ export function validateForm(
 	return errors;
 }
 
-/**
- * TODO: Document normalizeSaveRejection.
- */
 export function normalizeSaveRejection(error: unknown): {
 	message: string;
 	fieldErrors: Record<string, string>;

@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for web/tests/fixtures/shared_auth_call_counter.ts.
- */
 import type { Page, Request as PlaywrightRequest } from '@playwright/test';
 
 export type SharedAuthCallTotals = {
@@ -16,9 +13,6 @@ const AUTH_ENDPOINTS: Readonly<Record<string, AuthEndpoint>> = {
 	'/auth/register': 'register'
 };
 
-/**
- * TODO: Document SharedAuthCallCounter.
- */
 export class SharedAuthCallCounter {
 	private login = 0;
 	private register = 0;

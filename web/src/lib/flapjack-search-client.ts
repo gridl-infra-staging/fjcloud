@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for web/src/lib/flapjack-search-client.ts.
- */
 export type FlapjackSearchProtocol = 'http' | 'https';
 
 export type FlapjackSearchHost = {
@@ -46,9 +43,6 @@ const JSON_SEARCH_PARAM_KEYS = new Set(['facets', 'facetFilters', 'attributesToH
 const NUMBER_SEARCH_PARAM_KEYS = new Set(['page', 'hitsPerPage']);
 const BOOLEAN_SEARCH_PARAM_KEYS = new Set(['analytics', 'clickAnalytics']);
 
-/**
- * TODO: Document buildSearchPreviewParams.
- */
 export function buildSearchPreviewParams(input: SearchPreviewParamsInput): string {
 	const params = new URLSearchParams();
 	params.set('query', input.query);
@@ -106,9 +100,6 @@ export function buildFlapjackSearchHost(endpoint: string): FlapjackSearchHost {
 	};
 }
 
-/**
- * TODO: Document buildFlapjackSearchClientOptions.
- */
 export function buildFlapjackSearchClientOptions(
 	endpoint: string,
 	apiKey: string
@@ -138,9 +129,6 @@ function searchParamsStringToObject(params = ''): Record<string, unknown> {
 	return parsedParams;
 }
 
-/**
- * TODO: Document parseSearchParamValue.
- */
 function parseSearchParamValue(key: string, value: string): unknown {
 	if (BOOLEAN_SEARCH_PARAM_KEYS.has(key) && (value === 'true' || value === 'false')) {
 		return value === 'true';
@@ -169,9 +157,6 @@ function buildSearchRequestBody(requests: InstantSearchRequest[]): string {
 
 	return JSON.stringify({ requests: proxyRequests });
 }
-/**
- * TODO: Document normalizeFacetCounts.
- */
 function normalizeFacetCounts(value: unknown): Record<string, Record<string, number>> {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return {};

@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/services/email.rs.
 use crate::services::email_suppression::EmailSuppressionStore;
 use async_trait::async_trait;
 use aws_sdk_sesv2::types::{Body, Content, Destination, EmailContent, Message, MessageTag};
@@ -254,7 +253,6 @@ fn is_safe_app_base_url(url: &str) -> bool {
     lower.starts_with("https://") || (lower.starts_with("http://") && is_loopback_http_url(url))
 }
 
-/// TODO: Document validate_sender_identity.
 fn validate_sender_identity(from_name: &str, from_address: &str) -> Result<(), EmailError> {
     if contains_header_injection_bytes(from_name) || contains_header_injection_bytes(from_address) {
         return Err(EmailError::InvalidRequest(
@@ -349,7 +347,6 @@ impl SesEmailService {
         )
     }
 
-    /// TODO: Document SesEmailService.with_app_base_url.
     pub fn with_app_base_url(
         client: aws_sdk_sesv2::Client,
         from_address: impl Into<String>,
@@ -654,7 +651,6 @@ impl EmailService for SesEmailService {
         .map(|_| ())
     }
 
-    /// TODO: Document SesEmailService.send_invoice_ready_email.
     async fn send_invoice_ready_email(
         &self,
         to: &str,
@@ -681,7 +677,6 @@ impl EmailService for SesEmailService {
         .map(|_| ())
     }
 
-    /// TODO: Document SesEmailService.send_quota_warning_email.
     async fn send_quota_warning_email(
         &self,
         to: &str,
@@ -699,7 +694,6 @@ impl EmailService for SesEmailService {
         .map(|_| ())
     }
 
-    /// TODO: Document SesEmailService.send_dunning_retry_scheduled_email.
     async fn send_dunning_retry_scheduled_email(
         &self,
         to: &str,
@@ -717,7 +711,6 @@ impl EmailService for SesEmailService {
         .map(|_| ())
     }
 
-    /// TODO: Document SesEmailService.send_dunning_retries_exhausted_email.
     async fn send_dunning_retries_exhausted_email(
         &self,
         to: &str,
@@ -735,7 +728,6 @@ impl EmailService for SesEmailService {
         .map(|_| ())
     }
 
-    /// TODO: Document SesEmailService.send_dunning_recovered_after_failure_email.
     async fn send_dunning_recovered_after_failure_email(
         &self,
         to: &str,

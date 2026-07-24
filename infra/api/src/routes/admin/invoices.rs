@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/routes/admin/invoices.rs.
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -53,7 +52,6 @@ pub async fn get_admin_invoice_detail(
     Ok(Json(build_detail_response(&invoice, line_items)))
 }
 
-/// TODO: Document generate_invoice.
 pub async fn generate_invoice(
     _auth: AdminAuth,
     State(state): State<AppState>,
@@ -174,7 +172,6 @@ pub struct BillingMonthBucket {
     pub paid_total_cents: i64,
 }
 
-/// TODO: Document AdminBillingInvoiceRow.
 #[derive(Debug, Serialize)]
 pub struct AdminBillingInvoiceRow {
     pub id: Uuid,
@@ -250,7 +247,6 @@ fn add_status_total(
     Ok(())
 }
 
-/// TODO: Document invoice_summary_response_row.
 fn invoice_summary_response_row(row: &AdminInvoiceSummaryRow) -> AdminBillingInvoiceRow {
     AdminBillingInvoiceRow {
         id: row.id,
@@ -274,7 +270,6 @@ fn invoice_summary_response_row(row: &AdminInvoiceSummaryRow) -> AdminBillingInv
     }
 }
 
-/// TODO: Document summarize_billing_rows.
 pub fn summarize_billing_rows(
     rows: &[AdminInvoiceSummaryRow],
 ) -> Result<AdminBillingSummaryResponse, ApiError> {
@@ -317,7 +312,6 @@ pub fn summarize_billing_rows(
     })
 }
 
-/// TODO: Document billing_summary.
 pub async fn billing_summary(
     _auth: AdminAuth,
     State(state): State<AppState>,
@@ -372,7 +366,6 @@ fn batch_result(
     }
 }
 
-/// TODO: Document run_batch_billing.
 pub async fn run_batch_billing(
     _auth: AdminAuth,
     State(state): State<AppState>,

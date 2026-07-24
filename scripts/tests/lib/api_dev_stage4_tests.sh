@@ -69,7 +69,6 @@ exit 0'
         "api-dev should not leak .env.local Stripe secrets into unconfigured local proof lanes"
 }
 
-# TODO: Document test_api_dev_allows_test_owned_pid_file_override.
 test_api_dev_allows_test_owned_pid_file_override() {
     local tmp_dir
     tmp_dir=$(mktemp -d)

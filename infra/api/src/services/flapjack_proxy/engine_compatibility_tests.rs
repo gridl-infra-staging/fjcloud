@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/services/flapjack_proxy/engine_compatibility_tests.rs.
 use super::*;
 use crate::models::AlgoliaImportErrorCode;
 use crate::secrets::mock::MockNodeSecretManager;
@@ -68,7 +67,6 @@ fn strict_requirements() -> FlapjackEngineRequirements {
     )
 }
 
-/// TODO: Document algolia_import_admission_maps_every_compatibility_reason_exhaustively.
 #[test]
 fn algolia_import_admission_maps_every_compatibility_reason_exhaustively() {
     let cases = [
@@ -117,7 +115,6 @@ fn algolia_import_admission_maps_every_compatibility_reason_exhaustively() {
     }
 }
 
-/// TODO: Document classify_health.
 async fn classify_health(
     requirements: FlapjackEngineRequirements,
     body: serde_json::Value,
@@ -137,7 +134,6 @@ async fn classify_health(
     result.reason
 }
 
-/// TODO: Document flapjack_engine_compatibility_classifies_stage_one_reasons.
 #[tokio::test]
 async fn flapjack_engine_compatibility_classifies_stage_one_reasons() {
     let cases = [
@@ -231,7 +227,6 @@ async fn flapjack_engine_compatibility_classifies_stage_one_reasons() {
     }
 }
 
-/// TODO: Document flapjack_engine_compatibility_accepts_nested_build_health_and_map_capabilities.
 #[tokio::test]
 async fn flapjack_engine_compatibility_accepts_nested_build_health_and_map_capabilities() {
     let reason = classify_health(
@@ -284,7 +279,6 @@ async fn flapjack_engine_compatibility_classifies_non_success_health_as_runtime_
     );
 }
 
-/// TODO: Document flapjack_engine_compatibility_env_requirements_use_stage_one_contract_names.
 #[test]
 fn flapjack_engine_compatibility_env_requirements_use_stage_one_contract_names() {
     let configured = HashMap::from([
@@ -321,7 +315,6 @@ fn flapjack_engine_compatibility_env_requirements_use_stage_one_contract_names()
     );
 }
 
-/// TODO: Document flapjack_engine_compatibility_env_requirements_reject_absent_or_partial_identity.
 #[test]
 fn flapjack_engine_compatibility_env_requirements_reject_absent_or_partial_identity() {
     let identity_names = [

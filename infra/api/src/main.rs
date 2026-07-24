@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/main.rs.
 use api::config::Config;
 use api::dns::DnsManager;
 use api::provisioner::region_map::RegionConfig;
@@ -147,7 +146,6 @@ fn init_tracing() {
         .init();
 }
 
-/// TODO: Document bootstrap_startup_phase.
 async fn bootstrap_startup_phase() -> anyhow::Result<StartupBootstrapPhase> {
     let cfg = Config::from_env()?;
     let startup_env = StartupEnvSnapshot::from_env();
@@ -175,7 +173,6 @@ async fn bootstrap_startup_phase() -> anyhow::Result<StartupBootstrapPhase> {
     })
 }
 
-/// TODO: Document wire_app_state_phase.
 async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Result<AppWiringPhase> {
     let StartupBootstrapPhase {
         cfg,
@@ -322,7 +319,6 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
     })
 }
 
-/// TODO: Document build_oauth_runtime_config.
 fn build_oauth_runtime_config(
     cfg: &Config,
     startup_env: &StartupEnvSnapshot,
@@ -360,7 +356,6 @@ fn build_oauth_runtime_config(
     }
 }
 
-/// TODO: Document oauth_provider_runtime_config.
 fn oauth_provider_runtime_config(
     client_id: Option<&str>,
     client_secret: Option<&str>,
@@ -401,7 +396,6 @@ fn oauth_cookie_secure(base_url: &str) -> bool {
     base_url.starts_with("https://")
 }
 
-/// TODO: Document setup_background_tasks_phase.
 fn setup_background_tasks_phase(app_wiring: AppWiringPhase) -> anyhow::Result<ServerLaunchPhase> {
     let AppWiringPhase {
         cfg,
@@ -457,7 +451,6 @@ async fn wire_services(
     wire_control_plane_services(&inputs, runtime_services).await
 }
 
-/// TODO: Document wire_runtime_services.
 async fn wire_runtime_services(inputs: &ServiceWireInputs<'_>) -> anyhow::Result<RuntimeServices> {
     let (object_store, object_store_resolver) =
         api::startup::init_object_store(inputs.startup_env).await;
@@ -543,7 +536,6 @@ async fn wire_runtime_services(inputs: &ServiceWireInputs<'_>) -> anyhow::Result
     })
 }
 
-/// TODO: Document wire_control_plane_services.
 async fn wire_control_plane_services(
     inputs: &ServiceWireInputs<'_>,
     rt: RuntimeServices,
@@ -671,7 +663,6 @@ mod tests {
         let _launch_phase = launch_server_phase;
     }
 
-    /// TODO: Document shutdown_channel_starts_false_and_fans_out.
     #[tokio::test]
     async fn shutdown_channel_starts_false_and_fans_out() {
         let (shutdown_tx, mut shutdown_rx) = create_shutdown_channel();
@@ -700,7 +691,6 @@ mod tests {
         );
     }
 
-    /// TODO: Document oauth_runtime_config_uses_public_alias_when_app_base_url_is_blank.
     #[test]
     fn oauth_runtime_config_uses_public_alias_when_app_base_url_is_blank() {
         let cfg = valid_config_with_google_oauth();

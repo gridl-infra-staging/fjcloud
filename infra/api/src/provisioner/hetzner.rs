@@ -1,4 +1,3 @@
-//! Stub summary for hetzner.rs.
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -48,7 +47,6 @@ pub struct HetznerProvisionerConfig {
 }
 
 impl HetznerProvisionerConfig {
-    /// TODO: Document HetznerProvisionerConfig.from_env.
     pub fn from_env() -> Result<Self, String> {
         let api_token = required_env("HETZNER_API_TOKEN")?;
 

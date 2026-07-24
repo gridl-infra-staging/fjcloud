@@ -70,7 +70,6 @@ EVIDENCE_LAST_DETAIL=""
 EVIDENCE_TERMINAL_FAILURE=0
 EVIDENCE_ATTEMPTS_USED=0
 
-# TODO: Document extract_json_array_field.
 extract_json_array_field() {
     local json_body="$1"
     local field="$2"
@@ -140,7 +139,6 @@ for v in arr:
 PY
 }
 
-# TODO: Document extract_created_invoice_ids_json.
 extract_created_invoice_ids_json() {
     python3 - "$1" <<'PY' || true
 import json
@@ -169,7 +167,6 @@ print(json.dumps(ids))
 PY
 }
 
-# TODO: Document extract_invoice_row_emails_json.
 extract_invoice_row_emails_json() {
     python3 - "$1" <<'PY' || true
 import json
@@ -196,7 +193,6 @@ print(json.dumps(emails))
 PY
 }
 
-# TODO: Document mailpit_messages_count.
 mailpit_messages_count() {
     python3 - "$1" <<'PY' || true
 import json
@@ -246,12 +242,10 @@ init_artifact_dir() {
     chmod 700 "$ARTIFACT_DIR" "$ARTIFACT_DIR/steps"
 }
 
-# TODO: Document clear_rehearsal_input_env.
 clear_rehearsal_input_env() {
     clear_staging_billing_input_env
 }
 
-# TODO: Document emit_required_step_artifacts.
 emit_required_step_artifacts() {
     build_step_json "preflight" \
         "$STEP_PREFLIGHT_RESULT" \
@@ -315,7 +309,6 @@ write_json_artifact_file() {
     return 0
 }
 
-# TODO: Document emit_summary_and_exit.
 emit_summary_and_exit() {
     local exit_code="$1"
     local elapsed_ms summary_class_json summary_detail_json artifact_dir_json
@@ -367,7 +360,6 @@ is_repo_default_env_file_name() {
     esac
 }
 
-# TODO: Document validate_explicit_env_file_syntax.
 validate_explicit_env_file_syntax() {
     local env_file="$1"
     local line line_number=0 parse_status
@@ -411,7 +403,6 @@ set_deployable_currency_blocker() {
     STEP_PREFLIGHT_DETAIL="$2"
 }
 
-# TODO: Document capture_deployable_currency_status.
 capture_deployable_currency_status() {
     local deploy_status_script="${STAGING_REHEARSAL_DEPLOY_STATUS_SCRIPT:-$RUNNER_DIR/deploy_status.sh}"
     local parsed detail
@@ -443,7 +434,6 @@ capture_deployable_currency_status() {
     return 0
 }
 
-# TODO: Document capture_health_artifact.
 capture_health_artifact() {
     local health_url timeout_sec
     health_url="${STAGING_API_URL%/}/health"
@@ -462,7 +452,6 @@ capture_health_artifact() {
     return 1
 }
 
-# TODO: Document run_preflight_owner.
 run_preflight_owner() {
     local preflight_output="" preflight_exit=0 preflight_passed preflight_classification
     set +e
@@ -501,7 +490,6 @@ run_preflight_owner() {
     return 1
 }
 
-# TODO: Document capture_http_json_response.
 capture_http_json_response() {
     local response curl_status=0 timeout_sec
     timeout_sec="$(rehearsal_http_timeout_sec)"
@@ -537,7 +525,6 @@ sql_quote_for_remote_shell() {
     printf '%s' "$1" | sed "s/'/'\"'\"'/g"
 }
 
-# TODO: Document build_staging_rehearsal_remote_sql_command.
 build_staging_rehearsal_remote_sql_command() {
     local sql_query="$1"
     local escaped_sql
@@ -556,7 +543,6 @@ psql -tAq "\$DATABASE_URL" -c "SET statement_timeout TO 10000" -c '$escaped_sql'
 EOF
 }
 
-# TODO: Document run_rehearsal_staging_db_query.
 run_rehearsal_staging_db_query() {
     local sql="$1"
     local staging_db_query_script="${STAGING_DB_QUERY_SCRIPT:-$RUNNER_DIR/launch/ssm_exec_staging.sh}"
@@ -593,7 +579,6 @@ run_rehearsal_staging_db_query() {
     return 22
 }
 
-# TODO: Document run_rehearsal_db_query.
 run_rehearsal_db_query() {
     local sql="$1"
     local db_url output status
@@ -725,7 +710,6 @@ parse_existing_same_month_invoice_tenant_ids() {
     same_month_invoice_rows_json_field "$(parse_existing_same_month_invoice_rows "$1")" "tenant_ids"
 }
 
-# TODO: Document run_live_mutation_guard.
 run_live_mutation_guard() {
     if [ -z "$BILLING_MONTH" ]; then
         STEP_GUARD_RESULT="blocked"

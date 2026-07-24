@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/services/scheduler/mod.rs.
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};

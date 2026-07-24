@@ -13,9 +13,6 @@ export type OverviewExportProgress = {
 	totalDocuments: number;
 };
 
-/**
- * TODO: Document browsePageFromActionResult.
- */
 export function browsePageFromActionResult(result: unknown): ExportBrowsePage {
 	if (!result || typeof result !== 'object' || !('type' in result)) {
 		throw new Error('Unexpected browse response');
@@ -52,9 +49,6 @@ export function browsePageFromActionResult(result: unknown): ExportBrowsePage {
 	return { cursor, hits };
 }
 
-/**
- * TODO: Document requestOverviewBrowseActionPage.
- */
 export async function requestOverviewBrowseActionPage(cursor: string | null): Promise<unknown> {
 	const body = new FormData();
 	body.set('query', '');
@@ -79,9 +73,6 @@ export async function requestOverviewBrowseActionPage(cursor: string | null): Pr
 	return actionResult;
 }
 
-/**
- * TODO: Document collectOverviewExportRecords.
- */
 export async function collectOverviewExportRecords({
 	indexEntries,
 	requestBrowsePage = requestOverviewBrowseActionPage,

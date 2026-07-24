@@ -174,7 +174,6 @@ for source in (build, payload):
 PY
 }
 
-# TODO: Document probe_local.
 probe_local() {
     local binary_path installed_sha health_url reason expected_sha version detail
     binary_path="${FLAPJACK_PROBE_LOCAL_BINARY:-$(find_restart_ready_flapjack_binary 2>/dev/null || true)}"
@@ -204,7 +203,6 @@ probe_local() {
     emit_result "$classification" "$reason" "$installed_sha" "$expected_sha" "$version" "$detail"
 }
 
-# TODO: Document probe_remote.
 probe_remote() {
     local ssm_exec evidence installed_sha build_info health reason expected_sha version detail build_info_sha
     ssm_exec="${FLAPJACK_PROBE_SSM_EXEC:-$SCRIPT_DIR/launch/ssm_exec_staging.sh}"

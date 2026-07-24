@@ -1,4 +1,3 @@
-//! Stub summary for webhooks_canonical_sns_string_tests.rs.
 // Inline regression tests for `canonical_sns_string` in the parent
 // `webhooks::ses` module. Lives in a sibling file (declared via
 // `#[path = "..."]` in ses.rs) so ses.rs stays under the file-size guardrail
@@ -37,7 +36,6 @@ fn notification_envelope(subject: Option<&str>) -> SnsEnvelope {
     }
 }
 
-/// TODO: Document subscription_envelope.
 fn subscription_envelope(sns_type: &str) -> SnsEnvelope {
     SnsEnvelope {
         sns_type: sns_type.to_string(),

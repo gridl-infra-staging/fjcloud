@@ -1,4 +1,3 @@
-//! Stub summary for mailpit.rs.
 use super::render::{
     render_dunning_recovered_after_failure_email, render_dunning_retries_exhausted_email,
     render_dunning_retry_scheduled_email, render_invoice_ready_email, render_password_reset_email,
@@ -47,7 +46,6 @@ impl MailpitEmailService {
         }
     }
 
-    /// TODO: Document MailpitEmailService.send_mailpit_email.
     async fn send_mailpit_email(
         &self,
         to: &str,

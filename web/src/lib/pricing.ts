@@ -8,9 +8,6 @@ export interface RegionPricing {
 	multiplier: string;
 }
 
-/**
- * TODO: Document MarketingPricing.
- */
 export interface MarketingPricing {
 	storage_rate_per_mb_month: string;
 	cold_storage_rate_per_gb_month: string;
@@ -123,9 +120,6 @@ function formatMultiplier(
 	return `${parsePricingDecimal(rawValue, fieldName, contextLabel).toFixed(2)}x`;
 }
 
-/**
- * TODO: Document pricingContractSnapshotFromMarketing.
- */
 export function pricingContractSnapshotFromMarketing(
 	pricing: MarketingPricing = MARKETING_PRICING
 ): MarketingPricingContractSnapshot {
@@ -154,9 +148,6 @@ export function pricingContractSnapshotFromMarketing(
 	};
 }
 
-/**
- * TODO: Document pricingContractSnapshotFromAdminRateCard.
- */
 export function pricingContractSnapshotFromAdminRateCard(
 	rateCard: AdminRateCardComparableFields
 ): MarketingPricingContractSnapshot {

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Stub summary for mocked_spec_contract_parser.py."""
 
 from __future__ import annotations
 
@@ -56,7 +55,6 @@ def parse_action_recovery_value(response_path: Path) -> str:
 
 
 def fixture_fields(fixture_path: Path) -> list[str]:
-    """TODO: Document fixture_fields."""
     lines = fixture_path.read_text(encoding="utf-8").splitlines()
     type_start = None
     for idx, line in enumerate(lines):
@@ -130,7 +128,6 @@ def extract_function_body(content: str, function_name: str) -> str:
 
 
 def extract_fail_object_keys(content: str, function_name: str) -> list[str]:
-    """TODO: Document extract_fail_object_keys."""
     function_body = extract_function_body(content, function_name)
     fail_match = re.search(r"fail\([^,]+,\s*\{(.*?)\}\s*\)", function_body, re.S)
     if not fail_match:
@@ -212,7 +209,6 @@ def cmd_fail_function_keys(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """TODO: Document build_parser."""
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
 

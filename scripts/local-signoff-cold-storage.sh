@@ -75,7 +75,6 @@ init_artifact_dir() {
 # Evidence writing
 # ---------------------------------------------------------------------------
 
-# TODO: Document write_run_artifacts.
 write_run_artifacts() {
     local passed="$1"
     local timestamp
@@ -108,7 +107,6 @@ for s in data.get("steps", []):
 # Main
 # ---------------------------------------------------------------------------
 
-# TODO: Document main.
 main() {
     log "Starting cold-storage signoff..."
 

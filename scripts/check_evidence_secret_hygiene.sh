@@ -23,7 +23,6 @@ report_finding() {
     finding_count=$((finding_count + 1))
 }
 
-# TODO: Document is_ignored_non_secret_path.
 is_ignored_non_secret_path() {
     local rel_path="$1"
     case "$rel_path" in
@@ -65,7 +64,6 @@ list_playwright_json_candidates() {
     grep -RIlE '"env"|"webServer"' "$EVIDENCE_ROOT" --include='*.json' 2>/dev/null || true
 }
 
-# TODO: Document scan_playwright_web_server_env.
 scan_playwright_web_server_env() {
     local abs_path rel_path
     while IFS= read -r abs_path; do

@@ -25,7 +25,6 @@ sha256_file() {
   fi
 }
 
-# TODO: Document write_flapjack_binary.
 write_flapjack_binary() {
   local path="$1"
   local build_json="$2"
@@ -43,7 +42,6 @@ EOF
   chmod 0755 "$path"
 }
 
-# TODO: Document write_manifest.
 write_manifest() {
   local path="$1"
   local archive_name="$2"
@@ -97,7 +95,6 @@ run_validator_expect_success() {
   fi
 }
 
-# TODO: Document run_validator_expect_failure.
 run_validator_expect_failure() {
   local description="$1"
   local fixture_dir="$2"

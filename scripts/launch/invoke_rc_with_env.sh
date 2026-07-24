@@ -45,7 +45,6 @@ BILLING_INPUT_MANIFEST=""
 SECTION1_MANIFEST=""
 COORDINATOR_ARGS=()
 
-# TODO: Document print_usage.
 print_usage() {
     cat <<'USAGE'
 Usage:
@@ -81,7 +80,6 @@ Options:
 USAGE
 }
 
-# TODO: Document parse_args.
 parse_args() {
     local arg
     for arg in "$@"; do
@@ -167,7 +165,6 @@ parse_args() {
     done
 }
 
-# TODO: Document validate_classify_existing_inputs.
 validate_classify_existing_inputs() {
     if [ "$DRY_RUN" -eq 1 ]; then
         echo "ERROR: --dry-run cannot be combined with --classify-existing" >&2
@@ -211,7 +208,6 @@ validate_classify_existing_inputs() {
     fi
 }
 
-# TODO: Document validate_existing_receipt_inputs.
 validate_existing_receipt_inputs() {
     if [ "$DRY_RUN" -eq 1 ] || [ "$CLASSIFY_EXISTING" -eq 1 ]; then
         echo "ERROR: --validate-existing cannot be combined with --dry-run or --classify-existing" >&2
@@ -293,7 +289,6 @@ resolve_manifest_ami_id() {
     return 0
 }
 
-# TODO: Document extract_ami_id_from_manifest.
 extract_ami_id_from_manifest() {
     local manifest_path="$1"
     python3 - "$manifest_path" <<'PY'
@@ -324,7 +319,6 @@ for build in payload.get("builds", []):
 PY
 }
 
-# TODO: Document validate_inputs.
 validate_inputs() {
     if [ -n "$SUMMARY_PATH" ] || [ -n "$VERDICT_OUTPUT" ]; then
         echo "ERROR: --summary and --verdict-output require --classify-existing" >&2
@@ -384,7 +378,6 @@ assemble_paid_beta_argv() {
     rc_build_paid_beta_argv "$SHA" "$ARTIFACT_DIR" "$CREDENTIAL_ENV_FILE" "$BILLING_MONTH" "$STAGING_SMOKE_API_AMI_ID" "$STAGING_SMOKE_FLAPJACK_AMI_ID" "$SECTION1_MANIFEST" "$ONLY_STEPS"
 }
 
-# TODO: Document write_rc_run_receipt.
 write_rc_run_receipt() {
     local wrapper_exit="$1"
     local coordinator_exit="$2"
@@ -427,7 +420,6 @@ bootstrap_web_prerequisites() {
     fi
 }
 
-# TODO: Document write_preflight_refusal_json.
 write_preflight_refusal_json() {
     local classification="$1"
     local status="$2"
@@ -461,7 +453,6 @@ with open(path, "w", encoding="utf-8") as fh:
 PY
 }
 
-# TODO: Document ensure_credential_preflight.
 ensure_credential_preflight() {
     aws_identity_ensure "$CREDENTIAL_ENV_FILE" || true
     case "${AWS_IDENTITY_STATUS:-}" in
@@ -506,7 +497,6 @@ refuse_browser_preflight() {
     exit 3
 }
 
-# TODO: Document ensure_browser_preflight.
 ensure_browser_preflight() {
     hydrate_env_from_ssm staging || true
 
@@ -526,7 +516,6 @@ ensure_browser_preflight() {
     fi
 }
 
-# TODO: Document write_billing_input_manifest.
 write_billing_input_manifest() {
     local manifest_path="$1"
     shift
@@ -580,7 +569,6 @@ run_billing_preflight_check() {
     exec bash "$REPO_ROOT/scripts/staging_billing_dry_run.sh" --check --env-file "$CREDENTIAL_ENV_FILE"
 }
 
-# TODO: Document main.
 main() {
     parse_args "$@"
     if [ "$VALIDATE_EXISTING" -eq 1 ]; then

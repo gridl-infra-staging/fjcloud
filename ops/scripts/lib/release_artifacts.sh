@@ -11,7 +11,6 @@ release_artifacts_existing_count() {
     --output text
 }
 
-# TODO: Document release_artifacts_reuse_existing.
 release_artifacts_reuse_existing() {
   local bucket="$1" prefix="$2" expected_manifest="$3"
   local existing_manifest

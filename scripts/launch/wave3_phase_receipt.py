@@ -174,7 +174,6 @@ def build_inventory(
     base_sha: str,
     specs: Iterable[str],
 ) -> dict[str, list[dict[str, object]]]:
-    """TODO: Document build_inventory."""
     inventories: dict[str, list[dict[str, object]]] = {}
     seen_paths: set[str] = set()
     for spec in specs:
@@ -220,7 +219,6 @@ def receipt_digest(receipt: dict[str, object]) -> str:
 
 
 def atomic_write_json(path: Path, payload: object) -> None:
-    """TODO: Document atomic_write_json."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_fd, tmp_path = tempfile.mkstemp(
         dir=str(path.parent),
@@ -241,7 +239,6 @@ def atomic_write_json(path: Path, payload: object) -> None:
 
 
 def atomic_write_text(path: Path, payload: str) -> None:
-    """TODO: Document atomic_write_text."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_fd, tmp_path = tempfile.mkstemp(
         dir=str(path.parent),
@@ -261,7 +258,6 @@ def atomic_write_text(path: Path, payload: str) -> None:
 
 
 def write_receipt(args: argparse.Namespace) -> int:
-    """TODO: Document write_receipt."""
     base_sha = require_base_sha(args.base_sha)
     lane_root = resolve_lane_root(args.lane_root)
     if not args.selected_arm:
@@ -298,7 +294,6 @@ def load_receipt(path: Path) -> dict[str, object]:
 
 
 def validate_receipt_shape(receipt: dict[str, object], base_sha: str, phase: str) -> None:
-    """TODO: Document validate_receipt_shape."""
     if receipt.get("schema_version") != 1:
         fail("schema_version mismatch")
     if receipt.get("phase") != phase:
@@ -334,7 +329,6 @@ def normalize_receipt_inventories(value: object) -> dict[str, list[dict[str, obj
 
 
 def normalize_receipt_entry(entry: object, seen_paths: set[str]) -> dict[str, object]:
-    """TODO: Document normalize_receipt_entry."""
     if not isinstance(entry, dict):
         fail("receipt inventory entries must be objects")
     path = entry.get("path")
@@ -359,7 +353,6 @@ def validate_inventory(
     base_sha: str,
     expected: dict[str, list[dict[str, object]]] | None,
 ) -> dict[str, list[dict[str, object]]]:
-    """TODO: Document validate_inventory."""
     actual = normalize_receipt_inventories(receipt.get("inventories"))
     if not actual:
         fail("receipt inventories must not be empty")
@@ -439,7 +432,6 @@ def validate_lane_copies(lane_root: Path, specs: Iterable[str]) -> None:
 
 
 def validate_receipt(args: argparse.Namespace) -> int:
-    """TODO: Document validate_receipt."""
     base_sha = require_base_sha(args.base_sha)
     lane_root = resolve_lane_root(args.lane_root)
     path = resolve_receipt_path(lane_root, base_sha, args.phase)

@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/routes/indexes/shared_vm.rs.
 use super::*;
 use crate::services::flapjack_proxy::ProxyError;
 use crate::services::provisioning::SharedVmProvisioningMode;
@@ -40,7 +39,6 @@ struct SharedVmCreatePlan {
     created_deployment_id: Option<Uuid>,
 }
 
-/// TODO: Document create_index_on_shared_vm.
 pub(super) async fn create_index_on_shared_vm(
     state: &AppState,
     destination: AdmittedIndexDestination,
@@ -144,7 +142,6 @@ async fn resolve_or_create_shared_vm_create_plan(
     }
 }
 
-/// TODO: Document create_shared_vm_create_plan.
 async fn create_shared_vm_create_plan(
     state: &AppState,
     destination: &AdmittedIndexDestination,
@@ -170,7 +167,6 @@ async fn create_shared_vm_create_plan(
     })
 }
 
-/// TODO: Document resume_shared_vm_create_plan.
 async fn resume_shared_vm_create_plan(
     state: &AppState,
     destination: &AdmittedIndexDestination,
@@ -231,7 +227,6 @@ fn is_compatible_shared_vm_create_intent(tenant: &crate::models::tenant::Custome
         && tenant.service_type == "flapjack"
 }
 
-/// TODO: Document rollback_owned_shared_vm_create_intent.
 async fn rollback_owned_shared_vm_create_intent(
     state: &AppState,
     destination: &AdmittedIndexDestination,
@@ -265,7 +260,6 @@ async fn rollback_owned_shared_vm_create_intent(
     }
 }
 
-/// TODO: Document terminate_unreferenced_created_deployment.
 async fn terminate_unreferenced_created_deployment(state: &AppState, deployment_id: Uuid) {
     match state.tenant_repo.find_by_deployment(deployment_id).await {
         Ok(references) if references.is_empty() => {
@@ -341,7 +335,6 @@ fn build_shared_vm_loads(
         .collect::<Vec<_>>()
 }
 
-/// TODO: Document normalized_flapjack_url.
 fn normalized_flapjack_url(raw_url: &str) -> String {
     let trimmed = raw_url.trim();
     if trimmed.is_empty() {
@@ -420,7 +413,6 @@ fn restrict_to_current_local_dev_vm(
         .collect()
 }
 
-/// TODO: Document select_placed_vm.
 fn select_placed_vm(
     new_index_resources: &ResourceVector,
     candidate_vms: &[crate::models::vm_inventory::VmInventory],
@@ -559,7 +551,6 @@ pub(crate) async fn select_shared_vm_for_new_index(
         })
 }
 
-/// TODO: Document create_shared_vm_index_with_warmup_retry.
 async fn create_shared_vm_index_with_warmup_retry(
     state: &AppState,
     target: &ResolvedFlapjackTarget,

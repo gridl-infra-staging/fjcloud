@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for web/src/lib/components/migration/target_eligibility.ts.
- */
 import type {
 	AlgoliaDestinationEligibilityResponse,
 	AlgoliaMigrationDestinationMode

@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/tests/common/mocks.rs.
 #![allow(dead_code)]
 
 use api::dns::mock::MockDnsManager;
@@ -65,7 +64,6 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::Notify;
 use uuid::Uuid;
 
-/// TODO: Document MockCustomerRepo.
 pub struct MockCustomerRepo {
     customers: Mutex<Vec<Customer>>,
     oauth_identities: Mutex<HashMap<(String, String), Uuid>>,
@@ -90,7 +88,6 @@ enum InjectedResendRollbackFailure {
 }
 
 impl MockCustomerRepo {
-    /// TODO: Document MockCustomerRepo.build_customer.
     fn build_customer(
         name: &str,
         email: &str,
@@ -142,7 +139,6 @@ impl MockCustomerRepo {
         }
     }
 
-    /// TODO: Document MockCustomerRepo.new.
     pub fn new() -> Self {
         Self {
             customers: Mutex::new(Vec::new()),
@@ -466,7 +462,6 @@ impl CustomerRepo for MockCustomerRepo {
         Ok(customer)
     }
 
-    /// TODO: Document MockCustomerRepo.find_oauth_identity.
     async fn find_oauth_identity(
         &self,
         provider: &str,
@@ -489,7 +484,6 @@ impl CustomerRepo for MockCustomerRepo {
             .cloned())
     }
 
-    /// TODO: Document MockCustomerRepo.create_oauth_customer.
     async fn create_oauth_customer(&self, name: &str, email: &str) -> Result<Customer, RepoError> {
         let should_inject_conflict = {
             let mut injected_email = self.inject_next_oauth_create_conflict_email.lock().unwrap();
@@ -517,7 +511,6 @@ impl CustomerRepo for MockCustomerRepo {
         self.create(name, email).await
     }
 
-    /// TODO: Document MockCustomerRepo.link_oauth_identity.
     async fn link_oauth_identity(
         &self,
         customer_id: Uuid,
@@ -656,7 +649,6 @@ impl CustomerRepo for MockCustomerRepo {
         })
     }
 
-    /// TODO: Document MockCustomerRepo.list_deleted_before_cutoff.
     async fn list_deleted_before_cutoff(
         &self,
         cutoff: DateTime<Utc>,
@@ -703,7 +695,6 @@ impl CustomerRepo for MockCustomerRepo {
         }
     }
 
-    /// TODO: Document MockCustomerRepo.rotate_email_verification_token_with_resend_cooldown.
     async fn rotate_email_verification_token_with_resend_cooldown(
         &self,
         id: Uuid,
@@ -747,7 +738,6 @@ impl CustomerRepo for MockCustomerRepo {
         Ok(ResendVerificationOutcome::Allowed { reservation })
     }
 
-    /// TODO: Document MockCustomerRepo.rollback_resend_verification_token_rotation.
     async fn rollback_resend_verification_token_rotation(
         &self,
         id: Uuid,
@@ -837,7 +827,6 @@ impl CustomerRepo for MockCustomerRepo {
         }
     }
 
-    /// TODO: Document MockCustomerRepo.restore_password_reset_state.
     async fn restore_password_reset_state(
         &self,
         id: Uuid,
@@ -859,7 +848,6 @@ impl CustomerRepo for MockCustomerRepo {
         }
     }
 
-    /// TODO: Document MockCustomerRepo.rotate_password_reset_token_with_resend_cooldown.
     async fn rotate_password_reset_token_with_resend_cooldown(
         &self,
         id: Uuid,
@@ -899,7 +887,6 @@ impl CustomerRepo for MockCustomerRepo {
         Ok(ResendPasswordResetOutcome::Allowed { reservation })
     }
 
-    /// TODO: Document MockCustomerRepo.rollback_password_reset_token_rotation.
     async fn rollback_password_reset_token_rotation(
         &self,
         id: Uuid,
@@ -1051,7 +1038,6 @@ impl CustomerRepo for MockCustomerRepo {
         }
     }
 
-    /// TODO: Document MockCustomerRepo.ingest_quota_warning_sent_for_month.
     async fn ingest_quota_warning_sent_for_month(
         &self,
         id: Uuid,
@@ -1069,7 +1055,6 @@ impl CustomerRepo for MockCustomerRepo {
         Ok(customer.ingest_quota_warning_sent_for_month(metric, year, month))
     }
 
-    /// TODO: Document MockCustomerRepo.claim_ingest_quota_warning_for_month.
     async fn claim_ingest_quota_warning_for_month(
         &self,
         id: Uuid,
@@ -1112,7 +1097,6 @@ impl CustomerRepo for MockCustomerRepo {
         Ok(true)
     }
 
-    /// TODO: Document MockCustomerRepo.rollback_ingest_quota_warning_for_month.
     async fn rollback_ingest_quota_warning_for_month(
         &self,
         id: Uuid,
@@ -1147,7 +1131,6 @@ impl CustomerRepo for MockCustomerRepo {
         Ok(true)
     }
 
-    /// TODO: Document MockCustomerRepo.set_billing_plan.
     async fn set_billing_plan(&self, id: Uuid, plan: &str) -> Result<bool, RepoError> {
         if self
             .fail_next_set_billing_plan
@@ -1170,7 +1153,6 @@ impl CustomerRepo for MockCustomerRepo {
         }
     }
 
-    /// TODO: Document MockCustomerRepo.set_subscription_cycle_anchor.
     async fn set_subscription_cycle_anchor(
         &self,
         id: Uuid,
@@ -1197,7 +1179,6 @@ impl CustomerRepo for MockCustomerRepo {
         }
     }
 
-    /// TODO: Document MockCustomerRepo.try_upgrade_to_shared_atomic.
     async fn try_upgrade_to_shared_atomic(
         &self,
         id: Uuid,
@@ -1217,7 +1198,6 @@ impl CustomerRepo for MockCustomerRepo {
         }
     }
 
-    /// TODO: Document MockCustomerRepo.rollback_upgrade_to_free_atomic.
     async fn rollback_upgrade_to_free_atomic(
         &self,
         id: Uuid,
@@ -1322,7 +1302,6 @@ impl CustomerRepo for MockCustomerRepo {
         }
     }
 
-    /// TODO: Document MockCustomerRepo.record_failed_login.
     async fn record_failed_login(&self, id: Uuid) -> Result<Option<i64>, RepoError> {
         use api::auth::lockout::{LOGIN_LOCK_DURATION, LOGIN_THRESHOLD, LOGIN_WINDOW};
 
@@ -1362,7 +1341,6 @@ impl CustomerRepo for MockCustomerRepo {
         Ok(None)
     }
 
-    /// TODO: Document MockCustomerRepo.record_successful_login.
     async fn record_successful_login(&self, id: Uuid) -> Result<bool, RepoError> {
         if self
             .fail_next_record_successful_login
@@ -1387,7 +1365,6 @@ impl CustomerRepo for MockCustomerRepo {
         }
     }
 
-    /// TODO: Document MockCustomerRepo.login_lockout_remaining.
     async fn login_lockout_remaining(&self, id: Uuid) -> Result<Option<i64>, RepoError> {
         let customers = self.customers.lock().unwrap();
         let now = Utc::now();
@@ -1528,7 +1505,6 @@ impl MockDeploymentRepo {
         self.set_failure_reason_for_test(deployment.id, failure_reason)
     }
 
-    /// TODO: Document MockDeploymentRepo.set_failure_reason_for_test.
     pub fn set_failure_reason_for_test(&self, id: Uuid, failure_reason: &str) -> Deployment {
         let mut deployments = self.deployments.lock().unwrap();
         let deployment = deployments
@@ -2100,7 +2076,6 @@ pub fn mock_rate_card_repo() -> Arc<MockRateCardRepo> {
 // MockInvoiceRepo
 // ---------------------------------------------------------------------------
 
-/// TODO: Document MockInvoiceRepo.
 pub struct MockInvoiceRepo {
     invoices: Mutex<Vec<InvoiceRow>>,
     line_items: Mutex<Vec<InvoiceLineItemRow>>,
@@ -2122,7 +2097,6 @@ pub struct MockInvoiceRepo {
 }
 
 impl MockInvoiceRepo {
-    /// TODO: Document MockInvoiceRepo.new.
     pub fn new() -> Self {
         Self {
             invoices: Mutex::new(Vec::new()),
@@ -2604,7 +2578,6 @@ type CheckoutSessionCall = (
     Option<std::collections::HashMap<String, String>>,
 );
 
-/// TODO: Document MockStripeService.
 pub struct MockStripeService {
     pub customers: Mutex<Vec<(String, String, String)>>, // (id, name, email)
     pub payment_methods: Mutex<Vec<PaymentMethodSummary>>,
@@ -2631,7 +2604,6 @@ pub struct MockStripeService {
 }
 
 impl MockStripeService {
-    /// TODO: Document MockStripeService.new.
     pub fn new() -> Self {
         Self {
             customers: Mutex::new(Vec::new()),
@@ -2728,7 +2700,6 @@ impl StripeService for MockStripeService {
         Ok(format!("seti_secret_{stripe_customer_id}"))
     }
 
-    /// TODO: Document MockStripeService.create_billing_portal_session.
     async fn create_billing_portal_session(
         &self,
         stripe_customer_id: &str,
@@ -2824,7 +2795,6 @@ impl StripeService for MockStripeService {
         Ok(inv)
     }
 
-    /// TODO: Document MockStripeService.pay_invoice.
     async fn pay_invoice(&self, stripe_invoice_id: &str) -> Result<PaidInvoice, StripeError> {
         if *self.should_be_unconfigured.lock().unwrap() {
             return Err(StripeError::NotConfigured);
@@ -2844,7 +2814,6 @@ impl StripeService for MockStripeService {
         Ok(result)
     }
 
-    /// TODO: Document MockStripeService.void_invoice.
     async fn void_invoice(&self, stripe_invoice_id: &str) -> Result<PaidInvoice, StripeError> {
         if *self.should_be_unconfigured.lock().unwrap() {
             return Err(StripeError::NotConfigured);
@@ -2864,7 +2833,6 @@ impl StripeService for MockStripeService {
         })
     }
 
-    /// TODO: Document MockStripeService.lookup_charge_fallback_fields.
     async fn lookup_charge_fallback_fields(
         &self,
         charge_id: &str,
@@ -3116,7 +3084,6 @@ impl EmailService for FailableEmailService {
             .await
     }
 
-    /// TODO: Document FailableEmailService.send_dunning_retry_scheduled_email.
     async fn send_dunning_retry_scheduled_email(
         &self,
         to: &str,
@@ -3137,7 +3104,6 @@ impl EmailService for FailableEmailService {
             .await
     }
 
-    /// TODO: Document FailableEmailService.send_dunning_retries_exhausted_email.
     async fn send_dunning_retries_exhausted_email(
         &self,
         to: &str,
@@ -3158,7 +3124,6 @@ impl EmailService for FailableEmailService {
             .await
     }
 
-    /// TODO: Document FailableEmailService.send_dunning_recovered_after_failure_email.
     async fn send_dunning_recovered_after_failure_email(
         &self,
         to: &str,
@@ -3179,7 +3144,6 @@ impl EmailService for FailableEmailService {
             .await
     }
 
-    /// TODO: Document FailableEmailService.send_broadcast_email.
     async fn send_broadcast_email(
         &self,
         to: &str,
@@ -3235,7 +3199,6 @@ impl EmailService for FailableEmailService {
 mod failable_email_service_tests {
     use super::*;
 
-    /// TODO: Document failable_email_service_tracks_retry_scheduled_attempt_and_delegates.
     #[tokio::test]
     async fn failable_email_service_tracks_retry_scheduled_attempt_and_delegates() {
         let (service, delegate) = FailableEmailService::with_mock_delegate();
@@ -3264,7 +3227,6 @@ mod failable_email_service_tests {
         assert!(sent[0].subject.to_lowercase().contains("retry"));
     }
 
-    /// TODO: Document failable_email_service_forces_failure_for_retries_exhausted_and_skips_delegate.
     #[tokio::test]
     async fn failable_email_service_forces_failure_for_retries_exhausted_and_skips_delegate() {
         let (service, delegate) = FailableEmailService::with_mock_delegate();
@@ -3295,7 +3257,6 @@ mod failable_email_service_tests {
         );
     }
 
-    /// TODO: Document failable_email_service_tracks_recovered_after_failure_attempt_and_delegates.
     #[tokio::test]
     async fn failable_email_service_tracks_recovered_after_failure_attempt_and_delegates() {
         let (service, delegate) = FailableEmailService::with_mock_delegate();
@@ -3322,7 +3283,6 @@ mod failable_email_service_tests {
         assert!(sent[0].subject.to_lowercase().contains("recovered"));
     }
 
-    /// TODO: Document failable_email_service_records_invalid_request_after_in_flight_attempts_start.
     #[tokio::test]
     async fn failable_email_service_records_invalid_request_after_in_flight_attempts_start() {
         let (service, _delegate) = FailableEmailService::with_mock_delegate();
@@ -3435,7 +3395,6 @@ impl WebhookEventRepo for MockWebhookEventRepo {
         Ok(true)
     }
 
-    /// TODO: Document MockWebhookEventRepo.mark_processed.
     async fn mark_processed(&self, stripe_event_id: &str) -> Result<(), RepoError> {
         let mut rows = self.rows.lock().unwrap();
         if let Some(row) = rows.get_mut(stripe_event_id) {
@@ -3455,7 +3414,6 @@ impl WebhookEventRepo for MockWebhookEventRepo {
         Ok(())
     }
 
-    /// TODO: Document MockWebhookEventRepo.find_latest_invoice_id_by_payment_intent.
     async fn find_latest_invoice_id_by_payment_intent(
         &self,
         payment_intent_id: &str,
@@ -3535,7 +3493,6 @@ impl MockDisputeRepo {
 
 #[async_trait]
 impl DisputeRepo for MockDisputeRepo {
-    /// TODO: Document MockDisputeRepo.upsert.
     async fn upsert(&self, input: &DisputeUpsertInput) -> Result<DisputeRow, RepoError> {
         let mut rows = self.rows.lock().unwrap();
         let existing = rows.get(&input.stripe_dispute_id).cloned();
@@ -3760,7 +3717,6 @@ impl MockVmHostMetricsRepo {
 
 #[async_trait]
 impl VmHostMetricsRepo for MockVmHostMetricsRepo {
-    /// TODO: Document MockVmHostMetricsRepo.insert.
     async fn insert(&self, metrics: &NewVmHostMetrics) -> Result<VmHostMetrics, RepoError> {
         let sample = VmHostMetrics {
             id: Uuid::new_v4(),
@@ -4133,7 +4089,6 @@ impl VmInventoryRepo for MockVmInventoryRepo {
         }
     }
 
-    /// TODO: Document MockVmInventoryRepo.retirement_blockers.
     async fn retirement_blockers(
         &self,
         id: Uuid,
@@ -4509,7 +4464,6 @@ impl TenantRepo for MockTenantRepo {
         Ok(tenant)
     }
 
-    /// TODO: Document MockTenantRepo.create_lifecycle_intent.
     async fn create_lifecycle_intent(
         &self,
         customer_id: Uuid,
@@ -4529,7 +4483,6 @@ impl TenantRepo for MockTenantRepo {
         Ok(tenant)
     }
 
-    /// TODO: Document MockTenantRepo.publish_delete_lifecycle_intent.
     async fn publish_delete_lifecycle_intent(
         &self,
         customer_id: Uuid,
@@ -4561,7 +4514,6 @@ impl TenantRepo for MockTenantRepo {
         Ok(tenant.clone())
     }
 
-    /// TODO: Document MockTenantRepo.publish_lifecycle_placement.
     async fn publish_lifecycle_placement(
         &self,
         customer_id: Uuid,
@@ -4591,7 +4543,6 @@ impl TenantRepo for MockTenantRepo {
         Ok(tenant.clone())
     }
 
-    /// TODO: Document MockTenantRepo.remove_lifecycle_intent.
     async fn remove_lifecycle_intent(
         &self,
         customer_id: Uuid,
@@ -4831,7 +4782,6 @@ impl TenantRepo for MockTenantRepo {
         Ok(results)
     }
 
-    /// TODO: Document MockTenantRepo.list_by_vms.
     async fn list_by_vms(&self, vm_ids: &[Uuid]) -> Result<Vec<CustomerTenant>, RepoError> {
         self.list_by_vms_calls.fetch_add(1, Ordering::SeqCst);
         let requested_vm_ids = vm_ids.iter().copied().collect::<BTreeSet<_>>();

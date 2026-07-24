@@ -32,7 +32,6 @@ set_reset_blocked_summary() {
     STEP_ATTEMPT_DETAIL="Reset flow was not completed."
 }
 
-# TODO: Document set_reset_completed_summary.
 set_reset_completed_summary() {
     local detail="$1"
     SUMMARY_RESULT="passed"
@@ -52,7 +51,6 @@ set_reset_completed_summary() {
     STEP_ATTEMPT_DETAIL="$detail"
 }
 
-# TODO: Document reset_set_db_query_failure.
 reset_set_db_query_failure() {
     local classification_prefix="$1"
     local query_status="$2"
@@ -71,7 +69,6 @@ reset_set_db_query_failure() {
     set_reset_blocked_summary "${classification_prefix}_query_failed" "${classification_prefix} query failed: ${REHEARSAL_QUERY_OUTPUT}"
 }
 
-# TODO: Document allowlist_contains_tenant_uuid.
 allowlist_contains_tenant_uuid() {
     local tenant="$1"
     local allowlist="$2"
@@ -125,7 +122,6 @@ print(urllib.parse.quote(sys.argv[1], safe=""))
 PY
 }
 
-# TODO: Document validate_test_tenant_allowlist.
 validate_test_tenant_allowlist() {
     if [ "$RESET_TEST_STATE" -ne 1 ] && [ "${RESET_FIRST:-0}" -ne 1 ]; then
         return 0
@@ -174,7 +170,6 @@ print(f"{next_year:04d}-{next_mon:02d}-01")
 PY
 }
 
-# TODO: Document reset_invoice_rows_json_from_query_output.
 reset_invoice_rows_json_from_query_output() {
     python3 - "$REHEARSAL_QUERY_OUTPUT" <<'PY' || true
 import json
@@ -209,7 +204,6 @@ for row in rows:
 PY
 }
 
-# TODO: Document stripe_status_for_invoice_id.
 stripe_status_for_invoice_id() {
     printf '%s' "$1" | python3 -c '
 import json
@@ -299,7 +293,6 @@ reset_stripe_body_preview() {
     LC_ALL=C printf '%s' "$preview" | cut -c 1-160
 }
 
-# TODO: Document reset_stripe_key_fingerprint.
 reset_stripe_key_fingerprint() {
     local key="${STRIPE_SECRET_KEY_EFFECTIVE:-}"
     local mode="unknown"
@@ -339,7 +332,6 @@ reset_stripe_invalid_list_detail() {
         "$key_fingerprint"
 }
 
-# TODO: Document run_reset_customer_lookup.
 run_reset_customer_lookup() {
     local sql query_status tenant_uuid_sql
     tenant_uuid_sql="$(reset_tenant_uuid_sql_literal "$CONFIRM_TEST_TENANT_ID")" || {
@@ -365,7 +357,6 @@ run_reset_customer_lookup() {
     return 0
 }
 
-# TODO: Document run_reset_invoice_rows_query.
 run_reset_invoice_rows_query() {
     local month_bounds month_start month_end sql query_status tenant_uuid_sql
     month_bounds="$(reset_month_bounds "$(reset_month_value)")"
@@ -387,7 +378,6 @@ run_reset_invoice_rows_query() {
     return 1
 }
 
-# TODO: Document run_reset_stripe_cleanup.
 run_reset_stripe_cleanup() {
     local stripe_list_output
     local line stripe_invoice_id stripe_status
@@ -476,7 +466,6 @@ run_reset_stripe_cleanup() {
     return 0
 }
 
-# TODO: Document run_reset_db_cleanup.
 run_reset_db_cleanup() {
     local stripe_in_list invoice_in_list sql query_status where_clause="" tenant_uuid_sql
     stripe_in_list="$(json_array_to_sql_in_list "$RESET_STRIPE_CLEARED_IDS_JSON")"
@@ -515,7 +504,6 @@ run_reset_db_cleanup() {
     return 1
 }
 
-# TODO: Document run_reset_flow.
 run_reset_flow() {
     if ! run_reset_customer_lookup; then
         return 1

@@ -1,5 +1,3 @@
-//! Stub summary for infra/api/src/repos/pg_algolia_import_job_dispatch.rs.
-
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
@@ -58,7 +56,6 @@ impl PgAlgoliaImportJobRepo {
             .map(AlgoliaImportDispatchAdmissionOutcome::Replay)
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.record_ambiguous_dispatch_admission.
     async fn record_ambiguous_dispatch_admission(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -108,7 +105,6 @@ impl PgAlgoliaImportJobRepo {
             .map_err(Into::into)
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.admit_create_dispatch.
     pub(super) async fn admit_create_dispatch(
         &self,
         job: NewAlgoliaImportJob,
@@ -156,7 +152,6 @@ impl PgAlgoliaImportJobRepo {
         }
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.admit_replace_dispatch.
     pub(super) async fn admit_replace_dispatch(
         &self,
         job: NewAlgoliaReplaceImportJob,
@@ -222,7 +217,6 @@ impl PgAlgoliaImportJobRepo {
         }
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.record_dispatch_intent_committed_inner.
     pub(super) async fn record_dispatch_intent_committed_inner(
         &self,
         id: Uuid,
@@ -290,7 +284,6 @@ impl PgAlgoliaImportJobRepo {
         Ok(updated)
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.acquire_dispatch_guard_inner.
     pub(super) async fn acquire_dispatch_guard_inner(
         &self,
         id: Uuid,

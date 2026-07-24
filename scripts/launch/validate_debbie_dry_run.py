@@ -191,7 +191,6 @@ def _validate_repo_targets(repos: dict[str, Any]) -> None:
 
 
 def _load_scope_records(sync: dict[str, Any]) -> list[ScopeRecord]:
-    """TODO: Document _load_scope_records."""
     raw_files = require_string_list(sync.get("files", []), "sync.files")
     raw_dirs = sync.get("dirs", [])
     raw_remaps = sync.get("remap", [])
@@ -364,7 +363,6 @@ def _metadata_value(
 
 
 def _parse_scope_lines(lines: Sequence[tuple[int, str]]) -> list[ScopeRecord]:
-    """TODO: Document _parse_scope_lines."""
     records: list[ScopeRecord] = []
     seen: set[tuple[str, str, str]] = set()
     cursor = 0
@@ -489,7 +487,6 @@ def render_scope(records: Sequence[ScopeRecord]) -> dict[str, object]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """TODO: Document main."""
     try:
         arguments = parse_args(sys.argv[1:] if argv is None else argv)
         expected = load_config_scope(arguments.config)

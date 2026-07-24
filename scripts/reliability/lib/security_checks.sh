@@ -104,7 +104,6 @@ _is_command_new_literal_arg() {
     return 1
 }
 
-# TODO: Document _contains_non_placeholder_secret_token.
 _contains_non_placeholder_secret_token() {
     local path="$1"
     local token
@@ -196,7 +195,6 @@ _git_tracked_secret_matches() {
     printf '%s' "$findings"
 }
 
-# TODO: Document check_secret_scan.
 check_secret_scan() {
     local scan_path="${1:-"$REPO_ROOT"}"
     local include_fixtures
@@ -253,7 +251,6 @@ check_secret_scan() {
     return 0
 }
 
-# TODO: Document check_cmd_injection.
 check_cmd_injection() {
     local scan_path="${1:-"$REPO_ROOT/infra"}"
     local include_fixtures
@@ -307,7 +304,6 @@ check_cmd_injection() {
     return 0
 }
 
-# TODO: Document check_dep_audit.
 check_dep_audit() {
     if ! command -v cargo-audit &>/dev/null; then
         echo "REASON: SECURITY_DEP_AUDIT_SKIP_TOOL_MISSING" >&2
@@ -397,7 +393,6 @@ PY
     esac
 }
 
-# TODO: Document check_sql_guard.
 check_sql_guard() {
     local scan_path="${1:-"$REPO_ROOT/infra"}"
     local include_fixtures
@@ -445,7 +440,6 @@ check_sql_guard() {
     return 0
 }
 
-# TODO: Document run_security_suite.
 run_security_suite() {
     local checks_failed=0
     local checks_run=0

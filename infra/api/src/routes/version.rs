@@ -1,12 +1,9 @@
-//! Stub summary for version.rs.
-
 use axum::Json;
 use serde_json::{json, Value};
 
 /// Named, additive contracts that independently deployed clients may require.
 const API_CAPABILITIES: &[&str] = &["preview_events_v1"];
 
-/// TODO: Document version.
 pub async fn version() -> Json<Value> {
     Json(json!({
         // 40-char lowercase hex SHA from the dev repo at sync time. Use this

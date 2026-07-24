@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-//! Stub summary for infra/api/tests/common/admin_broadcast_test_support.rs.
 use std::sync::Arc;
 
 use api::repos::PgCustomerRepo;
@@ -100,7 +99,6 @@ pub fn build_broadcast_request(subject: &str, dry_run: bool) -> Request<Body> {
     )
 }
 
-/// TODO: Document build_broadcast_request_with_bodies.
 pub fn build_broadcast_request_with_bodies(
     subject: &str,
     html_body: Option<&str>,
@@ -135,7 +133,6 @@ pub fn build_db_backed_broadcast_app(
     api::router::build_router(state)
 }
 
-/// TODO: Document build_mock_broadcast_app.
 pub fn build_mock_broadcast_app(
     customer_repo: Arc<crate::common::MockCustomerRepo>,
     email_service: Arc<dyn EmailService>,

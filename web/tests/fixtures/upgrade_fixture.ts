@@ -1,11 +1,5 @@
-/**
- * @module Stub summary for upgrade_fixture.ts.
- */
 import type { Page } from '@playwright/test';
 
-/**
- * TODO: Document UpgradeTestFixtureState.
- */
 export type UpgradeTestFixtureState = {
 	billing_plan: 'free' | 'shared';
 	has_payment_method: boolean;

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Stub summary for rds_restore_selection.py."""
 
 from __future__ import annotations
 
@@ -53,7 +52,6 @@ def build_fail_result(reason: str) -> dict[str, Any]:
 
 
 def load_inputs(argv: list[str]) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], str, str, str, str, str]:
-    """TODO: Document load_inputs."""
     if len(argv) != 9:
         raise ValueError(
             "expected 8 positional args: <instances_json> <snapshots_json> <clusters_json> "
@@ -97,7 +95,6 @@ def resolve_default_target(source: str, target_override: str, timestamp: str, in
 
 
 def build_result(source: str, target: str, instance_count: int, snapshot_count: int, cluster_count: int) -> dict[str, Any]:
-    """TODO: Document build_result."""
     return {
         "status": "ok",
         "reason": "",
@@ -137,7 +134,6 @@ def target_identifier_exists(target: str, instances: list[dict[str, Any]]) -> bo
 def resolve_source_instance(
     result: dict[str, Any], instances: list[dict[str, Any]], clusters: list[dict[str, Any]]
 ) -> dict[str, Any] | None:
-    """TODO: Document resolve_source_instance."""
     source = str(result["source"])
     source_instance = next(
         (item for item in instances if item.get("DBInstanceIdentifier") == source),
@@ -163,7 +159,6 @@ def resolve_source_instance(
 
 
 def select_snapshot_fallback(result: dict[str, Any], snapshots: list[dict[str, Any]]) -> bool:
-    """TODO: Document select_snapshot_fallback."""
     source = str(result["source"])
     available_snapshots = [
         item for item in snapshots if str(item.get("Status", "")).lower() == "available"
@@ -199,7 +194,6 @@ def select_restore_mode(
     snapshot_override: str,
     restore_time_override: str,
 ) -> None:
-    """TODO: Document select_restore_mode."""
     if snapshot_override and restore_time_override:
         result["status"] = "fail"
         result["reason"] = (
@@ -224,7 +218,6 @@ def select_restore_mode(
 
 
 def main() -> int:
-    """TODO: Document main."""
     try:
         (
             instances_doc,

@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for experiment_helpers.ts.
- */
 import { statusLabel } from '$lib/format';
 import type {
 	CreateExperimentRequest,
@@ -18,9 +15,6 @@ const EMPTY_EXPERIMENT_LIST: ExperimentListResponse = {
 	total: 0
 };
 
-/**
- * TODO: Document normalizeExperimentList.
- */
 export function normalizeExperimentList(value: unknown): ExperimentListResponse {
 	if (!value || typeof value !== 'object') {
 		return EMPTY_EXPERIMENT_LIST;
@@ -43,9 +37,6 @@ function unnamedExperimentLabel(experimentId: number): string {
 	return `Unnamed experiment #${experimentId}`;
 }
 
-/**
- * TODO: Document experimentDisplayName.
- */
 export function experimentDisplayName(
 	experiment: Experiment,
 	experiments: Experiment[] = []
@@ -78,9 +69,6 @@ export function formatCurrencyValue(value: number | null | undefined): string {
 	});
 }
 
-/**
- * TODO: Document getArmMetricValue.
- */
 export function getArmMetricValue(arm: ExperimentArm, metric: string): number {
 	switch (metric) {
 		case 'ctr':
@@ -102,9 +90,6 @@ export function getArmMetricValue(arm: ExperimentArm, metric: string): number {
 	}
 }
 
-/**
- * TODO: Document experimentMetricLabel.
- */
 export function experimentMetricLabel(metric: string): string {
 	switch (metric) {
 		case 'ctr':
@@ -126,9 +111,6 @@ export function experimentMetricLabel(metric: string): string {
 	}
 }
 
-/**
- * TODO: Document formatExperimentMetricValue.
- */
 export function formatExperimentMetricValue(
 	metric: string,
 	value: number | null | undefined
@@ -224,9 +206,6 @@ export type ExperimentConclusionSummary = {
 	endedAt: string | null;
 };
 
-/**
- * TODO: Document deriveConclusionSummary.
- */
 export function deriveConclusionSummary(results: ExperimentResults): ExperimentConclusionSummary {
 	const storedConclusion = results.conclusion;
 	const hasStoredWinner =
@@ -255,9 +234,6 @@ function formatSettingsDiffValue(value: unknown): string {
 	return JSON.stringify(value);
 }
 
-/**
- * TODO: Document declareWinnerSettingsDiff.
- */
 export function declareWinnerSettingsDiff(experiment: Experiment): DeclareWinnerSettingsDiff {
 	const controlVariant = experiment.variants[0];
 	const candidateVariant = experiment.variants[1];
@@ -310,9 +286,6 @@ export type BuildCreateExperimentPayloadInput = {
 	minimumRuntimeDays: number;
 };
 
-/**
- * TODO: Document buildCreateExperimentPayload.
- */
 export function buildCreateExperimentPayload(
 	input: BuildCreateExperimentPayloadInput
 ): CreateExperimentRequest {

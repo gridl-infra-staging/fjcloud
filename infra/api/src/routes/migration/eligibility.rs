@@ -246,7 +246,6 @@ struct EligibilityGrant {
     routing_identity: Option<String>,
 }
 
-/// TODO: Document issue_eligibility.
 fn issue_eligibility(
     state: &AppState,
     customer_id: uuid::Uuid,

@@ -30,7 +30,6 @@ require_database_url_part() {
     printf '%s\n' "$value"
 }
 
-# TODO: Document run_local_docker_fallback_migrations.
 run_local_docker_fallback_migrations() {
     local db_user db_password db_name
 

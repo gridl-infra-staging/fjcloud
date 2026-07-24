@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for web/src/routes/infrastructure/infrastructure_contract.ts.
- */
 import type {
 	PublicInfrastructureResponse,
 	PublicRegionHealth,
@@ -98,9 +95,6 @@ export function parseInfrastructureUtilization(value: unknown): PublicRegionUtil
 	return isInfrastructureUtilization(value) ? value : null;
 }
 
-/**
- * TODO: Document parsePublicInfrastructureResponse.
- */
 export function parsePublicInfrastructureResponse(
 	value: unknown
 ): PublicInfrastructureResponse | null {

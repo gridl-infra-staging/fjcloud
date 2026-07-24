@@ -2,9 +2,6 @@ import type { PageServerLoad } from './$types';
 import { isBillingServiceNotConfiguredError, isBillingCustomerMissingError } from '$lib/billing';
 import { createApiClient } from '$lib/server/api';
 
-/**
- * TODO: Document load.
- */
 export const load: PageServerLoad = async ({ locals }) => {
 	const api = createApiClient(locals.user?.token);
 	try {

@@ -151,9 +151,6 @@ export function getSettingsOwnedPanels(): HTMLElement[] {
 		});
 }
 
-/**
- * TODO: Document expectSettingsSubtabOwnership.
- */
 export function expectSettingsSubtabOwnership(selectedTabName: string): void {
 	const nestedTabList = getSettingsSubtabList();
 	const nestedTabs = within(nestedTabList).getAllByRole('tab');

@@ -1,6 +1,5 @@
 #![allow(clippy::await_holding_lock)]
 
-//! Stub summary for infra/api/src/services/provisioning/auto_provision/tests.rs.
 use super::*;
 use crate::vm_providers::VALID_VM_PROVIDERS;
 
@@ -48,7 +47,6 @@ fn assert_core_flapjack_and_metering_script(script: &str) {
     assert!(script.contains("systemctl enable --now flapjack fj-metering-agent"));
 }
 
-/// TODO: Document build_user_data_aws_uses_ssm.
 #[test]
 fn build_user_data_aws_uses_ssm() {
     let _env_guard = EnvVarGuard::set("ENVIRONMENT", Some("staging"));
@@ -326,7 +324,6 @@ fn default_shared_vm_type_maps_known_providers() {
     assert_eq!(default_shared_vm_type("other"), "shared");
 }
 
-/// TODO: Document canonical_shared_vm_hostname_for_domain_rejects_other_environment_subdomains.
 #[test]
 fn canonical_shared_vm_hostname_for_domain_rejects_other_environment_subdomains() {
     assert!(is_canonical_shared_vm_hostname_for_domain(
@@ -464,7 +461,6 @@ impl VmInventoryRepo for InMemoryVmRepo {
             .cloned())
     }
 
-    /// TODO: Document InMemoryVmRepo.create.
     async fn create(&self, new_vm: NewVmInventory) -> Result<VmInventory, crate::repos::RepoError> {
         let vm = VmInventory {
             id: Uuid::new_v4(),
@@ -495,7 +491,6 @@ impl VmInventoryRepo for InMemoryVmRepo {
         Ok(())
     }
 
-    /// TODO: Document InMemoryVmRepo.retirement_blockers.
     async fn retirement_blockers(
         &self,
         id: Uuid,
@@ -523,7 +518,6 @@ impl VmInventoryRepo for InMemoryVmRepo {
         }
     }
 
-    /// TODO: Document InMemoryVmRepo.decommission_if_unreferenced.
     async fn decommission_if_unreferenced(
         &self,
         id: Uuid,
@@ -566,7 +560,6 @@ impl VmInventoryRepo for InMemoryVmRepo {
     }
 }
 
-/// TODO: Document try_local_dev_provision_reuses_existing_vm.
 #[tokio::test]
 async fn try_local_dev_provision_reuses_existing_vm() {
     let _lock = LOCAL_DEV_ENV_LOCK.lock().unwrap();
@@ -585,7 +578,6 @@ async fn try_local_dev_provision_reuses_existing_vm() {
     assert_eq!(vm.hostname, "local-dev-us-east-1");
 }
 
-/// TODO: Document try_local_dev_provision_creates_new_vm.
 #[tokio::test]
 async fn try_local_dev_provision_creates_new_vm() {
     let _lock = LOCAL_DEV_ENV_LOCK.lock().unwrap();
@@ -605,7 +597,6 @@ async fn try_local_dev_provision_creates_new_vm() {
     assert_eq!(repo.vms.lock().unwrap().len(), 1);
 }
 
-/// TODO: Document try_local_dev_provision_prefers_region_specific_url_from_flapjack_regions.
 #[tokio::test]
 async fn try_local_dev_provision_prefers_region_specific_url_from_flapjack_regions() {
     let _lock = LOCAL_DEV_ENV_LOCK.lock().unwrap();
@@ -629,7 +620,6 @@ async fn try_local_dev_provision_prefers_region_specific_url_from_flapjack_regio
     );
 }
 
-/// TODO: Document try_local_dev_provision_ignores_region_specific_urls_when_single_instance_is_forced.
 #[tokio::test]
 async fn try_local_dev_provision_ignores_region_specific_urls_when_single_instance_is_forced() {
     let _lock = LOCAL_DEV_ENV_LOCK.lock().unwrap();
@@ -684,7 +674,6 @@ async fn try_local_dev_provision_ignores_invalid_local_dev_url() {
     );
 }
 
-/// TODO: Document try_local_dev_provision_errors_on_invalid_region_specific_port.
 #[tokio::test]
 async fn try_local_dev_provision_errors_on_invalid_region_specific_port() {
     let _lock = LOCAL_DEV_ENV_LOCK.lock().unwrap();

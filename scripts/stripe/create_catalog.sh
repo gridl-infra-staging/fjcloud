@@ -91,7 +91,6 @@ create_product() {
     | jq -r '.id'
 }
 
-# TODO: Document create_price.
 create_price() {
   local product_id="$1" dim="$2" type="$3" unit_amount="$4" unit_amount_decimal="$5" currency="$6" interval="$7"
   local args=(-X POST "https://api.stripe.com/v1/prices"

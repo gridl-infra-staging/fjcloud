@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/services/flapjack_proxy/sensitive_request.rs.
 use std::fmt;
 
 use super::{FlapjackHttpResponse, ProxyError};
@@ -28,7 +27,6 @@ impl fmt::Debug for SensitiveFlapjackHttpRequest<'_> {
     }
 }
 
-/// TODO: Document send.
 pub(super) async fn send(
     client: &reqwest::Client,
     request: SensitiveFlapjackHttpRequest<'_>,
@@ -110,7 +108,6 @@ mod tests {
 
     use super::*;
 
-    /// TODO: Document transport_owned_body_clone_is_zeroized_after_send.
     #[tokio::test]
     async fn transport_owned_body_clone_is_zeroized_after_send() {
         let probe = Arc::new(AtomicU8::new(0));

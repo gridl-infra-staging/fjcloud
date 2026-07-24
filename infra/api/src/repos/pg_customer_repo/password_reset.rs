@@ -22,7 +22,6 @@ struct PasswordResetResendReservationRow {
     reserved_password_reset_sent_at: DateTime<Utc>,
 }
 
-/// TODO: Document set_password_reset_token.
 pub(super) async fn set_password_reset_token(
     pool: &PgPool,
     id: Uuid,
@@ -46,7 +45,6 @@ pub(super) async fn set_password_reset_token(
     Ok(result.rows_affected() > 0)
 }
 
-/// TODO: Document restore_password_reset_state.
 pub(super) async fn restore_password_reset_state(
     pool: &PgPool,
     id: Uuid,
@@ -70,7 +68,6 @@ pub(super) async fn restore_password_reset_state(
     Ok(result.rows_affected() > 0)
 }
 
-/// TODO: Document rotate_password_reset_token_with_resend_cooldown.
 pub(super) async fn rotate_password_reset_token_with_resend_cooldown(
     pool: &PgPool,
     id: Uuid,
@@ -168,7 +165,6 @@ pub(super) async fn rotate_password_reset_token_with_resend_cooldown(
     Ok(ResendPasswordResetOutcome::CustomerNotFound)
 }
 
-/// TODO: Document rollback_password_reset_token_rotation.
 pub(super) async fn rollback_password_reset_token_rotation(
     pool: &PgPool,
     id: Uuid,
@@ -199,7 +195,6 @@ pub(super) async fn rollback_password_reset_token_rotation(
     Ok(rollback_result.rows_affected() > 0)
 }
 
-/// TODO: Document reset_password.
 pub(super) async fn reset_password(
     pool: &PgPool,
     token: &str,
@@ -224,7 +219,6 @@ pub(super) async fn reset_password(
     Ok(result.rows_affected() > 0)
 }
 
-/// TODO: Document change_password.
 pub(super) async fn change_password(
     pool: &PgPool,
     id: Uuid,

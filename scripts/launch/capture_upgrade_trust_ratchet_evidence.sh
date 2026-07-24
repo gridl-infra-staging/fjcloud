@@ -109,7 +109,6 @@ user = "${STRIPE_SECRET_KEY}:"
 EOF
 }
 
-# TODO: Document stripe_request_json.
 stripe_request_json() {
     local context="$1"
     shift
@@ -171,7 +170,6 @@ json.dump(scrub(json.load(sys.stdin)), sys.stdout)
 sys.stdout.write("\n")'
 }
 
-# TODO: Document fetch_upgrade_status_json_with_fallback.
 fetch_upgrade_status_json_with_fallback() {
     local token="$1" stripe_customer_id="$2" phase="$3"
     local status_raw status_http status_body
@@ -225,7 +223,6 @@ fetch_upgrade_status_json_with_fallback() {
         "$has_default_payment_method"
 }
 
-# TODO: Document verify_contract_expectations.
 verify_contract_expectations() {
     local label="$1" expected_http="$2" http_code="$3" response_body="$4" post_status="$5"
 
@@ -283,7 +280,6 @@ verify_contract_expectations() {
     esac
 }
 
-# TODO: Document setup_test_customer.
 setup_test_customer() {
     local label="$1" pm_token="$2"
     local email="trust-ratchet-${label}-${TIMESTAMP}@test.flapjack.foo"
@@ -334,7 +330,6 @@ setup_test_customer() {
     echo "${customer_id}|${stripe_customer_id}|${jwt}"
 }
 
-# TODO: Document exercise_contract.
 exercise_contract() {
     local label="$1" pm_token="$2" expected_http="$3"
     local contract_dir="${EVIDENCE_DIR}/${label}"

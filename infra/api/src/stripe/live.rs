@@ -1,4 +1,3 @@
-//! Stub summary for live.rs.
 use async_trait::async_trait;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
@@ -254,7 +253,6 @@ impl StripeService for LiveStripeService {
             .ok_or_else(|| StripeError::Api("setup intent missing client_secret".into()))
     }
 
-    /// TODO: Document LiveStripeService.create_billing_portal_session.
     async fn create_billing_portal_session(
         &self,
         stripe_customer_id: &str,
@@ -425,7 +423,6 @@ impl StripeService for LiveStripeService {
         })
     }
 
-    /// TODO: Document LiveStripeService.pay_invoice.
     async fn pay_invoice(&self, stripe_invoice_id: &str) -> Result<PaidInvoice, StripeError> {
         let invoice_id: stripe::InvoiceId = stripe_invoice_id
             .parse()
@@ -451,7 +448,6 @@ impl StripeService for LiveStripeService {
         Ok(build_paid_invoice(&paid_invoice))
     }
 
-    /// TODO: Document LiveStripeService.void_invoice.
     async fn void_invoice(&self, stripe_invoice_id: &str) -> Result<PaidInvoice, StripeError> {
         let invoice_id: stripe::InvoiceId = stripe_invoice_id
             .parse()
@@ -471,7 +467,6 @@ impl StripeService for LiveStripeService {
         }
     }
 
-    /// TODO: Document LiveStripeService.lookup_charge_fallback_fields.
     async fn lookup_charge_fallback_fields(
         &self,
         charge_id: &str,
@@ -589,7 +584,6 @@ mod tests {
         );
     }
 
-    /// TODO: Document invoice_item_idempotency_key_derives_distinct_retry_safe_keys.
     #[test]
     fn invoice_item_idempotency_key_derives_distinct_retry_safe_keys() {
         let first = invoice_item_idempotency_key(Some("fjcloud-upgrade-abc123"), 0);
@@ -616,7 +610,6 @@ mod tests {
         );
     }
 
-    /// TODO: Document failed_paid_invoice_preserves_card_decline_details.
     #[test]
     fn failed_paid_invoice_preserves_card_decline_details() {
         let invoice_id: stripe::InvoiceId = "in_test_decline".parse().unwrap();

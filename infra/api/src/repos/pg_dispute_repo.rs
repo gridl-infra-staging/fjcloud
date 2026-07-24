@@ -1,4 +1,3 @@
-//! Stub summary for pg_dispute_repo.rs.
 use async_trait::async_trait;
 use sqlx::PgPool;
 
@@ -17,7 +16,6 @@ impl PgDisputeRepo {
 
 #[async_trait]
 impl DisputeRepo for PgDisputeRepo {
-    /// TODO: Document PgDisputeRepo.upsert.
     async fn upsert(&self, input: &DisputeUpsertInput) -> Result<DisputeRow, RepoError> {
         sqlx::query_as::<_, DisputeRow>(
             "INSERT INTO disputes (
@@ -77,7 +75,6 @@ impl DisputeRepo for PgDisputeRepo {
         .map_err(|e| RepoError::Other(e.to_string()))
     }
 
-    /// TODO: Document PgDisputeRepo.find_by_stripe_dispute_id.
     async fn find_by_stripe_dispute_id(
         &self,
         stripe_dispute_id: &str,

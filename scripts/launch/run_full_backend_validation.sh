@@ -70,7 +70,6 @@ BROWSER_CREDENTIAL_ENV_KEYS=(
     AWS_ROLE_ARN
     AWS_WEB_IDENTITY_TOKEN_FILE
 )
-# TODO: Document print_usage.
 print_usage() {
     cat <<'USAGE'
 Usage:
@@ -132,7 +131,6 @@ resolve_sha() {
     fi
     return 1
 }
-# TODO: Document run_preflight.
 run_preflight() {
     PRE_FLIGHT_FAILURES=()
     if ! resolve_stripe_secret_key >/dev/null 2>&1; then
@@ -158,7 +156,6 @@ run_preflight() {
     fi
     return 0
 }
-# TODO: Document credential_env_assignment_value.
 credential_env_assignment_value() {
     local target_key="$1"
     local line parse_status
@@ -208,7 +205,6 @@ scope_paid_beta_local_db_key() {
     fi
 }
 
-# TODO: Document apply_rc_step_env_scope.
 apply_rc_step_env_scope() {
     local step_class="$1"
 
@@ -240,7 +236,6 @@ with_local_browser_setup_env_scope_command() {
     STEP_COMMAND+=("$@")
 }
 
-# TODO: Document run_step_cargo_tests.
 run_step_cargo_tests() {
     local start_ms end_ms elapsed status reason log_path
     start_ms="$(_ms_now)"
@@ -320,7 +315,6 @@ _log_matches_env_gap_pattern() {
     return 1
 }
 
-# TODO: Document canonical_canary_customer_loop_skip_reason_from_log.
 canonical_canary_customer_loop_skip_reason_from_log() {
     local log_path="$1"
     local skip_line skip_payload skip_reason
@@ -346,7 +340,6 @@ canonical_canary_customer_loop_skip_reason_from_log() {
             ;;
     esac
 }
-# TODO: Document read_env_value_from_file.
 read_env_value_from_file() {
     local env_file="$1"
     local key="$2"
@@ -374,7 +367,6 @@ validate_env_assignment_file_syntax() {
     _for_each_env_assignment "$env_file" _validate_env_assignment_file_noop
 }
 
-# TODO: Document resolve_credential_value.
 resolve_credential_value() {
     local key="$1"
     local explicit_value="${!key:-}"
@@ -422,7 +414,6 @@ resolve_paid_beta_rc_test_clock_stripe_key() {
     fi
     resolve_first_available_credential_value "STRIPE_SECRET_KEY" "STRIPE_TEST_SECRET_KEY"
 }
-# TODO: Document run_step_local_signoff.
 run_step_local_signoff() {
     local start_ms end_ms elapsed status reason
     start_ms="$(_ms_now)"
@@ -461,7 +452,6 @@ run_step_local_signoff() {
     fi
     return "$exit_code"
 }
-# TODO: Document run_step_ses_readiness.
 run_step_ses_readiness() {
     local start_ms end_ms elapsed status reason
     start_ms="$(_ms_now)"
@@ -526,7 +516,6 @@ run_step_ses_readiness() {
     append_step "ses_readiness" "$status" "$reason" "$elapsed"
     return "$exit_code"
 }
-# TODO: Document run_step_staging_billing_rehearsal.
 run_step_staging_billing_rehearsal() {
     local start_ms end_ms elapsed status reason
     start_ms="$(_ms_now)"
@@ -625,7 +614,6 @@ is_browser_credential_env_key() {
     done
     return 1
 }
-# TODO: Document write_filtered_browser_credential_env_file.
 write_filtered_browser_credential_env_file() {
     local source_env_file="$1"
     local target_env_file="$2"
@@ -654,7 +642,6 @@ write_filtered_browser_credential_env_file() {
         return 2
     done < "$source_env_file"
 }
-# TODO: Document build_paid_beta_rc_browser_lane_command.
 build_paid_beta_rc_browser_lane_command() {
     local canonical_lane="$1"
     local step_name="$2"
@@ -688,7 +675,6 @@ build_staging_runtime_smoke_command() {
         --env staging
     )
 }
-# TODO: Document run_delegated_command_step.
 run_delegated_command_step() {
     local step_name="$1"
     local fail_reason="$2"
@@ -783,7 +769,6 @@ run_step_browser_preflight() {
     build_browser_preflight_command
     run_delegated_command_step "browser_preflight" "browser_preflight_failed" "" "${STEP_COMMAND[@]}"
 }
-# TODO: Document run_step_browser_auth_setup.
 run_step_browser_auth_setup() {
     local start_ms end_ms elapsed log_path
     start_ms="$(_ms_now)"
@@ -815,7 +800,6 @@ run_step_browser_auth_setup() {
     build_browser_auth_setup_command
     run_delegated_command_step "browser_auth_setup" "browser_auth_setup_failed" "$PLAYWRIGHT_WEB_DIR" "${STEP_COMMAND[@]}"
 }
-# TODO: Document run_step_paid_beta_rc_browser_lane.
 run_step_paid_beta_rc_browser_lane() {
     local step_name="$1"
     local canonical_lane="$2"
@@ -865,7 +849,6 @@ run_step_paid_beta_rc_browser_signup_paid() {
 run_step_paid_beta_rc_browser_portal_cancel() {
     run_step_paid_beta_rc_browser_lane "browser_portal_cancel" "billing_portal_payment_method_update" "browser_portal_cancel_failed"
 }
-# TODO: Document run_step_terraform_static_guardrails.
 run_step_terraform_static_guardrails() {
     local start_ms end_ms elapsed status reason
     start_ms="$(_ms_now)"
@@ -915,7 +898,6 @@ run_step_staging_runtime_smoke() {
     build_staging_runtime_smoke_command
     run_delegated_command_step "staging_runtime_smoke" "staging_runtime_smoke_failed" "" "${STEP_COMMAND[@]}"
 }
-# TODO: Document run_step_backend_launch_gate.
 run_step_backend_launch_gate() {
     local sha="$1"
     local start_ms end_ms elapsed status reason
@@ -983,7 +965,6 @@ except Exception:
     fi
     return 1
 }
-# TODO: Document reset_run_state.
 reset_run_state() {
     SHA_OVERRIDE=""
     MODE="live"
@@ -1018,7 +999,6 @@ execute_required_step() {
         READY="false"
     fi
 }
-# TODO: Document parse_only_steps_csv.
 parse_only_steps_csv() {
     ONLY_STEP_NAMES=()
     if [ -z "$ONLY_STEPS_CSV" ]; then
@@ -1068,7 +1048,6 @@ registry_contains_step() {
     done
     return 1
 }
-# TODO: Document register_required_step.
 register_required_step() {
     local step_name="$1" step_function="$2"
     shift 2
@@ -1092,7 +1071,6 @@ register_required_step() {
             ;;
     esac
 }
-# TODO: Document visit_paid_beta_rc_step_registry.
 visit_paid_beta_rc_step_registry() {
     register_required_step "cargo_workspace_tests" run_step_cargo_tests
     register_required_step "backend_launch_gate" run_step_backend_launch_gate "$RESOLVED_SHA"
@@ -1136,7 +1114,6 @@ visit_paid_beta_rc_step_registry() {
     register_required_step "prod_full_vm_lifecycle" run_step_paid_beta_rc_prod_full_vm_lifecycle
 }
 
-# TODO: Document emit_paid_beta_step_registry_json.
 emit_paid_beta_step_registry_json() {
     REGISTERED_STEP_NAMES=()
     STEP_REGISTRY_MODE="collect"
@@ -1191,7 +1168,6 @@ validate_only_steps() {
         fi
     done
 }
-# TODO: Document run_paid_beta_rc_rust_step.
 run_paid_beta_rc_rust_step() {
     local step_name="$1" fail_reason="$2" classify_skip_as_secret_missing="$3" command="$4"
     local start_ms end_ms elapsed output="" exit_code=0 log_path
@@ -1236,7 +1212,6 @@ append_staging_only_production_skip_step() {
     local step_name="$1"
     append_paid_beta_rc_constant_step "$step_name" "skipped" "$STAGING_ONLY_PRODUCTION_SKIP_REASON"
 }
-# TODO: Document run_step_paid_beta_rc_ses_inbound.
 run_step_paid_beta_rc_ses_inbound() {
     local start_ms end_ms elapsed exit_code=0 ses_identity="" ses_region=""
     local ses_identity_status=0 ses_region_status=0
@@ -1262,7 +1237,6 @@ run_step_paid_beta_rc_ses_inbound() {
     [ "$exit_code" -eq 0 ] && return 0
     return "$exit_code"
 }
-# TODO: Document run_step_paid_beta_rc_canary_customer_loop.
 run_step_paid_beta_rc_canary_customer_loop() {
     local start_ms end_ms elapsed exit_code=0 canary_admin_key="" canary_stripe_key=""
     local canary_admin_key_status=0 canary_stripe_key_status=0
@@ -1377,7 +1351,6 @@ stripe_key_is_live_mode() {
     local stripe_key="$1"
     [[ "$stripe_key" == sk_live_* || "$stripe_key" == rk_live_* ]]
 }
-# TODO: Document run_step_paid_beta_rc_test_clock.
 run_step_paid_beta_rc_test_clock() {
     local start_ms end_ms elapsed exit_code=0 stripe_key="" stripe_key_status=0
     local log_path status reason
@@ -1458,7 +1431,6 @@ promote_critical_browser_skip_failures() {
         fi
     done
 }
-# TODO: Document recompute_outcome_from_steps.
 recompute_outcome_from_steps() {
     OVERALL_FAILED=0
     READY="true"
@@ -1480,7 +1452,6 @@ recompute_outcome_from_steps() {
         esac
     done
 }
-# TODO: Document emit_final_result.
 emit_final_result() {
     local start_ms="$1"
     promote_critical_browser_skip_failures
@@ -1498,7 +1469,6 @@ emit_final_result() {
     [ "$OVERALL_FAILED" -ne 0 ] && return 1
     return 0
 }
-# TODO: Document run_full_backend_validation.
 run_full_backend_validation() {
     local start_ms
     start_ms="$(_ms_now)"

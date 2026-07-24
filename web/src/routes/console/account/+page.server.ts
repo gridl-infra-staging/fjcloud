@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for +page.server.ts.
- */
 import type { PageServerLoad, Actions } from './$types';
 import { ApiRequestError } from '$lib/api/client';
 import type { AuthUser } from '$lib/auth/guard';
@@ -44,9 +41,6 @@ function customerFacingApiErrorMessage(error: unknown, fallback: string): string
 	return customerFacingErrorMessage(error, fallback);
 }
 
-/**
- * TODO: Document load.
- */
 export const load: PageServerLoad = async ({ locals }) => {
 	const api = apiForLocals(locals);
 	// Defensive: if the API rejects our token (401/403) — e.g. JWT_SECRET drift between

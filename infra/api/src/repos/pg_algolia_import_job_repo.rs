@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/repos/pg_algolia_import_job_repo.rs.
 #[path = "pg_algolia_import_job_dispatch.rs"]
 mod dispatch;
 #[path = "pg_algolia_import_job_lifecycle.rs"]
@@ -82,7 +81,6 @@ impl PgAlgoliaImportJobRepo {
         AlgoliaImportJobAdmissionError::Refused(AlgoliaImportErrorCode::DestinationConflict)
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.mark_erased_tombstone_engine_acknowledged.
     async fn mark_erased_tombstone_engine_acknowledged(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -130,7 +128,6 @@ impl PgAlgoliaImportJobRepo {
         .map(|row| row.outcome())
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.resolve_existing_replay.
     async fn resolve_existing_replay(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -169,7 +166,6 @@ impl PgAlgoliaImportJobRepo {
             .await
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.resolve_replay_after_unique_violation.
     async fn resolve_replay_after_unique_violation(
         &self,
         job: &NewAlgoliaImportJob,
@@ -216,7 +212,6 @@ fn parse_engine_ack_state(value: &str) -> AlgoliaImportEngineAckState {
 
 #[async_trait]
 impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
-    /// TODO: Document PgAlgoliaImportJobRepo.create.
     async fn create(
         &self,
         job: NewAlgoliaImportJob,
@@ -265,7 +260,6 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
         }
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.create_replace.
     async fn create_replace(
         &self,
         job: NewAlgoliaReplaceImportJob,
@@ -352,7 +346,6 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
         .map(|row| row.map(Into::into))
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.get_for_customer.
     async fn get_for_customer(
         &self,
         customer_id: Uuid,
@@ -370,7 +363,6 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
         .map(|row| row.map(Into::into))
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.list_for_customer.
     async fn list_for_customer(
         &self,
         customer_id: Uuid,
@@ -431,7 +423,6 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
             .map(|row| row.map(Into::into))
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.find_active_dispatch_replay.
     async fn find_active_dispatch_replay(
         &self,
         customer_id: Uuid,
@@ -462,7 +453,6 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
         })
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.update_persisted_state.
     async fn update_persisted_state(
         &self,
         id: Uuid,
@@ -476,7 +466,6 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
         Ok(updated)
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.record_dispatch_intent_committed.
     async fn record_dispatch_intent_committed(
         &self,
         id: Uuid,
@@ -500,7 +489,6 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
         guard.tx.commit().await.map_err(repo_error)
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.record_no_dispatch_failure.
     async fn record_no_dispatch_failure(
         &self,
         id: Uuid,
@@ -511,7 +499,6 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
             .await
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.request_cancel.
     async fn request_cancel(&self, id: Uuid) -> Result<AlgoliaImportCancelOutcome, RepoError> {
         self.request_cancel_inner(id).await
     }
@@ -525,12 +512,10 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
             .await
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.prepare_resume.
     async fn prepare_resume(&self, id: Uuid) -> Result<AlgoliaImportResumeOutcome, RepoError> {
         self.prepare_resume_inner(id).await
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.prepare_resume_for_customer.
     async fn prepare_resume_for_customer(
         &self,
         customer_id: Uuid,
@@ -541,7 +526,6 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
             .await
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.record_resume_accepted.
     async fn record_resume_accepted(
         &self,
         id: Uuid,
@@ -552,7 +536,6 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
             .await
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.mark_engine_acknowledged.
     async fn mark_engine_acknowledged(
         &self,
         id: Uuid,
@@ -606,7 +589,6 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
         Ok(acknowledged)
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.gc_retained_terminal_history.
     async fn gc_retained_terminal_history(
         &self,
         now: DateTime<Utc>,
@@ -681,7 +663,6 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
             .await
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.claim_elapsed_resume_deadlines.
     async fn claim_elapsed_resume_deadlines(
         &self,
         now: DateTime<Utc>,
@@ -735,7 +716,6 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.begin_lifecycle_target_guard.
     async fn begin_lifecycle_target_guard(
         &self,
         customer_id: Uuid,
@@ -745,7 +725,6 @@ impl AlgoliaImportJobRepo for PgAlgoliaImportJobRepo {
             .await
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.commit_lifecycle_target_guard.
     async fn commit_lifecycle_target_guard(
         &self,
         guard: CatalogLifecycleTargetGuard,

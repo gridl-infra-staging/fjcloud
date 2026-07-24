@@ -9,7 +9,6 @@ json_get_field() {
     validation_json_get_field "$@"
 }
 
-# TODO: Document json_get_nested_field.
 json_get_nested_field() {
     local json_body="$1"
     local dotted_path="$2"
@@ -42,7 +41,6 @@ else:
 PY
 }
 
-# TODO: Document json_any_value_contains_ci.
 json_any_value_contains_ci() {
     local json_body="$1"
     local needle="$2"

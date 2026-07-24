@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/services/algolia_import/observation_tests.rs.
 use chrono::{DateTime, Utc};
 use serde_json::json;
 use uuid::Uuid;
@@ -28,7 +27,6 @@ fn cursor(
     )
 }
 
-/// TODO: Document response.
 fn response(
     phase: AsyncMigrationPhase,
     disposition: &str,
@@ -48,7 +46,6 @@ fn response(
     .unwrap()
 }
 
-/// TODO: Document status_observation_maps_every_running_phase_to_the_canonical_cloud_sequence.
 #[test]
 fn status_observation_maps_every_running_phase_to_the_canonical_cloud_sequence() {
     let cases = [
@@ -93,7 +90,6 @@ fn status_observation_maps_every_running_phase_to_the_canonical_cloud_sequence()
     }
 }
 
-/// TODO: Document status_observation_maps_only_the_pinned_terminal_outcomes.
 #[test]
 fn status_observation_maps_only_the_pinned_terminal_outcomes() {
     let cases = [
@@ -152,7 +148,6 @@ fn status_observation_maps_only_the_pinned_terminal_outcomes() {
     }
 }
 
-/// TODO: Document status_observation_keeps_cancelling_running_and_closes_terminal_race_matrix.
 #[test]
 fn status_observation_keeps_cancelling_running_and_closes_terminal_race_matrix() {
     let previous = AlgoliaImportSummary {
@@ -224,7 +219,6 @@ fn status_observation_keeps_cancelling_running_and_closes_terminal_race_matrix()
     }
 }
 
-/// TODO: Document status_observation_rejects_identity_phase_and_progress_rewind.
 #[test]
 fn status_observation_rejects_identity_phase_and_progress_rewind() {
     let previous = AlgoliaImportSummary {
@@ -281,7 +275,6 @@ fn status_observation_rejects_identity_phase_and_progress_rewind() {
     );
 }
 
-/// TODO: Document status_observation_preserves_progress_when_the_optional_engine_field_is_absent.
 #[test]
 fn status_observation_preserves_progress_when_the_optional_engine_field_is_absent() {
     let summary = AlgoliaImportSummary {
@@ -308,7 +301,6 @@ fn status_observation_preserves_progress_when_the_optional_engine_field_is_absen
     assert_eq!(observed.summary, summary);
 }
 
-/// TODO: Document status_observation_output_excludes_engine_metadata_and_unpinned_outcomes.
 #[test]
 fn status_observation_output_excludes_engine_metadata_and_unpinned_outcomes() {
     let response = response(AsyncMigrationPhase::Exporting, "running", 1, 2);

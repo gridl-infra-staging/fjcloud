@@ -5,7 +5,6 @@ set -euo pipefail
 
 DEPLOY_GATE_MODE="${DEPLOY_GATE_MODE:-mock}"
 
-# TODO: Document ci_status_is_passing.
 ci_status_is_passing() {
   local sha="$1"
 
@@ -64,28 +63,24 @@ ci_status_is_passing() {
   return 1
 }
 
-# TODO: Document github_file_content_base64.
 github_file_content_base64() {
   local repo="$1"
   local path="$2"
   gh api "repos/${repo}/contents/${path}" --jq '.content'
 }
 
-# TODO: Document github_file_content_decoded.
 github_file_content_decoded() {
   local repo="$1"
   local path="$2"
   github_file_content_base64 "$repo" "$path" | base64 -d
 }
 
-# TODO: Document github_branch_head_sha.
 github_branch_head_sha() {
   local repo="$1"
   local branch="${2:-main}"
   gh api "repos/${repo}/commits/${branch}" --jq '.sha'
 }
 
-# TODO: Document github_latest_ci_run_for_sha.
 github_latest_ci_run_for_sha() {
   local repo="$1"
   local sha="$2"
@@ -97,14 +92,12 @@ github_latest_ci_run_for_sha() {
     --json databaseId,conclusion,headSha,createdAt,url
 }
 
-# TODO: Document github_ci_run_jobs_json.
 github_ci_run_jobs_json() {
   local repo="$1"
   local run_id="$2"
   gh run view "$run_id" -R "$repo" --json jobs
 }
 
-# TODO: Document artifact_exists_for_sha.
 artifact_exists_for_sha() {
   local env="$1"
   local sha="$2"
@@ -162,7 +155,6 @@ artifact_exists_for_sha() {
   return 0
 }
 
-# TODO: Document predeploy_validate_release.
 predeploy_validate_release() {
   local env="$1"
   local sha="$2"

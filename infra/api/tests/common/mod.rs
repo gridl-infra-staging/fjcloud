@@ -109,7 +109,6 @@ pub struct TestOAuthProvider {
     pub userinfo_endpoint: String,
 }
 
-/// TODO: Document spawn_test_oauth_provider.
 pub async fn spawn_test_oauth_provider() -> TestOAuthProvider {
     let app = axum::Router::new()
         .route(

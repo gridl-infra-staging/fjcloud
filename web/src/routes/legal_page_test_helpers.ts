@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for legal_page_test_helpers.ts.
- */
 import { screen, within } from '@testing-library/svelte';
 import { expect } from 'vitest';
 
@@ -60,9 +57,6 @@ export function assertSharedLegalPageContract(): void {
 	}
 }
 
-/**
- * TODO: Document assertLegalPagePresentationContract.
- */
 export function assertLegalPagePresentationContract(primaryHeading: string): void {
 	const legalShell = screen.getByTestId('public-legal-shell');
 	const legalCanvas = legalShell.closest('div.min-h-screen');

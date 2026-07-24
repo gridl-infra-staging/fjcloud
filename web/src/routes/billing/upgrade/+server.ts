@@ -1,13 +1,7 @@
-/**
- * @module Stub summary for +server.ts.
- */
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 const UPGRADE_PROXY_UNAVAILABLE = 'billing_upgrade_unavailable';
 
-/**
- * TODO: Document POST.
- */
 export const POST: RequestHandler = async ({ locals, fetch }) => {
 	if (!locals.user) {
 		return json({ error: 'unauthorized' }, { status: 401 });

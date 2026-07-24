@@ -72,7 +72,6 @@ record_probe_skip() {
 	fi
 }
 
-# TODO: Document metrics_json_field.
 metrics_json_field() {
 	local json_body="$1"
 	local field_name="$2"
@@ -92,12 +91,10 @@ else:
 PY
 }
 
-# TODO: Document metrics_shape_ok.
 metrics_shape_ok() {
 	metrics_validation_ok endpoint "$1"
 }
 
-# TODO: Document metrics_validation_ok.
 metrics_validation_ok() {
 	local validation_mode="$1"
 	local json_body="$2"
@@ -264,7 +261,6 @@ print(quote(sys.argv[1], safe=""))
 PY
 }
 
-# TODO: Document ensure_live_probe_prereqs.
 ensure_live_probe_prereqs() {
 	local prereq_output="" prereq_rc=0 reason detail prereq_output_file
 
@@ -294,7 +290,6 @@ ensure_live_probe_prereqs() {
 	esac
 }
 
-# TODO: Document load_probe_env.
 load_probe_env() {
 	if ! load_canary_probe_prereq_env; then
 		return 1
@@ -330,7 +325,6 @@ create_probe_summary_dir() {
 	SUMMARY_JSON="$PROBE_SUMMARY_DIR/summary.json"
 }
 
-# TODO: Document run_metrics_request_pair.
 run_metrics_request_pair() {
 	local encoded_index_name
 
@@ -376,12 +370,10 @@ run_metrics_request_pair() {
 	return 0
 }
 
-# TODO: Document metrics_tab_data_shape_ok.
 metrics_tab_data_shape_ok() {
 	metrics_validation_ok tab "$1"
 }
 
-# TODO: Document assert_metrics_tab_data_surface.
 assert_metrics_tab_data_surface() {
 	local response metrics_tab_url response_code response_body encoded_index_name
 
@@ -415,7 +407,6 @@ assert_metrics_tab_data_surface() {
 	return 0
 }
 
-# TODO: Document wait_for_metrics_population.
 wait_for_metrics_population() {
 	local attempt max_attempts documents_count encoded_index_name
 
@@ -438,7 +429,6 @@ wait_for_metrics_population() {
 	return 1
 }
 
-# TODO: Document write_summary_json.
 write_summary_json() {
 	local summary_json cleanup_ok
 
@@ -548,7 +538,6 @@ cleanup_probe_resources() {
 	fi
 }
 
-# TODO: Document parse_probe_args.
 parse_probe_args() {
 	while [ "$#" -gt 0 ]; do
 		case "$1" in
@@ -569,7 +558,6 @@ parse_probe_args() {
 	done
 }
 
-# TODO: Document main.
 main() {
 	local prereq_rc
 

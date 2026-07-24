@@ -1,4 +1,3 @@
-//! Stub summary for replication.rs.
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -221,7 +220,6 @@ impl ReplicationOrchestrator {
         elapsed > self.config.syncing_timeout_secs as i64
     }
 
-    /// TODO: Document ReplicationOrchestrator.handle_provisioning.
     async fn handle_provisioning(&self, replica: IndexReplica) {
         let (source_vm, replica_vm) = match self.load_replica_vms(&replica).await {
             Ok(vms) => vms,

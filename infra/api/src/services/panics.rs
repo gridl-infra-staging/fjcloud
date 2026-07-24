@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/services/panics.rs.
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -41,7 +40,6 @@ impl PanicsPublisher {
         }
     }
 
-    /// TODO: Document PanicsPublisher.publish_once.
     pub async fn publish_once(&mut self) -> Result<(), String> {
         let current_total = self.metrics.panic_total();
         let panics_this_period = current_total.saturating_sub(self.last_published_total);
@@ -70,7 +68,6 @@ impl PanicsPublisher {
         Ok(())
     }
 
-    /// TODO: Document PanicsPublisher.run.
     pub async fn run(mut self, mut shutdown_rx: watch::Receiver<bool>) {
         let mut interval = tokio::time::interval(self.period);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);

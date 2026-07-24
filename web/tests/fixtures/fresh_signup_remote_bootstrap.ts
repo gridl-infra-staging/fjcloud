@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for fresh_signup_remote_bootstrap.ts.
- */
 import { expect, type Page } from '@playwright/test';
 import { AUTH_COOKIE } from '../../src/lib/server/auth-session-contracts';
 import {
@@ -46,9 +43,6 @@ export async function setAuthCookieForToken(page: Page, token: string): Promise<
 	]);
 }
 
-/**
- * TODO: Document attemptRemoteSignupFallback.
- */
 export async function attemptRemoteSignupFallback({
 	page,
 	email,

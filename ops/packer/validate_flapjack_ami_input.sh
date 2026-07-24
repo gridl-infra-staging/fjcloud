@@ -40,7 +40,6 @@ json_value() {
   jq -er "$filter" "$file"
 }
 
-# TODO: Document validate_args.
 validate_args() {
   MANIFEST_PATH=""
   ARCHIVE_PATH=""
@@ -78,7 +77,6 @@ validate_manifest_json() {
   jq -e . "$MANIFEST_PATH" >/dev/null || fail "manifest is not valid JSON: $MANIFEST_PATH"
 }
 
-# TODO: Document validate_manifest_envelope.
 validate_manifest_envelope() {
   local artifact_file artifact_target artifact_arch artifact_profile archive_sha expected_archive_sha
   jq -e --argjson expected "$EXPECTED_SCHEMA_VERSION" '.schemaVersion == $expected' "$MANIFEST_PATH" >/dev/null \
@@ -127,7 +125,6 @@ validate_release_identity() {
   [[ "$dirty" != "true" ]] || fail "manifest build.dirty must not be true"
 }
 
-# TODO: Document single_safe_archive_member.
 single_safe_archive_member() {
   local archive_list candidate member="" member_count=0
   archive_list="$(tar -tzf "$ARCHIVE_PATH")" || fail "archive member listing failed"
@@ -174,7 +171,6 @@ validate_build_info_matches_manifest() {
   [[ "$manifest_build" == "$binary_build" ]] || fail "flapjack build-info --json does not match manifest .build"
 }
 
-# TODO: Document main.
 main() {
   if ! validate_args "$@"; then
     usage >&2

@@ -55,7 +55,6 @@ ensure_docker_daemon_or_warn() {
     return 1
 }
 
-# TODO: Document _report_docker_daemon_unreachable.
 _report_docker_daemon_unreachable() {
     local os ctx hint
     os="$(uname -s 2>/dev/null || echo unknown)"

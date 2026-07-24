@@ -32,7 +32,6 @@ sql_values_csv() {
     stale_fixture_prefix_sql_values | paste -sd, -
 }
 
-# TODO: Document cleanup_dev_orphans_target_sql.
 cleanup_dev_orphans_target_sql() {
     local prefix_values
     prefix_values="$(sql_values_csv)"
@@ -121,7 +120,6 @@ ORDER BY hostname;
 SQL
 }
 
-# TODO: Document cleanup_dev_orphans_summary_sql.
 cleanup_dev_orphans_summary_sql() {
     cat <<'SQL'
 SELECT
@@ -142,7 +140,6 @@ FROM cleanup_target_vms;
 SQL
 }
 
-# TODO: Document cleanup_dev_orphans_apply_sql.
 cleanup_dev_orphans_apply_sql() {
     cat <<'SQL'
 \if :apply_cleanup
@@ -255,7 +252,6 @@ run_cleanup_plan() {
         -v synthetic_vm_hostname_like="$LOCAL_SEED_SYNTHETIC_VM_HOSTNAME_LIKE"
 }
 
-# TODO: Document main.
 main() {
     local apply_cleanup=0 mode_label="dry-run"
 

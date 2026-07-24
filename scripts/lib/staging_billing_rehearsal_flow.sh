@@ -9,7 +9,6 @@ set_blocked_summary() {
     SUMMARY_DETAIL="$detail"
 }
 
-# TODO: Document print_usage.
 print_usage() {
     cat <<'USAGE'
 Usage:
@@ -32,7 +31,6 @@ Reset safety:
 USAGE
 }
 
-# TODO: Document parse_args_token.
 parse_args_token() {
     case "$1" in
         --env-file)
@@ -104,7 +102,6 @@ parse_args_token() {
     esac
 }
 
-# TODO: Document validate_parsed_args.
 validate_parsed_args() {
     if [ -z "$ENV_FILE" ]; then
         set_blocked_summary "explicit_env_file_required" \
@@ -236,7 +233,6 @@ handle_guard_failure() {
     STEP_ATTEMPT_DETAIL="Live mutation was not attempted because guard preconditions failed."
 }
 
-# TODO: Document run_rehearsal_flow.
 run_rehearsal_flow() {
     if ! parse_args "$@"; then
         handle_parse_failure

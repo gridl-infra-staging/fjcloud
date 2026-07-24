@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/tests/integration/migration_routes_test/read/mod.rs.
 use super::*;
 
 mod lifecycle;
@@ -52,7 +51,6 @@ fn assert_public_job_history_contract(body: &serde_json::Value) {
     }
 }
 
-/// TODO: Document algolia_cloud_job_read_get_returns_public_dto_without_internal_fields.
 #[tokio::test]
 async fn algolia_cloud_job_read_get_returns_public_dto_without_internal_fields() {
     let db = connect_and_migrate_required("algolia_read_get_dto").await;
@@ -67,7 +65,6 @@ async fn algolia_cloud_job_read_get_returns_public_dto_without_internal_fields()
     assert_public_job_history_contract(&body);
 }
 
-/// TODO: Document algolia_cloud_job_read_get_missing_and_foreign_return_identical_404.
 #[tokio::test]
 async fn algolia_cloud_job_read_get_missing_and_foreign_return_identical_404() {
     let db = connect_and_migrate_required("algolia_read_get_404").await;
@@ -88,7 +85,6 @@ async fn algolia_cloud_job_read_get_missing_and_foreign_return_identical_404() {
     assert_eq!(missing_body, foreign_body);
 }
 
-/// TODO: Document algolia_cloud_job_read_list_paginates_with_signed_cursor.
 #[tokio::test]
 async fn algolia_cloud_job_read_list_paginates_with_signed_cursor() {
     let db = connect_and_migrate_required("algolia_read_list_page").await;
@@ -138,7 +134,6 @@ async fn algolia_cloud_job_read_list_paginates_with_signed_cursor() {
     assert!(next_body["nextCursor"].is_null(), "last page has no cursor");
 }
 
-/// TODO: Document algolia_cloud_job_read_list_exact_full_page_has_no_cursor.
 #[tokio::test]
 async fn algolia_cloud_job_read_list_exact_full_page_has_no_cursor() {
     let db = connect_and_migrate_required("algolia_read_list_exact_full").await;
@@ -164,7 +159,6 @@ async fn algolia_cloud_job_read_list_exact_full_page_has_no_cursor() {
     );
 }
 
-/// TODO: Document algolia_cloud_job_read_list_exact_multiple_final_page_has_no_cursor.
 #[tokio::test]
 async fn algolia_cloud_job_read_list_exact_multiple_final_page_has_no_cursor() {
     let db = connect_and_migrate_required("algolia_read_list_exact_multiple").await;
@@ -208,7 +202,6 @@ async fn algolia_cloud_job_read_list_exact_multiple_final_page_has_no_cursor() {
     );
 }
 
-/// TODO: Document algolia_cloud_job_read_list_rejects_tampered_and_cross_customer_cursor.
 #[tokio::test]
 async fn algolia_cloud_job_read_list_rejects_tampered_and_cross_customer_cursor() {
     let db = connect_and_migrate_required("algolia_read_list_cursor").await;
@@ -264,7 +257,6 @@ async fn algolia_cloud_job_read_list_rejects_tampered_and_cross_customer_cursor(
     assert_eq!(cross_body, json!({ "error": "invalid_list_cursor" }));
 }
 
-/// TODO: Document algolia_cloud_job_read_is_not_gated_by_exposure_flag.
 #[tokio::test]
 async fn algolia_cloud_job_read_is_not_gated_by_exposure_flag() {
     let db = connect_and_migrate_required("algolia_read_exposure_off").await;

@@ -128,7 +128,6 @@ parse_args() {
     done
 }
 
-# TODO: Document validate_args.
 validate_args() {
     [ -n "$SOURCE_SHA" ] || die "--sha is required (40-char lowercase hex)"
     is_lowercase_40_hex "$SOURCE_SHA" \
@@ -199,7 +198,6 @@ setup_work_tmp() {
     write_emit_helper > "$EMIT_HELPER"
 }
 
-# TODO: Document extract_staging_dev_sha.
 extract_staging_dev_sha() {
     local status_json="$1"
     local fields dev_sha status_deployable_drift status_doc_only_ahead extra
@@ -225,7 +223,6 @@ field_value() {
     awk -F= -v wanted="$name" '$1 == wanted { print $2 }'
 }
 
-# TODO: Document acquire_deployable_currency.
 acquire_deployable_currency() {
     PHASE="setup"
     local status_output status_rc=0 dev_sha classification
@@ -365,7 +362,6 @@ run_probes() {
     done
 }
 
-# TODO: Document build_emit_input.
 build_emit_input() {
     python3 - "$BUNDLE_DIR" "$SOURCE_SHA" "$BILLING_MONTH" "$ARCHIVE_DIGEST" \
         "$TREE_DIGEST" "$INTEGRITY_LIB" "$INSTANCE_ID" "$PROBE_RUNS_FILE" \
@@ -429,7 +425,6 @@ emit_bundle() {
     PHASE="complete"
 }
 
-# TODO: Document write_run_status.
 write_run_status() {
     local status="$1" rc="$2"
     [ -n "$BUNDLE_DIR" ] || return 0
@@ -505,7 +500,6 @@ on_exit() {
     exit "$final_rc"
 }
 
-# TODO: Document write_emit_helper.
 write_emit_helper() {
     cat <<'PY'
 #!/usr/bin/env python3

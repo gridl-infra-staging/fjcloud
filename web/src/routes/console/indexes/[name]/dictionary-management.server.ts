@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for dictionary-management.server.ts.
- */
 import { fail } from '@sveltejs/kit';
 import type { ApiClient } from '$lib/api/client';
 import { createApiClient } from '$lib/server/api';
@@ -53,9 +50,6 @@ export function emptyDictionariesPayload(): DictionariesPayload {
 	};
 }
 
-/**
- * TODO: Document fetchCanonicalDictionariesPayload.
- */
 async function fetchCanonicalDictionariesPayload(
 	api: ApiClient,
 	indexName: string,
@@ -169,9 +163,6 @@ async function fetchCanonicalDictionariesPayload(
 	}
 }
 
-/**
- * TODO: Document loadDictionariesPayload.
- */
 export async function loadDictionariesPayload(
 	api: ApiClient,
 	indexName: string,
@@ -190,9 +181,6 @@ export async function loadDictionariesPayload(
 	return payload;
 }
 
-/**
- * TODO: Document loadDictionariesPayloadResult.
- */
 export async function loadDictionariesPayloadResult(
 	api: ApiClient,
 	indexName: string,
@@ -210,9 +198,6 @@ export async function loadDictionariesPayloadResult(
 	);
 }
 
-/**
- * TODO: Document browseDictionaryEntriesAction.
- */
 export async function browseDictionaryEntriesAction({
 	request,
 	indexName,
@@ -251,9 +236,6 @@ export async function browseDictionaryEntriesAction({
 	return { dictionaries: payload };
 }
 
-/**
- * TODO: Document saveDictionaryEntryAction.
- */
 export async function saveDictionaryEntryAction({
 	request,
 	indexName,
@@ -342,9 +324,6 @@ export async function saveDictionaryEntryAction({
 	};
 }
 
-/**
- * TODO: Document deleteDictionaryEntryAction.
- */
 export async function deleteDictionaryEntryAction({
 	request,
 	indexName,
@@ -431,9 +410,6 @@ export async function deleteDictionaryEntryAction({
 	};
 }
 
-/**
- * TODO: Document clearDictionaryEntriesAction.
- */
 export async function clearDictionaryEntriesAction({
 	request,
 	indexName,

@@ -18,7 +18,6 @@ use super::reconciliation_test_support::{
     config, harness, job, response, vm, FakeReconciliationStore, FixedVmRepo, ENGINE_JOB_ID,
 };
 
-/// TODO: Document reconcile_once_persists_monotonic_running_progress_and_clears_only_unavailable.
 #[tokio::test]
 async fn reconcile_once_persists_monotonic_running_progress_and_clears_only_unavailable() {
     let now = Utc::now();
@@ -68,7 +67,6 @@ async fn reconcile_once_persists_monotonic_running_progress_and_clears_only_unav
     assert_eq!(requests[0].json_body, None);
 }
 
-/// TODO: Document reconcile_once_deduplicates_retained_unavailable_alerts_from_persisted_state.
 #[tokio::test]
 async fn reconcile_once_deduplicates_retained_unavailable_alerts_from_persisted_state() {
     let now = Utc::now();
@@ -106,7 +104,6 @@ async fn reconcile_once_deduplicates_retained_unavailable_alerts_from_persisted_
     assert!(!serialized.contains("private-physical-uid"));
 }
 
-/// TODO: Document reconcile_once_finalizes_terminal_fact_with_reconciliation_lease.
 #[tokio::test]
 async fn reconcile_once_finalizes_terminal_fact_with_reconciliation_lease() {
     let now = Utc::now();
@@ -430,7 +427,6 @@ async fn reconcile_once_does_not_alert_lost_terminal_fence() {
     assert_eq!(alert_service.alert_count(), 0);
 }
 
-/// TODO: Document reconcile_once_retains_cancel_intent_across_loss_restart_and_promotion_race.
 #[tokio::test]
 async fn reconcile_once_retains_cancel_intent_across_loss_restart_and_promotion_race() {
     let now = Utc::now();
@@ -535,7 +531,6 @@ async fn reconcile_once_retains_cancel_intent_across_loss_restart_and_promotion_
     assert_eq!(requests[3].json_body, None);
 }
 
-/// TODO: Document reconciliation_loop_honors_an_already_requested_shutdown_without_claiming.
 #[tokio::test]
 async fn reconciliation_loop_honors_an_already_requested_shutdown_without_claiming() {
     let now = Utc::now();

@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/services/algolia_import/observation.rs.
 use uuid::Uuid;
 
 use crate::models::algolia_import_job::{
@@ -64,7 +63,6 @@ pub enum AlgoliaImportStatusObservationError {
 }
 
 impl AlgoliaImportService {
-    /// TODO: Document AlgoliaImportService.map_status_observation.
     pub fn map_status_observation(
         cursor: &AlgoliaImportObservationCursor,
         response: AsyncMigrationStatusResponse,
@@ -132,7 +130,6 @@ fn cloud_status_for_phase(phase: AsyncMigrationPhase) -> AlgoliaImportJobStatus 
     }
 }
 
-/// TODO: Document reject_phase_rewind.
 fn reject_phase_rewind(
     current: AlgoliaImportJobStatus,
     observed: AlgoliaImportJobStatus,
@@ -179,7 +176,6 @@ fn running_status_rank(status: AlgoliaImportJobStatus) -> Option<u8> {
     }
 }
 
-/// TODO: Document merge_export_progress.
 fn merge_export_progress(
     previous: &AlgoliaImportSummary,
     progress: Option<AsyncMigrationExportProgress>,

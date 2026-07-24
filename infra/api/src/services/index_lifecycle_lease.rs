@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/services/index_lifecycle_lease.rs.
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -62,7 +61,6 @@ impl IndexLifecycleLease {
         self.commit_without_identity_check(guard).await
     }
 
-    /// TODO: Document IndexLifecycleLease.guarded_mutation.
     pub async fn guarded_mutation<F, Fut, T>(
         &self,
         customer_id: Uuid,
@@ -136,7 +134,6 @@ mod tests {
         IndexLifecycleLease::new(PgAlgoliaImportJobRepo::new(pool))
     }
 
-    /// TODO: Document dead_pool_fallback_runs_mutation.
     #[tokio::test]
     async fn dead_pool_fallback_runs_mutation() {
         let lease = dead_pool_lease();
@@ -161,7 +158,6 @@ mod tests {
         );
     }
 
-    /// TODO: Document dead_pool_fallback_serializes_same_target.
     #[tokio::test]
     async fn dead_pool_fallback_serializes_same_target() {
         let lease = Arc::new(dead_pool_lease());

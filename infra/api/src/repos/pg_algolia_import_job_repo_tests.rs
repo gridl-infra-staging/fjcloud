@@ -27,7 +27,6 @@ fn job(customer_id: Uuid, key: &str, canonical_fingerprint: &str) -> NewAlgoliaI
     )
 }
 
-/// TODO: Document idempotent_create_accepts_only_matching_canonical_fingerprint.
 #[test]
 fn idempotent_create_accepts_only_matching_canonical_fingerprint() {
     let customer_id = Uuid::new_v4();
@@ -49,7 +48,6 @@ fn idempotent_create_accepts_only_matching_canonical_fingerprint() {
     ));
 }
 
-/// TODO: Document canonical_fingerprint_includes_destination_semantics.
 #[test]
 fn canonical_fingerprint_includes_destination_semantics() {
     let customer_id = Uuid::new_v4();

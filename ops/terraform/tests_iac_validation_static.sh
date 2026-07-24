@@ -65,7 +65,6 @@ assert_caddy_configure_block_has_no_exit() {
   fi
 }
 
-# TODO: Document assert_validate_script_result.
 assert_validate_script_result() {
   local description="$1"
   local expected_success="$2"

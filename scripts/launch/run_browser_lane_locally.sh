@@ -137,7 +137,6 @@ EVIDENCE_DIR_ARG=""
 SHOW_HELP=0
 LANE_TIMEOUT_SECONDS="${BROWSER_LANE_TIMEOUT_SECONDS:-600}"
 
-# TODO: Document print_usage.
 print_usage() {
   cat <<'EOF'
 Usage:
@@ -471,7 +470,6 @@ run_playwright_with_timeout() {
   rm -f "$timeout_flag"; return "$exit_code"
 }
 
-# TODO: Document run_one_lane.
 run_one_lane() {
   local lane="$1" spec_file
   case "$lane" in

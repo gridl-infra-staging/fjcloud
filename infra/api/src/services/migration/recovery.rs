@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/services/migration/recovery.rs.
 use chrono::{DateTime, Utc};
 use tracing::warn;
 use uuid::Uuid;
@@ -24,7 +23,6 @@ impl MigrationService {
         Ok(())
     }
 
-    /// TODO: Document MigrationService.ensure_rollback_status_supported.
     fn ensure_rollback_status_supported(
         &self,
         migration: &IndexMigration,
@@ -91,7 +89,6 @@ impl MigrationService {
         }
     }
 
-    /// TODO: Document MigrationService.rollback_replicating.
     async fn rollback_replicating(&self, migration: &IndexMigration) -> Result<(), MigrationError> {
         let dest_vm = self.load_vm(migration.dest_vm_id).await?;
 
@@ -184,7 +181,6 @@ impl MigrationService {
         self.resume_index(source_vm, &index_uid).await
     }
 
-    /// TODO: Document MigrationService.publish_rollback.
     async fn publish_rollback(
         &self,
         migration: &IndexMigration,

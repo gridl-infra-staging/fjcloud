@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/repos/algolia_import_job_repo.rs.
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{Postgres, Transaction};
@@ -367,7 +366,6 @@ impl From<AlgoliaImportJobAdmissionError> for RepoError {
     }
 }
 
-/// TODO: Document AlgoliaImportJobRepo.
 #[async_trait]
 pub trait AlgoliaImportJobRepo {
     async fn create(

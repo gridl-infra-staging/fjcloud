@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""
-Stub summary for scripts/dev/regenerate_integration_test_root.py.
-"""
 
 from __future__ import annotations
 
@@ -272,7 +269,6 @@ def grouped_modules() -> dict[str, list[str]]:
 
 
 def render_root(module_names: list[str]) -> str:
-    """TODO: Document render_root."""
     unconditional: list[str] = []
     conditional: dict[str, list[str]] = defaultdict(list)
 
@@ -332,7 +328,6 @@ def cmd_write() -> int:
 
 
 def cmd_check() -> int:
-    """TODO: Document cmd_check."""
     expected = render_roots()
     errors: list[str] = []
     explicitly_grouped = {

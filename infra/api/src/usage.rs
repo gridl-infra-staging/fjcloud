@@ -1,4 +1,3 @@
-//! Stub summary for usage.rs.
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
@@ -104,7 +103,6 @@ pub fn summarize_usage_totals(rows: &[UsageDaily]) -> UsageSummary {
     }
 }
 
-/// TODO: Document summarize_usage_by_region.
 fn summarize_usage_by_region(rows: &[UsageDaily]) -> Vec<RegionUsageSummary> {
     use std::collections::BTreeMap;
 
@@ -273,7 +271,6 @@ mod tests {
         assert_eq!(result.avg_document_count, 10000);
     }
 
-    /// TODO: Document seven_day_window_excludes_stale_rows_and_matches_summary_fields.
     #[test]
     fn seven_day_window_excludes_stale_rows_and_matches_summary_fields() {
         let cid = Uuid::new_v4();

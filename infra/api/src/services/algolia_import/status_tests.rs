@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/services/algolia_import/status_tests.rs.
 use serde_json::json;
 
 use super::AsyncMigrationStatusResponse;
@@ -26,7 +25,6 @@ fn assert_status_rejected(
     );
 }
 
-/// TODO: Document status_response_rejects_every_unpinned_or_contradictory_shape.
 #[test]
 fn status_response_rejects_every_unpinned_or_contradictory_shape() {
     assert_status_rejected(

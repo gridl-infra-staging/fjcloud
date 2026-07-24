@@ -7,7 +7,6 @@ shell_quote_for_script() {
     printf '%s\n' "$quoted"
 }
 
-# TODO: Document mock_discovery_value.
 mock_discovery_value() {
     local env_name="$1"
     local resource="$2"
@@ -32,7 +31,6 @@ mock_discovery_value() {
     esac
 }
 
-# TODO: Document write_mock_aws.
 write_mock_aws() {
     local quoted_aws_log
     quoted_aws_log="$(shell_quote_for_script "$AWS_LOG")"
@@ -229,7 +227,6 @@ MOCK
     chmod +x "$TEST_WORKSPACE/bin/terraform"
 }
 
-# TODO: Document copy_optional_support_trees.
 copy_optional_support_trees() {
     local source_dir dest_dir
     for source_dir in "$REPO_ROOT/ops/scripts/lib" "$REPO_ROOT/scripts/lib"; do
@@ -247,7 +244,6 @@ copy_optional_support_trees() {
     done
 }
 
-# TODO: Document setup_workspace.
 setup_workspace() {
     TEST_WORKSPACE="$(mktemp -d)"
     CLEANUP_DIRS+=("$TEST_WORKSPACE")
@@ -345,7 +341,6 @@ else:
 PY
 }
 
-# TODO: Document assert_missing_fields_exact.
 assert_missing_fields_exact() {
     local payload="$1"
     shift
@@ -373,7 +368,6 @@ PY
     fi
 }
 
-# TODO: Document assert_missing_flags_exact.
 assert_missing_flags_exact() {
     local payload="$1"
     shift
@@ -401,7 +395,6 @@ PY
     fi
 }
 
-# TODO: Document assert_status_and_summary_match.
 assert_status_and_summary_match() {
     local stdout_payload="$1"
     local run_dir="$2"
@@ -429,7 +422,6 @@ PY
     assert_eq "$(json_field "$stdout_payload" "status")" "$expected_status" "run status should be $expected_status"
 }
 
-# TODO: Document assert_plan_command_contract.
 assert_plan_command_contract() {
     local payload="$1"
     local run_dir="$2"
@@ -482,7 +474,6 @@ PY
     fi
 }
 
-# TODO: Document assert_blocked_artifact_contract.
 assert_blocked_artifact_contract() {
     local payload="$1"
     local run_dir="$2"
@@ -518,7 +509,6 @@ PY
     fi
 }
 
-# TODO: Document assert_proposal_variables_contract.
 assert_proposal_variables_contract() {
     local payload="$1"
     local run_dir="$2"
@@ -630,7 +620,6 @@ PY
     fi
 }
 
-# TODO: Document assert_private_artifact_modes.
 assert_private_artifact_modes() {
     local run_dir="$1"
     local mode_ok
@@ -689,7 +678,6 @@ assert_no_owner_or_delegated_script_calls() {
     assert_eq "$calls" "" "blocked prep contract should not invoke owner or delegated scripts"
 }
 
-# TODO: Document assert_aws_calls_safe_and_read_only.
 assert_aws_calls_safe_and_read_only() {
     local expected_region="$1"
     if python3 - "$AWS_LOG" "$expected_region" <<'PY'
@@ -761,7 +749,6 @@ print(count)
 PY
 }
 
-# TODO: Document count_workspace_proposal_or_tfvars_files.
 count_workspace_proposal_or_tfvars_files() {
     python3 - "$TEST_WORKSPACE" <<'PY'
 from pathlib import Path
@@ -779,7 +766,6 @@ print(count)
 PY
 }
 
-# TODO: Document _run_budget_guardrail_prep.
 _run_budget_guardrail_prep() {
     local cli_args=""
     local env_args=()
@@ -817,7 +803,6 @@ _run_budget_guardrail_prep() {
     RUN_STDERR="$(cat "$stderr_file" 2>/dev/null || true)"
 }
 
-# TODO: Document _run_budget_guardrail_prep_argv.
 _run_budget_guardrail_prep_argv() {
     local -a cli_args=("$@")
     local env_args=()
@@ -851,7 +836,6 @@ assert_cli_invalid_contract() {
     assert_no_terraform_calls
 }
 
-# TODO: Document assert_invalid_value_fails_closed.
 assert_invalid_value_fails_closed() {
     local label="$1"
     local expected_snippet="$2"

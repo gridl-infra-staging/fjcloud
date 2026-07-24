@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/repos/pg_algolia_import_job_support.rs.
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use sqlx::{Postgres, Transaction};
@@ -144,7 +143,6 @@ impl From<CatalogLifecycleTargetIdentityRow> for CatalogLifecycleTargetIdentity 
 }
 
 impl PgAlgoliaImportJobRepo {
-    /// TODO: Document PgAlgoliaImportJobRepo.authenticate_replace_target.
     pub(super) async fn authenticate_replace_target(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -155,7 +153,6 @@ impl PgAlgoliaImportJobRepo {
             .await
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.validate_resume_replace_target_ready.
     pub(super) async fn validate_resume_replace_target_ready(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -181,7 +178,6 @@ impl PgAlgoliaImportJobRepo {
         })
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.authenticate_replace_target_excluding_import.
     async fn authenticate_replace_target_excluding_import(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -287,7 +283,6 @@ impl PgAlgoliaImportJobRepo {
         })
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.acquire_catalog_target_advisory_lock.
     pub(super) async fn acquire_catalog_target_advisory_lock(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -310,7 +305,6 @@ impl PgAlgoliaImportJobRepo {
         }
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.reject_active_target_reservation.
     pub(super) async fn reject_active_target_reservation(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -338,7 +332,6 @@ impl PgAlgoliaImportJobRepo {
         }
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.assert_catalog_target_identity.
     pub(super) async fn assert_catalog_target_identity(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -367,7 +360,6 @@ impl PgAlgoliaImportJobRepo {
         }
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.lock_active_customer_generation.
     pub(super) async fn lock_active_customer_generation(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -392,7 +384,6 @@ impl PgAlgoliaImportJobRepo {
         Ok(row.0)
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.read_active_customer_generation.
     pub(super) async fn read_active_customer_generation(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -416,7 +407,6 @@ impl PgAlgoliaImportJobRepo {
         Ok(row.0)
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.lock_generation_fenced_job.
     pub(super) async fn lock_generation_fenced_job(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -458,7 +448,6 @@ impl PgAlgoliaImportJobRepo {
         Ok(job)
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.lock_generation_fenced_job_for_customer.
     async fn lock_generation_fenced_job_for_customer(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -490,7 +479,6 @@ impl PgAlgoliaImportJobRepo {
         Ok(job)
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.lock_generation_fenced_target_job.
     pub(super) async fn lock_generation_fenced_target_job(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -512,7 +500,6 @@ impl PgAlgoliaImportJobRepo {
         self.lock_generation_fenced_job(tx, id).await
     }
 
-    /// TODO: Document PgAlgoliaImportJobRepo.lock_generation_fenced_target_job_for_customer.
     pub(super) async fn lock_generation_fenced_target_job_for_customer(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -567,7 +554,6 @@ pub(super) const DEFAULT_ACTIVE_CUSTOMER_IMPORT_BYTES_LIMIT: i64 = DEFAULT_STORA
 pub(super) const DEFAULT_ACTIVE_NODE_IMPORT_JOB_LIMIT: i64 = 4;
 pub(super) const DEFAULT_ACTIVE_NODE_TRANSIENT_BYTES_LIMIT: i64 = DEFAULT_STORAGE_LIMIT_BYTES;
 
-/// TODO: Document active_reservation_predicate.
 pub(super) fn active_reservation_predicate() -> &'static str {
     "erased_at IS NULL AND NOT (
        resumable = FALSE AND (
@@ -602,7 +588,6 @@ pub(super) fn active_reservation_predicate() -> &'static str {
      )"
 }
 
-/// TODO: Document state_from_job.
 pub(super) fn state_from_job(job: &AlgoliaImportJob) -> Result<AlgoliaImportJobState, RepoError> {
     AlgoliaImportJobState::try_from(job).map_err(|message| RepoError::Conflict(message.into()))
 }
@@ -617,7 +602,6 @@ pub(super) fn validate_transition(
         })
 }
 
-/// TODO: Document merged_summary.
 pub(super) fn merged_summary(
     current: &AlgoliaImportSummary,
     observed: AlgoliaImportSummary,

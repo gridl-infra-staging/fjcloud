@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for staging_db_lookup.ts.
- */
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -274,9 +271,6 @@ function parsePsqlBoolean(raw: string, columnLabel: string): boolean {
 	);
 }
 
-/**
- * TODO: Document buildPaidInvoiceEvidenceLookupSql.
- */
 function buildPaidInvoiceEvidenceLookupSql(email: string, invoiceId: string): string {
 	const safeEmail = assertSafeEmailSqlLiteral(email);
 	if (!invoiceId || !SAFE_IDENTIFIER_CHARS.test(invoiceId)) {
@@ -295,9 +289,6 @@ function buildPaidInvoiceEvidenceLookupSql(email: string, invoiceId: string): st
 	].join(' ');
 }
 
-/**
- * TODO: Document findPaidInvoiceEvidenceViaStagingSsm.
- */
 export async function findPaidInvoiceEvidenceViaStagingSsm(
 	email: string,
 	invoiceId: string

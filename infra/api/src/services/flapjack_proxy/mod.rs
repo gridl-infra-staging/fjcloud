@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/services/flapjack_proxy/mod.rs.
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -100,7 +99,6 @@ impl FlapjackEngineRequirements {
         Self::from_lookup(|name| std::env::var(name).ok())
     }
 
-    /// TODO: Document FlapjackEngineRequirements.from_lookup.
     fn from_lookup(
         mut lookup: impl FnMut(&str) -> Option<String>,
     ) -> Result<Self, FlapjackEngineRequirementsError> {
@@ -238,7 +236,6 @@ pub struct FlapjackHttpResponse {
     pub request_api_key: String,
 }
 
-/// TODO: Document FlapjackHttpClient.
 #[async_trait]
 pub trait FlapjackHttpClient: Send + Sync {
     async fn send(&self, request: FlapjackHttpRequest) -> Result<FlapjackHttpResponse, ProxyError>;
@@ -324,7 +321,6 @@ impl FlapjackHttpClient for ReqwestFlapjackHttpClient {
         sensitive_request::send(&self.client, request).await
     }
 
-    /// TODO: Document ReqwestFlapjackHttpClient.send_unauthenticated_get.
     async fn send_unauthenticated_get(
         &self,
         url: String,
@@ -485,7 +481,6 @@ impl FlapjackProxy {
             .await
     }
 
-    /// TODO: Document FlapjackProxy.send_authenticated_sensitive_request.
     async fn send_authenticated_sensitive_request(
         &self,
         method: reqwest::Method,
@@ -505,7 +500,6 @@ impl FlapjackProxy {
             .await
     }
 
-    /// TODO: Document FlapjackProxy.check_engine_compatibility.
     pub async fn check_engine_compatibility(
         &self,
         flapjack_base_url: &str,
@@ -574,7 +568,6 @@ fn flapjack_health_url(flapjack_base_url: &str) -> String {
     format!("{}/health", flapjack_base_url.trim_end_matches('/'))
 }
 
-/// TODO: Document classify_flapjack_health.
 fn classify_flapjack_health(
     body: &str,
     requirements: &FlapjackEngineRequirements,
@@ -626,7 +619,6 @@ fn observed_identity<'a>(
     }
 }
 
-/// TODO: Document ObservedFlapjackIdentity.
 struct ObservedFlapjackIdentity<'a> {
     version: Option<&'a str>,
     revision: Option<&'a str>,
@@ -681,7 +673,6 @@ impl ObservedRuntimeSecurity {
     }
 }
 
-/// TODO: Document classify_flapjack_identity.
 fn classify_flapjack_identity(
     requirements: &FlapjackEngineRequirements,
     observed: ObservedFlapjackIdentity<'_>,
@@ -745,7 +736,6 @@ fn missing_required_identity_field(
         || (requirements.required_build_id.is_some() && observed.build_id.is_none())
 }
 
-/// TODO: Document required_capability_present.
 fn required_capability_present(
     requirements: &FlapjackEngineRequirements,
     capabilities: Option<&serde_json::Value>,

@@ -57,7 +57,6 @@ export FLAPJACK_ADMIN_KEY="${FLAPJACK_ADMIN_KEY:-$DEFAULT_LOCAL_FLAPJACK_ADMIN_K
 
 log() { echo "[playwright_local_stack] $*"; }
 
-# TODO: Document require_local_database_url.
 require_local_database_url() {
 	local database_host
 	[ -n "${DATABASE_URL:-}" ] || {
@@ -129,7 +128,6 @@ handle_shutdown() {
 trap cleanup EXIT
 trap handle_shutdown INT TERM
 
-# TODO: Document kill_owned_api_listener_for_restart.
 kill_owned_api_listener_for_restart() {
 	local api_hostport api_port listening_pids pid command_line
 	api_hostport="$(printf '%s' "$API_HEALTH_URL" | sed -E 's#^https?://([^/]+)/?.*$#\1#')"
@@ -162,14 +160,12 @@ kill_owned_api_listener_for_restart() {
 	done
 }
 
-# TODO: Document reset_playwright_experiments_storage.
 reset_playwright_experiments_storage() {
 	# The Playwright stack owns this hidden Flapjack system index. Rebuilding it
 	# avoids stale Tantivy metadata from an interrupted prior local browser run.
 	rm -rf "$FLAPJACK_EXPERIMENTS_DATA_DIR"
 }
 
-# TODO: Document ensure_flapjack_experiments_api_ready.
 ensure_flapjack_experiments_api_ready() {
 	local response_file http_status
 	response_file="$(mktemp "$LOCAL_DIR/flapjack-experiments-bootstrap.XXXXXX")"
@@ -198,7 +194,6 @@ ensure_flapjack_experiments_api_ready() {
 	esac
 }
 
-# TODO: Document ensure_local_flapjack_ready.
 ensure_local_flapjack_ready() {
 	local flapjack_bin listening_pids resolution_status=0
 

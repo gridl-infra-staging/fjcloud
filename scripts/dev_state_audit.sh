@@ -32,7 +32,6 @@ audit_stale_fixture_prefix_sql_values_csv() {
     stale_fixture_prefix_sql_values | paste -sd, -
 }
 
-# TODO: Document audit_seed_state_rows.
 audit_seed_state_rows() {
     local stale_prefix_values
     stale_prefix_values="$(audit_stale_fixture_prefix_sql_values_csv)"
@@ -105,7 +104,6 @@ sql_like_to_shell_glob() {
     printf '%s' "${sql_like//%/*}"
 }
 
-# TODO: Document main.
 main() {
     if ! require_local_database_access "local dev state audit"; then
         die "Local database access unavailable; $(remediation_message)"

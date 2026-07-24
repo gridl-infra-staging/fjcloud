@@ -25,7 +25,6 @@ RUN_SCRIPT_TG_RETRY_INTERVAL=0
 # Setup / teardown
 # ---------------------------------------------------------------------------
 
-# TODO: Document setup.
 setup() {
   MOCK_DIR=$(mktemp -d)
   MOCK_ENV_FILE=$(mktemp)

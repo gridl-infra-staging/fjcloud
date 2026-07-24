@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/services/provisioning/auto_provision.rs.
 use crate::models::vm_inventory::{NewVmInventory, VmInventory};
 use crate::provisioner::cloud_init::{self, CaddyRuntime, CloudInitParams, SecretDelivery};
 use crate::provisioner::CreateVmRequest;
@@ -51,7 +50,6 @@ struct SharedVmRegistration<'a> {
 }
 
 impl ProvisioningService {
-    /// TODO: Document ProvisioningService.auto_provision_shared_vm.
     pub async fn auto_provision_shared_vm(
         &self,
         vm_inventory_repo: &(dyn VmInventoryRepo + Send + Sync),
@@ -63,7 +61,6 @@ impl ProvisioningService {
             .await
     }
 
-    /// TODO: Document ProvisioningService.auto_provision_shared_vm_with_draft.
     pub async fn auto_provision_shared_vm_with_draft(
         &self,
         vm_inventory_repo: &(dyn VmInventoryRepo + Send + Sync),
@@ -209,7 +206,6 @@ impl ProvisioningService {
         Ok((vm_row, provider_vm_id))
     }
 
-    /// TODO: Document ProvisioningService.register_shared_vm_inventory.
     async fn register_shared_vm_inventory(
         &self,
         vm_inventory_repo: &(dyn VmInventoryRepo + Send + Sync),
@@ -252,7 +248,6 @@ impl ProvisioningService {
         )
     }
 
-    /// TODO: Document ProvisioningService.cleanup_unhealthy_shared_vm_registration.
     async fn cleanup_unhealthy_shared_vm_registration(
         &self,
         vm_inventory_repo: &(dyn VmInventoryRepo + Send + Sync),
@@ -356,7 +351,6 @@ pub(crate) fn is_canonical_shared_vm_hostname_for_domain(hostname: &str, dns_dom
     !short_id.is_empty() && !short_id.contains('.')
 }
 
-/// TODO: Document try_local_dev_provision.
 async fn try_local_dev_provision(
     vm_inventory_repo: &(dyn VmInventoryRepo + Send + Sync),
     region: &str,
@@ -462,7 +456,6 @@ fn resolve_local_dev_flapjack_url(
     Ok(normalize_local_dev_flapjack_url(fallback_raw_url))
 }
 
-/// TODO: Document resolve_region_flapjack_url_from_env.
 fn resolve_region_flapjack_url_from_env(
     region: &str,
     flapjack_regions_raw: Option<&str>,

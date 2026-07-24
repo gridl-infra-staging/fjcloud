@@ -1,4 +1,3 @@
-//! Stub summary for webhook_http.rs.
 use async_trait::async_trait;
 
 #[async_trait]
@@ -19,7 +18,6 @@ impl ReqwestWebhookHttpClient {
 
 #[async_trait]
 impl WebhookHttpClient for ReqwestWebhookHttpClient {
-    /// TODO: Document ReqwestWebhookHttpClient.get_text.
     async fn get_text(&self, url: &str) -> Result<String, String> {
         let response = self
             .client
@@ -41,7 +39,6 @@ impl WebhookHttpClient for ReqwestWebhookHttpClient {
             .map_err(|error| format!("webhook HTTP response body read failed for {url}: {error}"))
     }
 
-    /// TODO: Document ReqwestWebhookHttpClient.get_success.
     async fn get_success(&self, url: &str) -> Result<(), String> {
         let response = self
             .client

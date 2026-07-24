@@ -2,7 +2,6 @@
 # Shared canary Lambda image publish orchestration.
 # Wrapper scripts remain owners of canary-specific metadata.
 
-# TODO: Document validate_canary_env_name.
 validate_canary_env_name() {
   local env_name="$1"
   if [[ "$env_name" == "staging" || "$env_name" == "prod" ]]; then
@@ -13,7 +12,6 @@ validate_canary_env_name() {
   return 1
 }
 
-# TODO: Document resolve_canary_image_tag.
 resolve_canary_image_tag() {
   local image_tag_override="${1:-}"
   if [[ -n "$image_tag_override" ]]; then
@@ -24,7 +22,6 @@ resolve_canary_image_tag() {
   git rev-parse --short=12 HEAD
 }
 
-# TODO: Document should_invoke_post_publish_contract.
 should_invoke_post_publish_contract() {
   local env_name="$1"
   local prod_post_publish_invoke_enabled="$2"
@@ -50,7 +47,6 @@ should_invoke_post_publish_contract() {
   return 1
 }
 
-# TODO: Document publish_canary_image.
 publish_canary_image() {
   local env_name="$1"
   local image_tag="$2"

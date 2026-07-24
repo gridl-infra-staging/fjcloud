@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/routes/migration/capabilities.rs.
 use serde::Serialize;
 use utoipa::ToSchema;
 
@@ -31,7 +30,6 @@ mod tests {
     use super::{migration_capabilities, AlgoliaMigrationCapabilities};
     use crate::routes::migration::AlgoliaMigrationAvailabilityResponse;
 
-    /// TODO: Document capabilities_unavailable_response_serializes_complete_fail_closed_contract.
     #[test]
     fn capabilities_unavailable_response_serializes_complete_fail_closed_contract() {
         let serialized = serde_json::to_value(AlgoliaMigrationAvailabilityResponse::unavailable())
@@ -52,7 +50,6 @@ mod tests {
         );
     }
 
-    /// TODO: Document capabilities_owner_returns_all_true_when_routes_and_engine_support_all_operations.
     #[test]
     fn capabilities_owner_returns_all_true_when_routes_and_engine_support_all_operations() {
         assert_eq!(
@@ -76,7 +73,6 @@ mod tests {
         );
     }
 
-    /// TODO: Document capabilities_owner_returns_false_for_each_operation_when_either_side_is_false.
     #[test]
     fn capabilities_owner_returns_false_for_each_operation_when_either_side_is_false() {
         let cases = [

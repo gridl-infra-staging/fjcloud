@@ -273,7 +273,6 @@ probe_documented_method_contract() {
     return 0
 }
 
-# TODO: Document parse_args.
 parse_args() {
     if [ "$#" -lt 1 ]; then
         die_usage "missing mode argument"
@@ -307,7 +306,6 @@ parse_args() {
     fi
 }
 
-# TODO: Document validate_full_flow_prereqs.
 validate_full_flow_prereqs() {
     local missing=()
 
@@ -340,7 +338,6 @@ validate_full_flow_prereqs() {
     return 0
 }
 
-# TODO: Document run_contract_only_probes.
 run_contract_only_probes() {
     local failures=0
 

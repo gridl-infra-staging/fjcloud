@@ -95,9 +95,6 @@ export function parseRefreshBrowseRequestFromForm(data: FormData): BrowseObjects
 	return { query, hitsPerPage };
 }
 
-/**
- * TODO: Document normalizeDocumentsBrowseResponse.
- */
 export function normalizeDocumentsBrowseResponse(
 	result: Record<string, unknown> | null | undefined,
 	queryFallback = ''
@@ -139,9 +136,6 @@ export function normalizeDocumentsBrowseResponse(
 	};
 }
 
-/**
- * TODO: Document parseBatchRequest.
- */
 function parseBatchRequest(rawBatch: string): AddObjectsRequest {
 	const parsed = parseJsonObject<{ requests?: unknown }>(rawBatch, 'batch');
 	if (!Array.isArray(parsed.requests) || parsed.requests.length === 0) {
@@ -215,9 +209,6 @@ function objectIDBrowseRequest(objectID: string, hitsPerPage: number): BrowseObj
 	};
 }
 
-/**
- * TODO: Document browseAfterDocumentWrite.
- */
 async function browseAfterDocumentWrite(
 	api: ReturnType<typeof createApiClient>,
 	indexName: string,
@@ -238,9 +229,6 @@ async function browseAfterDocumentWrite(
 	return latestDocuments;
 }
 
-/**
- * TODO: Document uploadDocumentsAction.
- */
 export async function uploadDocumentsAction({ request, indexName, token }: DocumentActionArgs) {
 	const data = await request.formData();
 
@@ -287,9 +275,6 @@ export async function uploadDocumentsAction({ request, indexName, token }: Docum
 	}
 }
 
-/**
- * TODO: Document addDocumentAction.
- */
 export async function addDocumentAction({ request, indexName, token }: DocumentActionArgs) {
 	const data = await request.formData();
 
@@ -346,9 +331,6 @@ export async function addDocumentAction({ request, indexName, token }: DocumentA
 	}
 }
 
-/**
- * TODO: Document browseDocumentsAction.
- */
 export async function browseDocumentsAction({ request, indexName, token }: DocumentActionArgs) {
 	const data = await request.formData();
 
@@ -377,9 +359,6 @@ export async function browseDocumentsAction({ request, indexName, token }: Docum
 	}
 }
 
-/**
- * TODO: Document deleteDocumentAction.
- */
 export async function deleteDocumentAction({ request, indexName, token }: DocumentActionArgs) {
 	const data = await request.formData();
 

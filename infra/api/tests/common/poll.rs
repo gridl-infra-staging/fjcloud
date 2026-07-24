@@ -1,5 +1,3 @@
-//! Stub summary for poll.rs.
-
 use std::future::Future;
 use std::time::Duration;
 
@@ -52,7 +50,6 @@ where
     .unwrap_or_else(|_| panic!("poll_until timed out: {name} (after {timeout:?})"))
 }
 
-/// TODO: Document poll_until_result.
 pub async fn poll_until_result<T, F, Fut>(
     name: &'static str,
     timeout: Duration,
@@ -114,7 +111,6 @@ mod tests {
     // is at least 3 * poll_interval — guards against a buggy helper that
     // returns Default on miss without sleeping (test 1 wouldn't catch this).
     // -------------------------------------------------------------------
-    /// TODO: Document resolves_after_multiple_polls_with_real_sleep.
     #[tokio::test]
     async fn resolves_after_multiple_polls_with_real_sleep() {
         let attempts = Arc::new(AtomicUsize::new(0));
@@ -188,7 +184,6 @@ mod tests {
     // That requires mutable state across polls — Fn would force tests into
     // contortions like Arc<AtomicUsize> for trivial counters.
     // -------------------------------------------------------------------
-    /// TODO: Document predicate_can_be_fnmut.
     #[tokio::test]
     async fn predicate_can_be_fnmut() {
         let mut counter: u32 = 0;

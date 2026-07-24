@@ -10,7 +10,6 @@ use crate::services::audit_log::{
 };
 use crate::state::AppState;
 
-/// TODO: Document handle_charge_dispute_event.
 pub(super) async fn handle_charge_dispute_event(
     state: &AppState,
     event_type: &str,
@@ -129,7 +128,6 @@ async fn find_invoice_by_stripe_invoice_id(
         .await?)
 }
 
-/// TODO: Document find_customer_id_by_stripe_customer_id_best_effort.
 async fn find_customer_id_by_stripe_customer_id_best_effort(
     state: &AppState,
     stripe_customer_id: &str,
@@ -148,7 +146,6 @@ async fn find_customer_id_by_stripe_customer_id_best_effort(
     }
 }
 
-/// TODO: Document dispute_alert.
 fn dispute_alert(
     event_type: &str,
     dispute: &DisputeRow,
@@ -215,7 +212,6 @@ async fn resolve_dispute_customer_id(
     .await
 }
 
-/// TODO: Document resolve_invoice_for_dispute_event.
 async fn resolve_invoice_for_dispute_event(
     state: &AppState,
     stripe_charge_id: &str,
@@ -282,7 +278,6 @@ async fn resolve_invoice_for_dispute_event(
     }
 }
 
-/// TODO: Document apply_dispute_invoice_terminal_transition.
 async fn apply_dispute_invoice_terminal_transition(
     state: &AppState,
     event_type: &str,
@@ -310,7 +305,6 @@ fn should_mark_dispute_invoice_refunded(event_type: &str, dispute_status: &str) 
         || (event_type == "charge.dispute.closed" && is_losing_dispute_status(dispute_status))
 }
 
-/// TODO: Document write_dispute_audit_best_effort.
 async fn write_dispute_audit_best_effort(
     state: &AppState,
     invoice: Option<&InvoiceRow>,

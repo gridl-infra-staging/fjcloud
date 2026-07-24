@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for web/src/routes/admin/billing/+page.server.ts.
- */
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { createAdminClient } from '$lib/admin-client';
@@ -90,9 +87,6 @@ function normalizeStatusTotals(value: unknown): AdminBillingSummaryResponse['sta
 	return normalized;
 }
 
-/**
- * TODO: Document normalizeMonthBuckets.
- */
 function normalizeMonthBuckets(value: unknown): AdminBillingSummaryResponse['by_month'] {
 	if (!Array.isArray(value)) {
 		return [];
@@ -113,9 +107,6 @@ function normalizeMonthBuckets(value: unknown): AdminBillingSummaryResponse['by_
 	});
 }
 
-/**
- * TODO: Document normalizeBillingInvoice.
- */
 function normalizeBillingInvoice(value: unknown): BillingInvoice | null {
 	const rawInvoice = objectRecord(value);
 	if (!rawInvoice) {
@@ -165,9 +156,6 @@ function normalizeBillingInvoice(value: unknown): BillingInvoice | null {
 	};
 }
 
-/**
- * TODO: Document emptyBillingSummary.
- */
 function emptyBillingSummary(): AdminBillingSummaryResponse {
 	return {
 		status_totals: {
@@ -186,9 +174,6 @@ function emptyBillingSummary(): AdminBillingSummaryResponse {
 	};
 }
 
-/**
- * TODO: Document normalizeBillingSummary.
- */
 function normalizeBillingSummary(value: unknown): AdminBillingSummaryResponse {
 	const rawSummary = objectRecord(value);
 	if (!rawSummary) {
@@ -213,9 +198,6 @@ function normalizeBillingSummary(value: unknown): AdminBillingSummaryResponse {
 	};
 }
 
-/**
- * TODO: Document load.
- */
 export const load: PageServerLoad = async ({ fetch, depends, platform }) => {
 	depends('admin:billing');
 

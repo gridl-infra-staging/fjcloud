@@ -62,7 +62,6 @@ web_origin_for() {
 	esac
 }
 
-# TODO: Document json_field.
 json_field() {
 	local input="$1"
 	local expr="$2"
@@ -166,7 +165,6 @@ web_failure_status() {
 	json_field "$body" status
 }
 
-# TODO: Document web_failure_error.
 web_failure_error() {
 	local body="$1"
 	printf "%s" "$body" | python3 -c "import json,sys
@@ -210,7 +208,6 @@ make_run_dir() {
 	mkdir -p "$RUN_DIR"
 }
 
-# TODO: Document write_summary_json.
 write_summary_json() {
 	local env="$1"
 	local api_url="$2"
@@ -270,7 +267,6 @@ write_summary_json() {
 EOF
 }
 
-# TODO: Document run_self_test.
 run_self_test() {
 	local payload encoded api_body web_body
 	payload="$(migrate_payload latency invalid-key instant_search)"
@@ -322,7 +318,6 @@ probe_env() {
 	return 2
 }
 
-# TODO: Document main.
 main() {
 	local arg="${1:-staging}"
 	case "$arg" in

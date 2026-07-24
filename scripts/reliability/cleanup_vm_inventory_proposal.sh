@@ -7,7 +7,6 @@
 
 set -euo pipefail
 
-# TODO: Document usage.
 usage() {
     cat <<'USAGE'
 Usage:

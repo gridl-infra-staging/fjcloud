@@ -41,7 +41,6 @@ print(json.dumps(pairs))
 PY
 }
 
-# TODO: Document create_private_invoice_email_temp_file.
 create_private_invoice_email_temp_file() {
     local template="$1"
     local failure_detail="$2"
@@ -143,7 +142,6 @@ print(json.dumps(payload))
 PY
 }
 
-# TODO: Document mailpit_search_message_ids_json.
 mailpit_search_message_ids_json() {
     local response_json="$1"
 
@@ -176,7 +174,6 @@ print(json.dumps(message_ids))
 PY
 }
 
-# TODO: Document mailpit_message_body_contains_invoice_id.
 mailpit_message_body_contains_invoice_id() {
     local message_json="$1"
     local invoice_id="$2"
@@ -225,7 +222,6 @@ print("true" if any(invoice_id in value for value in body_like_strings) else "fa
 PY
 }
 
-# TODO: Document mailpit_file_lines_to_json_array.
 mailpit_file_lines_to_json_array() {
     local file_path="$1"
     python3 - "$file_path" <<'PY' || true
@@ -245,7 +241,6 @@ print(json.dumps(values))
 PY
 }
 
-# TODO: Document validate_mailpit_api_url.
 validate_mailpit_api_url() {
     local raw_url="${MAILPIT_API_URL:-}"
     local normalized_url
@@ -313,7 +308,6 @@ print(f"{base_url}/api/v1/message/{encoded_message_id}")
 PY
 }
 
-# TODO: Document invoice_email_payload_from_records.
 invoice_email_payload_from_records() {
     local pairs_json="$1"
     local records_file="$2"
@@ -374,7 +368,6 @@ print(int(now.timestamp() * 1000))
 PY
 }
 
-# TODO: Document ses_cloudwatch_next_token.
 ses_cloudwatch_next_token() {
     local page_json="$1"
     python3 - "$page_json" <<'PY' || true
@@ -392,7 +385,6 @@ print(str(token).strip())
 PY
 }
 
-# TODO: Document merge_ses_cloudwatch_logs_json.
 merge_ses_cloudwatch_logs_json() {
     local accumulated_json="$1"
     local page_json="$2"
@@ -623,7 +615,6 @@ print(json.dumps({
 PY
 }
 
-# TODO: Document check_ses_invoice_email_evidence_once.
 check_ses_invoice_email_evidence_once() {
     local pairs_json required_count payload missing_count
 
@@ -659,7 +650,6 @@ check_ses_invoice_email_evidence_once() {
     return 0
 }
 
-# TODO: Document find_mailpit_matching_ids_json.
 find_mailpit_matching_ids_json() {
     local invoice_id="$1"
     local email="$2"
@@ -736,7 +726,6 @@ find_mailpit_matching_ids_json() {
     return 0
 }
 
-# TODO: Document check_invoice_email_evidence_once.
 check_invoice_email_evidence_once() {
     local pairs_json required_count evidence_records invoice_id email
     local matching_ids_json matching_count payload missing_count

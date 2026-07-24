@@ -1,4 +1,3 @@
-//! Stub summary for infra/retention-job/src/config.rs.
 use thiserror::Error;
 
 pub const DEFAULT_RETENTION_DAYS: i64 = 30;
@@ -24,7 +23,6 @@ pub enum ConfigError {
 }
 
 impl Config {
-    /// TODO: Document Config.from_reader.
     pub fn from_reader<F>(read: F) -> Result<Self, ConfigError>
     where
         F: Fn(&str) -> Result<String, std::env::VarError>,
@@ -100,7 +98,6 @@ where
     }
 }
 
-/// TODO: Document parse_optional_bool.
 fn parse_optional_bool<F>(read: &F, key: &str, default: bool) -> Result<bool, ConfigError>
 where
     F: Fn(&str) -> Result<String, std::env::VarError>,
@@ -118,7 +115,6 @@ where
     }
 }
 
-/// TODO: Document validate_api_url.
 fn validate_api_url(raw: &str) -> Result<String, ConfigError> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {

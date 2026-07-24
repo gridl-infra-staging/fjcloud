@@ -4,7 +4,6 @@ set -euo pipefail
 # Stage 1 locked model contract. Keep this literal centralized here.
 readonly VLM_JUDGE_DEFAULT_MODEL="claude-sonnet-4-20250514"
 
-# TODO: Document build_vlm_judge_prompt.
 build_vlm_judge_prompt() {
   local screenshot_path="$1"
   local manifesto_path="$2"
@@ -90,7 +89,6 @@ print()
 PY
 }
 
-# TODO: Document extract_vlm_judgment_json.
 extract_vlm_judgment_json() {
   local anthropic_response_json="$1"
   local judgment_json=""

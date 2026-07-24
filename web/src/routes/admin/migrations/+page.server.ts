@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for web/src/routes/admin/migrations/+page.server.ts.
- */
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { createAdminClient } from '$lib/admin-client';
@@ -8,9 +5,6 @@ import type { AdminMigration } from '$lib/admin-client';
 
 const ACTIVE_STATUSES = new Set(['pending', 'replicating', 'cutting_over']);
 
-/**
- * TODO: Document load.
- */
 export const load: PageServerLoad = async ({ fetch, depends, platform }) => {
 	depends('admin:migrations');
 

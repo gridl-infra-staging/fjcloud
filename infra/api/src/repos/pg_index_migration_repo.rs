@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/repos/pg_index_migration_repo.rs.
 use async_trait::async_trait;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -92,7 +91,6 @@ impl IndexMigrationRepo for PgIndexMigrationRepo {
         Ok(())
     }
 
-    /// TODO: Document PgIndexMigrationRepo.update_metadata.
     async fn update_metadata(
         &self,
         id: Uuid,

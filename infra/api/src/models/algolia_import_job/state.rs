@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/models/algolia_import_job/state.rs.
 use chrono::Utc;
 use uuid::Uuid;
 
@@ -8,7 +7,6 @@ use super::{
     AlgoliaImportSummary, EngineResumeMirror,
 };
 
-/// TODO: Document AlgoliaImportJobState.
 #[derive(Debug, Clone)]
 pub struct AlgoliaImportJobState {
     pub status: AlgoliaImportJobStatus,
@@ -29,7 +27,6 @@ pub struct AlgoliaImportJobState {
 }
 
 impl AlgoliaImportJobState {
-    /// TODO: Document AlgoliaImportJobState.validate.
     pub fn validate(&self) -> Result<(), &'static str> {
         use AlgoliaImportDispatchIntentState::Absent;
         use AlgoliaImportEngineAckState::{
@@ -115,7 +112,6 @@ impl AlgoliaImportJobState {
         }
     }
 
-    /// TODO: Document AlgoliaImportJobState.validate_transition_from.
     pub fn validate_transition_from(&self, previous: &Self) -> Result<(), &'static str> {
         previous.validate()?;
         self.validate()?;
@@ -150,7 +146,6 @@ impl AlgoliaImportJobState {
 impl TryFrom<&AlgoliaImportJob> for AlgoliaImportJobState {
     type Error = &'static str;
 
-    /// TODO: Document AlgoliaImportJobState.try_from.
     fn try_from(job: &AlgoliaImportJob) -> Result<Self, Self::Error> {
         let resume_mirror = match (
             job.resume_checkpoint.clone(),
@@ -187,7 +182,6 @@ fn is_in_place_update(previous: &AlgoliaImportJobState, next: &AlgoliaImportJobS
     previous.status == next.status
 }
 
-/// TODO: Document is_normal_forward_transition.
 fn is_normal_forward_transition(
     previous: AlgoliaImportJobStatus,
     next: AlgoliaImportJobStatus,
@@ -208,7 +202,6 @@ fn is_normal_forward_transition(
     )
 }
 
-/// TODO: Document is_engine_failure_transition.
 fn is_engine_failure_transition(
     previous: &AlgoliaImportJobState,
     next: &AlgoliaImportJobState,
@@ -278,7 +271,6 @@ fn is_no_dispatch_failure_transition(
         && !next.retryable
 }
 
-/// TODO: Document is_cancel_request_transition.
 fn is_cancel_request_transition(
     previous: &AlgoliaImportJobState,
     next: &AlgoliaImportJobState,
@@ -302,7 +294,6 @@ fn is_cancel_request_transition(
         && next.publication_disposition == previous.publication_disposition
 }
 
-/// TODO: Document is_cancel_reconciliation_transition.
 fn is_cancel_reconciliation_transition(
     previous: &AlgoliaImportJobState,
     next: &AlgoliaImportJobState,
@@ -329,7 +320,6 @@ fn is_cancel_reconciliation_transition(
     previous.status == Cancelling && (pre_admission || engine_admitted || engine_promoted)
 }
 
-/// TODO: Document is_resume_preparation_transition.
 fn is_resume_preparation_transition(
     previous: &AlgoliaImportJobState,
     next: &AlgoliaImportJobState,

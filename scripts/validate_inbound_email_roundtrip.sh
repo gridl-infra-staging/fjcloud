@@ -19,7 +19,6 @@ append_step() { validation_append_step "$@"; }
 emit_result() { validation_emit_result "$@"; }
 json_get_field() { validation_json_get_field "$@"; }
 
-# TODO: Document emit_usage_failure.
 emit_usage_failure() {
     local detail="$1"
     append_step "send_probe" false "$detail"

@@ -1,4 +1,3 @@
-//! Stub summary for cloud_init.rs.
 /// Cloud-init user-data generation for flapjack VM bootstrapping.
 ///
 /// Supports multiple providers: AWS uses SSM for secrets, Hetzner receives
@@ -569,7 +568,6 @@ mod tests {
         assert!(!script.contains("reverse_proxy attacker:80"));
     }
 
-    /// TODO: Document cloud_init_sets_secure_permissions.
     #[test]
     fn cloud_init_sets_secure_permissions() {
         let params = CloudInitParams {

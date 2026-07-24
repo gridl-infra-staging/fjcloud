@@ -25,7 +25,6 @@ fn normalize_index_settings_for_dashboard(settings: Value) -> Value {
     Value::Object(object)
 }
 
-/// TODO: Document normalize_index_settings_for_engine.
 fn normalize_index_settings_for_engine(settings: Value) -> Value {
     let Value::Object(mut object) = settings else {
         return settings;

@@ -40,7 +40,6 @@ shell_quote_for_script() {
     printf '%s\n' "$quoted"
 }
 
-# TODO: Document parse_cli_args_string.
 parse_cli_args_string() {
     local cli_args_string="$1"
     local arg
@@ -67,7 +66,6 @@ PY
 )
 }
 
-# TODO: Document setup_workspace.
 setup_workspace() {
     local test_tenant_allowlist="${1:-}"
     TEST_WORKSPACE="$(mktemp -d)"
@@ -114,7 +112,6 @@ setup_workspace() {
     write_malformed_env_file "$TEST_WORKSPACE/inputs/staging_rehearsal.malformed.env"
 }
 
-# TODO: Document write_mock_psql.
 write_mock_psql() {
     local quoted_log
     quoted_log="$(shell_quote_for_script "$TEST_CALL_LOG")"
@@ -317,7 +314,6 @@ MOCK
     chmod +x "$TEST_WORKSPACE/bin/psql"
 }
 
-# TODO: Document mock_curl_parser_script_block.
 mock_curl_parser_script_block() {
     cat <<'MOCK'
 method="GET"
@@ -380,7 +376,6 @@ response_body='{}'
 MOCK
 }
 
-# TODO: Document mock_curl_route_script_block.
 mock_curl_route_script_block() {
     cat <<'MOCK'
 case "$url" in
@@ -505,7 +500,6 @@ esac
 MOCK
 }
 
-# TODO: Document mock_curl_finalize_script_block.
 mock_curl_finalize_script_block() {
     cat <<'MOCK'
 if [ -n "$header_output" ]; then
@@ -533,7 +527,6 @@ exit 0
 MOCK
 }
 
-# TODO: Document mock_curl_log_script_block.
 mock_curl_log_script_block() {
     cat <<'MOCK'
 sanitize_curl_args_for_log() {
@@ -575,7 +568,6 @@ printf '\n' >> "$CALL_LOG"
 MOCK
 }
 
-# TODO: Document write_mock_curl.
 write_mock_curl() {
     local quoted_log
     local mailpit_attempt_file billing_run_call_file
@@ -612,7 +604,6 @@ MOCK
     chmod +x "$TEST_WORKSPACE/bin/stripe"
 }
 
-# TODO: Document write_mock_aws.
 write_mock_aws() {
     local quoted_log
     quoted_log="$(shell_quote_for_script "$TEST_CALL_LOG")"
@@ -724,7 +715,6 @@ MOCK
     chmod +x "$TEST_WORKSPACE/bin/aws"
 }
 
-# TODO: Document write_explicit_env_file.
 write_explicit_env_file() {
     local path="$1"
     local test_tenant_allowlist="${2:-}"
@@ -768,7 +758,6 @@ THIS IS NOT AN ASSIGNMENT
 ENVFILE
 }
 
-# TODO: Document write_mock_deploy_status.
 write_mock_deploy_status() {
     cat > "$TEST_WORKSPACE/scripts/deploy_status.sh" <<'MOCK'
 #!/usr/bin/env bash
@@ -840,7 +829,6 @@ MOCK
     chmod +x "$TEST_WORKSPACE/scripts/staging_billing_dry_run.sh"
 }
 
-# TODO: Document run_rehearsal.
 run_rehearsal() {
     local cli_args=""
     local env_args=()
@@ -880,7 +868,6 @@ run_rehearsal() {
     fi
 }
 
-# TODO: Document run_reset_helper_direct.
 run_reset_helper_direct() {
     local cli_args=""
     local env_args=()
@@ -920,7 +907,6 @@ run_reset_helper_direct() {
     fi
 }
 
-# TODO: Document run_capture_billing_cross_check_inputs.
 run_capture_billing_cross_check_inputs() {
     local cli_args=""
     local env_args=()
@@ -963,7 +949,6 @@ run_capture_billing_cross_check_inputs() {
     fi
 }
 
-# TODO: Document assert_refusal_matrix_case.
 assert_refusal_matrix_case() {
     local case_name="$1"
     local expected_classification="$2"
@@ -994,7 +979,6 @@ script_line_count() {
     wc -l < "$1" | tr -d ' '
 }
 
-# TODO: Document function_line_count.
 function_line_count() {
     python3 - "$1" "$2" <<'PY'
 import pathlib
@@ -1059,7 +1043,6 @@ json_file_field() {
     json_file_path_field "$1" "$2"
 }
 
-# TODO: Document json_file_path_field.
 json_file_path_field() {
     if [ ! -f "$1" ]; then
         printf '\n'
@@ -1158,7 +1141,6 @@ reset_deleted_invoice_ids_file() {
     printf '%s\n' "$TEST_WORKSPACE/tmp/mock_psql_reset_deleted_ids.txt"
 }
 
-# TODO: Document assert_repeat_same_month_reuse_contract.
 assert_repeat_same_month_reuse_contract() {
     local rehearsal_args first_artifact_dir second_artifact_dir calls reset_deleted_file
     local second_summary second_billing_run
@@ -1227,7 +1209,6 @@ assert_repeat_same_month_reuse_contract() {
     fi
 }
 
-# TODO: Document test_live_mutation_ignores_unrelated_same_month_invoice_before_first_run.
 test_live_mutation_ignores_unrelated_same_month_invoice_before_first_run() {
     setup_workspace "11111111-1111-1111-1111-111111111111"
     wrap_preflight_owner_with_call_log
@@ -1249,7 +1230,6 @@ test_live_mutation_ignores_unrelated_same_month_invoice_before_first_run() {
         "unrelated same-month invoice row should not be reused as billing-run evidence"
 }
 
-# TODO: Document test_live_mutation_ignores_successful_same_month_lookup_noise_before_first_run.
 test_live_mutation_ignores_successful_same_month_lookup_noise_before_first_run() {
     setup_workspace "11111111-1111-1111-1111-111111111111"
     wrap_preflight_owner_with_call_log
@@ -1271,7 +1251,6 @@ test_live_mutation_ignores_successful_same_month_lookup_noise_before_first_run()
         "successful same-month lookup noise should not be reused as billing-run evidence"
 }
 
-# TODO: Document test_live_mutation_blocks_when_repeat_pass_lookup_fails_before_mutation.
 test_live_mutation_blocks_when_repeat_pass_lookup_fails_before_mutation() {
     setup_workspace "11111111-1111-1111-1111-111111111111"
     wrap_preflight_owner_with_call_log
@@ -1332,7 +1311,6 @@ assert_health_step_absent() {
     fi
 }
 
-# TODO: Document assert_step_detail_shape.
 assert_step_detail_shape() {
     local step_file="$1" step_name="$2"
     local name_value detail_value
@@ -1361,7 +1339,6 @@ assert_no_live_mutation_attempt_logged() {
         "live mutation should not call POST /admin/billing/run"
 }
 
-# TODO: Document test_live_mutation_redacts_admin_key_and_locks_artifact_permissions.
 test_live_mutation_redacts_admin_key_and_locks_artifact_permissions() {
     setup_workspace
     wrap_preflight_owner_with_call_log
@@ -1388,7 +1365,6 @@ test_live_mutation_redacts_admin_key_and_locks_artifact_permissions() {
         "mock curl call log should retain a redacted admin-key marker"
 }
 
-# TODO: Document assert_rehearsal_fails_as_blocker.
 assert_rehearsal_fails_as_blocker() {
     assert_eq "$RUN_EXIT_CODE" "1" "rehearsal should fail with blocker exit"
     local artifact_dir=""
@@ -1436,7 +1412,6 @@ assert_stage3_evidence_artifacts_exist() {
     assert_valid_json_file "$artifact_dir/invoice_email.json" "invoice_email artifact should be valid JSON"
 }
 
-# TODO: Document assert_cross_check_input_artifacts_exist.
 assert_cross_check_input_artifacts_exist() {
     local artifact_dir="$1"
     assert_file_exists "$artifact_dir/invoice_db_row.json" "invoice_db_row artifact should exist"

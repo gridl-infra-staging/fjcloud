@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for web/src/lib/vm-capacity.ts.
- */
 export type CapacityRecord = Record<string, unknown>;
 
 export type CapacityDimension = {
@@ -19,9 +16,6 @@ function isNumber(value: unknown): value is number {
 	return typeof value === 'number' && Number.isFinite(value);
 }
 
-/**
- * TODO: Document capacityDimensions.
- */
 export function capacityDimensions(
 	capacity: CapacityRecord | null | undefined,
 	currentLoad: CapacityRecord | null | undefined
@@ -45,9 +39,6 @@ export function utilPercent(used: number, total: number): number {
 	return Math.round((used / total) * 100);
 }
 
-/**
- * TODO: Document aggregateDiskUtilPercent.
- */
 export function aggregateDiskUtilPercent(snapshots: CapacitySnapshot[]): number | null {
 	let usedTotal = 0;
 	let capacityTotal = 0;

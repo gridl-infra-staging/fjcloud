@@ -80,7 +80,6 @@ json.loads(sys.argv[1])
 PY
 }
 
-# TODO: Document privacy_com_validate_schema.
 privacy_com_validate_schema() {
     local body="$1"
     local schema_kind="$2"
@@ -122,7 +121,6 @@ else:
 PY
 }
 
-# TODO: Document privacy_com_request.
 privacy_com_request() {
     local method="$1"
     local path="$2"
@@ -219,7 +217,6 @@ privacy_com_list_cards_missing_auth() {
     privacy_com_request "GET" "/v1/cards?page=${page}&page_size=${page_size}" "missing"
 }
 
-# TODO: Document extract_total_pages.
 extract_total_pages() {
     local json_body="$1"
     python3 - "$json_body" <<'PY'
@@ -238,7 +235,6 @@ print(total_pages)
 PY
 }
 
-# TODO: Document privacy_com_create_card.
 privacy_com_create_card() {
     local memo="${1:-fjcloud stage2 contract probe}"
     # Memo is interpolated into JSON below, so reject characters that would
@@ -264,7 +260,6 @@ JSON
     fi
 }
 
-# TODO: Document privacy_com_get_card.
 privacy_com_get_card() {
     local card_token="$1"
     privacy_com_validate_card_token "$card_token" || return $?
@@ -279,7 +274,6 @@ privacy_com_get_card() {
     fi
 }
 
-# TODO: Document privacy_com_close_card.
 privacy_com_close_card() {
     local card_token="$1"
     privacy_com_validate_card_token "$card_token" || return $?
@@ -294,7 +288,6 @@ privacy_com_close_card() {
     fi
 }
 
-# TODO: Document privacy_com_pause_card.
 privacy_com_pause_card() {
     local card_token="$1"
     privacy_com_validate_card_token "$card_token" || return $?
@@ -309,7 +302,6 @@ privacy_com_pause_card() {
     fi
 }
 
-# TODO: Document privacy_com_unpause_card.
 privacy_com_unpause_card() {
     local card_token="$1"
     privacy_com_validate_card_token "$card_token" || return $?

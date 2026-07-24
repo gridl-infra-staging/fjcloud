@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/tests/integration/algolia_import_job_domain_reservation.rs.
 use std::collections::BTreeSet;
 
 use api::models::algolia_import_job::{
@@ -27,7 +26,6 @@ use crate::common::support::pg_schema_harness::{
     connect_and_migrate, insert_active_customer, postgres_timestamp,
 };
 
-/// TODO: Document reservation_lifetime_denominator_matches_model_and_schema_once.
 #[test]
 fn reservation_lifetime_denominator_matches_model_and_schema_once() {
     let migration = include_str!("../../../migrations/056_algolia_import_jobs.sql");
@@ -114,7 +112,6 @@ fn reservation_lifetime_denominator_matches_model_and_schema_once() {
     );
 }
 
-/// TODO: Document assert_migration_enum_values.
 fn assert_migration_enum_values(
     migration: &str,
     start_marker: &str,
@@ -166,7 +163,6 @@ fn migration_declares_active_reservation_accounting_columns() {
     }
 }
 
-/// TODO: Document admission_snapshots_active_customer_generation_and_rejects_deleted_customer.
 #[tokio::test]
 async fn admission_snapshots_active_customer_generation_and_rejects_deleted_customer() {
     let Some(db) = connect_and_migrate("algolia_admission_lifecycle_generation").await else {
@@ -204,7 +200,6 @@ async fn admission_snapshots_active_customer_generation_and_rejects_deleted_cust
         .is_err());
 }
 
-/// TODO: Document soft_deleted_customer_refuses_replace_admission_and_replay_without_mutating_reservation.
 #[tokio::test]
 async fn soft_deleted_customer_refuses_replace_admission_and_replay_without_mutating_reservation() {
     let Some(db) = connect_and_migrate("algolia_deleted_replace_fence").await else {
@@ -260,7 +255,6 @@ fn replace_job(customer_id: Uuid, target: &str, key: &str) -> NewAlgoliaReplaceI
     NewAlgoliaReplaceImportJob::new(customer_id, target, import_source(key, 12_345), key)
 }
 
-/// TODO: Document create_job_with_source_size.
 fn create_job_with_source_size(
     customer_id: Uuid,
     target: &str,
@@ -287,7 +281,6 @@ fn import_source(key: &str, source_size_bytes: i64) -> AlgoliaImportSource {
     )
 }
 
-/// TODO: Document seed_replace_target.
 async fn seed_replace_target(pool: &PgPool, customer_id: Uuid, target: &str) {
     let vm_id = Uuid::new_v4();
     sqlx::query(
@@ -376,7 +369,6 @@ async fn serialized_import_job_row_by_erasure_handle(
     .expect("serialize retained import job tombstone by erasure handle")
 }
 
-/// TODO: Document public_import_job_ids_for_customer_target.
 async fn public_import_job_ids_for_customer_target(
     pool: &PgPool,
     customer_id: Uuid,
@@ -463,7 +455,6 @@ async fn force_failed_not_resumable(pool: &PgPool, job_id: Uuid) {
     .expect("force failed not resumable");
 }
 
-/// TODO: Document force_failed_resumable.
 async fn force_failed_resumable(pool: &PgPool, job_id: Uuid) {
     let observed_at = chrono::Utc::now();
     let deadline = observed_at + chrono::Duration::minutes(30);
@@ -499,7 +490,6 @@ fn assert_destination_conflict(
     ));
 }
 
-/// TODO: Document expire_resume_worker_claim.
 async fn expire_resume_worker_claim(pool: &PgPool, job_id: Uuid, now: DateTime<Utc>) {
     sqlx::query(
         "UPDATE algolia_import_jobs
@@ -540,7 +530,6 @@ async fn force_failed_unknown_disposition(pool: &PgPool, job_id: Uuid) {
 // Active-target reservation: partial unique constraint on (customer_id, logical_target)
 // ---------------------------------------------------------------------------
 
-/// TODO: Document reservation_lifetime_release_and_retain_match_denominator.
 #[tokio::test]
 async fn reservation_lifetime_release_and_retain_match_denominator() {
     let Some(db) = connect_and_migrate("algolia_reserve_denominator").await else {
@@ -579,7 +568,6 @@ async fn reservation_lifetime_release_and_retain_match_denominator() {
     }
 }
 
-/// TODO: Document erased_tombstone_selector_releases_active_target_reservation.
 #[tokio::test]
 async fn erased_tombstone_selector_releases_active_target_reservation() {
     let Some(db) = connect_and_migrate("algolia_erased_reservation_release").await else {
@@ -642,7 +630,6 @@ async fn erased_tombstone_selector_releases_active_target_reservation() {
     );
 }
 
-/// TODO: Document active_reservation_rejects_concurrent_same_target_create.
 #[tokio::test]
 async fn active_reservation_rejects_concurrent_same_target_create() {
     let Some(db) = connect_and_migrate("algolia_reserve_concurrent").await else {
@@ -665,7 +652,6 @@ async fn active_reservation_rejects_concurrent_same_target_create() {
     );
 }
 
-/// TODO: Document exact_replay_succeeds_after_original_consumes_customer_byte_quota.
 #[tokio::test]
 async fn exact_replay_succeeds_after_original_consumes_customer_byte_quota() {
     let Some(db) = connect_and_migrate("algolia_reserve_replay_at_quota").await else {
@@ -694,7 +680,6 @@ async fn exact_replay_succeeds_after_original_consumes_customer_byte_quota() {
     assert_eq!(replay.canonical_fingerprint, original.canonical_fingerprint);
 }
 
-/// TODO: Document active_reservation_allows_different_customers_same_target.
 #[tokio::test]
 async fn active_reservation_allows_different_customers_same_target() {
     let Some(db) = connect_and_migrate("algolia_reserve_diff_cust").await else {
@@ -716,7 +701,6 @@ async fn active_reservation_allows_different_customers_same_target() {
         .expect("customer B same target must succeed");
 }
 
-/// TODO: Document active_reservation_allows_same_customer_different_targets.
 #[tokio::test]
 async fn active_reservation_allows_same_customer_different_targets() {
     let Some(db) = connect_and_migrate("algolia_reserve_diff_target").await else {
@@ -737,7 +721,6 @@ async fn active_reservation_allows_same_customer_different_targets() {
         .expect("different target for same customer must succeed");
 }
 
-/// TODO: Document terminal_completed_releases_reservation.
 #[tokio::test]
 async fn terminal_completed_releases_reservation() {
     let Some(db) = connect_and_migrate("algolia_reserve_release").await else {
@@ -759,7 +742,6 @@ async fn terminal_completed_releases_reservation() {
         .expect("create after terminal release must succeed");
 }
 
-/// TODO: Document terminal_failed_not_resumable_releases_reservation.
 #[tokio::test]
 async fn terminal_failed_not_resumable_releases_reservation() {
     let Some(db) = connect_and_migrate("algolia_reserve_fail_rel").await else {
@@ -781,7 +763,6 @@ async fn terminal_failed_not_resumable_releases_reservation() {
         .expect("create after non-resumable failure must succeed");
 }
 
-/// TODO: Document resumable_failed_retains_reservation.
 #[tokio::test]
 async fn resumable_failed_retains_reservation() {
     let Some(db) = connect_and_migrate("algolia_reserve_resumable").await else {
@@ -804,7 +785,6 @@ async fn resumable_failed_retains_reservation() {
     );
 }
 
-/// TODO: Document elapsed_resume_takeover_preserves_target_exclusion.
 #[tokio::test]
 async fn elapsed_resume_takeover_preserves_target_exclusion() {
     let Some(db) = connect_and_migrate("algolia_reserve_takeover_exclusion").await else {
@@ -878,7 +858,6 @@ async fn elapsed_resume_takeover_preserves_target_exclusion() {
     assert_destination_conflict(after_competitor);
 }
 
-/// TODO: Document unknown_disposition_retains_reservation.
 #[tokio::test]
 async fn unknown_disposition_retains_reservation() {
     let Some(db) = connect_and_migrate("algolia_reserve_unknown").await else {
@@ -901,7 +880,6 @@ async fn unknown_disposition_retains_reservation() {
     );
 }
 
-/// TODO: Document cancelled_job_releases_reservation.
 #[tokio::test]
 async fn cancelled_job_releases_reservation() {
     let Some(db) = connect_and_migrate("algolia_reserve_cancel").await else {
@@ -939,7 +917,6 @@ async fn cancelled_job_releases_reservation() {
 // Create target invisibility: new create targets must not appear in customer_tenants
 // ---------------------------------------------------------------------------
 
-/// TODO: Document create_destination_target_absent_from_customer_tenants.
 #[tokio::test]
 async fn create_destination_target_absent_from_customer_tenants() {
     let Some(db) = connect_and_migrate("algolia_reserve_invis").await else {
@@ -982,7 +959,6 @@ async fn create_destination_target_absent_from_customer_tenants() {
 // Release through record_no_dispatch_failure
 // ---------------------------------------------------------------------------
 
-/// TODO: Document no_dispatch_failure_releases_reservation.
 #[tokio::test]
 async fn no_dispatch_failure_releases_reservation() {
     let Some(db) = connect_and_migrate("algolia_reserve_nodispatch").await else {
@@ -1015,7 +991,6 @@ async fn no_dispatch_failure_releases_reservation() {
 // Release through update_persisted_state to terminal
 // ---------------------------------------------------------------------------
 
-/// TODO: Document terminal_completed_state.
 fn terminal_completed_state(engine_job_id: Uuid) -> AlgoliaImportJobState {
     AlgoliaImportJobState {
         status: AlgoliaImportJobStatus::Completed,
@@ -1036,7 +1011,6 @@ fn terminal_completed_state(engine_job_id: Uuid) -> AlgoliaImportJobState {
     }
 }
 
-/// TODO: Document active_engine_state.
 fn active_engine_state(
     status: AlgoliaImportJobStatus,
     engine_job_id: Uuid,
@@ -1076,7 +1050,6 @@ async fn admit_create_dispatch(
     }
 }
 
-/// TODO: Document advance_to_copying_documents.
 async fn advance_to_copying_documents(
     repo: &PgAlgoliaImportJobRepo,
     job_id: Uuid,
@@ -1096,7 +1069,6 @@ async fn advance_to_copying_documents(
     }
 }
 
-/// TODO: Document terminal_state_update_releases_reservation.
 #[tokio::test]
 async fn terminal_state_update_releases_reservation() {
     let Some(db) = connect_and_migrate("algolia_reserve_state_rel").await else {
@@ -1130,7 +1102,6 @@ async fn terminal_state_update_releases_reservation() {
         .expect("create after terminal state update must succeed — reservation released");
 }
 
-/// TODO: Document resumable_failure_state_retains_reservation_through_update.
 #[tokio::test]
 async fn resumable_failure_state_retains_reservation_through_update() {
     let Some(db) = connect_and_migrate("algolia_reserve_resume_upd").await else {
@@ -1182,7 +1153,6 @@ async fn resumable_failure_state_retains_reservation_through_update() {
     );
 }
 
-/// TODO: Document resumed_job_does_not_create_second_reservation.
 #[tokio::test]
 async fn resumed_job_does_not_create_second_reservation() {
     let Some(db) = connect_and_migrate("algolia_reserve_resume_nodup").await else {

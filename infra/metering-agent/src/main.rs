@@ -1,4 +1,3 @@
-//! Stub summary for infra/metering-agent/src/main.rs.
 mod circuit_breaker;
 mod config;
 mod counter;
@@ -73,7 +72,6 @@ async fn main() -> Result<()> {
     run(cfg, db_pool).await
 }
 
-/// TODO: Document run.
 async fn run(cfg: Config, pool: sqlx::PgPool) -> Result<()> {
     let tenant_state: TenantStateMap = Arc::new(dashmap::DashMap::new());
     let tenant_map: TenantCustomerMap = Arc::new(dashmap::DashMap::new());
@@ -228,7 +226,6 @@ fn breaker_open_alert_message(next_retry: Duration) -> String {
     )
 }
 
-/// TODO: Document build_breaker_open_slack_payload.
 fn build_breaker_open_slack_payload(cfg: &Config, next_retry: Duration) -> serde_json::Value {
     let alert_message = breaker_open_alert_message(next_retry);
     let metadata = [
@@ -264,7 +261,6 @@ fn build_breaker_open_slack_payload(cfg: &Config, next_retry: Duration) -> serde
     })
 }
 
-/// TODO: Document build_breaker_open_discord_payload.
 fn build_breaker_open_discord_payload(cfg: &Config, next_retry: Duration) -> serde_json::Value {
     let alert_message = breaker_open_alert_message(next_retry);
     let metadata = [
@@ -301,7 +297,6 @@ fn build_breaker_open_discord_payload(cfg: &Config, next_retry: Duration) -> ser
     })
 }
 
-/// TODO: Document post_breaker_alert_webhook.
 async fn post_breaker_alert_webhook(
     http: &reqwest::Client,
     webhook_url: &str,
@@ -322,7 +317,6 @@ async fn post_breaker_alert_webhook(
     Ok(())
 }
 
-/// TODO: Document dispatch_breaker_open_alert.
 async fn dispatch_breaker_open_alert(
     cfg: &Config,
     http: &reqwest::Client,
@@ -440,7 +434,6 @@ mod tests {
         "ok"
     }
 
-    /// TODO: Document spawn_webhook_receiver.
     async fn spawn_webhook_receiver() -> (String, CapturedBodies, tokio::task::JoinHandle<()>) {
         let captured: CapturedBodies = Arc::new(Mutex::new(Vec::new()));
         let app = Router::new()
@@ -458,7 +451,6 @@ mod tests {
         (format!("http://{addr}"), captured, handle)
     }
 
-    /// TODO: Document test_config_with_webhooks.
     fn test_config_with_webhooks(
         slack_webhook_url: Option<&str>,
         discord_webhook_url: Option<&str>,
@@ -510,7 +502,6 @@ mod tests {
         assert!(!branch_gates.host_metrics);
     }
 
-    /// TODO: Document assert_critical_slack_breaker_payload.
     fn assert_critical_slack_breaker_payload(body: &Value) {
         let attachments = body["attachments"]
             .as_array()
@@ -558,7 +549,6 @@ mod tests {
         );
     }
 
-    /// TODO: Document assert_critical_discord_breaker_payload.
     fn assert_critical_discord_breaker_payload(body: &Value) {
         let embeds = body["embeds"]
             .as_array()
@@ -606,7 +596,6 @@ mod tests {
         );
     }
 
-    /// TODO: Document handle_scrape_cycle_alerts_once_on_closed_to_open_transition.
     #[tokio::test]
     async fn handle_scrape_cycle_alerts_once_on_closed_to_open_transition() {
         let (webhook_url, captured, server_handle) = spawn_webhook_receiver().await;
@@ -663,7 +652,6 @@ mod tests {
         server_handle.abort();
     }
 
-    /// TODO: Document handle_scrape_cycle_keeps_sixth_failure_quiet_while_open.
     #[tokio::test]
     async fn handle_scrape_cycle_keeps_sixth_failure_quiet_while_open() {
         let (webhook_url, captured, server_handle) = spawn_webhook_receiver().await;
@@ -717,7 +705,6 @@ mod tests {
         server_handle.abort();
     }
 
-    /// TODO: Document handle_scrape_cycle_alerts_to_both_webhook_channels.
     #[tokio::test]
     async fn handle_scrape_cycle_alerts_to_both_webhook_channels() {
         let (slack_url, slack_captured, slack_server_handle) = spawn_webhook_receiver().await;

@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/tests/integration/algolia_import_job_domain_transitions.rs.
 use api::models::algolia_import_job::{
     AlgoliaImportDispatchIntentState, AlgoliaImportEngineAckState, AlgoliaImportErrorCode,
     AlgoliaImportJob, AlgoliaImportJobState, AlgoliaImportJobStatus,
@@ -114,7 +113,6 @@ async fn hard_erase_customer(pool: &PgPool, customer_id: Uuid) {
 
 // Temporary schema-056 tombstone setup for Stage 3 selector tests. This is not a
 // second hard-delete owner; Stage 4 owns producing these retained rows naturally.
-/// TODO: Document seed_schema_056_tombstone.
 async fn seed_schema_056_tombstone(
     pool: &PgPool,
     cleanup_phase: &str,
@@ -186,7 +184,6 @@ fn is_lock_not_available(error: &sqlx::Error) -> bool {
         == Some("55P03")
 }
 
-/// TODO: Document wait_until_customer_row_locked.
 async fn wait_until_customer_row_locked(pool: &PgPool, customer_id: Uuid) {
     for _ in 0..100 {
         let mut tx = pool.begin().await.expect("probe customer row lock");
@@ -209,7 +206,6 @@ async fn wait_until_customer_row_locked(pool: &PgPool, customer_id: Uuid) {
     panic!("soft-delete did not acquire the customer row lock");
 }
 
-/// TODO: Document persisted_state.
 fn persisted_state(job: &AlgoliaImportJob) -> AlgoliaImportJobState {
     AlgoliaImportJobState::try_from(job).expect("persisted fixture must contain a complete state")
 }
@@ -219,7 +215,6 @@ fn postgres_timestamp(timestamp: DateTime<Utc>) -> DateTime<Utc> {
         .expect("test timestamp must fit in Postgres timestamptz precision")
 }
 
-/// TODO: Document admitted_state.
 fn admitted_state(status: AlgoliaImportJobStatus) -> AlgoliaImportJobState {
     AlgoliaImportJobState {
         status,
@@ -245,7 +240,6 @@ fn resumable_failure_state(status: AlgoliaImportJobStatus) -> AlgoliaImportJobSt
     resumable_failure_state_with_deadline(status, observed_at, observed_at + Duration::minutes(5))
 }
 
-/// TODO: Document resumable_failure_state_with_deadline.
 fn resumable_failure_state_with_deadline(
     status: AlgoliaImportJobStatus,
     observed_at: DateTime<Utc>,
@@ -263,7 +257,6 @@ fn resumable_failure_state_with_deadline(
     state
 }
 
-/// TODO: Document create_resumable_job.
 async fn create_resumable_job(
     pool: &PgPool,
     repo: &PgAlgoliaImportJobRepo,
@@ -295,7 +288,6 @@ async fn create_resumable_job(
         .unwrap()
 }
 
-/// TODO: Document create_resumable_replace_job.
 async fn create_resumable_replace_job(
     pool: &PgPool,
     repo: &PgAlgoliaImportJobRepo,
@@ -324,7 +316,6 @@ async fn create_resumable_replace_job(
         .unwrap()
 }
 
-/// TODO: Document create_admitted_job.
 async fn create_admitted_job(
     pool: &PgPool,
     repo: &PgAlgoliaImportJobRepo,
@@ -378,7 +369,6 @@ fn assert_transition(
     );
 }
 
-/// TODO: Document all_statuses.
 fn all_statuses() -> [AlgoliaImportJobStatus; 13] {
     use AlgoliaImportJobStatus::{
         Cancelled, Cancelling, Completed, CompletedWithWarnings, CopyingConfiguration,
@@ -411,7 +401,6 @@ fn normal_forward_target(mut from: AlgoliaImportJobState) -> AlgoliaImportJobSta
     from
 }
 
-/// TODO: Document terminal_state.
 fn terminal_state(
     status: AlgoliaImportJobStatus,
     publication_disposition: AlgoliaImportPublicationDisposition,
@@ -442,7 +431,6 @@ fn terminal_state(
     state
 }
 
-/// TODO: Document terminal_status_disposition_matrix_is_closed.
 #[test]
 fn terminal_status_disposition_matrix_is_closed() {
     use AlgoliaImportJobStatus::{
@@ -486,7 +474,6 @@ fn terminal_status_disposition_matrix_is_closed() {
     assert!(!Cancelled.is_finally_terminal(false, NotStarted));
 }
 
-/// TODO: Document no_dispatch_failure_is_fully_released_without_ack_work.
 #[tokio::test]
 async fn no_dispatch_failure_is_fully_released_without_ack_work() {
     let Some(db) = connect_and_migrate("algolia_no_dispatch_release").await else {
@@ -547,7 +534,6 @@ async fn no_dispatch_failure_is_fully_released_without_ack_work() {
     );
 }
 
-/// TODO: Document algolia_import_job_domain_transition_owner_accepts_only_declared_edges.
 #[test]
 fn algolia_import_job_domain_transition_owner_accepts_only_declared_edges() {
     use AlgoliaImportJobStatus::{
@@ -802,7 +788,6 @@ fn algolia_import_job_domain_transition_owner_accepts_only_declared_edges() {
     }
 }
 
-/// TODO: Document algolia_import_job_domain_cancel_intent_is_atomic_and_idempotent.
 #[tokio::test]
 async fn algolia_import_job_domain_cancel_intent_is_atomic_and_idempotent() {
     let Some(db) = connect_and_migrate("algolia_cancel_atomic").await else {
@@ -891,7 +876,6 @@ async fn algolia_import_job_domain_cancel_intent_is_atomic_and_idempotent() {
     );
 }
 
-/// TODO: Document algolia_import_job_domain_resume_intent_is_atomic_and_idempotent.
 #[tokio::test]
 async fn algolia_import_job_domain_resume_intent_is_atomic_and_idempotent() {
     let Some(db) = connect_and_migrate("algolia_resume_atomic").await else {
@@ -941,7 +925,6 @@ async fn algolia_import_job_domain_resume_intent_is_atomic_and_idempotent() {
     assert_eq!(duplicate.expected_attempt, dispatching.expected_attempt);
 }
 
-/// TODO: Document algolia_import_job_domain_resume_observation_is_generation_gated_and_monotonic.
 #[tokio::test]
 async fn algolia_import_job_domain_resume_observation_is_generation_gated_and_monotonic() {
     let Some(db) = connect_and_migrate("algolia_resume_observed").await else {
@@ -1036,7 +1019,6 @@ async fn algolia_import_job_domain_resume_observation_is_generation_gated_and_mo
     ));
 }
 
-/// TODO: Document stale_customer_generation_blocks_state_adoption_and_resume_acceptance.
 #[tokio::test]
 async fn stale_customer_generation_blocks_state_adoption_and_resume_acceptance() {
     let Some(db) = connect_and_migrate("algolia_stale_state_generation").await else {
@@ -1105,7 +1087,6 @@ async fn stale_customer_generation_blocks_state_adoption_and_resume_acceptance()
     ));
 }
 
-/// TODO: Document soft_deleted_customer_blocks_state_cancel_and_resume_mutations_without_changing_retained_rows.
 #[tokio::test]
 async fn soft_deleted_customer_blocks_state_cancel_and_resume_mutations_without_changing_retained_rows(
 ) {
@@ -1145,7 +1126,6 @@ async fn soft_deleted_customer_blocks_state_cancel_and_resume_mutations_without_
     );
 }
 
-/// TODO: Document soft_deleted_customer_blocks_failed_and_resuming_resume_mutations_without_changing_retained_rows.
 #[tokio::test]
 async fn soft_deleted_customer_blocks_failed_and_resuming_resume_mutations_without_changing_retained_rows(
 ) {
@@ -1206,7 +1186,6 @@ async fn soft_deleted_customer_blocks_failed_and_resuming_resume_mutations_witho
     );
 }
 
-/// TODO: Document soft_delete_race_prevents_customer_scoped_resume_dispatch.
 #[tokio::test]
 async fn soft_delete_race_prevents_customer_scoped_resume_dispatch() {
     let Some(db) = connect_and_migrate("algolia_delete_resume_race").await else {
@@ -1266,7 +1245,6 @@ async fn soft_delete_race_prevents_customer_scoped_resume_dispatch() {
     assert_eq!(serialized_import_job_row(&db.pool, job_id).await, before);
 }
 
-/// TODO: Document soft_delete_race_prevents_elapsed_resume_deadline_claim.
 #[tokio::test]
 async fn soft_delete_race_prevents_elapsed_resume_deadline_claim() {
     let Some(db) = connect_and_migrate("algolia_delete_deadline_claim_race").await else {
@@ -1327,7 +1305,6 @@ async fn soft_delete_race_prevents_elapsed_resume_deadline_claim() {
     assert_eq!(serialized_import_job_row(&db.pool, job_id).await, before);
 }
 
-/// TODO: Document stale_customer_generation_blocks_terminal_ack_and_retention_gc.
 #[tokio::test]
 async fn stale_customer_generation_blocks_terminal_ack_and_retention_gc() {
     let Some(db) = connect_and_migrate("algolia_stale_ack_gc_generation").await else {
@@ -1391,7 +1368,6 @@ async fn stale_customer_generation_blocks_terminal_ack_and_retention_gc() {
     );
 }
 
-/// TODO: Document soft_deleted_customer_retains_terminal_ack_and_gc_evidence.
 #[tokio::test]
 async fn soft_deleted_customer_retains_terminal_ack_and_gc_evidence() {
     let Some(db) = connect_and_migrate("algolia_deleted_ack_gc").await else {
@@ -1437,7 +1413,6 @@ async fn soft_deleted_customer_retains_terminal_ack_and_gc_evidence() {
     );
 }
 
-/// TODO: Document retention_gc_collects_current_generation_at_exact_boundary.
 #[tokio::test]
 async fn retention_gc_collects_current_generation_at_exact_boundary() {
     let Some(db) = connect_and_migrate("algolia_exact_retention_boundary").await else {
@@ -1473,7 +1448,6 @@ async fn retention_gc_collects_current_generation_at_exact_boundary() {
     assert!(repo.get(gc_job.id).await.expect("read GC result").is_none());
 }
 
-/// TODO: Document stale_customer_generation_excludes_elapsed_resume_deadline_claims.
 #[tokio::test]
 async fn stale_customer_generation_excludes_elapsed_resume_deadline_claims() {
     let Some(db) = connect_and_migrate("algolia_stale_deadline_generation").await else {
@@ -1515,7 +1489,6 @@ async fn stale_customer_generation_excludes_elapsed_resume_deadline_claims() {
     assert_eq!(unchanged.resumable, job.resumable);
 }
 
-/// TODO: Document erased_tombstone_selector_excludes_resume_deadline_claims_idempotently.
 #[tokio::test]
 async fn erased_tombstone_selector_excludes_resume_deadline_claims_idempotently() {
     let Some(db) = connect_and_migrate("algolia_erased_deadline_selector").await else {
@@ -1601,7 +1574,6 @@ async fn erased_tombstone_selector_excludes_resume_deadline_claims_idempotently(
     );
 }
 
-/// TODO: Document soft_deleted_customer_selector_exclusions_preserve_all_import_evidence.
 #[tokio::test]
 async fn soft_deleted_customer_selector_exclusions_preserve_all_import_evidence() {
     let Some(db) = connect_and_migrate("algolia_deleted_selector_exclusions").await else {
@@ -1715,7 +1687,6 @@ async fn soft_deleted_customer_selector_exclusions_preserve_all_import_evidence(
     assert_eq!(after, before);
 }
 
-/// TODO: Document erased_tombstone_ack_release_compacts_exactly_once.
 #[tokio::test]
 async fn erased_tombstone_ack_release_compacts_exactly_once() {
     let Some(db) = connect_and_migrate("algolia_erased_ack_compaction").await else {
@@ -1836,7 +1807,6 @@ async fn erased_tombstone_ack_release_compacts_exactly_once() {
     );
 }
 
-/// TODO: Document erased_tombstone_terminal_gc_preserves_reconciliation_truth.
 #[tokio::test]
 async fn erased_tombstone_terminal_gc_preserves_reconciliation_truth() {
     let Some(db) = connect_and_migrate("algolia_erased_terminal_gc").await else {
@@ -1948,7 +1918,6 @@ async fn erased_tombstone_terminal_gc_preserves_reconciliation_truth() {
     );
 }
 
-/// TODO: Document algolia_import_job_domain_claims_elapsed_resume_deadlines_without_finalizing.
 #[tokio::test]
 async fn algolia_import_job_domain_claims_elapsed_resume_deadlines_without_finalizing() {
     let Some(db) = connect_and_migrate("algolia_resume_deadline_claim").await else {
@@ -2040,7 +2009,6 @@ async fn algolia_import_job_domain_claims_elapsed_resume_deadlines_without_final
     assert_eq!(future_after_claim.worker_lease_expires_at, None);
 }
 
-/// TODO: Document algolia_import_job_domain_deadline_claim_excludes_concurrent_and_active_resume.
 #[tokio::test]
 async fn algolia_import_job_domain_deadline_claim_excludes_concurrent_and_active_resume() {
     let Some(db) = connect_and_migrate("algolia_resume_deadline_exclusion").await else {
@@ -2088,7 +2056,6 @@ async fn algolia_import_job_domain_deadline_claim_excludes_concurrent_and_active
     );
 }
 
-/// TODO: Document algolia_import_job_domain_deadline_claim_reuses_expired_worker_lease.
 #[tokio::test]
 async fn algolia_import_job_domain_deadline_claim_reuses_expired_worker_lease() {
     let Some(db) = connect_and_migrate("algolia_resume_deadline_lease").await else {
@@ -2130,7 +2097,6 @@ async fn algolia_import_job_domain_deadline_claim_reuses_expired_worker_lease() 
     );
 }
 
-/// TODO: Document reconciliation_claim_is_exclusive_and_skips_an_active_lease.
 #[tokio::test]
 async fn reconciliation_claim_is_exclusive_and_skips_an_active_lease() {
     let Some(db) = connect_and_migrate("algolia_reconcile_claim_exclusive").await else {
@@ -2175,7 +2141,6 @@ async fn reconciliation_claim_is_exclusive_and_skips_an_active_lease() {
         .is_empty());
 }
 
-/// TODO: Document reconciliation_takeover_fences_stale_observation_writes.
 #[tokio::test]
 async fn reconciliation_takeover_fences_stale_observation_writes() {
     let Some(db) = connect_and_migrate("algolia_reconcile_takeover_fence").await else {
@@ -2249,7 +2214,6 @@ async fn reconciliation_takeover_fences_stale_observation_writes() {
     assert_eq!(updated.worker_lease_expires_at, None);
 }
 
-/// TODO: Document reconciliation_claim_excludes_private_or_unlinked_jobs_without_releasing_them.
 #[tokio::test]
 async fn reconciliation_claim_excludes_private_or_unlinked_jobs_without_releasing_them() {
     let Some(db) = connect_and_migrate("algolia_reconcile_claim_scope").await else {
@@ -2362,7 +2326,6 @@ fn assert_refused(error: AlgoliaLifecycleError, expected: AlgoliaImportErrorCode
     }
 }
 
-/// TODO: Document algolia_cloud_job_repo_cancel_for_customer_missing_and_foreign_are_not_found.
 #[tokio::test]
 async fn algolia_cloud_job_repo_cancel_for_customer_missing_and_foreign_are_not_found() {
     let Some(db) = connect_and_migrate("algolia_scoped_cancel_notfound").await else {
@@ -2398,7 +2361,6 @@ async fn algolia_cloud_job_repo_cancel_for_customer_missing_and_foreign_are_not_
     assert!(untouched.cancel_requested_at.is_none());
 }
 
-/// TODO: Document algolia_cloud_job_repo_cancel_for_customer_queued_is_accepted_without_dispatch.
 #[tokio::test]
 async fn algolia_cloud_job_repo_cancel_for_customer_queued_is_accepted_without_dispatch() {
     let Some(db) = connect_and_migrate("algolia_scoped_cancel_queued").await else {
@@ -2432,7 +2394,6 @@ async fn algolia_cloud_job_repo_cancel_for_customer_queued_is_accepted_without_d
     assert!(outcome.job.cancel_requested_at.is_some());
 }
 
-/// TODO: Document algolia_cloud_job_repo_cancel_for_customer_non_cancellable_is_refused.
 #[tokio::test]
 async fn algolia_cloud_job_repo_cancel_for_customer_non_cancellable_is_refused() {
     let Some(db) = connect_and_migrate("algolia_scoped_cancel_refused").await else {
@@ -2456,7 +2417,6 @@ async fn algolia_cloud_job_repo_cancel_for_customer_non_cancellable_is_refused()
     assert_eq!(untouched.status, AlgoliaImportJobStatus::Failed);
 }
 
-/// TODO: Document algolia_cloud_job_repo_cancel_for_customer_concurrent_yields_one_accepted.
 #[tokio::test]
 async fn algolia_cloud_job_repo_cancel_for_customer_concurrent_yields_one_accepted() {
     let Some(db) = connect_and_migrate("algolia_scoped_cancel_concurrent").await else {
@@ -2491,7 +2451,6 @@ async fn algolia_cloud_job_repo_cancel_for_customer_concurrent_yields_one_accept
     assert_eq!(b.job.status, AlgoliaImportJobStatus::Cancelling);
 }
 
-/// TODO: Document algolia_cloud_job_repo_resume_for_customer_missing_and_foreign_are_not_found.
 #[tokio::test]
 async fn algolia_cloud_job_repo_resume_for_customer_missing_and_foreign_are_not_found() {
     let Some(db) = connect_and_migrate("algolia_scoped_resume_notfound").await else {
@@ -2532,7 +2491,6 @@ async fn algolia_cloud_job_repo_resume_for_customer_missing_and_foreign_are_not_
     );
 }
 
-/// TODO: Document algolia_cloud_job_repo_resume_for_customer_accepts_then_replays.
 #[tokio::test]
 async fn algolia_cloud_job_repo_resume_for_customer_accepts_then_replays() {
     let Some(db) = connect_and_migrate("algolia_scoped_resume_accept").await else {
@@ -2576,7 +2534,6 @@ async fn algolia_cloud_job_repo_resume_for_customer_accepts_then_replays() {
     assert_eq!(replay.job.resume_intent_generation, accepted.generation);
 }
 
-/// TODO: Document algolia_cloud_job_repo_resume_for_customer_concurrent_yields_one_accepted.
 #[tokio::test]
 async fn algolia_cloud_job_repo_resume_for_customer_concurrent_yields_one_accepted() {
     let Some(db) = connect_and_migrate("algolia_scoped_resume_concurrent").await else {
@@ -2627,7 +2584,6 @@ async fn algolia_cloud_job_repo_resume_for_customer_concurrent_yields_one_accept
     assert_eq!(persisted.resume_count, job.resume_count);
 }
 
-/// TODO: Document algolia_cloud_job_repo_resume_for_customer_deadline_equality_and_elapsed_are_not_resumable.
 #[tokio::test]
 async fn algolia_cloud_job_repo_resume_for_customer_deadline_equality_and_elapsed_are_not_resumable(
 ) {
@@ -2686,7 +2642,6 @@ async fn algolia_cloud_job_repo_resume_for_customer_non_resumable_is_refused() {
     );
 }
 
-/// TODO: Document algolia_cloud_job_repo_resume_for_customer_unhealthy_replace_target_is_backend_unavailable.
 #[tokio::test]
 async fn algolia_cloud_job_repo_resume_for_customer_unhealthy_replace_target_is_backend_unavailable(
 ) {

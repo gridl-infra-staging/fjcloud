@@ -88,7 +88,6 @@ print_dry_run_action() {
   log_line "[dry-run] ${label} [${status}] ${detail}"
 }
 
-# TODO: Document capture_optional_command.
 capture_optional_command() {
   local label="$1"
   shift
@@ -136,7 +135,6 @@ imds_get() {
     "${METADATA_BASE_URL}/${path}"
 }
 
-# TODO: Document verify_host_identity.
 verify_host_identity() {
   IMDS_TOKEN="$(fetch_imds_token)" || die "unable to fetch IMDSv2 token"
   INSTANCE_ID="$(imds_get meta-data/instance-id)" || die "unable to read instance-id from IMDS"
@@ -161,7 +159,6 @@ verify_host_identity() {
   log_line "==> Verified host identity: instance_id=${INSTANCE_ID} region=${REGION} name_tag=${INSTANCE_NAME_TAG}"
 }
 
-# TODO: Document verify_deployed_sha_gate.
 verify_deployed_sha_gate() {
   local deployed_sha=""
   if ! deployed_sha="$("$AWS_BIN" ssm get-parameter \
@@ -218,7 +215,6 @@ reload_systemd() {
   "$SYSTEMCTL_BIN" daemon-reload
 }
 
-# TODO: Document print_dry_run_plan.
 print_dry_run_plan() {
   local unit_path metering_env_path binary_path old_binary_path unit_status daemon_reload_status daemon_reload_detail
   unit_path="$(target_path /etc/systemd/system/fj-metering-agent.service)"
@@ -256,7 +252,6 @@ print_dry_run_plan() {
   log_line "re-run without --dry-run on the API server after the cleanup deploy is live"
 }
 
-# TODO: Document run_live_cleanup.
 run_live_cleanup() {
   local timestamp unit_path metering_env_path binary_path old_binary_path
   timestamp="$(date -u +%Y%m%dT%H%M%SZ)"

@@ -29,7 +29,6 @@ support_email_classify_roundtrip_failure() {
     esac
 }
 
-# TODO: Document support_email_extract_failure_detail.
 support_email_extract_failure_detail() {
     local roundtrip_output="$1"
     python3 - "$roundtrip_output" <<'PY' || true

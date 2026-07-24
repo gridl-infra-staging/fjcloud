@@ -3772,7 +3772,6 @@
         "tags": [
           "Index Infrastructure"
         ],
-        "summary": "TODO: Document get_index_infrastructure.",
         "operationId": "get_index_infrastructure",
         "parameters": [
           {
@@ -6617,7 +6616,6 @@
         "tags": [
           "Migration"
         ],
-        "summary": "TODO: Document list_algolia_indexes.",
         "operationId": "list_algolia_indexes",
         "requestBody": {
           "content": {
@@ -6852,7 +6850,6 @@
         "tags": [
           "Public"
         ],
-        "summary": "TODO: Document get_public_infrastructure.",
         "operationId": "get_public_infrastructure",
         "responses": {
           "200": {
@@ -7011,7 +7008,6 @@
       },
       "AlgoliaImportErrorCode": {
         "type": "string",
-        "description": "TODO: Document AlgoliaImportErrorCode.",
         "enum": [
           "invalid_credentials",
           "missing_source_permission",
@@ -7036,7 +7032,6 @@
       },
       "AlgoliaIndexMetadata": {
         "type": "object",
-        "description": "TODO: Document AlgoliaIndexMetadata.",
         "required": [
           "name",
           "entries",

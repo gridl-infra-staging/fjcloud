@@ -49,7 +49,6 @@ _resolve_computed_api_url() {
     echo "http://localhost:${port}"
 }
 
-# TODO: Document extract_contract_string_constant.
 extract_contract_string_constant() {
     local constant_name="$1"
     local constant_line
@@ -127,7 +126,6 @@ check_var() {
     fi
 }
 
-# TODO: Document check_admin_key_prerequisite.
 check_admin_key_prerequisite() {
     if [ -n "${E2E_ADMIN_KEY:-}" ]; then
         echo "  OK: E2E_ADMIN_KEY is set"
@@ -162,7 +160,6 @@ check_service() {
     return 1
 }
 
-# TODO: Document check_flapjack_binary_provenance.
 check_flapjack_binary_provenance() {
     if [ -z "${FLAPJACK_DEV_DIR:-}" ] && [ -z "${FLAPJACK_DEV_DIR_CANDIDATES:-}" ] && ! command -v flapjack >/dev/null 2>&1; then
         echo "  OK: No local Flapjack binary source configured for preflight"
@@ -200,7 +197,6 @@ print(json.dumps({"email": sys.argv[1], "password": sys.argv[2]}))
 PY
 }
 
-# TODO: Document check_browser_auth_login.
 check_browser_auth_login() {
     local api_url="$1"
     local email="$2"

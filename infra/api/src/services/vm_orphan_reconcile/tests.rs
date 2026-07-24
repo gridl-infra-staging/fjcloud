@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/services/vm_orphan_reconcile/tests.rs.
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
@@ -126,7 +125,6 @@ fn vm(hostname: &str, status: &str, now: DateTime<Utc>) -> VmInventory {
     }
 }
 
-/// TODO: Document reconciler.
 fn reconciler(
     inventory: Arc<dyn VmInventoryRepo + Send + Sync>,
     dns: Arc<dyn crate::dns::DnsManager>,
@@ -148,7 +146,6 @@ fn fixed_now() -> DateTime<Utc> {
     "2026-07-22T18:00:00Z".parse().unwrap()
 }
 
-/// TODO: Document orphan_report_unsupported_default_listers_are_indeterminate_not_clean.
 #[tokio::test]
 async fn orphan_report_unsupported_default_listers_are_indeterminate_not_clean() {
     let report = reconciler(
@@ -168,7 +165,6 @@ async fn orphan_report_unsupported_default_listers_are_indeterminate_not_clean()
     assert_eq!(report.orphans_found, 0);
 }
 
-/// TODO: Document orphan_report_inventory_listing_failure_is_indeterminate_not_clean.
 #[tokio::test]
 async fn orphan_report_inventory_listing_failure_is_indeterminate_not_clean() {
     let inventory = Arc::new(TestInventoryRepo {
@@ -191,7 +187,6 @@ async fn orphan_report_inventory_listing_failure_is_indeterminate_not_clean() {
     assert_eq!(report.orphans_found, 0);
 }
 
-/// TODO: Document orphan_report_one_hour_grace_suppresses_recent_resources_but_counts_them.
 #[tokio::test]
 async fn orphan_report_one_hour_grace_suppresses_recent_resources_but_counts_them() {
     let now = fixed_now();
@@ -224,7 +219,6 @@ async fn orphan_report_one_hour_grace_suppresses_recent_resources_but_counts_the
     assert!(report.ssm_key_orphans.is_empty());
 }
 
-/// TODO: Document orphan_report_detects_old_dns_and_ssm_orphans.
 #[tokio::test]
 async fn orphan_report_detects_old_dns_and_ssm_orphans() {
     let now = fixed_now();
@@ -250,7 +244,6 @@ async fn orphan_report_detects_old_dns_and_ssm_orphans() {
     assert_eq!(report.ssm_key_orphans.len(), 2);
 }
 
-/// TODO: Document orphan_report_draining_row_is_live_while_decommissioned_row_is_not.
 #[tokio::test]
 async fn orphan_report_draining_row_is_live_while_decommissioned_row_is_not() {
     let now = fixed_now();
@@ -290,7 +283,6 @@ async fn orphan_report_draining_row_is_live_while_decommissioned_row_is_not() {
     );
 }
 
-/// TODO: Document orphan_report_state_agnostic_oracle_keeps_stopped_managed_vm_non_orphan.
 #[tokio::test]
 async fn orphan_report_state_agnostic_oracle_keeps_stopped_managed_vm_non_orphan() {
     let now = fixed_now();
@@ -320,7 +312,6 @@ async fn orphan_report_state_agnostic_oracle_keeps_stopped_managed_vm_non_orphan
     assert_eq!(report.non_orphans[0].ssm_paths_matched.len(), 1);
 }
 
-/// TODO: Document orphan_report_instance_lookup_error_is_indeterminate_not_orphan.
 #[tokio::test]
 async fn orphan_report_instance_lookup_error_is_indeterminate_not_orphan() {
     let now = fixed_now();

@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/routes/admin/migrations.rs.
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -85,7 +84,6 @@ fn parse_status_filter(raw: Option<&str>) -> Result<Option<MigrationStatusFilter
     }
 }
 
-/// TODO: Document migration_error_to_api.
 fn migration_error_to_api(error: MigrationError) -> ApiError {
     match error {
         MigrationError::ConcurrencyLimitReached { .. }
@@ -325,7 +323,6 @@ pub async fn trigger_cross_provider_migration(
     execute_migration(&state, &validated, "admin-cross-provider").await
 }
 
-/// TODO: Document probe_rollback_after_replication.
 pub async fn probe_rollback_after_replication(
     _auth: AdminAuth,
     State(state): State<AppState>,
@@ -355,7 +352,6 @@ pub async fn probe_rollback_after_replication(
     ))
 }
 
-/// TODO: Document probe_failure_after_replication.
 pub async fn probe_failure_after_replication(
     _auth: AdminAuth,
     State(state): State<AppState>,

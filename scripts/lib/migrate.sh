@@ -23,7 +23,6 @@ sql_escape_literal() {
     printf '%s' "$value" | sed "s/'/''/g"
 }
 
-# TODO: Document run_migrations_with_runner.
 run_migrations_with_runner() {
     local source_migrations_dir="$1"
     local runner_migrations_dir="$2"
@@ -116,7 +115,6 @@ run_migrations_with_runner() {
     log "All migrations applied ($applied new, $skipped skipped)"
 }
 
-# TODO: Document run_docker_postgres_migrations.
 run_docker_postgres_migrations() {
     local repo_root="$1"
     local source_migrations_dir="$2"

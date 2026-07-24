@@ -134,7 +134,6 @@ extract_run_section() {
   ' "$plan_output"
 }
 
-# TODO: Document fixture_run_variable.
 fixture_run_variable() {
   local fixture_file="$1"
   local run_name="$2"
@@ -202,7 +201,6 @@ assert_recoupled_fixture_is_rejected() {
   fi
 }
 
-# TODO: Document assert_env_plan_contract.
 assert_env_plan_contract() {
   local env_name="$1"
   local flapjack_plan api_plan

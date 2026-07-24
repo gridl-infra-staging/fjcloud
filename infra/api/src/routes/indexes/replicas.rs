@@ -1,8 +1,6 @@
-//! Stub summary for infra/api/src/routes/indexes/replicas.rs.
 use super::*;
 use crate::services::engine_index_identity_observer::record_caller;
 
-/// TODO: Document map_replica_error.
 pub(super) fn map_replica_error(error: ReplicaError) -> ApiError {
     match error {
         ReplicaError::IndexNotFound | ReplicaError::ReplicaNotFound => {

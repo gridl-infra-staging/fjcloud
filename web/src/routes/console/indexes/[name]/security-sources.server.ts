@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for security-sources.server.ts.
- */
 import { fail } from '@sveltejs/kit';
 import type { ApiClient } from '$lib/api/client';
 import { createApiClient } from '$lib/server/api';
@@ -55,9 +52,6 @@ export async function loadSecuritySourcesPayload(
 	}
 }
 
-/**
- * TODO: Document refreshSecuritySourcesResult.
- */
 async function refreshSecuritySourcesResult(
 	api: ApiClient,
 	indexName: string
@@ -78,9 +72,6 @@ async function refreshSecuritySourcesResult(
 	}
 }
 
-/**
- * TODO: Document appendSecuritySourceAction.
- */
 export async function appendSecuritySourceAction({
 	request,
 	indexName,
@@ -117,9 +108,6 @@ export async function appendSecuritySourceAction({
 	};
 }
 
-/**
- * TODO: Document deleteSecuritySourceAction.
- */
 export async function deleteSecuritySourceAction({
 	request,
 	indexName,

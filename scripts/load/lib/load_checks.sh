@@ -17,7 +17,6 @@ LOAD_TARGET_ENDPOINTS=(
     "document_ingestion"
 )
 
-# TODO: Document compare_against_baseline.
 compare_against_baseline() {
     local result_file="$1"
     local baseline_file="$2"
@@ -127,7 +126,6 @@ PY
     esac
 }
 
-# TODO: Document run_load_gate.
 run_load_gate() {
     local baseline_dir="${LOAD_BASELINE_DIR:-"$REPO_ROOT/scripts/load/baselines"}"
     local result_dir="${LOAD_RESULT_DIR:-"$baseline_dir"}"

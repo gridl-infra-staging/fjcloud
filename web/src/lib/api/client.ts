@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for web/src/lib/api/client.ts.
- */
 import type {
 	AuthResponse,
 	MessageResponse,
@@ -116,9 +113,6 @@ import {
 } from './client_paths';
 export { ApiRequestError } from './api_request_error';
 
-/**
- * TODO: Document ApiClient.
- */
 export class ApiClient extends BaseClient {
 	private readonly token?: string;
 

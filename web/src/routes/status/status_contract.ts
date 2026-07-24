@@ -1,7 +1,4 @@
 /**
- * @module Stub summary for status_contract.ts.
- */
-/**
  * `/status` contract owner.
  *
  * This stays route-local instead of moving into `$lib/format` because it owns

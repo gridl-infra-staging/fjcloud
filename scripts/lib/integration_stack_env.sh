@@ -5,7 +5,6 @@ set -euo pipefail
 # shellcheck source=lib/db_url.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/db_url.sh"
 
-# TODO: Document build_integration_db_url.
 build_integration_db_url() {
     if [ -n "${INTEGRATION_DB_URL:-}" ]; then
         printf '%s\n' "$INTEGRATION_DB_URL"

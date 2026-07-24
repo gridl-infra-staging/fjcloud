@@ -10,7 +10,6 @@ RESTORE_SCRIPT="$ROOT_DIR/ops/scripts/rds_restore_drill.sh"
 MOCK_DIR=""
 AWS_LOG=""
 
-# TODO: Document setup.
 setup() {
   MOCK_DIR=$(mktemp -d)
   AWS_LOG=$(mktemp)
@@ -43,7 +42,6 @@ teardown() {
   rm -rf "$MOCK_DIR" "$AWS_LOG"
 }
 
-# TODO: Document setup_failing_aws.
 setup_failing_aws() {
   setup
 
@@ -71,7 +69,6 @@ AWSMOCK
   chmod +x "${MOCK_DIR}/aws"
 }
 
-# TODO: Document setup_describe_failure_aws.
 setup_describe_failure_aws() {
   setup
 
@@ -96,7 +93,6 @@ AWSMOCK
   chmod +x "${MOCK_DIR}/aws"
 }
 
-# TODO: Document setup_empty_subnet_group_aws.
 setup_empty_subnet_group_aws() {
   setup
 
@@ -123,7 +119,6 @@ AWSMOCK
   chmod +x "${MOCK_DIR}/aws"
 }
 
-# TODO: Document setup_mismatched_source_identifier_aws.
 setup_mismatched_source_identifier_aws() {
   setup
 

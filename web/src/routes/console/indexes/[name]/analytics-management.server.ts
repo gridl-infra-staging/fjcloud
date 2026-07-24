@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for analytics-management.server.ts.
- */
 import { fail } from '@sveltejs/kit';
 import type { ApiClient } from '$lib/api/client';
 import { createApiClient } from '$lib/server/api';
@@ -78,9 +75,6 @@ export function analyticsDateRange(period: AnalyticsPeriod): AnalyticsRequiredDa
 	};
 }
 
-/**
- * TODO: Document loadAnalyticsPayload.
- */
 export async function loadAnalyticsPayload(
 	api: ApiClient,
 	indexName: string,
@@ -142,9 +136,6 @@ function formatUtcDate(date: Date): string {
 	return date.toISOString().slice(0, 10);
 }
 
-/**
- * TODO: Document previousDateRange.
- */
 function previousDateRange(
 	params: AnalyticsRequiredDateRangeParams
 ): AnalyticsRequiredDateRangeParams | null {
@@ -175,9 +166,6 @@ type FetchAnalyticsByDateRangeArgs<
 	load: (api: ApiClient, indexName: string, params: AnalyticsRequiredDateRangeParams) => Promise<T>;
 };
 
-/**
- * TODO: Document fetchAnalyticsByDateRange.
- */
 async function fetchAnalyticsByDateRange<
 	T,
 	TResponseKey extends AnalyticsDateRangeResponseKey,
@@ -254,9 +242,6 @@ function normalizeTrendPoints(
 		}));
 }
 
-/**
- * TODO: Document buildConversionSubtabPayload.
- */
 function buildConversionSubtabPayload(
 	currentPayload: AnalyticsConversionRateResponse,
 	previousPayload: AnalyticsConversionRateResponse | null,
@@ -282,9 +267,6 @@ function buildConversionSubtabPayload(
 	};
 }
 
-/**
- * TODO: Document fetchAnalyticsDevicesAction.
- */
 export async function fetchAnalyticsDevicesAction({
 	request,
 	indexName,
@@ -302,9 +284,6 @@ export async function fetchAnalyticsDevicesAction({
 	});
 }
 
-/**
- * TODO: Document fetchAnalyticsCountriesAction.
- */
 export async function fetchAnalyticsCountriesAction({
 	request,
 	indexName,
@@ -322,9 +301,6 @@ export async function fetchAnalyticsCountriesAction({
 	});
 }
 
-/**
- * TODO: Document fetchAnalyticsFiltersAction.
- */
 export async function fetchAnalyticsFiltersAction({
 	request,
 	indexName,
@@ -342,9 +318,6 @@ export async function fetchAnalyticsFiltersAction({
 	});
 }
 
-/**
- * TODO: Document fetchAnalyticsConversionRateAction.
- */
 export async function fetchAnalyticsConversionRateAction({
 	request,
 	indexName,

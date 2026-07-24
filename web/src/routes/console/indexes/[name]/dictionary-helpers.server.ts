@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for dictionary-helpers.server.ts.
- */
 import type { DictionaryLanguagesResponse, DictionaryName } from '$lib/api/types';
 
 export const VALID_DICTIONARIES: DictionaryName[] = ['stopwords', 'plurals', 'compounds'];
@@ -21,9 +18,6 @@ export function resolveDictionaryName(raw: string | null): DictionaryName {
 	return parseRequestedDictionary(raw) ?? 'stopwords';
 }
 
-/**
- * TODO: Document parseDictionarySelectionFromForm.
- */
 export function parseDictionarySelectionFromForm(data: FormData): {
 	dictionary: DictionaryName;
 	language: string;
@@ -51,9 +45,6 @@ function parseDelimitedValues(raw: string): string[] {
 		.filter((value) => value.length > 0);
 }
 
-/**
- * TODO: Document parseDictionaryEntryFromForm.
- */
 export function parseDictionaryEntryFromForm(
 	data: FormData,
 	selection: { dictionary: DictionaryName; language: string }
@@ -142,9 +133,6 @@ function hasLanguageEntriesForDictionary(
 	return dictionaryCounts !== null && dictionaryCounts !== undefined;
 }
 
-/**
- * TODO: Document resolveDictionarySelection.
- */
 export function resolveDictionarySelection(
 	languages: DictionaryLanguagesResponse | null,
 	requestedDictionaryRaw: string | null,

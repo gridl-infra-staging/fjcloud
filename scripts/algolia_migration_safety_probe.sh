@@ -30,7 +30,6 @@ die() {
   exit 1
 }
 
-# TODO: Document parse_args.
 parse_args() {
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -159,7 +158,6 @@ assert_pages_version() {
     || die "Pages version mismatch: expected $EXPECTED_PAGES_SHA"
 }
 
-# TODO: Document run_browser_probe.
 run_browser_probe() {
   local api_origin="$1"
   local web_origin="$2"
@@ -185,7 +183,6 @@ run_browser_probe() {
   fi
 }
 
-# TODO: Document main.
 main() {
   local api_origin web_origin
 

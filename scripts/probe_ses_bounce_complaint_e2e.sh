@@ -146,7 +146,6 @@ probe_temp_file() {
     mktemp "${TMPDIR:-/tmp}/probe_ses_bounce_complaint.XXXXXX"
 }
 
-# TODO: Document cleanup_probe_customer.
 cleanup_probe_customer() {
     if [ "$PROBE_CUSTOMER_SEEDED" != true ] || [ "$PROBE_CUSTOMER_CLEANED" = true ]; then
         return 0
@@ -194,7 +193,6 @@ cleanup_probe_customer_on_failure() {
     fi
 }
 
-# TODO: Document assert_live_send_response.
 assert_live_send_response() {
     local response_json="$1"
     local require_nonzero_suppressed="$2"
@@ -223,7 +221,6 @@ if require_nonzero and suppressed_count <= 0:
 PY
 }
 
-# TODO: Document main.
 main() {
     local mode="${1:-}"
     local env_file="${2:-}"

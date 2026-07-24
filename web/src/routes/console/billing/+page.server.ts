@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for +page.server.ts.
- */
 import type { PageServerLoad, Actions } from './$types';
 import { createApiClient } from '$lib/server/api';
 import { isBillingServiceNotConfiguredError, isBillingCustomerMissingError } from '$lib/billing';
@@ -22,9 +19,6 @@ const BILLING_DEFAULT_PAYMENT_METHOD_ERROR =
 const BILLING_UPGRADE_DECLINED_ERROR = 'Your card was declined. Try a different card and retry.';
 const BILLING_UPGRADE_GENERIC_ERROR = 'Upgrade failed. Please try again.';
 
-/**
- * TODO: Document BillingUpgradeOutcome.
- */
 type BillingUpgradeOutcome =
 	| {
 			status: 'success';
@@ -78,9 +72,6 @@ function mapUpgradeErrorBody(error: ApiRequestError): { code?: string; message?:
 	return { code, message };
 }
 
-/**
- * TODO: Document mapUpgradeFailure.
- */
 function mapUpgradeFailure(error: ApiRequestError): BillingUpgradeOutcome {
 	const { code, message } = mapUpgradeErrorBody(error);
 
@@ -112,9 +103,6 @@ function mapUpgradeFailure(error: ApiRequestError): BillingUpgradeOutcome {
 	};
 }
 
-/**
- * TODO: Document load.
- */
 export const load: PageServerLoad = async ({ locals }) => {
 	const api = createApiClient(locals.user?.token);
 

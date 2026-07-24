@@ -486,7 +486,6 @@ MOCK
     chmod +x "$path"
 }
 
-# TODO: Document write_mock_psql.
 write_mock_psql() {
     local path="$1" log_path="$2" stdin_path="$3"
     cat > "$path" <<'MOCK'

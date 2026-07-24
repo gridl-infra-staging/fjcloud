@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/tests/integration/algolia_import_job_domain_reservation_accounting.rs.
 use api::models::algolia_import_job::{
     AlgoliaImportCreateDestination, AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportSource,
     AlgoliaImportSourceMetadata, NewAlgoliaImportJob, NewAlgoliaReplaceImportJob,
@@ -22,7 +21,6 @@ fn assert_admission_refused(
     );
 }
 
-/// TODO: Document create_job_sized.
 fn create_job_sized(
     customer_id: Uuid,
     target: &str,
@@ -45,7 +43,6 @@ fn create_job_sized(
     )
 }
 
-/// TODO: Document replace_job_sized.
 fn replace_job_sized(
     customer_id: Uuid,
     target: &str,
@@ -80,7 +77,6 @@ async fn insert_customer(pool: &PgPool, customer_id: Uuid) {
     .expect("insert customer");
 }
 
-/// TODO: Document insert_vm.
 async fn insert_vm(pool: &PgPool, disk_capacity: i64, disk_load: i64) -> Uuid {
     let vm_id = Uuid::new_v4();
     sqlx::query(
@@ -99,7 +95,6 @@ async fn insert_vm(pool: &PgPool, disk_capacity: i64, disk_load: i64) -> Uuid {
     vm_id
 }
 
-/// TODO: Document insert_replace_target_sized.
 async fn insert_replace_target_sized(
     pool: &PgPool,
     customer_id: Uuid,
@@ -151,7 +146,6 @@ async fn insert_replace_target_sized(
     .expect("insert usage daily");
 }
 
-/// TODO: Document insert_replace_target_on_vm.
 async fn insert_replace_target_on_vm(
     pool: &PgPool,
     customer_id: Uuid,
@@ -248,7 +242,6 @@ impl ReservationPredicateCase {
     }
 }
 
-/// TODO: Document reservation_predicate_is_active.
 async fn reservation_predicate_is_active(pool: &PgPool, case: &ReservationPredicateCase) -> bool {
     let sql = format!(
         "SELECT ({})
@@ -287,7 +280,6 @@ async fn assert_reservation_predicate(
     );
 }
 
-/// TODO: Document active_reservation_predicate_releases_only_canonical_confirmed_terminal_origins.
 #[tokio::test]
 async fn active_reservation_predicate_releases_only_canonical_confirmed_terminal_origins() {
     let Some(db) = connect_and_migrate("algolia_reservation_predicate_contract").await else {
@@ -363,7 +355,6 @@ async fn create_reservation_counts_future_index_and_source_bytes() {
     assert_eq!(reservation_tuple(&db.pool, job.id).await, (1, 2_000, 0));
 }
 
-/// TODO: Document ambiguous_dispatch_admission_remains_an_active_reservation.
 #[tokio::test]
 async fn ambiguous_dispatch_admission_remains_an_active_reservation() {
     let Some(db) = connect_and_migrate("algolia_reserve_ambiguous_dispatch").await else {
@@ -390,7 +381,6 @@ async fn ambiguous_dispatch_admission_remains_an_active_reservation() {
     assert_eq!(active_reservation_count(&db.pool).await, 1);
 }
 
-/// TODO: Document committed_dispatch_admission_remains_an_active_reservation_without_engine_status.
 #[tokio::test]
 async fn committed_dispatch_admission_remains_an_active_reservation_without_engine_status() {
     let Some(db) = connect_and_migrate("algolia_reserve_committed_dispatch").await else {
@@ -420,7 +410,6 @@ async fn committed_dispatch_admission_remains_an_active_reservation_without_engi
     assert_eq!(active_reservation_count(&db.pool).await, 1);
 }
 
-/// TODO: Document ambiguous_and_committed_reservations_survive_worker_claim_expiry_and_api_outage.
 #[tokio::test]
 async fn ambiguous_and_committed_reservations_survive_worker_claim_expiry_and_api_outage() {
     let Some(db) = connect_and_migrate("algolia_reserve_claim_expiry").await else {
@@ -483,7 +472,6 @@ async fn ambiguous_and_committed_reservations_survive_worker_claim_expiry_and_ap
     assert_eq!(active_reservation_count(&db.pool).await, 2);
 }
 
-/// TODO: Document dispatch_admitted_replace_reservation_uses_final_key_metadata.
 #[tokio::test]
 async fn dispatch_admitted_replace_reservation_uses_final_key_metadata() {
     let Some(db) = connect_and_migrate("algolia_reserve_dispatch_replace_final").await else {
@@ -519,7 +507,6 @@ async fn dispatch_admitted_replace_reservation_uses_final_key_metadata() {
     assert_eq!(active_reservation_count(&db.pool).await, 1);
 }
 
-/// TODO: Document create_reservation_rejects_customer_index_count_quota_race.
 #[tokio::test]
 async fn create_reservation_rejects_customer_index_count_quota_race() {
     let Some(db) = connect_and_migrate("algolia_reserve_create_count").await else {
@@ -550,7 +537,6 @@ async fn create_reservation_rejects_customer_index_count_quota_race() {
     assert_admission_refused(result, AlgoliaImportErrorCode::QuotaExceeded);
 }
 
-/// TODO: Document create_reservation_rejects_projected_customer_storage_quota_race.
 #[tokio::test]
 async fn create_reservation_rejects_projected_customer_storage_quota_race() {
     let Some(db) = connect_and_migrate("algolia_reserve_create_storage").await else {
@@ -581,7 +567,6 @@ async fn create_reservation_rejects_projected_customer_storage_quota_race() {
     assert_admission_refused(result, AlgoliaImportErrorCode::QuotaExceeded);
 }
 
-/// TODO: Document replace_reservation_uses_positive_final_size_delta_only.
 #[tokio::test]
 async fn replace_reservation_uses_positive_final_size_delta_only() {
     let Some(db) = connect_and_migrate("algolia_reserve_replace_delta").await else {
@@ -637,7 +622,6 @@ async fn replace_reservation_uses_positive_final_size_delta_only() {
     assert_eq!(reservation_tuple(&db.pool, grow.id).await.1, 700);
 }
 
-/// TODO: Document replace_reservation_persists_exact_transient_backup_amplification.
 #[tokio::test]
 async fn replace_reservation_persists_exact_transient_backup_amplification() {
     let Some(db) = connect_and_migrate("algolia_reserve_replace_transient").await else {
@@ -669,7 +653,6 @@ async fn replace_reservation_persists_exact_transient_backup_amplification() {
     assert_eq!(reservation_tuple(&db.pool, job.id).await.2, 3_700);
 }
 
-/// TODO: Document replace_reservation_rejects_node_transient_capacity_race.
 #[tokio::test]
 async fn replace_reservation_rejects_node_transient_capacity_race() {
     let Some(db) = connect_and_migrate("algolia_reserve_replace_node_cap").await else {
@@ -700,7 +683,6 @@ async fn replace_reservation_rejects_node_transient_capacity_race() {
     assert_admission_refused(result, AlgoliaImportErrorCode::BackendUnavailable);
 }
 
-/// TODO: Document active_customer_import_job_limit_rejects_with_backend_unavailable.
 #[tokio::test]
 async fn active_customer_import_job_limit_rejects_with_backend_unavailable() {
     let Some(db) = connect_and_migrate("algolia_reserve_customer_jobs").await else {
@@ -733,7 +715,6 @@ async fn active_customer_import_job_limit_rejects_with_backend_unavailable() {
     assert_admission_refused(result, AlgoliaImportErrorCode::BackendUnavailable);
 }
 
-/// TODO: Document active_customer_reserved_byte_limit_rejects_with_backend_unavailable.
 #[tokio::test]
 async fn active_customer_reserved_byte_limit_rejects_with_backend_unavailable() {
     let Some(db) = connect_and_migrate("algolia_reserve_customer_bytes").await else {
@@ -773,7 +754,6 @@ async fn active_customer_reserved_byte_limit_rejects_with_backend_unavailable() 
     assert_admission_refused(result, AlgoliaImportErrorCode::BackendUnavailable);
 }
 
-/// TODO: Document active_node_import_job_limit_rejects_with_backend_unavailable.
 #[tokio::test]
 async fn active_node_import_job_limit_rejects_with_backend_unavailable() {
     let Some(db) = connect_and_migrate("algolia_reserve_node_jobs").await else {
@@ -811,7 +791,6 @@ async fn active_node_import_job_limit_rejects_with_backend_unavailable() {
     assert_admission_refused(result, AlgoliaImportErrorCode::BackendUnavailable);
 }
 
-/// TODO: Document terminal_no_dispatch_failure_clears_active_customer_limit.
 #[tokio::test]
 async fn terminal_no_dispatch_failure_clears_active_customer_limit() {
     let Some(db) = connect_and_migrate("algolia_reserve_limit_release").await else {

@@ -1,4 +1,3 @@
-//! Stub summary for browser_error_reporting.rs.
 use axum::extract::rejection::JsonRejection;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -25,7 +24,6 @@ pub struct BrowserRuntimeReport {
     pub backend_correlation: String,
 }
 
-/// TODO: Document report_browser_error.
 pub async fn report_browser_error(
     report: Result<Json<BrowserRuntimeReport>, JsonRejection>,
 ) -> Response {
@@ -69,7 +67,6 @@ fn invalid_browser_runtime_report() -> ApiError {
     ApiError::BadRequest("invalid browser runtime report".to_string())
 }
 
-/// TODO: Document validate_browser_runtime_report.
 fn validate_browser_runtime_report(report: &BrowserRuntimeReport) -> Result<(), ApiError> {
     if !is_valid_support_reference(&report.support_reference) {
         return Err(invalid_browser_runtime_report());

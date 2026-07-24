@@ -1,4 +1,3 @@
-//! Stub summary for tenant_quota.rs.
 use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -120,7 +119,6 @@ impl FreeTierLimits {
         DEFAULT_FREE_TIER_MAX_STORAGE_MB
     }
 
-    /// TODO: Document FreeTierLimits.from_env.
     pub fn from_env() -> Self {
         Self {
             max_indexes: std::env::var("FREE_TIER_MAX_INDEXES")
@@ -363,7 +361,6 @@ mod tests {
         assert_eq!(limits.max_storage_mb, 250);
     }
 
-    /// TODO: Document free_tier_limits_from_env_reads_overrides.
     #[test]
     fn free_tier_limits_from_env_reads_overrides() {
         let _guard = ENV_LOCK.lock().unwrap();

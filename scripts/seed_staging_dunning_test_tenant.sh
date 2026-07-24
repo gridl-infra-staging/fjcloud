@@ -13,7 +13,6 @@ STAGING_DB_QUERY_SCRIPT_DEFAULT="$SCRIPT_DIR/launch/ssm_exec_staging.sh"
 # shellcheck source=lib/env.sh
 source "$SCRIPT_DIR/lib/env.sh"
 
-# TODO: Document usage.
 usage() {
     cat <<'USAGE'
 Usage:
@@ -65,7 +64,6 @@ load_secret_file() {
     [ -n "${FJCLOUD_TEST_TENANT_IDS:-}" ] || die "FJCLOUD_TEST_TENANT_IDS is required in $secret_file"
 }
 
-# TODO: Document hydrate_staging_env.
 hydrate_staging_env() {
     local hydrator_script="$1"
     local hydrated_env_file
@@ -87,7 +85,6 @@ hydrate_staging_env() {
     [ -n "${ADMIN_KEY:-}" ] || die "hydrated staging ADMIN_KEY was empty"
 }
 
-# TODO: Document build_remote_sql_command.
 build_remote_sql_command() {
     local sql_query="$1"
     local escaped_sql
@@ -131,7 +128,6 @@ parse_customer_row_field() {
     printf '%s\n' "$row" | cut -d'|' -f"$index"
 }
 
-# TODO: Document update_customer_plan_via_admin_owner.
 update_customer_plan_via_admin_owner() {
     local tenant_id="$1"
     local response http_code body billing_plan
@@ -167,7 +163,6 @@ PY
     [ "$billing_plan" = "shared" ] || die "billing-plan update response did not confirm shared plan for tenant ${tenant_id}"
 }
 
-# TODO: Document sync_customer_via_admin_owner.
 sync_customer_via_admin_owner() {
     local tenant_id="$1"
     local response http_code body stripe_customer_id
@@ -203,7 +198,6 @@ PY
     printf '%s\n' "$stripe_customer_id"
 }
 
-# TODO: Document main.
 main() {
     local secret_file="$DEFAULT_SECRET_FILE"
     local staging_env_hydrator="${STAGING_ENV_HYDRATOR_SCRIPT:-$STAGING_ENV_HYDRATOR_DEFAULT}"

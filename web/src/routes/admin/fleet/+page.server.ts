@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for web/src/routes/admin/fleet/+page.server.ts.
- */
 import type { Actions, PageServerLoad } from './$types';
 import { createAdminClient } from '$lib/admin-client';
 import type {
@@ -24,9 +21,6 @@ async function loadHostMetricsByVmId(
 	return Object.fromEntries(entries);
 }
 
-/**
- * TODO: Document load.
- */
 export const load: PageServerLoad = async ({ fetch, depends, platform }) => {
 	depends('admin:fleet');
 	const client = createAdminClient(undefined, platform?.env);

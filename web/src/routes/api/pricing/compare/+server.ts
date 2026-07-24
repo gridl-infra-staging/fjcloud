@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for +server.ts.
- */
 import { json } from '@sveltejs/kit';
 import { ApiRequestError } from '$lib/api/client';
 import { createApiClient, createCanonicalPublicApiClient } from '$lib/server/api';
@@ -14,9 +11,6 @@ function isNetworkFailure(error: unknown): boolean {
 	return error instanceof TypeError;
 }
 
-/**
- * TODO: Document POST.
- */
 export const POST: RequestHandler = async ({ request }) => {
 	let workload: PricingCompareRequest;
 	try {

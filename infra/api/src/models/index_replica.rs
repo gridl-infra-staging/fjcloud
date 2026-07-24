@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/models/index_replica.rs.
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -63,7 +62,6 @@ mod tests {
     use super::*;
     use chrono::Utc;
 
-    /// TODO: Document customer_summary_hides_endpoint_and_omits_internal_vm_details.
     #[test]
     fn customer_summary_hides_endpoint_and_omits_internal_vm_details() {
         let summary = IndexReplicaSummary {

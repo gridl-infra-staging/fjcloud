@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for web/playwright.config.contract.ts.
- */
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { requireNonBlankString, requireNonEmptyString } from './tests/fixtures/contract-guards';
@@ -82,9 +79,6 @@ export type PlaywrightRuntimeContract = {
 	webServer: PlaywrightWebServerContract | undefined;
 };
 
-/**
- * TODO: Document isPublicOnlyPlaywrightSelection.
- */
 function isPublicOnlyPlaywrightSelection(argv: string[]): boolean {
 	let hasPublicProjectSelection = false;
 	for (let index = 0; index < argv.length; index += 1) {
@@ -406,9 +400,6 @@ function assignFirstDefinedEnvValue(
 	}
 }
 
-/**
- * TODO: Document applyPlaywrightProcessEnvDefaults.
- */
 export function applyPlaywrightProcessEnvDefaults({
 	processEnv,
 	repoEnv,
@@ -709,9 +700,6 @@ function isAllowlistedRemoteTargetHost(hostname: string): boolean {
 	return false;
 }
 
-/**
- * TODO: Document assertSafeRemoteTargetUrl.
- */
 function assertSafeRemoteTargetUrl(varName: string, parsed: URL): void {
 	if (parsed.username || parsed.password) {
 		throw new Error(`${varName} must not embed URL credentials when ${REMOTE_TARGET_OPT_IN_ENV}=1`);
@@ -784,9 +772,6 @@ export function requireLoopbackHttpUrl(
 	return rawUrl;
 }
 
-/**
- * TODO: Document resolveFixtureEnv.
- */
 export function resolveFixtureEnv(processEnv: Record<string, string | undefined>): FixtureEnv {
 	// Thread processEnv into the loopback guard so the LB-2/LB-3
 	// remote-target opt-in (PLAYWRIGHT_TARGET_REMOTE=1) is observed

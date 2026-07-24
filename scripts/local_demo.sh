@@ -39,7 +39,6 @@ append_env_if_missing() {
     fi
 }
 
-# TODO: Document ensure_demo_env.
 ensure_demo_env() {
     if [ ! -f "$ENV_FILE" ]; then
         log "Creating .env.local"
@@ -106,7 +105,6 @@ tracked_process_is_running() {
     [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file" 2>/dev/null)" 2>/dev/null
 }
 
-# TODO: Document run_demo_stack.
 run_demo_stack() {
     # Preflight docker BEFORE invoking local-dev-up.sh, which itself calls
     # local-dev-down.sh for cleanup. Without this fail-fast, a stale colima

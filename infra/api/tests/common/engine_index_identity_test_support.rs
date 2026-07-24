@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/tests/common/engine_index_identity_test_support.rs.
 // Each test binary compiles this support module independently, so helpers
 // that are used by one test file appear unused in others.
 #![allow(dead_code)]
@@ -181,7 +180,6 @@ pub fn engine_index_identity_inventory_json() -> Value {
     .expect("caller inventory should serialize")
 }
 
-/// TODO: Document physical_caller.
 const fn physical_caller(
     caller_id: &'static str,
     owner_path: &'static str,
@@ -312,7 +310,6 @@ impl ExpectedMigrationRequest {
         }
     }
 
-    /// TODO: Document ExpectedMigrationRequest.assert_matches.
     fn assert_matches(&self, request: &api::services::migration::MigrationHttpRequest) {
         assert_eq!(request.method, self.method);
         assert_eq!(request.url, self.url);
@@ -361,7 +358,6 @@ pub struct MigrationFixture {
 }
 
 impl MigrationFixture {
-    /// TODO: Document MigrationFixture.setup.
     pub async fn setup(index_name: &str) -> Self {
         let tenant_repo = mock_tenant_repo();
         let vm_repo = mock_vm_inventory_repo();
@@ -440,7 +436,6 @@ impl MigrationFixture {
             .build()
     }
 
-    /// TODO: Document MigrationFixture.queue_successful_protocol.
     pub fn queue_successful_protocol(&self) {
         self.queue_successful_cutover_until_destination_resume();
     }
@@ -525,14 +520,12 @@ impl MigrationFixture {
         }));
     }
 
-    /// TODO: Document MigrationFixture.queue_destination_resume_failure_protocol.
     pub fn queue_destination_resume_failure_protocol(&self) {
         self.queue_destination_resume_failure();
         self.enqueue_ok();
         self.enqueue_ok();
     }
 
-    /// TODO: Document MigrationFixture.successful_protocol_requests.
     pub fn successful_protocol_requests(&self) -> Vec<ExpectedMigrationRequest> {
         vec![
             ExpectedMigrationRequest::get(

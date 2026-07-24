@@ -1,15 +1,9 @@
-/**
- * @module Stub summary for web/src/routes/admin/fleet/admin_fleet_fixtures.ts.
- */
 import type {
 	AdminFleetDeployment,
 	AdminReplicaEntry,
 	VmInventoryItem
 } from '$lib/admin-client';
 
-/**
- * TODO: Document makeDeployment.
- */
 export function makeDeployment(
 	overrides: Partial<AdminFleetDeployment> = {}
 ): AdminFleetDeployment {

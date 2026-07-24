@@ -1,7 +1,4 @@
 /**
- * @module Stub summary for web/tests/fixtures/fixtures.ts.
- */
-/**
  * Shared Playwright test fixtures.
  *
  * Spec files import { test, expect } from this module instead of directly
@@ -98,9 +95,6 @@ function fixtureEnvForFailureDiagnostics(): { apiUrl: string; adminKey: string |
 	}
 }
 
-/**
- * TODO: Document verifyTrackedCustomerEmailForRemote.
- */
 async function verifyTrackedCustomerEmailForRemote(email: string): Promise<void> {
 	if (!shouldVerifyTrackedCustomerEmailViaStaging(fixtureEnv.apiUrl, isRemoteTargetMode())) {
 		return;
@@ -272,9 +266,6 @@ const LOCAL_VM_CURRENT_LOAD_JSON = readShellStringAssignment(
 	'LOCAL_SEED_VM_CURRENT_LOAD_JSON'
 );
 
-/**
- * TODO: Document fixtureLocalDatabaseUrl.
- */
 function fixtureLocalDatabaseUrl(): string | null {
 	const directDatabaseUrl = process.env.DATABASE_URL?.trim();
 	if (directDatabaseUrl) {
@@ -345,9 +336,6 @@ async function forceTrackedCustomerEmailUnverifiedForLocal(email: string): Promi
 	assertSingleSqlUpdatedRow(output, 'arrangeTrackedCustomerSession local unverified setup');
 }
 
-/**
- * TODO: Document ensureLocalSharedVmInventoryForRegion.
- */
 async function ensureLocalSharedVmInventoryForRegion(
 	region: string,
 	deps?: EnsureLocalSharedVmInventoryForRegionDeps
@@ -439,9 +427,6 @@ type SeedInfrastructureTopologyResult = {
 	replicaHostname: string;
 };
 
-/**
- * TODO: Document seedInfrastructureReplicaTopology.
- */
 function seedInfrastructureReplicaTopology({
 	customerId,
 	indexName,
@@ -515,9 +500,6 @@ SELECT replica_vm_id::text FROM created_replica;
 	};
 }
 
-/**
- * TODO: Document infrastructureBrowserContract.
- */
 function infrastructureBrowserContract(
 	indexName: string,
 	payload: IndexInfrastructureResponse,
@@ -753,9 +735,6 @@ export function isFreshSignupArrangePrerequisiteFailure(alertText: string): bool
 	return FRESH_SIGNUP_ARRANGE_SETUP_FAILURE_ALERT_PATTERN.test(alertText.trim());
 }
 
-/**
- * TODO: Document throwFreshSignupArrangeFailure.
- */
 export function throwFreshSignupArrangeFailure({
 	currentPath,
 	alertText,
@@ -957,9 +936,6 @@ type FetchDisposableTenantRateCardSnapshotParams = {
 	seed?: string;
 };
 
-/**
- * TODO: Document createRegisteredUser.
- */
 export async function createRegisteredUser({
 	apiUrl,
 	email,
@@ -1012,9 +988,6 @@ export async function createRegisteredUser({
 	throw new Error('createUser failed: exhausted retries after 429 rate limiting');
 }
 
-/**
- * TODO: Document fetchDisposableTenantRateCardSnapshot.
- */
 export async function fetchDisposableTenantRateCardSnapshot({
 	apiUrl,
 	adminKey,
@@ -1092,9 +1065,6 @@ type FetchEstimatedBillForTokenParams = {
 	fetchImpl?: typeof fetch;
 };
 
-/**
- * TODO: Document loginAsUser.
- */
 export async function loginAsUser({
 	apiUrl,
 	email,
@@ -1220,9 +1190,6 @@ export async function loginAsUserWithKnownMissingUserBootstrap({
 	}
 }
 
-/**
- * TODO: Document isKnownFixtureCustomerMissingLoginFailure.
- */
 function isKnownFixtureCustomerMissingLoginFailure({
 	currentPath,
 	alertText,
@@ -1389,9 +1356,6 @@ type AdminSuspendCustomerByIdParams = {
 	fetchImpl?: typeof fetch;
 };
 
-/**
- * TODO: Document adminReactivateCustomerById.
- */
 export async function adminReactivateCustomerById({
 	apiUrl,
 	customerId,
@@ -1415,9 +1379,6 @@ export async function adminReactivateCustomerById({
 	}
 }
 
-/**
- * TODO: Document adminSuspendCustomerById.
- */
 export async function adminSuspendCustomerById({
 	apiUrl,
 	customerId,
@@ -1441,9 +1402,6 @@ export async function adminSuspendCustomerById({
 	}
 }
 
-/**
- * TODO: Document getAuthToken.
- */
 async function getAuthToken(): Promise<string> {
 	if (_token) return _token;
 	const { email, password } = resolveRequiredFixtureUserCredentials(process.env);
@@ -1492,9 +1450,6 @@ async function getAuthToken(): Promise<string> {
 	throw new Error('Auth login failed: exhausted retries after 429 rate limiting');
 }
 
-/**
- * TODO: Document getAccountPayloadForTokenWithRetries.
- */
 async function getAccountPayloadForTokenWithRetries(
 	token: string,
 	contextLabel: string
@@ -1590,9 +1545,6 @@ async function apiCall(
 	});
 }
 
-/**
- * TODO: Document saveSynonymWithFixtureApi.
- */
 async function saveSynonymWithFixtureApi(
 	indexName: string,
 	synonym: Synonym,
@@ -1622,9 +1574,6 @@ async function saveSynonymWithFixtureApi(
 	throw new Error('saveSynonym failed: retries exhausted');
 }
 
-/**
- * TODO: Document getSynonymWithFixtureApi.
- */
 async function getSynonymWithFixtureApi(
 	indexName: string,
 	objectID: string,
@@ -1657,9 +1606,6 @@ async function getSynonymWithFixtureApi(
 	throw new Error('getSynonym failed: retries exhausted');
 }
 
-/**
- * TODO: Document searchSynonymsWithFixtureApi.
- */
 async function searchSynonymsWithFixtureApi(
 	indexName: string,
 	query = '',
@@ -1693,9 +1639,6 @@ async function searchSynonymsWithFixtureApi(
 	throw new Error('searchSynonyms failed: retries exhausted');
 }
 
-/**
- * TODO: Document clearSynonymsWithFixtureApi.
- */
 async function clearSynonymsWithFixtureApi(
 	indexName: string,
 	tokenOverride?: string
@@ -1734,9 +1677,6 @@ function resolveSynonymsProofManifestPath(manifestPath?: string): string {
 	return path.resolve(process.cwd(), selectedPath);
 }
 
-/**
- * TODO: Document writeSynonymsProofManifest.
- */
 async function writeSynonymsProofManifest({
 	indexName,
 	objectIDs,
@@ -1758,9 +1698,6 @@ async function writeSynonymsProofManifest({
 	await writeFile(absolutePath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 }
 
-/**
- * TODO: Document adminApiCall.
- */
 async function adminApiCall(method: string, path: string, body?: unknown): Promise<Response> {
 	let lastResponse: Response | null = null;
 	let lastTransportFailure = '';
@@ -1820,9 +1757,6 @@ async function raiseRemoteSeededIndexWriteQuota(customerId: string): Promise<voi
 	throw new Error(`remote seed quota uplift failed: ${res.status} ${await res.text()}`);
 }
 
-/**
- * TODO: Document deleteTrackedCustomerForCleanup.
- */
 async function deleteTrackedCustomerForCleanup(customerId: string): Promise<void> {
 	const response = await adminApiCall('DELETE', `/admin/tenants/${encodeURIComponent(customerId)}`);
 	if (response.status === 404) {
@@ -1841,9 +1775,6 @@ async function deleteTrackedCustomerForCleanup(customerId: string): Promise<void
 	}
 }
 
-/**
- * TODO: Document seedAdminDeploymentForCustomer.
- */
 async function seedAdminDeploymentForCustomer(
 	customer: CreatedFixtureUser,
 	options?: { region?: string }
@@ -1889,9 +1820,6 @@ RETURNING id::text || '|' || region || '|' || status;
 	return { id, region: returnedRegion, status };
 }
 
-/**
- * TODO: Document readAdminVmHostMetricsEvidenceForFixture.
- */
 async function readAdminVmHostMetricsEvidenceForFixture({
 	region,
 	vmId
@@ -1948,9 +1876,6 @@ function resolveAdminVmIdFromRegion(vms: VmInventoryItem[], region: string | und
 	return matches[0].id;
 }
 
-/**
- * TODO: Document runTrackedIndexCleanup.
- */
 async function runTrackedIndexCleanup(
 	useTrackedIndexCleanup: (
 		trackIndexForCleanup: (name: string, options?: RegisterIndexCleanupOptions) => void
@@ -1980,9 +1905,6 @@ async function runTrackedIndexCleanup(
 	}
 }
 
-/**
- * TODO: Document runTrackedCustomerCleanup.
- */
 async function runTrackedCustomerCleanup(
 	useTrackedCustomerCleanup: (
 		trackCustomerForCleanup: (customerId: string) => void
@@ -2067,9 +1989,6 @@ function assertDeferredProofIndexAvoidsStalePrefixes(name: string): void {
 	);
 }
 
-/**
- * TODO: Document cleanupStaleFixtureIndexesOnce.
- */
 async function cleanupStaleFixtureIndexesOnce(
 	options?: CleanupStaleFixtureIndexesOnceOptions
 ): Promise<void> {
@@ -2169,9 +2088,6 @@ async function cleanupStaleFixtureIndexesOnce(
 	_staleFixtureIndexesCleanupCooldownUntil = 0;
 }
 
-/**
- * TODO: Document waitForSeededIndex.
- */
 async function waitForSeededIndex(name: string, tokenOverride?: string): Promise<void> {
 	const maxAttempts = 60;
 	const pollIntervalMs = 500;
@@ -2232,9 +2148,6 @@ async function updateSeededIndexSettings(
 	throw new Error(`seedIndex settings failed after transient retries: ${lastFailure}`);
 }
 
-/**
- * TODO: Document assertIndexNeverBecomesReadable.
- */
 async function assertIndexNeverBecomesReadable(name: string): Promise<void> {
 	const maxAttempts = 60;
 	const pollIntervalMs = 500;
@@ -2285,9 +2198,6 @@ function isIndexLimitReachedFailure(status: number, body: string): boolean {
 	return status === 400 && body.toLowerCase().includes('index limit reached');
 }
 
-/**
- * TODO: Document createSeededIndex.
- */
 async function createSeededIndex(
 	customerId: string,
 	name: string,
@@ -2398,9 +2308,6 @@ async function createSeededIndex(
 	throw new Error(`seedIndex failed after transient create retries: ${lastFailure}`);
 }
 
-/**
- * TODO: Document createSeededIndexViaCustomerToken.
- */
 async function createSeededIndexViaCustomerToken(
 	name: string,
 	region: string,
@@ -2501,9 +2408,6 @@ export async function seedCustomerIndexForFixture(
 	}
 }
 
-/**
- * TODO: Document createSeededIndexForCurrentCustomer.
- */
 async function createSeededIndexForCurrentCustomer(name: string, region: string): Promise<void> {
 	const maxRetries = 6;
 	let lastFailure = 'none';
@@ -2542,9 +2446,6 @@ const RECOMMENDATION_FIXTURE_FACET_NAME = 'category';
 const RECOMMENDATION_FIXTURE_FACET_VALUE = 'language';
 const RECOMMENDATION_FIXTURE_MISSING_FACET_VALUE = 'no-matches-category';
 
-/**
- * TODO: Document getCurrentBillingPlan.
- */
 async function getCurrentBillingPlan(tokenOverride?: string): Promise<'free' | 'shared'> {
 	for (let attempt = 0; attempt < TRANSIENT_API_MAX_RETRIES; attempt += 1) {
 		const res = await apiCall('GET', '/account', undefined, tokenOverride);
@@ -2609,9 +2510,6 @@ function buildFreshSignupIdentity(seed?: string): FreshSignupIdentity {
 	};
 }
 
-/**
- * TODO: Document arrangeFreshSignupToDashboardWithFixtureFallback.
- */
 export async function arrangeFreshSignupToDashboardWithFixtureFallback(
 	{
 		page,
@@ -2722,9 +2620,6 @@ function currentUtcBillingMonth(now = new Date()): string {
 	return `${now.getUTCFullYear()}-${month}`;
 }
 
-/**
- * TODO: Document getMailpitApiUrl.
- */
 function getMailpitApiUrl(): string {
 	const configuredMailpitApiUrl = process.env.MAILPIT_API_URL?.trim();
 	if (!configuredMailpitApiUrl) {
@@ -2810,9 +2705,6 @@ type FindMailpitTokenParams = {
 	missingTokenMessage: string;
 };
 
-/**
- * TODO: Document findTokenViaMailpit.
- */
 async function findTokenViaMailpit({
 	email,
 	missingEmailMessage,
@@ -2851,9 +2743,6 @@ async function findTokenViaMailpit({
 	);
 }
 
-/**
- * TODO: Document findVerificationTokenViaMailpit.
- */
 export async function findVerificationTokenViaMailpit(email: string): Promise<string> {
 	return findTokenViaMailpit({
 		email,
@@ -2865,9 +2754,6 @@ export async function findVerificationTokenViaMailpit(email: string): Promise<st
 	});
 }
 
-/**
- * TODO: Document extractResetTokenFromMailpitPayload.
- */
 export function extractResetTokenFromMailpitPayload(payload: unknown): string | null {
 	const payloadText = JSON.stringify(payload ?? {});
 	const patterns = [
@@ -2886,9 +2772,6 @@ export function extractResetTokenFromMailpitPayload(payload: unknown): string | 
 	return null;
 }
 
-/**
- * TODO: Document findResetTokenViaMailpit.
- */
 export async function findResetTokenViaMailpit(email: string): Promise<string> {
 	return findTokenViaMailpit({
 		email,
@@ -2921,9 +2804,6 @@ async function findFreshSignupVerificationToken(email: string): Promise<string> 
 	return findVerificationTokenViaMailpit(email);
 }
 
-/**
- * TODO: Document loginConfirmsFreshSignupAlreadyVerified.
- */
 async function loginConfirmsFreshSignupAlreadyVerified(
 	email: string,
 	password: string | undefined
@@ -2950,9 +2830,6 @@ async function loginConfirmsFreshSignupAlreadyVerified(
 	return false;
 }
 
-/**
- * TODO: Document resolveFreshSignupVerificationTokenOrAutoVerifiedSentinel.
- */
 async function resolveFreshSignupVerificationTokenOrAutoVerifiedSentinel(
 	email: string,
 	password: string | undefined
@@ -2977,9 +2854,6 @@ async function resolveFreshSignupVerificationTokenOrAutoVerifiedSentinel(
 	}
 }
 
-/**
- * TODO: Document completeFreshSignupEmailVerificationViaRoute.
- */
 async function completeFreshSignupEmailVerificationViaRoute(
 	page: Page,
 	email: string,
@@ -3060,9 +2934,6 @@ async function completeFreshSignupEmailVerificationViaRoute(
 	}
 }
 
-/**
- * TODO: Document getCustomerIdForToken.
- */
 async function getCustomerIdForToken(token: string): Promise<string> {
 	const accountPayload = await getAccountPayloadForTokenWithRetries(token, 'getCustomerIdForToken');
 	return requireNonEmptyString(
@@ -3071,9 +2942,6 @@ async function getCustomerIdForToken(token: string): Promise<string> {
 	);
 }
 
-/**
- * TODO: Document syncStripeCustomer.
- */
 async function syncStripeCustomer(customerId: string, contextLabel: string): Promise<string> {
 	const stripeSync = await adminApiCall(
 		'POST',
@@ -3131,9 +2999,6 @@ type AttachStripeTestCardParams = {
 	setAsDefault: boolean;
 };
 
-/**
- * TODO: Document attachStripeTestCard.
- */
 async function attachStripeTestCard({
 	stripeCustomerId,
 	stripeSecretKey,
@@ -3208,9 +3073,6 @@ type WaitForStripeDefaultPaymentMethodParams = {
 	maxAttempts?: number;
 };
 
-/**
- * TODO: Document waitForStripeDefaultPaymentMethod.
- */
 async function waitForStripeDefaultPaymentMethod({
 	stripeCustomerId,
 	stripeSecretKey,
@@ -3347,9 +3209,6 @@ async function arrangeBillingPortalCustomer({
 	}
 }
 
-/**
- * TODO: Document resolveInvoiceIdFromBatch.
- */
 async function resolveInvoiceIdFromBatch(
 	batch: BatchBillingResponse,
 	customerId: string,
@@ -3483,9 +3342,6 @@ async function finalizeExistingInvoiceForFreshSignup(invoiceId: string): Promise
 	}
 }
 
-/**
- * TODO: Document payStripeInvoiceWithTestKey.
- */
 async function payStripeInvoiceWithTestKey(
 	stripeInvoiceId: string,
 	stripeSecretKey: string,
@@ -3524,9 +3380,6 @@ async function payStripeInvoiceWithTestKey(
 	}
 }
 
-/**
- * TODO: Document waitForInvoicePaid.
- */
 async function waitForInvoicePaid(invoiceId: string, token: string): Promise<InvoiceDetailApiItem> {
 	return waitForInvoiceStatus({
 		invoiceId,
@@ -3553,9 +3406,6 @@ type WaitForInvoiceStatusForTokenParams = {
 	maxAttempts?: number;
 };
 
-/**
- * TODO: Document waitForInvoiceStatusForToken.
- */
 export async function waitForInvoiceStatusForToken({
 	apiUrl,
 	token,
@@ -3626,9 +3476,6 @@ export async function waitForInvoiceStatusForToken({
 	);
 }
 
-/**
- * TODO: Document waitForInvoiceStatus.
- */
 async function waitForInvoiceStatus({
 	invoiceId,
 	token,
@@ -3644,9 +3491,6 @@ async function waitForInvoiceStatus({
 	});
 }
 
-/**
- * TODO: Document arrangePaidInvoiceForFreshSignup.
- */
 async function arrangePaidInvoiceForFreshSignup({
 	email,
 	password,
@@ -3829,9 +3673,6 @@ async function getInvoiceDetailForFixture(invoiceId: string): Promise<InvoiceDet
 	return (await res.json()) as InvoiceDetailApiItem;
 }
 
-/**
- * TODO: Document getInvoiceDetailForToken.
- */
 async function getInvoiceDetailForToken(
 	invoiceId: string,
 	token: string
@@ -4030,9 +3871,6 @@ type ThrowFreshSignupArrangeFailureFn = (input: {
 	responseUrl?: string;
 }) => never;
 
-/**
- * TODO: Document E2eFixtures.
- */
 type E2eFixtures = {
 	/** Resolved API origin from resolveFixtureEnv (single env-contract owner). */
 	apiUrl: string;

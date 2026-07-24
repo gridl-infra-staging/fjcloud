@@ -60,7 +60,6 @@ module_abs_dir_from_spec() {
   printf '%s/%s' "$SCRIPT_DIR" "$module_rel"
 }
 
-# TODO: Document resolve_budget_guardrail_artifact_paths.
 resolve_budget_guardrail_artifact_paths() {
   local artifact_input="$1"
   local summary_path=""
@@ -110,7 +109,6 @@ print(status)
 PY
 }
 
-# TODO: Document validate_blocked_budget_guardrail_artifact.
 validate_blocked_budget_guardrail_artifact() {
   local summary_path="$1"
   local run_dir="$2"
@@ -184,7 +182,6 @@ PY
   echo "Budget-guardrail artifact is blocked; summary shape is valid and Terraform planning is intentionally skipped."
 }
 
-# TODO: Document validate_proposal_ready_budget_guardrail_artifact.
 validate_proposal_ready_budget_guardrail_artifact() {
   local summary_path="$1"
   local run_dir="$2"
@@ -285,7 +282,6 @@ PY
   fi
 }
 
-# TODO: Document run_budget_guardrail_artifact_validation.
 run_budget_guardrail_artifact_validation() {
   local artifact_input="$1"
   local summary_path run_dir status resolved_paths
@@ -329,7 +325,6 @@ run_budget_guardrail_artifact_validation() {
   validate_blocked_budget_guardrail_artifact "$summary_path" "$run_dir"
 }
 
-# TODO: Document is_allowed_public_ingress.
 is_allowed_public_ingress() {
   local resource_type="$1"
   local resource_name="$2"
@@ -355,7 +350,6 @@ strip_hcl_comments() {
   printf '%s' "$line" | sed -E 's/[[:space:]]+#.*$//; s@(^|[[:space:]])//.*$@\1@'
 }
 
-# TODO: Document run_terraform_validation.
 run_terraform_validation() {
   local module_spec module module_dir
   local failed=0
@@ -384,7 +378,6 @@ run_terraform_validation() {
   return "$failed"
 }
 
-# TODO: Document run_sg_audit_for_file.
 run_sg_audit_for_file() {
   local tf_file="$1"
   local failed=0
@@ -570,7 +563,6 @@ run_sg_audit_for_file() {
   return "$failed"
 }
 
-# TODO: Document run_security_group_audit.
 run_security_group_audit() {
   local -a audit_dirs=("$@")
   local module_spec module_dir tf_file
@@ -616,7 +608,6 @@ assert_janitor_contract_pattern() {
   return 1
 }
 
-# TODO: Document run_live_e2e_ttl_janitor_contract_audit.
 run_live_e2e_ttl_janitor_contract_audit() {
   local failed=0
 
@@ -669,7 +660,6 @@ run_live_e2e_ttl_janitor_contract_audit() {
   return "$failed"
 }
 
-# TODO: Document main.
 main() {
   local -a audit_dirs=()
   local budget_guardrail_artifact=""

@@ -107,7 +107,6 @@ pub(super) fn to_retry_after_header_seconds(seconds: i64) -> u64 {
         .unwrap_or(1)
 }
 
-/// TODO: Document should_force_email_delivery_failure.
 fn should_force_email_delivery_failure(headers: &HeaderMap) -> bool {
     let Some(header_value) = headers.get(TEST_FORCE_EMAIL_FAILURE_HEADER) else {
         return false;
@@ -132,7 +131,6 @@ fn should_force_email_delivery_failure(headers: &HeaderMap) -> bool {
     false
 }
 
-/// TODO: Document send_auth_email_with_retry.
 pub(super) async fn send_auth_email_with_retry<F, Fut>(
     headers: &HeaderMap,
     unavailable_message: &'static str,

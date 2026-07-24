@@ -1,5 +1,3 @@
-//! Stub summary for infra/api/tests/common/vm_inventory_reference_guard_matrix.rs.
-
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -101,7 +99,6 @@ pub async fn assert_status_reference_mutations(
     }
 }
 
-/// TODO: Document assert_insert_behavior.
 async fn assert_insert_behavior(
     pool: &PgPool,
     kind: ReferenceKind,
@@ -133,7 +130,6 @@ async fn assert_insert_behavior(
     }
 }
 
-/// TODO: Document assert_update_behavior.
 async fn assert_update_behavior(
     pool: &PgPool,
     kind: ReferenceKind,
@@ -166,7 +162,6 @@ async fn assert_update_behavior(
     );
 }
 
-/// TODO: Document insert_reference.
 async fn insert_reference(
     pool: &PgPool,
     kind: ReferenceKind,
@@ -257,7 +252,6 @@ async fn insert_reference(
     }
 }
 
-/// TODO: Document update_reference.
 async fn update_reference(
     pool: &PgPool,
     kind: ReferenceKind,
@@ -287,7 +281,6 @@ async fn update_reference(
         .map(|_| ())
 }
 
-/// TODO: Document stored_reference.
 async fn stored_reference(
     pool: &PgPool,
     kind: ReferenceKind,
@@ -315,7 +308,6 @@ async fn stored_reference(
         .flatten()
 }
 
-/// TODO: Document assert_reference_rejection.
 fn assert_reference_rejection(
     error: sqlx::Error,
     kind: ReferenceKind,

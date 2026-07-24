@@ -23,7 +23,6 @@ aws_auth_is_available() {
   return 1
 }
 
-# TODO: Document resolve_admin_key_from_ssm.
 resolve_admin_key_from_ssm() {
   local resolved_value
 
@@ -47,7 +46,6 @@ resolve_admin_key_from_ssm() {
   return 0
 }
 
-# TODO: Document main.
 main() {
   local response_path status_code
   local RESOLVED_ADMIN_KEY=""

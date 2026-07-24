@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Stub summary for parse_audit_recommendations.py."""
 
 from __future__ import annotations
 
@@ -26,7 +25,6 @@ HEADER_RE = re.compile(r"^##\s+", re.IGNORECASE)
 
 
 def _slice_prioritized_section(markdown: str) -> tuple[bool, list[str]]:
-    """TODO: Document _slice_prioritized_section."""
     lines = markdown.splitlines()
     start_idx: int | None = None
     for idx, line in enumerate(lines):
@@ -64,7 +62,6 @@ def _parse_owner_files(text: str) -> list[str]:
 
 
 def _normalize_row(source_path: str, source_type: str, order: int, lines: list[str]) -> dict[str, Any]:
-    """TODO: Document _normalize_row."""
     title_match = ROW_START_RE.match(lines[0])
     if not title_match:
         raise ValueError(f"invalid row start: {lines[0]}")
@@ -98,7 +95,6 @@ def _normalize_row(source_path: str, source_type: str, order: int, lines: list[s
 
 
 def _parse_rows(source_path: str, source_type: str, section_lines: list[str]) -> list[dict[str, Any]]:
-    """TODO: Document _parse_rows."""
     grouped: list[list[str]] = []
     current: list[str] = []
 
@@ -122,7 +118,6 @@ def _parse_rows(source_path: str, source_type: str, section_lines: list[str]) ->
 
 
 def parse_recommendation_sources(parity_summary: Path, coverage_summary: Path) -> dict[str, Any]:
-    """TODO: Document parse_recommendation_sources."""
     summaries = [
         ("parity", parity_summary),
         ("coverage", coverage_summary),

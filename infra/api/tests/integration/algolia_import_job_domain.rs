@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/tests/integration/algolia_import_job_domain.rs.
 use std::collections::HashSet;
 use std::ffi::OsString;
 use std::sync::Arc;
@@ -16,7 +15,6 @@ use api::models::algolia_import_job::{
 use api::secrets::mock::MockNodeSecretManager;
 use api::services::flapjack_proxy::FlapjackProxy;
 
-/// TODO: Document seal_scrub_work_serializes_only_opaque_reconciliation_identifiers.
 #[test]
 fn seal_scrub_work_serializes_only_opaque_reconciliation_identifiers() {
     let work = AlgoliaSealScrubWork {
@@ -77,7 +75,6 @@ struct FlapjackIdentityEnvGuard {
 }
 
 impl FlapjackIdentityEnvGuard {
-    /// TODO: Document FlapjackIdentityEnvGuard.cleared.
     fn cleared() -> Self {
         let lock = FLAPJACK_IDENTITY_ENV_LOCK
             .lock()
@@ -119,7 +116,6 @@ impl Drop for FlapjackIdentityEnvGuard {
     }
 }
 
-/// TODO: Document insert_replace_target.
 async fn insert_replace_target(pool: &PgPool, customer_id: Uuid, target: &str) -> (Uuid, Uuid) {
     sqlx::query(
         "INSERT INTO customers (id, name, email, status)
@@ -192,7 +188,6 @@ fn source_with_size(key: &str, source_size_bytes: i64) -> AlgoliaImportSource {
     )
 }
 
-/// TODO: Document new_job.
 fn new_job(customer_id: Uuid, key: &str) -> NewAlgoliaImportJob {
     NewAlgoliaImportJob::create(
         customer_id,
@@ -238,7 +233,6 @@ fn assert_engine_upgrade_required(
     }
 }
 
-/// TODO: Document assert_no_algolia_create_persistence.
 async fn assert_no_algolia_create_persistence(
     pool: &PgPool,
     tenant_repo: &impl TenantRepo,
@@ -261,7 +255,6 @@ async fn assert_no_algolia_create_persistence(
         .is_none());
 }
 
-/// TODO: Document new_job_with_fingerprint.
 fn new_job_with_fingerprint(
     customer_id: Uuid,
     key: &str,
@@ -279,7 +272,6 @@ fn new_job_with_fingerprint(
     )
 }
 
-/// TODO: Document insert_minimal.
 async fn insert_minimal(pool: &PgPool, customer_id: Uuid, suffix: &str) -> Uuid {
     insert_active_customer(pool, customer_id, 1).await;
     let destination_vm_id = Uuid::new_v4();
@@ -368,7 +360,6 @@ fn assert_destination_conflict_admission(
     );
 }
 
-/// TODO: Document migration_creates_distinct_algolia_import_jobs_contract.
 #[tokio::test]
 async fn migration_creates_distinct_algolia_import_jobs_contract() {
     let Some(db) = connect_and_migrate("algolia_import_contract").await else {
@@ -462,7 +453,6 @@ async fn migration_creates_distinct_algolia_import_jobs_contract() {
     assert!(!index_migration_columns.contains("algolia_app_id"));
 }
 
-/// TODO: Document migration_rejects_half_scrubbed_public_jobs.
 #[tokio::test]
 async fn migration_rejects_half_scrubbed_public_jobs() {
     let Some(db) = connect_and_migrate("algolia_import_half_scrub").await else {
@@ -482,7 +472,6 @@ async fn migration_rejects_half_scrubbed_public_jobs() {
     );
 }
 
-/// TODO: Document migration_creates_singleton_algolia_import_environment_contract.
 #[tokio::test]
 async fn migration_creates_singleton_algolia_import_environment_contract() {
     let Some(db) = connect_and_migrate("algolia_import_environment_contract").await else {
@@ -521,7 +510,6 @@ async fn migration_creates_singleton_algolia_import_environment_contract() {
     );
 }
 
-/// TODO: Document record_dispatch_intent_commits_intent_and_first_epoch_atomically.
 #[tokio::test]
 async fn record_dispatch_intent_commits_intent_and_first_epoch_atomically() {
     let Some(db) = connect_and_migrate("algolia_import_dispatch_epoch").await else {
@@ -571,7 +559,6 @@ async fn record_dispatch_intent_commits_intent_and_first_epoch_atomically() {
     ));
 }
 
-/// TODO: Document dispatch_admission_records_ambiguous_intent_and_replays_without_mutation.
 #[tokio::test]
 async fn dispatch_admission_records_ambiguous_intent_and_replays_without_mutation() {
     let Some(db) = connect_and_migrate("algolia_dispatch_admission").await else {
@@ -624,7 +611,6 @@ async fn dispatch_admission_records_ambiguous_intent_and_replays_without_mutatio
     );
 }
 
-/// TODO: Document dispatch_admission_rolls_back_job_and_epoch_when_ambiguous_intent_fails.
 #[tokio::test]
 async fn dispatch_admission_rolls_back_job_and_epoch_when_ambiguous_intent_fails() {
     let Some(db) = connect_and_migrate("algolia_dispatch_admission_rollback").await else {
@@ -683,7 +669,6 @@ async fn dispatch_admission_rolls_back_job_and_epoch_when_ambiguous_intent_fails
     assert_eq!(epoch, "pre_admission");
 }
 
-/// TODO: Document concurrent_dispatch_admissions_for_one_client_key_create_once_then_replay.
 #[tokio::test]
 async fn concurrent_dispatch_admissions_for_one_client_key_create_once_then_replay() {
     let Some(db) = connect_and_migrate("algolia_dispatch_admission_concurrent").await else {
@@ -770,7 +755,6 @@ async fn concurrent_dispatch_admissions_for_one_client_key_create_once_then_repl
     assert_eq!(retained_jobs, 1);
 }
 
-/// TODO: Document replace_dispatch_admission_records_authenticated_ambiguous_intent.
 #[tokio::test]
 async fn replace_dispatch_admission_records_authenticated_ambiguous_intent() {
     let Some(db) = connect_and_migrate("algolia_replace_dispatch_admit").await else {
@@ -804,7 +788,6 @@ async fn replace_dispatch_admission_records_authenticated_ambiguous_intent() {
     assert!(job.routing_identity.is_some());
 }
 
-/// TODO: Document stale_customer_generation_cannot_commit_dispatch_intent.
 #[tokio::test]
 async fn stale_customer_generation_cannot_commit_dispatch_intent() {
     let Some(db) = connect_and_migrate("algolia_stale_dispatch_generation").await else {
@@ -848,7 +831,6 @@ async fn stale_customer_generation_cannot_commit_dispatch_intent() {
     assert_eq!(unchanged.engine_job_id, None);
 }
 
-/// TODO: Document dispatch_guard_requires_current_ambiguous_generation.
 #[tokio::test]
 async fn dispatch_guard_requires_current_ambiguous_generation() {
     let Some(db) = connect_and_migrate("algolia_dispatch_guard").await else {
@@ -886,7 +868,6 @@ async fn dispatch_guard_requires_current_ambiguous_generation() {
     ));
 }
 
-/// TODO: Document dispatch_guard_blocks_soft_delete_until_the_single_send_window_releases.
 #[tokio::test]
 async fn dispatch_guard_blocks_soft_delete_until_the_single_send_window_releases() {
     let Some(db) = connect_and_migrate("algolia_dispatch_guard_soft_delete").await else {
@@ -935,7 +916,6 @@ async fn dispatch_guard_blocks_soft_delete_until_the_single_send_window_releases
     ));
 }
 
-/// TODO: Document dispatch_guard_blocks_hard_erase_until_the_single_send_window_releases.
 #[tokio::test]
 async fn dispatch_guard_blocks_hard_erase_until_the_single_send_window_releases() {
     let Some(db) = connect_and_migrate("algolia_dispatch_guard_hard_erase").await else {
@@ -988,7 +968,6 @@ async fn dispatch_guard_blocks_hard_erase_until_the_single_send_window_releases(
     ));
 }
 
-/// TODO: Document hard_erase_that_wins_before_dispatch_guard_prevents_send.
 #[tokio::test]
 async fn hard_erase_that_wins_before_dispatch_guard_prevents_send() {
     let Some(db) = connect_and_migrate("algolia_hard_erase_wins_guard").await else {
@@ -1020,7 +999,6 @@ async fn hard_erase_that_wins_before_dispatch_guard_prevents_send() {
     ));
 }
 
-/// TODO: Document committed_linkage_requires_ambiguous_pre_send_proof.
 #[tokio::test]
 async fn committed_linkage_requires_ambiguous_pre_send_proof() {
     let Some(db) = connect_and_migrate("algolia_commit_requires_ambiguous").await else {
@@ -1047,7 +1025,6 @@ async fn committed_linkage_requires_ambiguous_pre_send_proof() {
     assert_eq!(unchanged.engine_job_id, None);
 }
 
-/// TODO: Document soft_deleted_customer_refuses_create_admission_and_replay_without_mutating_retained_job.
 #[tokio::test]
 async fn soft_deleted_customer_refuses_create_admission_and_replay_without_mutating_retained_job() {
     let Some(db) = connect_and_migrate("algolia_deleted_create_fence").await else {
@@ -1085,7 +1062,6 @@ async fn soft_deleted_customer_refuses_create_admission_and_replay_without_mutat
     );
 }
 
-/// TODO: Document suspended_then_reactivated_customer_refuses_stale_dispatch_admission_replay.
 #[tokio::test]
 async fn suspended_then_reactivated_customer_refuses_stale_dispatch_admission_replay() {
     let Some(db) = connect_and_migrate("algolia_reactivated_dispatch_fence").await else {
@@ -1148,7 +1124,6 @@ async fn suspended_then_reactivated_customer_refuses_stale_dispatch_admission_re
     );
 }
 
-/// TODO: Document soft_deleted_customer_refuses_dispatch_and_no_dispatch_finalizer_without_mutating_retained_job.
 #[tokio::test]
 async fn soft_deleted_customer_refuses_dispatch_and_no_dispatch_finalizer_without_mutating_retained_job(
 ) {
@@ -1186,7 +1161,6 @@ async fn soft_deleted_customer_refuses_dispatch_and_no_dispatch_finalizer_withou
     );
 }
 
-/// TODO: Document generic_state_update_cannot_write_dispatch_intent_or_engine_identity.
 #[tokio::test]
 async fn generic_state_update_cannot_write_dispatch_intent_or_engine_identity() {
     let Some(db) = connect_and_migrate("algolia_import_generic_no_dispatch").await else {
@@ -1230,7 +1204,6 @@ async fn generic_state_update_cannot_write_dispatch_intent_or_engine_identity() 
     assert_eq!(persisted.engine_job_id, None);
 }
 
-/// TODO: Document new_import_job_create_destination_has_no_caller_supplied_engine_target.
 #[test]
 fn new_import_job_create_destination_has_no_caller_supplied_engine_target() {
     let customer_id = Uuid::new_v4();
@@ -1255,7 +1228,6 @@ fn new_import_job_create_destination_has_no_caller_supplied_engine_target() {
     assert_eq!(job.destination().routing_identity(), None);
 }
 
-/// TODO: Document repository_authenticates_replace_selector_and_derives_destination_identity.
 #[tokio::test]
 async fn repository_authenticates_replace_selector_and_derives_destination_identity() {
     let Some(db) = connect_and_migrate("algolia_authenticated_replace").await else {
@@ -1290,7 +1262,6 @@ async fn repository_authenticates_replace_selector_and_derives_destination_ident
     assert_eq!(job.routing_identity.as_deref(), Some(expected_uid.as_str()));
 }
 
-/// TODO: Document stale_replace_target_binding_is_refused_before_job_insertion.
 #[tokio::test]
 async fn stale_replace_target_binding_is_refused_before_job_insertion() {
     let Some(db) = connect_and_migrate("algolia_stale_replace_binding").await else {
@@ -1345,7 +1316,6 @@ async fn stale_replace_target_binding_is_refused_before_job_insertion() {
     assert_eq!(persisted, 0);
 }
 
-/// TODO: Document repository_persists_typed_create_and_replace_destinations.
 #[tokio::test]
 async fn repository_persists_typed_create_and_replace_destinations() {
     let Some(db) = connect_and_migrate("algolia_typed_destination").await else {
@@ -1405,7 +1375,6 @@ async fn repository_persists_typed_create_and_replace_destinations() {
     );
 }
 
-/// TODO: Document algolia_create_import_engine_compatibility_uses_shared_admission_and_placement_before_persistence.
 #[tokio::test]
 async fn algolia_create_import_engine_compatibility_uses_shared_admission_and_placement_before_persistence(
 ) {
@@ -1487,7 +1456,6 @@ async fn algolia_create_import_engine_compatibility_uses_shared_admission_and_pl
         .is_none());
 }
 
-/// TODO: Document algolia_create_import_engine_compatibility_rejects_incompatible_health_before_persistence.
 #[tokio::test]
 async fn algolia_create_import_engine_compatibility_rejects_incompatible_health_before_persistence()
 {
@@ -1567,7 +1535,6 @@ async fn algolia_create_import_engine_compatibility_rejects_incompatible_health_
     assert_no_algolia_create_persistence(&db.pool, tenant_repo.as_ref(), customer.id).await;
 }
 
-/// TODO: Document algolia_create_import_engine_compatibility_rejects_absent_or_partial_identity_config.
 #[tokio::test]
 async fn algolia_create_import_engine_compatibility_rejects_absent_or_partial_identity_config() {
     let Some(db) = connect_and_migrate("algolia_import_engine_config_gate").await else {
@@ -1651,7 +1618,6 @@ async fn algolia_create_import_engine_compatibility_rejects_absent_or_partial_id
     assert_no_algolia_create_persistence(&db.pool, tenant_repo.as_ref(), customer.id).await;
 }
 
-/// TODO: Document final_key_metadata_owns_source_size_and_canonical_fingerprint.
 #[test]
 fn final_key_metadata_owns_source_size_and_canonical_fingerprint() {
     let forged_browser_data_size = 1;
@@ -1685,7 +1651,6 @@ fn missing_final_key_source_size_reserves_conservative_bound() {
     );
 }
 
-/// TODO: Document same_key_same_size_changed_source_metadata_conflicts.
 #[tokio::test]
 async fn same_key_same_size_changed_source_metadata_conflicts() {
     let Some(db) = connect_and_migrate("algolia_source_metadata_idempotency").await else {
@@ -1734,7 +1699,6 @@ async fn same_key_same_size_changed_source_metadata_conflicts() {
     );
 }
 
-/// TODO: Document unknown_source_size_quota_failure_is_atomic.
 #[tokio::test]
 async fn unknown_source_size_quota_failure_is_atomic() {
     let Some(db) = connect_and_migrate("algolia_source_size_atomic").await else {
@@ -1809,7 +1773,6 @@ async fn unknown_source_size_quota_failure_is_atomic() {
     assert_eq!(persisted, 0, "quota failure must not stage an import row");
 }
 
-/// TODO: Document create_reservation_stays_absent_from_catalog_and_discovery_surfaces.
 #[tokio::test]
 async fn create_reservation_stays_absent_from_catalog_and_discovery_surfaces() {
     let Some(db) = connect_and_migrate("algolia_create_visibility").await else {
@@ -1858,7 +1821,6 @@ async fn create_reservation_stays_absent_from_catalog_and_discovery_surfaces() {
         .any(|tenant| tenant.customer_id == customer && tenant.tenant_id == "products"));
 }
 
-/// TODO: Document replace_reservation_keeps_existing_target_cataloged_until_promotion.
 #[tokio::test]
 async fn replace_reservation_keeps_existing_target_cataloged_until_promotion() {
     let Some(db) = connect_and_migrate("algolia_replace_visibility").await else {
@@ -1905,7 +1867,6 @@ async fn replace_reservation_keeps_existing_target_cataloged_until_promotion() {
         .any(|tenant| tenant.customer_id == customer && tenant.tenant_id == "products"));
 }
 
-/// TODO: Document same_logical_target_visibility_is_customer_isolated.
 #[tokio::test]
 async fn same_logical_target_visibility_is_customer_isolated() {
     let Some(db) = connect_and_migrate("algolia_visibility_isolated").await else {
@@ -1948,7 +1909,6 @@ async fn same_logical_target_visibility_is_customer_isolated() {
     );
 }
 
-/// TODO: Document schema_enforces_engine_owned_resume_mirror.
 #[tokio::test]
 async fn schema_enforces_engine_owned_resume_mirror() {
     let Some(db) = connect_and_migrate("algolia_resume_mirror").await else {
@@ -2133,7 +2093,6 @@ async fn schema_enforces_engine_owned_resume_mirror() {
     );
 }
 
-/// TODO: Document cloud_and_engine_job_identifiers_have_single_owners.
 #[tokio::test]
 async fn cloud_and_engine_job_identifiers_have_single_owners() {
     let Some(db) = connect_and_migrate("algolia_import_identity").await else {
@@ -2178,7 +2137,6 @@ async fn cloud_and_engine_job_identifiers_have_single_owners() {
     .is_err());
 }
 
-/// TODO: Document assert_closed_statuses.
 async fn assert_closed_statuses(pool: &PgPool, id: Uuid) {
     for status in [
         "queued",
@@ -2219,7 +2177,6 @@ async fn assert_closed_statuses(pool: &PgPool, id: Uuid) {
     }
 }
 
-/// TODO: Document assert_ack_states.
 async fn assert_ack_states(pool: &PgPool, id: Uuid) {
     sqlx::query(
         "UPDATE algolia_import_jobs
@@ -2257,7 +2214,6 @@ async fn assert_ack_states(pool: &PgPool, id: Uuid) {
     }
 }
 
-/// TODO: Document assert_error_codes_and_dispositions.
 async fn assert_error_codes_and_dispositions(pool: &PgPool, id: Uuid) {
     for code in [
         "invalid_credentials",
@@ -2303,7 +2259,6 @@ async fn assert_error_codes_and_dispositions(pool: &PgPool, id: Uuid) {
     }
 }
 
-/// TODO: Document assert_interrupted_origins.
 async fn assert_interrupted_origins(pool: &PgPool, id: Uuid) {
     sqlx::query(
         "UPDATE algolia_import_jobs
@@ -2342,7 +2297,6 @@ async fn assert_interrupted_origins(pool: &PgPool, id: Uuid) {
     }
 }
 
-/// TODO: Document schema_rejects_invalid_closed_values_and_interrupted_publication.
 #[tokio::test]
 async fn schema_rejects_invalid_closed_values_and_interrupted_publication() {
     let Some(db) = connect_and_migrate("algolia_import_checks").await else {
@@ -2371,7 +2325,6 @@ async fn schema_rejects_invalid_closed_values_and_interrupted_publication() {
     assert_interrupted_origins(&db.pool, id).await;
 }
 
-/// TODO: Document no_dispatch_failure_requires_absent_intent_proof.
 #[tokio::test]
 async fn no_dispatch_failure_requires_absent_intent_proof() {
     let Some(db) = connect_and_migrate("algolia_no_dispatch").await else {
@@ -2393,7 +2346,6 @@ async fn no_dispatch_failure_requires_absent_intent_proof() {
     );
 }
 
-/// TODO: Document repository_no_dispatch_write_is_atomic_and_refuses_committed_intent.
 #[tokio::test]
 async fn repository_no_dispatch_write_is_atomic_and_refuses_committed_intent() {
     let Some(db) = connect_and_migrate("algolia_repo_no_dispatch").await else {
@@ -2446,7 +2398,6 @@ async fn repository_no_dispatch_write_is_atomic_and_refuses_committed_intent() {
     ));
 }
 
-/// TODO: Document repository_cannot_resurrect_proven_no_dispatch_failure.
 #[tokio::test]
 async fn repository_cannot_resurrect_proven_no_dispatch_failure() {
     let Some(db) = connect_and_migrate("algolia_no_dispatch_terminal").await else {
@@ -2490,7 +2441,6 @@ async fn repository_cannot_resurrect_proven_no_dispatch_failure() {
     );
 }
 
-/// TODO: Document repository_owns_idempotency_and_canonical_updates.
 #[tokio::test]
 async fn repository_owns_idempotency_and_canonical_updates() {
     let Some(db) = connect_and_migrate("algolia_import_repo").await else {
@@ -2639,7 +2589,6 @@ fn public_model_has_no_secret_or_raw_vendor_payload_fields() {
             .any(|line| line.to_ascii_lowercase().contains(forbidden))));
 }
 
-/// TODO: Document algolia_destination_admission_reuses_index_lifecycle_seams.
 #[test]
 fn algolia_destination_admission_reuses_index_lifecycle_seams() {
     let lifecycle = include_str!("../../src/routes/indexes/lifecycle.rs");
@@ -2680,7 +2629,6 @@ fn algolia_destination_admission_reuses_index_lifecycle_seams() {
     }
 }
 
-/// TODO: Document algolia_domain_does_not_copy_lifecycle_quota_placement_or_uid_logic.
 #[test]
 fn algolia_domain_does_not_copy_lifecycle_quota_placement_or_uid_logic() {
     let model = include_str!("../../src/models/algolia_import_job.rs");
@@ -2700,7 +2648,6 @@ fn algolia_domain_does_not_copy_lifecycle_quota_placement_or_uid_logic() {
     assert!(shared_vm.contains("place_index("));
 }
 
-/// TODO: Document migration_jobs_route_does_not_own_async_engine_transport_or_reconciliation_loop.
 #[test]
 fn migration_jobs_route_does_not_own_async_engine_transport_or_reconciliation_loop() {
     let route = include_str!("../../src/routes/migration/jobs.rs");
@@ -2723,7 +2670,6 @@ fn migration_jobs_route_does_not_own_async_engine_transport_or_reconciliation_lo
 // Provider gating: create destinations only allow AWS-backed regions
 // ---------------------------------------------------------------------------
 
-/// TODO: Document algolia_create_rejects_hetzner_backed_region.
 #[test]
 fn algolia_create_rejects_hetzner_backed_region() {
     let config = RegionConfig::defaults();
@@ -2758,7 +2704,6 @@ fn algolia_create_rejects_unknown_region() {
     );
 }
 
-/// TODO: Document algolia_create_accepts_aws_backed_region.
 #[test]
 fn algolia_create_accepts_aws_backed_region() {
     let config = RegionConfig::defaults();
@@ -2777,7 +2722,6 @@ fn algolia_create_accepts_aws_backed_region() {
     }
 }
 
-/// TODO: Document algolia_create_exposes_only_aws_eligible_regions.
 #[test]
 fn algolia_create_exposes_only_aws_eligible_regions() {
     let config = RegionConfig::defaults();
@@ -2805,7 +2749,6 @@ fn algolia_create_exposes_only_aws_eligible_regions() {
     );
 }
 
-/// TODO: Document algolia_create_rejects_unavailable_aws_region.
 #[test]
 fn algolia_create_rejects_unavailable_aws_region() {
     use api::provisioner::region_map::RegionEntry;
@@ -2950,7 +2893,6 @@ fn algolia_replace_rejects_missing_flapjack_url() {
     );
 }
 
-/// TODO: Document algolia_replace_provider_check_takes_priority_over_other_failures.
 #[test]
 fn algolia_replace_provider_check_takes_priority_over_other_failures() {
     let facts = AlgoliaReplaceTargetFacts {
@@ -2992,7 +2934,6 @@ async fn seeded_customer_generation(pool: &PgPool, customer_id: Uuid) -> i64 {
         .expect("read customer generation")
 }
 
-/// TODO: Document algolia_cloud_job_eligibility_snapshot_authenticates_owned_healthy_target.
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_snapshot_authenticates_owned_healthy_target() {
     let Some(db) = connect_and_migrate("algolia_eligibility_snapshot_ok").await else {
@@ -3023,7 +2964,6 @@ async fn algolia_cloud_job_eligibility_snapshot_authenticates_owned_healthy_targ
     assert_eq!(jobs, 0);
 }
 
-/// TODO: Document algolia_cloud_job_eligibility_snapshot_rejects_missing_target.
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_snapshot_rejects_missing_target() {
     let Some(db) = connect_and_migrate("algolia_eligibility_snapshot_missing").await else {
@@ -3044,7 +2984,6 @@ async fn algolia_cloud_job_eligibility_snapshot_rejects_missing_target() {
     );
 }
 
-/// TODO: Document algolia_cloud_job_eligibility_snapshot_rejects_cross_customer_target.
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_snapshot_rejects_cross_customer_target() {
     let Some(db) = connect_and_migrate("algolia_eligibility_snapshot_cross").await else {
@@ -3067,7 +3006,6 @@ async fn algolia_cloud_job_eligibility_snapshot_rejects_cross_customer_target() 
     );
 }
 
-/// TODO: Document algolia_cloud_job_eligibility_snapshot_rejects_inactive_customer.
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_snapshot_rejects_inactive_customer() {
     let Some(db) = connect_and_migrate("algolia_eligibility_snapshot_inactive").await else {
@@ -3093,7 +3031,6 @@ async fn algolia_cloud_job_eligibility_snapshot_rejects_inactive_customer() {
     );
 }
 
-/// TODO: Document algolia_cloud_job_eligibility_snapshot_rejects_unhealthy_target.
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_snapshot_rejects_unhealthy_target() {
     let Some(db) = connect_and_migrate("algolia_eligibility_snapshot_unhealthy").await else {
@@ -3127,7 +3064,6 @@ async fn algolia_cloud_job_eligibility_snapshot_rejects_unhealthy_target() {
 // Tenant-scoped retained get / keyset list primitives (Stage 2, group 3)
 // ---------------------------------------------------------------------------
 
-/// TODO: Document insert_retained_job.
 async fn insert_retained_job(
     pool: &PgPool,
     customer_id: Uuid,
@@ -3213,7 +3149,6 @@ fn algolia_cloud_job_list_limit_clamps_default_and_max() {
     assert_eq!(clamp(Some(10_000)), 200);
 }
 
-/// TODO: Document algolia_cloud_job_get_for_customer_enforces_ownership_in_sql.
 #[tokio::test]
 async fn algolia_cloud_job_get_for_customer_enforces_ownership_in_sql() {
     let Some(db) = connect_and_migrate("algolia_retained_get").await else {
@@ -3248,7 +3183,6 @@ async fn algolia_cloud_job_get_for_customer_enforces_ownership_in_sql() {
         .is_none());
 }
 
-/// TODO: Document algolia_cloud_job_list_for_customer_orders_newest_first_with_id_tiebreak.
 #[tokio::test]
 async fn algolia_cloud_job_list_for_customer_orders_newest_first_with_id_tiebreak() {
     let Some(db) = connect_and_migrate("algolia_retained_order").await else {
@@ -3280,7 +3214,6 @@ async fn algolia_cloud_job_list_for_customer_orders_newest_first_with_id_tiebrea
     );
 }
 
-/// TODO: Document algolia_cloud_job_list_for_customer_keyset_paginates_without_gaps.
 #[tokio::test]
 async fn algolia_cloud_job_list_for_customer_keyset_paginates_without_gaps() {
     let Some(db) = connect_and_migrate("algolia_retained_keyset").await else {
@@ -3336,7 +3269,6 @@ async fn algolia_cloud_job_list_for_customer_keyset_paginates_without_gaps() {
     );
 }
 
-/// TODO: Document algolia_cloud_job_list_for_customer_excludes_erased_and_other_customers.
 #[tokio::test]
 async fn algolia_cloud_job_list_for_customer_excludes_erased_and_other_customers() {
     let Some(db) = connect_and_migrate("algolia_retained_isolation").await else {

@@ -5,7 +5,6 @@
 
 set -euo pipefail
 
-# TODO: Document read_env_value_raw.
 read_env_value_raw() {
   local env_file="$1"
   local var_name="$2"
@@ -52,7 +51,6 @@ is_runtime_app_env_asset() {
   esac
 }
 
-# TODO: Document resolve_host_only_env_overlay_path.
 resolve_host_only_env_overlay_path() {
   local env_file="$1"
 
@@ -85,7 +83,6 @@ is_host_only_deploy_key() {
   esac
 }
 
-# TODO: Document read_env_value.
 read_env_value() {
   local env_file="$1"
   local var_name="$2"

@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for +page.server.ts.
- */
 import type { PageServerLoad, Actions } from './$types';
 import { createApiClient } from '$lib/server/api';
 import {
@@ -73,9 +70,6 @@ function parseOptionalTimezoneOffsetField(data: FormData, field: string): number
 	return parsed;
 }
 
-/**
- * TODO: Document parseOptionalDateTimeField.
- */
 function parseOptionalDateTimeField(
 	data: FormData,
 	field: string,
@@ -138,9 +132,6 @@ function parseOptionalDateTimeField(
 	return parsed.toISOString().replace('.000Z', 'Z');
 }
 
-/**
- * TODO: Document load.
- */
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const api = createApiClient(locals.user?.token);
 	const selectedIndexFilter = url.searchParams.get('index')?.trim() ?? '';

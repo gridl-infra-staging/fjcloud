@@ -48,7 +48,6 @@ create_case() {
     TARGET_ADDRESS="198.51.100.10"
 }
 
-# TODO: Document write_security_group_fixture.
 write_security_group_fixture() {
     local target_key="$1"
     local fixture_kind="$2"
@@ -73,7 +72,6 @@ write_security_group_fixture() {
     esac
 }
 
-# TODO: Document write_nc_fixture.
 write_nc_fixture() {
     local target_key="$1"
     local fixture_kind="$2"
@@ -105,7 +103,6 @@ write_nc_fixture() {
     esac
 }
 
-# TODO: Document write_http_fixture.
 write_http_fixture() {
     local target_key="$1"
     local path_key="$2"
@@ -150,7 +147,6 @@ write_http_fixture() {
     esac
 }
 
-# TODO: Document add_target.
 add_target() {
     local target_suffix="$1"
     local sg_fixture="$2"

@@ -1,13 +1,7 @@
-/**
- * @module Stub summary for web/src/routes/console/migrate/+page.server.ts.
- */
 import type { PageServerLoad } from './$types';
 import { createApiClient } from '$lib/server/api';
 import { mapDashboardSessionFailure } from '$lib/server/auth-action-errors';
 
-/**
- * TODO: Document load.
- */
 export const load: PageServerLoad = async ({ locals }) => {
 	const api = createApiClient(locals.user?.token);
 	try {

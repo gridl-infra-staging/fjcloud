@@ -1,12 +1,9 @@
-//! Stub summary for infra/api/src/repos/pg_customer_repo/projection.rs.
-
 use super::quota_warning::QUOTA_WARNINGS_SENT_PROJECTION;
 
 // Compatibility projection for mixed local schemas:
 // required identity columns are read directly, while newer optional fields
 // are read through to_jsonb(customers)->>... so missing columns resolve to NULL
 // instead of failing query compilation/execution on older local databases.
-/// TODO: Document customer_columns.
 pub(super) fn customer_columns() -> String {
     format!(
         "\
@@ -44,7 +41,6 @@ COALESCE((to_jsonb(customers)->>'failed_reset_count')::int, 0) AS failed_reset_c
     )
 }
 
-/// TODO: Document list_customers_sql.
 pub(super) fn list_customers_sql() -> String {
     let customer_columns = customer_columns();
     format!(

@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/secrets/mock.rs.
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -46,7 +45,6 @@ impl MockNodeSecretManager {
         self.delete_call_count.load(Ordering::SeqCst)
     }
 
-    /// TODO: Document MockNodeSecretManager.seed_listed_key_at.
     pub fn seed_listed_key_at(&self, node_id: &str, previous: bool, modified_at: DateTime<Utc>) {
         let key = format!("seed-{node_id}");
         if previous {
@@ -112,7 +110,6 @@ impl Default for MockNodeSecretManager {
 
 #[async_trait]
 impl NodeSecretManager for MockNodeSecretManager {
-    /// TODO: Document MockNodeSecretManager.create_node_api_key.
     async fn create_node_api_key(
         &self,
         node_id: &str,
@@ -213,7 +210,6 @@ impl NodeSecretManager for MockNodeSecretManager {
         Ok(())
     }
 
-    /// TODO: Document MockNodeSecretManager.list_node_api_keys.
     async fn list_node_api_keys(&self) -> Result<Vec<NodeSecretRecord>, NodeSecretError> {
         self.check_failure()?;
         let current = self.secrets.lock().unwrap();

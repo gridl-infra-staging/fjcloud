@@ -1,4 +1,3 @@
-//! Stub summary for startup_env.rs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RawEnvValueState {
     Absent,
@@ -39,7 +38,6 @@ pub enum NodeSecretBackendMode {
     AutoLike { normalized_backend: String },
 }
 
-/// TODO: Document StartupEnvSnapshot.
 #[derive(Debug, Clone, Default)]
 pub struct StartupEnvSnapshot {
     node_secret_backend: Option<String>,
@@ -228,7 +226,6 @@ impl StartupEnvSnapshot {
         self.storage_encryption_key.as_deref()
     }
 
-    /// TODO: Document StartupEnvSnapshot.env_value.
     pub fn env_value(&self, key: &str) -> Option<&str> {
         match key {
             "NODE_SECRET_BACKEND" => self.node_secret_backend.as_deref(),
@@ -494,7 +491,6 @@ mod tests {
         assert!(!local.is_staging_or_production());
     }
 
-    /// TODO: Document alert_webhook_family_classifies_absent_blank_and_present_values.
     #[test]
     fn alert_webhook_family_classifies_absent_blank_and_present_values() {
         let absent = snapshot_with(&[]);
@@ -671,7 +667,6 @@ mod tests {
         assert_eq!(present.storage_encryption_key_raw(), Some("abcd"));
     }
 
-    /// TODO: Document env_value_returns_snapshot_values_by_name.
     #[test]
     fn env_value_returns_snapshot_values_by_name() {
         let snapshot = snapshot_with(&[

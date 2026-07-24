@@ -139,7 +139,6 @@ ANY_FAILED=0
 TITLE="[fjcloud probe ${ENVIRONMENT}] Synthetic critical alert ${NONCE}"
 MESSAGE="If you see this in your Discord/Slack channel, alert delivery is working. Nonce: ${NONCE}. Environment: ${ENVIRONMENT}. Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)."
 
-# TODO: Document probe_channel.
 probe_channel() {
     local channel="$1"
     local webhook_url="$2"
@@ -167,7 +166,6 @@ probe_channel() {
     return 1
 }
 
-# TODO: Document probe_discord_with_readback.
 probe_discord_with_readback() {
     local webhook_url="$1"
     local payload readback_url body_file curl_output http_code curl_status curl_error response_body

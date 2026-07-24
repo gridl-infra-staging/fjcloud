@@ -1,10 +1,7 @@
-//! Stub summary for infra/api/build.rs.
-
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 
-/// TODO: Document main.
 fn main() {
     // `sqlx::migrate!` embeds the migration directory at compile time. Cargo
     // does not discover that proc-macro input by itself, so an incremental
@@ -31,7 +28,6 @@ fn main() {
     forward("FJCLOUD_BUILD_TIME");
 }
 
-/// TODO: Document migration_fingerprint.
 fn migration_fingerprint(migrations_dir: &Path) -> u64 {
     let mut paths = std::fs::read_dir(migrations_dir)
         .expect("read migrations directory")

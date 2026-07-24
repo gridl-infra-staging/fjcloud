@@ -25,7 +25,6 @@ assert_green_manifest_metadata() {
     assert_jq_eq "$verdict_path" ".section1_manifest.all_green" "true" "classifier should record all_green semantics"
 }
 
-# TODO: Document test_classify_existing_green_section1_manifest_with_full_summary_can_launch_ready.
 test_classify_existing_green_section1_manifest_with_full_summary_can_launch_ready() {
     setup_workspace
     local fixture_dir="$TEST_WORKSPACE/fixtures/green-section1"
@@ -50,7 +49,6 @@ test_classify_existing_green_section1_manifest_with_full_summary_can_launch_read
     assert_no_side_effect_calls "classify-existing with section1 manifest should not invoke coordinator or external/bootstrap tools"
 }
 
-# TODO: Document test_classify_existing_green_section1_manifest_with_filtered_summary_is_not_launch_ready.
 test_classify_existing_green_section1_manifest_with_filtered_summary_is_not_launch_ready() {
     setup_workspace
     local fixture_dir="$TEST_WORKSPACE/fixtures/filtered-section1"
@@ -72,7 +70,6 @@ JSON
     assert_green_manifest_metadata "$verdict_path"
 }
 
-# TODO: Document test_validate_existing_requires_summary_when_receipt_records_digest.
 test_validate_existing_requires_summary_when_receipt_records_digest() {
     setup_workspace
     local fixture_dir="$TEST_WORKSPACE/fixtures/validate-existing-summary-required"
@@ -94,7 +91,6 @@ test_validate_existing_requires_summary_when_receipt_records_digest() {
     assert_no_side_effect_calls "validate-existing summary checks should not invoke coordinator or external/bootstrap tools"
 }
 
-# TODO: Document test_validate_existing_emits_closeout_validation_receipt.
 test_validate_existing_emits_closeout_validation_receipt() {
     setup_workspace
     local fixture_dir="$TEST_WORKSPACE/fixtures/validate-existing-output"
@@ -123,7 +119,6 @@ test_validate_existing_emits_closeout_validation_receipt() {
     assert_no_side_effect_calls "validate-existing receipt output should not invoke coordinator or external/bootstrap tools"
 }
 
-# TODO: Document test_validate_existing_rejects_noncanonical_verdict_without_receipt.
 test_validate_existing_rejects_noncanonical_verdict_without_receipt() {
     setup_workspace
     local fixture_dir="$TEST_WORKSPACE/fixtures/validate-existing-verdict-drift"
@@ -151,7 +146,6 @@ test_validate_existing_rejects_noncanonical_verdict_without_receipt() {
     assert_no_side_effect_calls "verdict drift validation should not invoke coordinator or external/bootstrap tools"
 }
 
-# TODO: Document test_classify_existing_complete_red_section1_manifest_is_only_preauthorized_non_green.
 test_classify_existing_complete_red_section1_manifest_is_only_preauthorized_non_green() {
     setup_workspace
     local fixture_dir="$TEST_WORKSPACE/fixtures/complete-red-section1"
@@ -171,7 +165,6 @@ test_classify_existing_complete_red_section1_manifest_is_only_preauthorized_non_
     assert_no_side_effect_calls "classify-existing with complete-red section1 manifest should not invoke coordinator or external/bootstrap tools"
 }
 
-# TODO: Document test_classify_existing_structural_section1_gap_is_not_preauthorized.
 test_classify_existing_structural_section1_gap_is_not_preauthorized() {
     setup_workspace
     local fixture_dir="$TEST_WORKSPACE/fixtures/structural-section1"
@@ -190,7 +183,6 @@ test_classify_existing_structural_section1_gap_is_not_preauthorized() {
     assert_jq_eq "$verdict_path" ".pre_authorized_shape_match" "false" "structural section1 gaps are not preauthorized"
 }
 
-# TODO: Document test_classify_existing_taxonomy_rows_fail_closed_without_real_defects.
 test_classify_existing_taxonomy_rows_fail_closed_without_real_defects() {
     setup_workspace
     local fixture_dir="$TEST_WORKSPACE/fixtures/taxonomy"
@@ -276,7 +268,6 @@ test_classify_existing_prod_full_vm_lifecycle_staging_only_skip_is_mode_skip() {
     assert_jq_eq "$verdict_path" ".non_pass_steps[] | select(.name == \"prod_full_vm_lifecycle\") | .section" "6" "staging-only prod lifecycle skip must still map to section 6"
 }
 
-# TODO: Document test_classify_existing_real_defect_overrides_complete_red_section1_preauthorization.
 test_classify_existing_real_defect_overrides_complete_red_section1_preauthorization() {
     setup_workspace
     local fixture_dir="$TEST_WORKSPACE/fixtures/complete-red-with-defect"

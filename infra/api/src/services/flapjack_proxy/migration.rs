@@ -1,10 +1,8 @@
-//! Stub summary for infra/api/src/services/flapjack_proxy/migration.rs.
 use crate::services::algolia_import::{AlgoliaImportSubmitPayload, AsyncMigrationStatusResponse};
 
 use super::{FlapjackProxy, ProxyError};
 
 impl FlapjackProxy {
-    /// TODO: Document FlapjackProxy.submit_algolia_migration.
     pub(crate) async fn submit_algolia_migration(
         &self,
         flapjack_url: &str,
@@ -43,7 +41,6 @@ impl FlapjackProxy {
         )
     }
 
-    /// TODO: Document FlapjackProxy.algolia_migration_status.
     pub async fn algolia_migration_status(
         &self,
         flapjack_url: &str,
@@ -69,7 +66,6 @@ impl FlapjackProxy {
         )
     }
 
-    /// TODO: Document FlapjackProxy.cancel_algolia_migration.
     pub async fn cancel_algolia_migration(
         &self,
         flapjack_url: &str,

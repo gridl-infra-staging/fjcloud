@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-//! Stub summary for infra/api/tests/common/builders.rs.
 use api::dns::mock::MockDnsManager;
 use api::provisioner::mock::MockVmProvisioner;
 use api::provisioner::region_map::RegionConfig;
@@ -55,7 +54,6 @@ pub const TEST_ADMIN_KEY: &str = "test-admin-key-16";
 pub const TEST_INTERNAL_AUTH_TOKEN: &str = "test-internal-key";
 pub const TEST_WEBHOOK_SECRET: &str = "test-webhook-secret";
 
-/// TODO: Document lazy_pool.
 fn lazy_pool() -> sqlx::PgPool {
     PgPoolOptions::new()
         .max_connections(1)
@@ -163,7 +161,6 @@ fn build_replica_services(
     (discovery_service, index_replica_repo, replica_service)
 }
 
-/// TODO: Document mock_provisioning_service.
 fn mock_provisioning_service(
     vm_provisioner: Arc<MockVmProvisioner>,
     dns_manager: Arc<MockDnsManager>,
@@ -729,7 +726,6 @@ impl TestStateBuilder {
         )
     }
 
-    /// TODO: Document TestStateBuilder.with_oauth_google_provider_with_endpoints.
     pub fn with_oauth_google_provider_with_endpoints(
         mut self,
         client_id: &str,
@@ -765,7 +761,6 @@ impl TestStateBuilder {
         )
     }
 
-    /// TODO: Document TestStateBuilder.with_oauth_github_provider_with_endpoints.
     pub fn with_oauth_github_provider_with_endpoints(
         mut self,
         client_id: &str,
@@ -1093,7 +1088,6 @@ pub fn test_app_with_indexes_and_vm_inventory(
     ))
 }
 
-/// TODO: Document test_app_with_indexes_vm_inventory_and_metrics_cache.
 pub fn test_app_with_indexes_vm_inventory_and_metrics_cache(
     customer_repo: Arc<MockCustomerRepo>,
     deployment_repo: Arc<MockDeploymentRepo>,
@@ -1178,7 +1172,6 @@ pub fn test_app_with_onboarding(
 mod tests {
     use super::TestStateBuilder;
 
-    /// TODO: Document builder_threads_oauth_runtime_config_into_app_state.
     #[tokio::test]
     async fn builder_threads_oauth_runtime_config_into_app_state() {
         let state = TestStateBuilder::new()

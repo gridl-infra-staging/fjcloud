@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Stub summary for emit_dispatch_manifest.py."""
 
 from __future__ import annotations
 
@@ -61,7 +60,6 @@ def _join_index_entries(
     index_entries: list[dict[str, Any]],
     effort_bands: dict[tuple[str, int, str], str],
 ) -> list[dict[str, Any]]:
-    """TODO: Document _join_index_entries."""
     joined: list[dict[str, Any]] = []
     for entry in index_entries:
         key = _row_identity(entry)
@@ -124,7 +122,6 @@ def _render_manifest(
     to_defer_rows: list[dict[str, Any]],
     source_warnings: list[dict[str, Any]],
 ) -> str:
-    """TODO: Document _render_manifest."""
     lines = [
         f"# may24 {ts} - W3 dispatch manifest",
         "",
@@ -187,7 +184,6 @@ def emit_dispatch_manifest(
     output_dir: Path,
     emit_shell: bool,
 ) -> tuple[Path, Path | None]:
-    """TODO: Document emit_dispatch_manifest."""
     to_author = _load_payload(to_author_path)
     to_defer = _load_payload(to_defer_path)
     index_payload = _load_payload(index_path)
@@ -236,7 +232,6 @@ def emit_dispatch_manifest(
 
 
 def main(argv: list[str]) -> int:
-    """TODO: Document main."""
     if len(argv) not in (4, 5):
         print(
             "usage: python3 scripts/w3_triage/emit_dispatch_manifest.py "

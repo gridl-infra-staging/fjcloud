@@ -161,7 +161,6 @@ collect_live_nc_evidence() {
         "$(tr '\n' ' ' < "$EVIDENCE_DIR/${TARGET_KEY}.nc.output")"
 }
 
-# TODO: Document collect_live_http_evidence.
 collect_live_http_evidence() {
     local path_key="$1"
     local request_path="$2"
@@ -215,7 +214,6 @@ collect_live_evidence() {
     collect_live_tls_evidence
 }
 
-# TODO: Document classify_security_group.
 classify_security_group() {
     local json_file="$EVIDENCE_DIR/${TARGET_KEY}.sg.json"
     local exit_file="$EVIDENCE_DIR/${TARGET_KEY}.sg.exit"
@@ -270,7 +268,6 @@ print("public" if is_public else "restricted")
 PY
 }
 
-# TODO: Document classify_nc.
 classify_nc() {
     local exit_file="$EVIDENCE_DIR/${TARGET_KEY}.nc.exit"
     local output_file="$EVIDENCE_DIR/${TARGET_KEY}.nc.output"
@@ -299,7 +296,6 @@ classify_nc() {
     fi
 }
 
-# TODO: Document classify_http.
 classify_http() {
     local path_key="$1"
     local status_file="$EVIDENCE_DIR/${TARGET_KEY}.http_${path_key}.status"
@@ -378,7 +374,6 @@ render_target_verdict() {
         "$(read_http_status indexes)" "$TLS_STATE" "$target_verdict"
 }
 
-# TODO: Document classify_target.
 classify_target() {
     local dashboard_state swagger_state indexes_state target_verdict
 

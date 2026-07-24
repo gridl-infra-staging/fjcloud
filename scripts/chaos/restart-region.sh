@@ -82,7 +82,6 @@ report_started_pid_exit() {
     die "flapjack-${REGION} exited after health check (PID ${pid})"
 }
 
-# TODO: Document verify_started_pid_alive.
 verify_started_pid_alive() {
     local pid
     pid="$(cat "$PID_FILE" 2>/dev/null || true)"

@@ -1,13 +1,7 @@
-/**
- * @module Stub summary for legal_page_playwright_helpers.ts.
- */
 import { expect, type Page } from '@playwright/test';
 
 import { SHARED_LEGAL_PAGE_CONTRACT } from './legal_page_contract';
 
-/**
- * TODO: Document assertSharedLegalPageContract.
- */
 export async function assertSharedLegalPageContract(page: Page): Promise<void> {
 	for (const check of SHARED_LEGAL_PAGE_CONTRACT) {
 		if (check.kind === 'text') {

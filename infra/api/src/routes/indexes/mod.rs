@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/routes/indexes/mod.rs.
 use axum::extract::{Path, RawQuery, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -115,7 +114,6 @@ pub struct IndexResponse {
     pub created_at: String,
 }
 
-/// TODO: Document index_response_from_summary.
 pub(crate) fn index_response_from_summary(
     summary: CustomerTenantSummary,
     cold_since: Option<String>,

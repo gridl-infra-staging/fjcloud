@@ -69,7 +69,6 @@ served_get() {
         "$url" 2>/dev/null || true
 }
 
-# TODO: Document served_version_from_json.
 served_version_from_json() {
     python3 - "$1" <<'PY'
 import json
@@ -105,7 +104,6 @@ served_version_url() {
     printf '%s/_app/version.json\n' "${PAGES_ALIAS_URL%/}"
 }
 
-# TODO: Document json_first_account_id.
 json_first_account_id() {
     python3 - "$1" <<'PY'
 import json
@@ -127,7 +125,6 @@ else:
 PY
 }
 
-# TODO: Document json_project_names.
 json_project_names() {
     python3 - "$1" <<'PY'
 import json
@@ -145,7 +142,6 @@ for project in data.get("result", []):
 PY
 }
 
-# TODO: Document alias_deployment_commit.
 alias_deployment_commit() {
     python3 - "$1" "$PAGES_ALIAS_URL" <<'PY'
 import json
@@ -177,7 +173,6 @@ for deployment_key in ("canonical_deployment", "latest_deployment"):
 PY
 }
 
-# TODO: Document resolve_alias_deployment_commit.
 resolve_alias_deployment_commit() {
     local accounts_json="$tmp_dir/accounts.json"
     local accounts_http account_id projects_json projects_http project_name detail_json detail_http detail_line
@@ -215,7 +210,6 @@ resolve_alias_deployment_commit() {
     return 1
 }
 
-# TODO: Document metadata_context.
 metadata_context() {
     local deployment_line deployment_key deployment_commit lookup_stderr
 

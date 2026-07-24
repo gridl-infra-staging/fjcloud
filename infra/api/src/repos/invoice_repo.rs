@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/repos/invoice_repo.rs.
 use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -7,7 +6,6 @@ use uuid::Uuid;
 use crate::models::{InvoiceLineItemRow, InvoiceRow};
 use crate::repos::error::RepoError;
 
-/// TODO: Document AdminInvoiceSummaryRow.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct AdminInvoiceSummaryRow {
     pub id: Uuid,

@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for web/src/routes/admin/+layout.server.ts.
- */
 import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 import {
@@ -10,9 +7,6 @@ import {
 } from '$lib/server/admin-session';
 import { privateEnvValue } from '$lib/server/runtime-env';
 
-/**
- * TODO: Document load.
- */
 export const load: LayoutServerLoad = async ({ cookies, url, platform }) => {
 	purgeExpiredAdminSessions();
 

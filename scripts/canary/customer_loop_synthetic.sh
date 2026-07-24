@@ -21,7 +21,6 @@ source "$REPO_ROOT/scripts/lib/http_json.sh"
 DEFAULT_ALERT_DISPATCH_IMPL="$REPO_ROOT/scripts/lib/alert_dispatch.sh"
 ALERT_DISPATCH_IMPL="${ALERT_DISPATCH_HELPER:-$DEFAULT_ALERT_DISPATCH_IMPL}"
 
-# TODO: Document validate_alert_dispatch_helper.
 validate_alert_dispatch_helper() {
     local helper_path="$1"
     local allowed_dir="$REPO_ROOT/scripts/lib"
@@ -104,7 +103,6 @@ mark_failure() {
     fi
 }
 
-# TODO: Document emit_skip.
 emit_skip() {
     local reason="$1"
     local detail="$2"
@@ -168,7 +166,6 @@ resolve_ssm_parameter_if_configured() {
     export "$var_name"
 }
 
-# TODO: Document load_canary_env.
 load_canary_env() {
     local default_secret_file="$REPO_ROOT/.secret/.env.secret"
     local secret_file="${FJCLOUD_SECRET_FILE:-$default_secret_file}"
@@ -222,7 +219,6 @@ load_canary_probe_prereq_env() {
     export ENVIRONMENT CANARY_AWS_REGION CANARY_TEST_INBOX_DOMAIN CANARY_TEST_INBOX_S3_URI
 }
 
-# TODO: Document precheck_canary_probe_env.
 precheck_canary_probe_env() {
     local prereq_output="" prereq_rc=0 reason detail
 
@@ -251,7 +247,6 @@ precheck_canary_probe_env() {
     esac
 }
 
-# TODO: Document json_get_field.
 json_get_field() {
     local json_body="$1"
     local field_name="$2"
@@ -286,7 +281,6 @@ print(json.dumps(sys.argv[1]))
 PY
 }
 
-# TODO: Document parse_epoch_seconds.
 parse_epoch_seconds() {
     local raw_value="$1"
 
@@ -324,7 +318,6 @@ resolve_quiet_until_raw() {
         --output text
 }
 
-# TODO: Document quiet_window_active.
 quiet_window_active() {
     local quiet_until_raw quiet_until_epoch now_epoch
 
@@ -342,7 +335,6 @@ quiet_window_active() {
     [ "$quiet_until_epoch" -gt "$now_epoch" ]
 }
 
-# TODO: Document dispatch_failure_alert.
 dispatch_failure_alert() {
     local failed_step="$1"
     local detail_message="$2"
@@ -387,7 +379,6 @@ Options:
 USAGE
 }
 
-# TODO: Document parse_cli_args.
 parse_cli_args() {
     CANARY_LIVE_MODE_CLI_OVERRIDE=""
     CANARY_SHOW_HELP=0
@@ -428,7 +419,6 @@ parse_cli_args() {
     return 0
 }
 
-# TODO: Document generate_canary_signup_password.
 generate_canary_signup_password() {
     python3 - <<'PY'
 import secrets
@@ -437,7 +427,6 @@ print(f"Canary-{secrets.token_hex(16)}")
 PY
 }
 
-# TODO: Document run_signup_step.
 run_signup_step() {
     local payload
 
@@ -467,7 +456,6 @@ run_signup_step() {
     log "signup succeeded for ${CANARY_SIGNUP_EMAIL} (customer=${CANARY_CUSTOMER_ID})"
 }
 
-# TODO: Document run_verify_email_step.
 run_verify_email_step() {
     local bucket prefix parsed_s3 message_key rfc822_payload verify_token
     local inbox_lookup_output inbox_lookup_status payload
@@ -530,7 +518,6 @@ run_verify_email_step() {
     log "email verification succeeded for ${CANARY_SIGNUP_EMAIL}"
 }
 
-# TODO: Document run_sync_stripe_step.
 run_sync_stripe_step() {
     if [ -z "$ADMIN_KEY" ]; then
         mark_failure "sync_stripe" "ADMIN_KEY is required for /admin/customers/{id}/sync-stripe"
@@ -552,7 +539,6 @@ run_sync_stripe_step() {
     log "stripe sync succeeded (stripe_customer_id=${CANARY_STRIPE_CUSTOMER_ID})"
 }
 
-# TODO: Document run_setup_intent_and_stripe_attach_step.
 run_setup_intent_and_stripe_attach_step() {
     local client_secret attached_payment_method
 
@@ -609,7 +595,6 @@ run_setup_intent_and_stripe_attach_step() {
     log "setup-intent succeeded and payment method attached as default"
 }
 
-# TODO: Document run_live_create_invoice_step.
 run_live_create_invoice_step() {
     local invoice_id charge_id
 
@@ -690,7 +675,6 @@ run_live_create_invoice_step() {
     log "live invoice paid (invoice=${CANARY_LIVE_INVOICE_ID} charge=${CANARY_LIVE_CHARGE_ID})"
 }
 
-# TODO: Document run_live_refund_step.
 run_live_refund_step() {
     if [ -z "$CANARY_LIVE_CHARGE_ID" ]; then
         mark_failure "live_refund" "CANARY_LIVE_CHARGE_ID missing before refund step"
@@ -717,7 +701,6 @@ run_live_refund_step() {
     log "live refund succeeded (refund=${CANARY_LIVE_REFUND_ID})"
 }
 
-# TODO: Document run_live_find_payment_event_step.
 run_live_find_payment_event_step() {
     local max_attempts=10 attempt
     CANARY_LIVE_PAYMENT_EVENT_ID=""
@@ -774,7 +757,6 @@ PY
     log "live payment event located (${CANARY_LIVE_PAYMENT_EVENT_ID})"
 }
 
-# TODO: Document run_live_webhook_verify_step.
 run_live_webhook_verify_step() {
     local max_attempts=15 attempt
 
@@ -815,7 +797,6 @@ PY
     return 1
 }
 
-# TODO: Document run_live_cleanup_step.
 run_live_cleanup_step() {
     if [ -n "$CANARY_LIVE_CHARGE_ID" ] && [ -z "$CANARY_LIVE_REFUND_ID" ]; then
         if stripe_request POST "/v1/refunds" \
@@ -847,7 +828,6 @@ run_live_stripe_branch() {
     run_live_webhook_verify_step || return 1
 }
 
-# TODO: Document run_index_create_step.
 run_index_create_step() {
     local payload
 
@@ -885,7 +865,6 @@ run_index_batch_step() {
     log "index write succeeded (${CANARY_INDEX_NAME})"
 }
 
-# TODO: Document run_index_search_step.
 run_index_search_step() {
     local search_ok=0 attempt
     local payload
@@ -941,7 +920,6 @@ run_delete_index_step() {
     log "index deleted (${CANARY_INDEX_NAME})"
 }
 
-# TODO: Document run_delete_account_step.
 run_delete_account_step() {
     local payload
 
@@ -961,7 +939,6 @@ run_delete_account_step() {
     log "account delete attempted for customer ${CANARY_CUSTOMER_ID}"
 }
 
-# TODO: Document run_admin_cleanup_step.
 run_admin_cleanup_step() {
     if [ -z "$CANARY_CUSTOMER_ID" ] || [ "$CANARY_ADMIN_CLEANED" -eq 1 ]; then
         return 0
@@ -1005,7 +982,6 @@ cleanup_after_flow() {
     run_admin_cleanup_step || true
 }
 
-# TODO: Document main.
 main() {
     local prereq_rc=0
 

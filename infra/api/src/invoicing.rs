@@ -1,4 +1,3 @@
-//! Stub summary for invoicing.rs.
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -172,7 +171,6 @@ pub struct SharedBillingData<'a> {
     pub storage_buckets: &'a [StorageBucket],
 }
 
-/// TODO: Document generate_invoice.
 pub fn generate_invoice(
     usage_rows: &[UsageDaily],
     rate_card: &billing::rate_card::RateCard,
@@ -328,7 +326,6 @@ pub async fn compute_invoice_for_customer_with_rate_card_id(
     .await
 }
 
-/// TODO: Document compute_invoice_for_customer_with_shared_inputs.
 pub async fn compute_invoice_for_customer_with_shared_inputs(
     repos: &BillingRepos<'_>,
     shared: &SharedBillingData<'_>,

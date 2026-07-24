@@ -16,7 +16,6 @@ packaging_dir="ops/terraform/support_email_canary"
 dockerfile_file="$packaging_dir/Dockerfile"
 lambda_handler_file="$packaging_dir/lambda_handler.py"
 
-# TODO: Document assert_resource_ownership.
 assert_resource_ownership() {
   local resource_type="$1"
   local owner_file="$2"
@@ -37,7 +36,6 @@ assert_resource_ownership() {
   pass "$description"
 }
 
-# TODO: Document assert_tf_variable_default.
 assert_tf_variable_default() {
   local file="$1"
   local variable_name="$2"

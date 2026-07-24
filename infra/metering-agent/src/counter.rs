@@ -1,4 +1,3 @@
-//! Stub summary for counter.rs.
 use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -291,7 +290,6 @@ mod tests {
         }
     }
 
-    /// TODO: Document setup_active_counter_test.
     fn setup_active_counter_test(name: &str) -> (Config, TenantStateMap, TenantCustomerMap) {
         let cfg = test_config();
         let state: TenantStateMap = Arc::new(DashMap::new());
@@ -444,7 +442,6 @@ mod tests {
         assert!(records.iter().all(|r| r.tenant_id != "unknown"));
     }
 
-    /// TODO: Document metering_uses_canonical_tenant_id_when_metrics_use_flapjack_uid.
     #[test]
     fn metering_uses_canonical_tenant_id_when_metrics_use_flapjack_uid() {
         let cfg = test_config();
@@ -494,7 +491,6 @@ mod tests {
         );
     }
 
-    /// TODO: Document metering_preserves_counter_state_across_alias_to_canonical_label_change.
     #[test]
     fn metering_preserves_counter_state_across_alias_to_canonical_label_change() {
         let cfg = test_config();

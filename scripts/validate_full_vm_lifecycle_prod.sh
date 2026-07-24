@@ -80,7 +80,6 @@ Modes:
 USAGE
 }
 
-# TODO: Document parse_cli_args.
 parse_cli_args() {
     if [ "$#" -ne 1 ]; then
         print_usage >&2
@@ -117,7 +116,6 @@ require_safe_identifier() {
     fi
 }
 
-# TODO: Document load_orchestration_env.
 load_orchestration_env() {
     # Preserve repo-approved secret-file values by clearing ambient AWS exports
     # that can shadow this script's credential loading contract.
@@ -142,7 +140,6 @@ load_orchestration_env() {
     require_var "ADMIN_KEY"
 }
 
-# TODO: Document load_run_b_stripe_transport.
 load_run_b_stripe_transport() {
     STRIPE_API_BASE="${STRIPE_API_BASE:-https://api.stripe.com}"
     export STRIPE_API_BASE
@@ -165,7 +162,6 @@ load_run_b_stripe_transport() {
     export STRIPE_SECRET_KEY_EFFECTIVE
 }
 
-# TODO: Document run_index_create_step.
 run_index_create_step() {
     local attempt response_code
     CANARY_INDEX_NAME="lifecycle-${CANARY_NONCE}"
@@ -390,7 +386,6 @@ run_sync_stripe_step() {
     require_safe_identifier "stripe_customer_id" "$CANARY_STRIPE_CUSTOMER_ID" '^cus_[A-Za-z0-9]+$'
 }
 
-# TODO: Document run_prepare_run_b_payment_step.
 run_prepare_run_b_payment_step() {
     if [ "$STRIPE_PAY_OUT_OF_BAND" = "1" ]; then
         log "run-b out-of-band mode: skipping payment method attachment"
@@ -440,7 +435,6 @@ run_invoice_generation_step() {
     require_safe_identifier "invoice_id" "$LIFECYCLE_INVOICE_ID" '^([0-9]+|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$'
 }
 
-# TODO: Document run_invoice_finalize_step.
 run_invoice_finalize_step() {
     capture_json_response admin_call POST "/admin/invoices/${LIFECYCLE_INVOICE_ID}/finalize"
     if [ "$HTTP_RESPONSE_CODE" != "200" ]; then
@@ -461,7 +455,6 @@ run_invoice_finalize_step() {
     require_safe_identifier "stripe_invoice_id" "$LIFECYCLE_STRIPE_INVOICE_ID" '^in_[A-Za-z0-9]+$'
 }
 
-# TODO: Document run_pay_invoice_out_of_band_step.
 run_pay_invoice_out_of_band_step() {
     if [ "$STRIPE_PAY_OUT_OF_BAND" != "1" ]; then
         return 0
@@ -520,7 +513,6 @@ except Exception as e:
     log "invoice marked paid out-of-band (stripe=${LIFECYCLE_STRIPE_INVOICE_ID})"
 }
 
-# TODO: Document run_wait_for_paid_invoice_step.
 run_wait_for_paid_invoice_step() {
     local invoice_paid=0
 
@@ -588,7 +580,6 @@ run_tenant_invoice_read_step() {
     fi
 }
 
-# TODO: Document read_reusable_privacy_card_token.
 read_reusable_privacy_card_token() {
     local ssm_param="$1"
     local stderr_file=""
@@ -730,7 +721,6 @@ run_optional_privacy_card_step() {
     log "created and stashed reusable privacy card ${LIFECYCLE_PRIVACY_CARD_TOKEN} at ${ssm_param}"
 }
 
-# TODO: Document run_detach_probe_payment_method_step.
 run_detach_probe_payment_method_step() {
     if [ -z "$LIFECYCLE_ATTACHED_PAYMENT_METHOD_ID" ]; then
         return 0
@@ -757,7 +747,6 @@ run_detach_probe_payment_method_step() {
     return 1
 }
 
-# TODO: Document run_pause_privacy_card_step.
 run_pause_privacy_card_step() {
     if [ -z "$LIFECYCLE_PRIVACY_CARD_TOKEN" ]; then
         return 0
@@ -797,7 +786,6 @@ json.dump(scrub(json.load(sys.stdin)), sys.stdout)
 sys.stdout.write("\n")'
 }
 
-# TODO: Document capture_stage5_db_sql_file.
 capture_stage5_db_sql_file() {
     local dir="$1"
     local artifact_file="$2"
@@ -827,7 +815,6 @@ capture_stage5_db_sql_file() {
     return 1
 }
 
-# TODO: Document resolve_stage5_database_url.
 resolve_stage5_database_url() {
     local ssm_param region hydrated
 
@@ -864,7 +851,6 @@ resolve_stage5_database_url() {
     return 1
 }
 
-# TODO: Document capture_stage5_verify_email_aws_evidence.
 capture_stage5_verify_email_aws_evidence() {
     local dir="$1"
     local region="${CANARY_AWS_REGION:-us-east-1}"
@@ -1023,7 +1009,6 @@ capture_stage5_post_cleanup_evidence() {
     log "evidence: post-cleanup artifacts written to ${dir}"
 }
 
-# TODO: Document run_orchestration_flow.
 run_orchestration_flow() {
     run_signup_step || return 1
     run_verify_email_step || return 1
@@ -1098,7 +1083,6 @@ run_live_mode() {
     fi
 }
 
-# TODO: Document main.
 main() {
     parse_cli_args "$@" || return 1
 

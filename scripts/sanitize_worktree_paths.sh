@@ -22,7 +22,6 @@ Usage: scripts/sanitize_worktree_paths.sh [--check|--write]
 EOF
 }
 
-# TODO: Document parse_args.
 parse_args() {
     if [ "$#" -gt 1 ]; then
         usage
@@ -48,7 +47,6 @@ stdin_has_paths() {
     [ -p /dev/stdin ]
 }
 
-# TODO: Document resolve_repo_member_path.
 resolve_repo_member_path() {
     local relative_path="$1"
     python3 - "$REPO_ROOT" "$relative_path" <<'PY'
@@ -97,7 +95,6 @@ path_contains_leak() {
     grep -Eq "$WORKTREE_PATH_PATTERN" "$absolute_path"
 }
 
-# TODO: Document capture_stdin_leak_files.
 capture_stdin_leak_files() {
     local relative_path
 
@@ -118,7 +115,6 @@ capture_stdin_leak_files() {
     done
 }
 
-# TODO: Document capture_leak_files.
 capture_leak_files() {
     local grep_output
     local grep_status
@@ -153,7 +149,6 @@ capture_leak_files() {
     printf '%s\n' "$grep_output" | sed '/^$/d'
 }
 
-# TODO: Document check_for_leaks.
 check_for_leaks() {
     local leak_files="$1"
     local relative_path
@@ -191,7 +186,6 @@ is_source_or_config_path() {
     esac
 }
 
-# TODO: Document sanitize_file.
 sanitize_file() {
     local relative_path="$1"
     local absolute_path
@@ -217,7 +211,6 @@ sanitize_file() {
     rm -f "$absolute_path.bak"
 }
 
-# TODO: Document write_sanitized_files.
 write_sanitized_files() {
     local leak_files="$1"
     local scrubbed_count=0

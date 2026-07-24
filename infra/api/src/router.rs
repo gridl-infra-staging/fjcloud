@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/router.rs.
 use axum::response::{IntoResponse, Response};
 use axum::{
     extract::DefaultBodyLimit,
@@ -93,7 +92,6 @@ impl RateLimiter {
         self.check_at(key, Instant::now())
     }
 
-    /// TODO: Document RateLimiter.check_at.
     fn check_at(&self, key: &str, now: Instant) -> Option<u64> {
         let window_start = now - self.window;
         let mut state = self.state.lock().unwrap_or_else(|poisoned| {
@@ -217,7 +215,6 @@ fn panic_error_message(panic_error: &(dyn Any + Send + 'static)) -> String {
     }
 }
 
-/// TODO: Document build_s3_router.
 pub fn build_s3_router(state: AppState, cfg: &Config) -> Router {
     use crate::routes::storage::{buckets, objects};
 
@@ -254,7 +251,6 @@ pub fn build_s3_router(state: AppState, cfg: &Config) -> Router {
         .layer(DefaultBodyLimit::max(100_000_000))
 }
 
-/// TODO: Document build_router_inner.
 fn build_router_inner(
     state: AppState,
     cors_allowed_origins: Option<&str>,
@@ -307,7 +303,6 @@ mod tests {
 
     use super::{panic_error_message, RateLimiter};
 
-    /// TODO: Document rate_limiter_resets_exactly_at_window_boundary.
     #[test]
     fn rate_limiter_resets_exactly_at_window_boundary() {
         let window = Duration::from_secs(60);

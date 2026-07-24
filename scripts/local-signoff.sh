@@ -82,7 +82,6 @@ usage() {
     echo "Usage: local-signoff.sh [--only {commerce|cold-storage|ha}] [--check-prerequisites]" >&2
 }
 
-# TODO: Document parse_only_arg.
 parse_only_arg() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
@@ -128,7 +127,6 @@ is_valid_database_url() {
     [[ "$database_url" =~ ^postgres(ql)?://[^[:space:]]+$ ]]
 }
 
-# TODO: Document collect_strict_signoff_env_issues.
 collect_strict_signoff_env_issues() {
     if [ -z "${STRIPE_LOCAL_MODE:-}" ]; then
         strict_env_issue missing STRIPE_LOCAL_MODE
@@ -161,7 +159,6 @@ collect_strict_signoff_env_issues() {
     fi
 }
 
-# TODO: Document require_strict_signoff_env.
 require_strict_signoff_env() {
     local issues issue
     local details=""
@@ -179,7 +176,6 @@ EOF
     die "Strict signoff prerequisites invalid:${details}"
 }
 
-# TODO: Document check_prerequisites.
 check_prerequisites() {
     local ok=true
     local cmd
@@ -261,7 +257,6 @@ classify_failure() {
 # Proof delegation
 # ---------------------------------------------------------------------------
 
-# TODO: Document run_proof.
 run_proof() {
     local idx="$1" script_path="$2"
     shift 2
@@ -286,7 +281,6 @@ run_proof() {
     return "$exit_code"
 }
 
-# TODO: Document refresh_ha_seed_state.
 refresh_ha_seed_state() {
     local idx="$1"
     local seed_script="$SCRIPT_DIR/seed_local.sh"
@@ -320,7 +314,6 @@ set_post_ha_failure() {
     set_proof_fail_class "$idx" "test_or_proof_failure"
 }
 
-# TODO: Document verify_post_ha_health.
 verify_post_ha_health() {
     local idx="$1"
     local api_url
@@ -361,7 +354,6 @@ verify_post_ha_health() {
 # Summary output
 # ---------------------------------------------------------------------------
 
-# TODO: Document write_summary_json.
 write_summary_json() {
     local overall="$1"
     local proofs_json=""
@@ -395,7 +387,6 @@ write_summary_json() {
         "$overall" "$proofs_json" "$ARTIFACT_DIR" > "$ARTIFACT_DIR/summary.json"
 }
 
-# TODO: Document print_human_summary.
 print_human_summary() {
     local overall="$1"
     local i=0
@@ -427,7 +418,6 @@ print_human_summary() {
 # Main
 # ---------------------------------------------------------------------------
 
-# TODO: Document main.
 main() {
     parse_only_arg "$@"
     # Match the other local wrappers: repo-local .env.local provides the default

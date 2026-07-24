@@ -55,7 +55,6 @@ set_metering_failure() {
     SUMMARY_DETAIL="Metering evidence failed and blocked live mutation."
 }
 
-# TODO: Document run_remote_metering_check.
 run_remote_metering_check() {
     local check_fn="$1"
     local check_label="$2"
@@ -82,7 +81,6 @@ run_remote_metering_check() {
     return 1
 }
 
-# TODO: Document run_metering_check.
 run_metering_check() {
     local check_fn="$1"
     local check_label="$2"

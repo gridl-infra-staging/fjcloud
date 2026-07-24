@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/routes/admin/mod.rs.
 pub mod alerts;
 pub mod broadcast;
 pub mod cold;
@@ -21,7 +20,6 @@ use axum::Router;
 
 use crate::state::AppState;
 
-/// TODO: Document admin_routes.
 pub fn admin_routes() -> Router<AppState> {
     Router::new()
         .route("/tokens", post(tokens::create_token))

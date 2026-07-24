@@ -74,7 +74,6 @@ for item in items:
 PY
 }
 
-# TODO: Document json_has_deleted_tenant_by_email.
 json_has_deleted_tenant_by_email() {
     local file_path="$1"
     local email="$2"
@@ -97,7 +96,6 @@ urlencode_path_component() {
     python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"
 }
 
-# TODO: Document require_http_url.
 require_http_url() {
     local var_name="$1"
     local url_value="$2"
@@ -145,7 +143,6 @@ derive_rotated_load_user_email() {
     printf '%s+%s@%s' "$local_part" "$suffix" "$domain_part"
 }
 
-# TODO: Document api_request.
 api_request() {
     local method="$1"
     local url="$2"
@@ -171,7 +168,6 @@ read_and_remove_file() {
     printf '%s' "$content"
 }
 
-# TODO: Document wait_for_healthcheck.
 wait_for_healthcheck() {
     local service_name="$1"
     local base_url="$2"
@@ -288,7 +284,6 @@ delete_stale_user_by_email() {
     esac
 }
 
-# TODO: Document rotate_load_user_email_if_deleted_conflict.
 rotate_load_user_email_if_deleted_conflict() {
     local email="$1"
     local allow_rotate="${LOAD_SETUP_ROTATE_DELETED_USER_EMAIL:-1}"
@@ -329,7 +324,6 @@ rotate_load_user_email_if_deleted_conflict() {
     return 0
 }
 
-# TODO: Document ensure_user.
 ensure_user() {
     local attempt=0
     local max_attempts="${LOAD_SETUP_REGISTER_ATTEMPTS:-6}"
@@ -389,7 +383,6 @@ ensure_user() {
     die "register for ${LOAD_USER_EMAIL} stayed rate-limited after ${max_attempts} attempts"
 }
 
-# TODO: Document ensure_shared_plan.
 ensure_shared_plan() {
     local customer_id="$1"
     local body_file
@@ -415,7 +408,6 @@ ensure_shared_plan() {
     esac
 }
 
-# TODO: Document cleanup_prior_load_indexes.
 cleanup_prior_load_indexes() {
     local token="$1"
     local body_file
@@ -486,7 +478,6 @@ PY
     log "Deleted ${deleted_count} stale load index(es) for ${LOAD_USER_EMAIL}"
 }
 
-# TODO: Document ensure_index.
 ensure_index() {
     local token="$1"
     local body_file
@@ -516,7 +507,6 @@ ensure_index() {
     esac
 }
 
-# TODO: Document wait_for_index_search_ready.
 wait_for_index_search_ready() {
     local token="$1"
     local max_wait="${LOAD_SETUP_INDEX_WAIT_SEC:-20}"

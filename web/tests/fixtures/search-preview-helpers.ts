@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for web/tests/fixtures/search-preview-helpers.ts.
- */
 import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
@@ -46,9 +43,6 @@ async function detectSearchPreviewState(page: Page): Promise<SearchPreviewState>
 	return 'pending';
 }
 
-/**
- * TODO: Document waitForSearchPreviewState.
- */
 export async function waitForSearchPreviewState(page: Page): Promise<'ready' | 'unavailable'> {
 	let resolvedState: 'ready' | 'unavailable' = 'unavailable';
 	await expect
@@ -76,9 +70,6 @@ export async function waitForSearchPreviewReady(page: Page): Promise<void> {
 		.toBe('ready');
 }
 
-/**
- * TODO: Document gotoIndexDetailWithRetry.
- */
 export async function gotoIndexDetailWithRetry(page: Page, indexName: string): Promise<void> {
 	const path = `/console/indexes/${encodeURIComponent(indexName)}`;
 
@@ -129,9 +120,6 @@ export function failRequiredE2eGateOnLocalStackError(gateName: string, error: un
 	failRequiredE2eGate(gateName, error);
 }
 
-/**
- * TODO: Document submitSearchPreviewQuery.
- */
 export async function submitSearchPreviewQuery(page: Page, query: string): Promise<void> {
 	const section = page.getByTestId(SEARCH_PANEL_TEST_ID);
 	const searchInput = section.getByRole('searchbox', { name: /search preview query/i });
@@ -146,9 +134,6 @@ export async function collectVisibleSearchPreviewCardTexts(page: Page): Promise<
 	return cards.allTextContents();
 }
 
-/**
- * TODO: Document waitForSearchPreviewHitsToContain.
- */
 export async function waitForSearchPreviewHitsToContain(
 	page: Page,
 	expectedText: string,
@@ -204,9 +189,6 @@ export function getSearchPreviewPaginationControls(page: Page): {
 	};
 }
 
-/**
- * TODO: Document startSearchPreviewAnalyticsCapture.
- */
 export function startSearchPreviewAnalyticsCapture(page: Page): SearchPreviewAnalyticsCapture {
 	const payloads: unknown[] = [];
 	const onRequest = (request: {
@@ -231,9 +213,6 @@ export function startSearchPreviewAnalyticsCapture(page: Page): SearchPreviewAna
 	};
 }
 
-/**
- * TODO: Document startSearchPreviewSearchCapture.
- */
 export function startSearchPreviewSearchCapture(page: Page): SearchPreviewSearchCapture {
 	const payloads: unknown[] = [];
 	const onRequest = (request: {

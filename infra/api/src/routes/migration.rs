@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/routes/migration.rs.
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
@@ -63,7 +62,6 @@ enum AlgoliaEligibilityPhase {
     Target,
 }
 
-/// TODO: Document DestinationEligibilityClaims.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct DestinationEligibilityClaims<'a> {
@@ -118,7 +116,6 @@ pub struct AlgoliaMigrationAvailabilityResponse {
 }
 
 impl AlgoliaMigrationAvailabilityResponse {
-    /// TODO: Document AlgoliaMigrationAvailabilityResponse.unavailable.
     fn unavailable() -> Self {
         Self {
             available: false,
@@ -191,7 +188,6 @@ fn verify_provider_envelope(
     )
 }
 
-/// TODO: Document verify_target_envelope.
 fn verify_target_envelope(
     state: &AppState,
     auth: &AuthenticatedTenant,
@@ -250,7 +246,6 @@ fn verify_target_envelope(
     }
 }
 
-/// TODO: Document validate_target_claims.
 fn validate_target_claims(
     claims: &SignedEligibilityClaims,
     now_ts: i64,
@@ -433,7 +428,6 @@ struct SignedListCursorClaims {
     exp: i64,
 }
 
-/// TODO: Document sign_list_cursor.
 fn sign_list_cursor(
     state: &AppState,
     customer_id: uuid::Uuid,

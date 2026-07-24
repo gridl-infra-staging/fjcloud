@@ -24,7 +24,6 @@ die() {
     exit 1
 }
 
-# TODO: Document usage.
 usage() {
     cat >&2 <<'USAGE'
 Usage: catalog_lifecycle_service_window_live_probe.sh --api-binary <absolute> --engine-binary <absolute> [--inventory <json>] [--no-start-stack]
@@ -82,7 +81,6 @@ print(pathlib.Path(sys.argv[1]).resolve(strict=False))
 PY
 }
 
-# TODO: Document path_is_under_target_debug.
 path_is_under_target_debug() {
     local path="$1"
     local root="$2"
@@ -284,7 +282,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# TODO: Document validate_catalog_acceptance_fixtures.
 validate_catalog_acceptance_fixtures() {
     python3 - "$INVENTORY" "$DEFAULT_INVENTORY" "$DEFAULT_ORACLE" "$DEFAULT_ORACLE_DISPLAY" "$REPO_ROOT" <<'PY'
 import json
@@ -581,7 +578,6 @@ print(json.dumps(selected, separators=(",", ":"), sort_keys=True))
 PY
 }
 
-# TODO: Document json_field.
 json_field() {
     local payload="$1"
     local field="$2"
@@ -637,7 +633,6 @@ expect_status() {
     fi
 }
 
-# TODO: Document restore_status_from_response.
 restore_status_from_response() {
     local label="$1"
     local status=""
@@ -693,7 +688,6 @@ run_probe_psql() {
     run_integration_psql "$PROBE_INTEGRATION_DB" "$@"
 }
 
-# TODO: Document catalog_cold_seed_sql.
 catalog_cold_seed_sql() {
     cat <<'SQL'
 -- catalog_service_window_cold_seed: local-only fixture setup for restore-route preconditions.
@@ -772,7 +766,6 @@ END;
 SQL
 }
 
-# TODO: Document seed_cold_snapshot_for_restore.
 seed_cold_snapshot_for_restore() {
     local restore_index="$1"
     local object_key="cold/${PROBE_REGION}/catalog-service-window/${PROBE_CUSTOMER_ID}/${restore_index}.snapshot"
@@ -790,7 +783,6 @@ seed_cold_snapshot_for_restore() {
         || die "local cold snapshot seed did not update the probe tenant: $seed_result"
 }
 
-# TODO: Document expired_worker_claim_seed_sql.
 expired_worker_claim_seed_sql() {
     cat <<'SQL'
 -- catalog_service_window_expired_worker_claim_seed: local-only active reservation with an elapsed worker claim.
@@ -994,7 +986,6 @@ seed_expired_worker_claim_reservation() {
         || die "local expired worker claim reservation seed did not persist an elapsed worker lease: $seed_result"
 }
 
-# TODO: Document expired_worker_claim_snapshot_sql.
 expired_worker_claim_snapshot_sql() {
     cat <<'SQL'
 -- catalog_service_window_expired_worker_claim_snapshot: canonical target evidence.
@@ -1074,7 +1065,6 @@ capture_expired_worker_claim_snapshot() {
     canonical_json "$snapshot"
 }
 
-# TODO: Document expected_expired_worker_claim_snapshot.
 expected_expired_worker_claim_snapshot() {
     python3 - "$PROBE_CUSTOMER_ID" "$PROBE_EXPIRED_CLAIM_INDEX" "$PROBE_REGION" "$PROBE_ENGINE_URL" <<'PY'
 import json
@@ -1119,7 +1109,6 @@ print(json.dumps({
 PY
 }
 
-# TODO: Document require_expired_worker_claim_snapshot.
 require_expired_worker_claim_snapshot() {
     local actual="$1"
     local expected="$2"
@@ -1140,7 +1129,6 @@ if actual != expected:
 PY
 }
 
-# TODO: Document discover_destination_vm.
 discover_destination_vm() {
     if [ -n "$PROBE_DEST_VM_ID" ]; then
         return 0
@@ -1180,7 +1168,6 @@ PY
     )" || die "destination VM inventory did not contain a unique seeded VM"
 }
 
-# TODO: Document seed_probe_index.
 seed_probe_index() {
     local token="$1"
     local index_name="$2"
@@ -1207,7 +1194,6 @@ prepare_destination_replica() {
     fi
 }
 
-# TODO: Document cold_snapshot_id_for_tenant.
 cold_snapshot_id_for_tenant() {
     python3 - "$1" "$2" "$3" <<'PY'
 import json
@@ -1236,7 +1222,6 @@ print(matches[0])
 PY
 }
 
-# TODO: Document require_probe_replica_row.
 require_probe_replica_row() {
     python3 - "$1" "$PROBE_REPLICA_REGION" <<'PY'
 import json
@@ -1258,7 +1243,6 @@ raise SystemExit("replica list missing probe row")
 PY
 }
 
-# TODO: Document require_admin_replica_row.
 require_admin_replica_row() {
     python3 - "$1" "$PROBE_CUSTOMER_ID" "$PROBE_INDEX" "$PROBE_REPLICA_REGION" <<'PY'
 import json
@@ -1285,7 +1269,6 @@ raise SystemExit("admin replica list missing probe row")
 PY
 }
 
-# TODO: Document require_migration_row.
 require_migration_row() {
     local payload="$1"
     local expected_status="$2"
@@ -1315,7 +1298,6 @@ raise SystemExit("migration list missing probe row")
 PY
 }
 
-# TODO: Document physical_engine_observation_count.
 physical_engine_observation_count() {
     python3 - "$OBSERVED_CALLERS_FILE" <<'PY'
 import json
@@ -1375,7 +1357,6 @@ expect_expired_worker_claim_conflict() {
         || die "$label expected HTTP 409 destination_conflict, got HTTP $HTTP_RESPONSE_CODE: $HTTP_RESPONSE_BODY"
 }
 
-# TODO: Document exercise_expired_worker_claim_reservation.
 exercise_expired_worker_claim_reservation() {
     local expected_snapshot before_snapshot after_route_snapshot after_service_snapshot
     local engine_count_before engine_count_after
@@ -1514,7 +1495,6 @@ END;
 SQL
 }
 
-# TODO: Document seed_soft_delete_fence.
 seed_soft_delete_fence() {
     local customer_id="$1"
     local index="$2"
@@ -1687,7 +1667,6 @@ print(json.dumps({
 PY
 }
 
-# TODO: Document soft_delete_register_and_login.
 soft_delete_register_and_login() {
     local email="$1"
     local password="$2"
@@ -1832,7 +1811,6 @@ exercise_soft_delete_fence() {
     SOFT_DELETE_ADMIN_TRANSITION="$SOFT_DELETE_LAST_TRANSITION"
 }
 
-# TODO: Document hard_erase_register_and_login.
 hard_erase_register_and_login() {
     capture_response POST "${API_URL}/auth/register" \
         -H "content-type: application/json" \
@@ -1852,7 +1830,6 @@ hard_erase_register_and_login() {
         || die "hard erase arm login response missing customer_id"
 }
 
-# TODO: Document hard_erase_matrix_seed_sql.
 hard_erase_matrix_seed_sql() {
     cat <<'SQL'
 -- catalog_service_window_hard_erase_matrix_seed: local-only hard-erasure tombstone matrix.
@@ -2037,7 +2014,6 @@ capture_hard_erase_matrix_clock() {
     hard_erase_matrix_clock_sql | run_probe_psql -v ON_ERROR_STOP=1 -tA
 }
 
-# TODO: Document hard_erase_matrix_snapshot_sql.
 hard_erase_matrix_snapshot_sql() {
     cat <<'SQL'
 -- catalog_service_window_hard_erase_matrix_snapshot: scoped post-erasure tombstone readback.
@@ -2152,7 +2128,6 @@ capture_hard_erase_matrix_snapshot() {
     canonical_json "$snapshot"
 }
 
-# TODO: Document require_hard_erase_matrix_snapshot.
 require_hard_erase_matrix_snapshot() {
     python3 - "$HARD_ERASE_SEEDED_IDS" "$1" "$2" "$3" <<'PY'
 import datetime as dt
@@ -2272,7 +2247,6 @@ print(json.dumps({
 PY
 }
 
-# TODO: Document exercise_hard_erase_tombstone_matrix.
 exercise_hard_erase_tombstone_matrix() {
     local before_clock after_clock validated
 
@@ -2318,7 +2292,6 @@ soft_delete_stale_job_id() {
     esac
 }
 
-# TODO: Document soft_delete_stale_matrix_seed_sql.
 soft_delete_stale_matrix_seed_sql() {
     cat <<'SQL'
 -- catalog_service_window_soft_delete_stale_matrix_seed: deleted generation-fenced import jobs.
@@ -2436,7 +2409,6 @@ END;
 SQL
 }
 
-# TODO: Document seed_soft_delete_stale_matrix.
 seed_soft_delete_stale_matrix() {
     local seed_result
 
@@ -2463,7 +2435,6 @@ seed_soft_delete_stale_matrix() {
         || die "soft delete stale operation seed did not persist matrix rows: $seed_result"
 }
 
-# TODO: Document soft_delete_stale_matrix_snapshot_sql.
 soft_delete_stale_matrix_snapshot_sql() {
     cat <<'SQL'
 -- catalog_service_window_soft_delete_stale_matrix_snapshot: canonical retained stale-operation evidence.
@@ -2532,7 +2503,6 @@ capture_soft_delete_stale_matrix_snapshot() {
     canonical_json "$snapshot"
 }
 
-# TODO: Document require_soft_delete_stale_matrix_snapshot.
 require_soft_delete_stale_matrix_snapshot() {
     python3 - "$1" "$2" "$SOFT_DELETE_FENCE_GENERATION" <<'PY'
 import json
@@ -2578,7 +2548,6 @@ if evidence != baseline.get("evidence"):
 PY
 }
 
-# TODO: Document soft_delete_stale_repo_probe_sql.
 soft_delete_stale_repo_probe_sql() {
     cat <<'SQL'
 -- catalog_service_window_soft_delete_stale_matrix_repo_probe: repository-generation-fence selector probes.
@@ -2712,7 +2681,6 @@ require_soft_delete_stale_route_error() {
     require_soft_delete_stale_result "$key" "$code" "$expected_code"
 }
 
-# TODO: Document soft_delete_stale_destination_token.
 soft_delete_stale_destination_token() {
     local provider_token
 
@@ -2741,7 +2709,6 @@ soft_delete_stale_assert_snapshot_unchanged() {
         || die "soft delete stale operation retained evidence changed"
 }
 
-# TODO: Document exercise_soft_delete_stale_operation_matrix.
 exercise_soft_delete_stale_operation_matrix() {
     local target_token baseline repo_results engine_before engine_after
 
@@ -2807,7 +2774,6 @@ exercise_soft_delete_stale_operation_matrix() {
     PROHIBITED_ENGINE_OBSERVATIONS="$engine_after"
 }
 
-# TODO: Document emit_success.
 emit_success() {
     require_zero_prohibited_engine_observations "${29}"
     echo "expired_worker_claim_reservation=passed"
@@ -2913,7 +2879,6 @@ PY
     echo "soft_delete_generation_fence=passed"
 }
 
-# TODO: Document register_isolation_tenant.
 register_isolation_tenant() {
     capture_response POST "${API_URL}/auth/register" \
         -H "content-type: application/json" \
@@ -2945,7 +2910,6 @@ register_isolation_tenant() {
         || die "unrelated tenant state before primary flow was not structured JSON"
 }
 
-# TODO: Document register_probe_tenant.
 register_probe_tenant() {
     local isolation_customer_id="$1"
     capture_response POST "${API_URL}/auth/register" \
@@ -2968,7 +2932,6 @@ register_probe_tenant() {
         || die "probe and unrelated tenant customer IDs must differ"
 }
 
-# TODO: Document exercise_replica_and_restore_windows.
 exercise_replica_and_restore_windows() {
     local snapshot_id
 
@@ -2999,7 +2962,6 @@ exercise_replica_and_restore_windows() {
     ADMIN_RESTORE_STATUS="$(restore_status_from_response "admin cold restore")"
 }
 
-# TODO: Document exercise_migration_windows.
 exercise_migration_windows() {
     seed_probe_index "$PROBE_TOKEN" "$PROBE_MIGRATION_INDEX"
 
@@ -3048,7 +3010,6 @@ verify_unrelated_tenant_unchanged() {
         || die "unrelated tenant state changed"
 }
 
-# TODO: Document drive_service_window_entrypoints.
 drive_service_window_entrypoints() {
     register_isolation_tenant
     register_probe_tenant "$ISOLATION_CUSTOMER_ID"

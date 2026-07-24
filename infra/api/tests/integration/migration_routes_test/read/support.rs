@@ -1,8 +1,6 @@
-//! Stub summary for infra/api/tests/integration/migration_routes_test/read/support.rs.
 use super::super::*;
 use crate::common::mock_vm_inventory_repo;
 
-/// TODO: Document setup_algolia_cloud_job_read_app.
 pub(super) async fn setup_algolia_cloud_job_read_app(
     pool: PgPool,
     algolia_migration_enabled: bool,
@@ -28,7 +26,6 @@ pub(super) async fn setup_algolia_cloud_job_read_app(
     (app, create_test_jwt(customer.id), customer.id)
 }
 
-/// TODO: Document setup_algolia_cloud_job_lifecycle_app.
 pub(super) async fn setup_algolia_cloud_job_lifecycle_app(
     pool: PgPool,
     algolia_migration_enabled: bool,
@@ -64,7 +61,6 @@ pub(super) async fn setup_algolia_cloud_job_lifecycle_app(
     (app, create_test_jwt(customer.id), customer.id)
 }
 
-/// TODO: Document setup_algolia_cancel_dispatch_app.
 pub(super) async fn setup_algolia_cancel_dispatch_app(
     pool: PgPool,
     algolia_migration_enabled: bool,
@@ -129,7 +125,6 @@ pub(super) async fn setup_algolia_cancel_dispatch_app(
     )
 }
 
-/// TODO: Document seed_retained_job_with_internals.
 pub(super) async fn seed_retained_job_with_internals(
     pool: &PgPool,
     customer_id: Uuid,
@@ -173,7 +168,6 @@ pub(super) async fn seed_retained_job_with_internals(
     id
 }
 
-/// TODO: Document seed_retained_job_with_status.
 pub(super) async fn seed_retained_job_with_status(
     pool: &PgPool,
     customer_id: Uuid,
@@ -247,7 +241,6 @@ pub(super) async fn seed_retained_job_with_status(
     id
 }
 
-/// TODO: Document seed_engine_linked_cancel_job.
 pub(super) async fn seed_engine_linked_cancel_job(
     pool: &PgPool,
     customer_id: Uuid,
@@ -281,7 +274,6 @@ pub(super) async fn seed_engine_linked_cancel_job(
     (id, engine_job_id)
 }
 
-/// TODO: Document seed_resumable_retained_job.
 pub(super) async fn seed_resumable_retained_job(
     pool: &PgPool,
     customer_id: Uuid,
@@ -330,7 +322,6 @@ pub(super) async fn seed_resumable_retained_job(
     id
 }
 
-/// TODO: Document seed_resumable_retained_job_with_status.
 pub(super) async fn seed_resumable_retained_job_with_status(
     pool: &PgPool,
     customer_id: Uuid,
@@ -357,7 +348,6 @@ pub(super) async fn seed_resumable_retained_job_with_status(
     id
 }
 
-/// TODO: Document seed_replace_resumable_retained_job_without_target.
 pub(super) async fn seed_replace_resumable_retained_job_without_target(
     pool: &PgPool,
     customer_id: Uuid,
@@ -411,7 +401,6 @@ pub(super) async fn serialized_job_row(pool: &PgPool, id: Uuid) -> String {
     .to_string()
 }
 
-/// TODO: Document get_json.
 pub(in super::super) async fn get_json(
     app: &axum::Router,
     jwt: &str,
@@ -432,7 +421,6 @@ pub(in super::super) async fn get_json(
     response_json(response).await
 }
 
-/// TODO: Document post_job_action.
 pub(super) async fn post_job_action(
     app: &axum::Router,
     jwt: &str,

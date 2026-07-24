@@ -62,7 +62,6 @@ group_exists() {
   getent group "$GARAGE_GROUP" &>/dev/null || grep -q "^${GARAGE_GROUP}:" "$GROUP_FILE" 2>/dev/null
 }
 
-# TODO: Document ensure_garage_account.
 ensure_garage_account() {
   local primary_group
 
@@ -96,7 +95,6 @@ preflight_checks() {
   require_command useradd
 }
 
-# TODO: Document download_and_install_binary.
 download_and_install_binary() {
   local tmpbin actual_sha256
 
@@ -122,7 +120,6 @@ download_and_install_binary() {
   logger -t "$TAG" "Installed binary to ${GARAGE_BIN}"
 }
 
-# TODO: Document prepare_storage_directories.
 prepare_storage_directories() {
   local fs_type
 
@@ -159,7 +156,6 @@ replace_template_placeholder() {
   trap - RETURN
 }
 
-# TODO: Document install_config_template.
 install_config_template() {
   local rpc_secret admin_token toml_dest template_src tmp_toml
 
@@ -241,7 +237,6 @@ print_install_summary() {
   echo "  3. Initialize:       sudo ops/garage/scripts/init-cluster.sh"
 }
 
-# TODO: Document main.
 main() {
   local toml_dest
 

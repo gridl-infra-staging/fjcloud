@@ -52,7 +52,6 @@ impl fmt::Debug for ListAlgoliaIndexesRequest {
         (status = 503, description = "Algolia discovery unavailable or timed out", body = crate::errors::MigrationErrorResponse),
     )
 )]
-/// TODO: Document list_algolia_indexes.
 pub async fn list_algolia_indexes(
     _auth: AuthenticatedTenant,
     State(state): State<AppState>,

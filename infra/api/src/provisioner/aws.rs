@@ -1,4 +1,3 @@
-//! Stub summary for infra/api/src/provisioner/aws.rs.
 use async_trait::async_trait;
 use aws_sdk_ec2::types::{
     Filter, IamInstanceProfileSpecification, InstanceMetadataOptionsRequest, InstanceType,
@@ -52,7 +51,6 @@ impl AwsProvisionerConfig {
         }
     }
 
-    /// TODO: Document AwsProvisionerConfig.from_env.
     pub fn from_env() -> Result<Self, String> {
         let ami_id = required_env("AWS_AMI_ID")?;
         let security_group_ids =
@@ -120,7 +118,6 @@ impl AwsVmProvisioner {
             .build()
     }
 
-    /// TODO: Document AwsVmProvisioner.instance_to_vm_instance.
     fn instance_to_vm_instance(
         instance: &aws_sdk_ec2::types::Instance,
         region: &str,
@@ -173,7 +170,6 @@ impl AwsVmProvisioner {
         }
     }
 
-    /// TODO: Document AwsVmProvisioner.wait_for_public_ip.
     async fn wait_for_public_ip(
         &self,
         provider_vm_id: &str,
@@ -224,7 +220,6 @@ impl AwsVmProvisioner {
         )))
     }
 
-    /// TODO: Document AwsVmProvisioner.describe_running_managed_vm_by_hostname.
     async fn describe_running_managed_vm_by_hostname(
         &self,
         hostname: &str,
@@ -281,7 +276,6 @@ impl AwsVmProvisioner {
         }
     }
 
-    /// TODO: Document AwsVmProvisioner.describe_managed_vm_by_hostname.
     async fn describe_managed_vm_by_hostname(
         &self,
         hostname: &str,

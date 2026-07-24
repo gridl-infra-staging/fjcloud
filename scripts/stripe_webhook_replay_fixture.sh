@@ -64,7 +64,6 @@ set_outcome() {
     EXIT_CODE="$4"
 }
 
-# TODO: Document redact_text.
 redact_text() {
     local text="$1"
     local secret="${STRIPE_WEBHOOK_SECRET:-}"
@@ -90,7 +89,6 @@ redacted_secret_field() {
     printf 'REDACTED'
 }
 
-# TODO: Document load_explicit_env_file.
 load_explicit_env_file() {
     if [ -z "$ENV_FILE" ]; then
         return 0
@@ -127,7 +125,6 @@ load_explicit_env_file() {
     return 0
 }
 
-# TODO: Document parse_args.
 parse_args() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
@@ -262,7 +259,6 @@ parse_args() {
     return 0
 }
 
-# TODO: Document target_url_is_loopback.
 target_url_is_loopback() {
     python3 - "$1" <<'PY'
 import ipaddress
@@ -287,7 +283,6 @@ raise SystemExit(1)
 PY
 }
 
-# TODO: Document resolve_target_url.
 resolve_target_url() {
     if [ -n "$TARGET_URL_OVERRIDE" ]; then
         TARGET_URL="$TARGET_URL_OVERRIDE"
@@ -323,7 +318,6 @@ resolve_target_url() {
     return 0
 }
 
-# TODO: Document resolve_timestamp_and_event_id.
 resolve_timestamp_and_event_id() {
     local event_type_component invoice_component next_attempt_component attempt_count_component
 
@@ -353,7 +347,6 @@ resolve_timestamp_and_event_id() {
     return 0
 }
 
-# TODO: Document resolve_event_contract.
 resolve_event_contract() {
     if [ -n "$EVENT_TYPE_OVERRIDE" ]; then
         EVENT_TYPE_VALUE="$EVENT_TYPE_OVERRIDE"
@@ -412,7 +405,6 @@ resolve_event_contract() {
     esac
 }
 
-# TODO: Document build_payload.
 build_payload() {
     PAYLOAD="$(python3 - "$EVENT_ID_VALUE" "$TIMESTAMP_VALUE" "$EVENT_TYPE_VALUE" "$INVOICE_ID_OVERRIDE" "$NEXT_PAYMENT_ATTEMPT_OVERRIDE" "$ATTEMPT_COUNT_OVERRIDE" <<'PY'
 import json
@@ -468,7 +460,6 @@ PY
     append_step "build_payload" true "built deterministic replay payload"
 }
 
-# TODO: Document validate_webhook_secret.
 validate_webhook_secret() {
     if [ -z "${STRIPE_WEBHOOK_SECRET:-}" ]; then
         append_step "require_webhook_secret" false "STRIPE_WEBHOOK_SECRET is required"
@@ -486,7 +477,6 @@ validate_webhook_secret() {
     return 0
 }
 
-# TODO: Document generate_signature_header.
 generate_signature_header() {
     SIGNATURE_HEADER="$(python3 - "$TIMESTAMP_VALUE" "$PAYLOAD" "$STRIPE_WEBHOOK_SECRET" <<'PY'
 import hashlib
@@ -505,7 +495,6 @@ PY
     append_step "generate_signature" true "generated Stripe signature header"
 }
 
-# TODO: Document post_webhook_once.
 post_webhook_once() {
     local response_file http_code curl_output curl_exit redacted_body redacted_error
     response_file="$(mktemp)"
@@ -552,7 +541,6 @@ post_webhook_once() {
     return 1
 }
 
-# TODO: Document emit_summary_json.
 emit_summary_json() {
     local elapsed_ms
     local result_json classification_json target_json secret_json event_id_json timestamp_json payload_json signature_json detail_json
@@ -582,7 +570,6 @@ emit_summary_json() {
         "$result_json" "$classification_json" "$MODE" "$target_json" "$secret_json" "$event_id_json" "$timestamp_json" "$payload_json" "$signature_json" "$detail_json" "$VALIDATION_STEPS_JSON" "$elapsed_ms"
 }
 
-# TODO: Document main.
 main() {
     if ! parse_args "$@"; then
         emit_summary_json

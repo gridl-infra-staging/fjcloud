@@ -310,21 +310,25 @@ flapjack_url_is_control_plane() {
 }
 
 healthy_shared_vm_url_from_ssm() {
-  local region parameter_names parameter_name host health_status
+  local region environment candidate_hosts host health_status
   region="${AWS_DEFAULT_REGION:-us-east-1}"
-  parameter_names="$(aws ssm describe-parameters \
-    --region "$region" \
-    --parameter-filters Key=Name,Option=Contains,Values=vm-shared \
-    --query 'Parameters[].Name' --output text 2>/dev/null | tr '\t' '\n' | sort || true)"
+  environment="${ENVIRONMENT:-staging}"
 
-  while IFS= read -r parameter_name; do
-    [ -n "$parameter_name" ] || continue
-    case "$parameter_name" in
-      /fjcloud/vm-shared-*.flapjack.foo/api-key) ;;
+  candidate_hosts="$(aws ec2 describe-instances \
+    --region "$region" \
+    --filters "Name=tag:managed-by,Values=fjcloud" \
+              "Name=tag:node_id,Values=vm-shared-*.flapjack.foo" \
+              "Name=instance.group-name,Values=fjcloud-${environment}-sg-flapjack-vm" \
+              "Name=instance-state-name,Values=running" \
+    --query 'Reservations[].Instances[].Tags[?Key==`node_id`].Value[]' \
+    --output text 2>/dev/null | tr '\t' '\n' | sort || true)"
+
+  while IFS= read -r host; do
+    [ -n "$host" ] || continue
+    case "$host" in
+      vm-shared-*.flapjack.foo) ;;
       *) continue ;;
     esac
-    host="${parameter_name#/fjcloud/}"
-    host="${host%/api-key}"
     health_status="$(curl -sS --connect-timeout 2 --max-time 4 \
       -o /dev/null -w '%{http_code}' "http://${host}:7700/health" 2>/dev/null || true)"
     if [ "$health_status" = "200" ]; then
@@ -332,7 +336,7 @@ healthy_shared_vm_url_from_ssm() {
       return 0
     fi
   done <<EOF
-$parameter_names
+$candidate_hosts
 EOF
   return 1
 }

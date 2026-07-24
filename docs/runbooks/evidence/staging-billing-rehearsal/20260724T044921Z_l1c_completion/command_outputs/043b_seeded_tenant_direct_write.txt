@@ -1,0 +1,9 @@
+UTC start: 2026-07-24T09:03:59Z
+Command: write one deterministic document to seeded tenant direct Flapjack node using SSM node key (zsh-safe wrapper)
+node_host=vm-shared-1ca0d103.flapjack.foo
+flapjack_uid=0697348b79df4a20ac43f4f16ee3ca69_demo-shared-free
+write_http=200
+body_head={"taskID":1784883840367,"objectIDs":["doc-900000"]}
+storage_http=200
+storage_body={"tenants":[{"id":"0697348b79df4a20ac43f4f16ee3ca69_demo-shared-free","bytes":7266,"doc_count":1}]}
+Exit code: 0

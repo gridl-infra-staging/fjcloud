@@ -6,6 +6,7 @@ pub struct Config {
     pub database_url: String,
     /// The calendar day (UTC) to aggregate. Defaults to yesterday.
     pub target_date: NaiveDate,
+    pub rollup_metric_environment: Option<String>,
 }
 
 #[derive(Debug, Error, PartialEq)]
@@ -31,10 +32,13 @@ impl Config {
                 .map_err(|_| ConfigError::InvalidDate(s))?,
             None => Utc::now().date_naive() - chrono::Duration::days(1),
         };
+        let rollup_metric_environment = read("ENVIRONMENT")
+            .and_then(|env| matches!(env.as_str(), "staging" | "prod").then_some(env));
 
         Ok(Config {
             database_url,
             target_date,
+            rollup_metric_environment,
         })
     }
 
@@ -106,5 +110,37 @@ mod tests {
         let cfg = Config::from_reader(db_only()).unwrap();
         let yesterday = Utc::now().date_naive() - chrono::Duration::days(1);
         assert_eq!(cfg.target_date, yesterday);
+    }
+
+    #[test]
+    fn accepts_only_staging_and_prod_for_rollup_metric_publication() {
+        for (raw_env, expected) in [("staging", Some("staging")), ("prod", Some("prod"))] {
+            let cfg = Config::from_reader(reader(HashMap::from([
+                ("DATABASE_URL", "postgres://localhost/test"),
+                ("ENVIRONMENT", raw_env),
+            ])))
+            .unwrap();
+
+            assert_eq!(cfg.rollup_metric_environment.as_deref(), expected);
+        }
+    }
+
+    #[test]
+    fn rejects_non_canonical_rollup_metric_publication_environments() {
+        for raw_env in ["", "local", "dev", "production", "qa", " staging "] {
+            let cfg = Config::from_reader(reader(HashMap::from([
+                ("DATABASE_URL", "postgres://localhost/test"),
+                ("ENVIRONMENT", raw_env),
+            ])))
+            .unwrap();
+
+            assert_eq!(cfg.rollup_metric_environment, None, "raw env: {raw_env:?}");
+        }
+    }
+
+    #[test]
+    fn missing_environment_skips_rollup_metric_publication() {
+        let cfg = Config::from_reader(db_only()).unwrap();
+        assert_eq!(cfg.rollup_metric_environment, None);
     }
 }

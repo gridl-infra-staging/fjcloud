@@ -107,11 +107,17 @@ INTERNAL_AUTH_TOKEN=$(get_ssm "/fjcloud/$ENVIRONMENT/internal_auth_token")
 SLACK_WEBHOOK_URL=$(get_optional_ssm "/fjcloud/$ENVIRONMENT/slack_webhook_url")
 DISCORD_WEBHOOK_URL=$(get_optional_ssm "/fjcloud/$ENVIRONMENT/discord_webhook_url")
 
+if [ "$ENVIRONMENT" = "staging" ] && [[ "$DNS_DOMAIN" != staging.* ]]; then
+  API_BASE_URL="https://api.staging.$DNS_DOMAIN"
+else
+  API_BASE_URL="https://api.$DNS_DOMAIN"
+fi
+
 # --------------------------------------------------------------------------
-# 4. Write environment files
+# 4. Write environment files and Flapjack's persisted admin key
 # --------------------------------------------------------------------------
 
-mkdir -p /etc/flapjack /etc/fjcloud
+mkdir -p /etc/flapjack /etc/fjcloud /var/lib/flapjack/data
 
 # Create secret-bearing env files with restrictive permissions from first write.
 (
@@ -136,20 +142,24 @@ cat > /etc/fjcloud/metering-env <<ENVEOF
 DATABASE_URL=$DB_URL
 FLAPJACK_URL=http://$NODE_ID:7700
 FLAPJACK_API_KEY=$API_KEY
+FLAPJACK_APPLICATION_ID=flapjack
 INTERNAL_KEY=$INTERNAL_AUTH_TOKEN
 CUSTOMER_ID=$CUSTOMER_ID
 NODE_ID=$NODE_ID
 REGION=$REGION
 ENVIRONMENT=$ENVIRONMENT
-TENANT_MAP_URL=https://api.$DNS_DOMAIN/internal/tenant-map
-COLD_STORAGE_USAGE_URL=https://api.$DNS_DOMAIN/internal/cold-storage-usage
+TENANT_MAP_URL=$API_BASE_URL/internal/tenant-map
+COLD_STORAGE_USAGE_URL=$API_BASE_URL/internal/cold-storage-usage
 SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL
 DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL
 ENVEOF
+
+printf '%s\n' "$API_KEY" > /var/lib/flapjack/data/.admin_key
 )
 
-chmod 600 /etc/flapjack/env /etc/fjcloud/metering-env
+chmod 600 /etc/flapjack/env /etc/fjcloud/metering-env /var/lib/flapjack/data/.admin_key
 chown flapjack:flapjack /etc/flapjack/env
+chown flapjack:flapjack /var/lib/flapjack/data/.admin_key
 chown fjcloud:fjcloud /etc/fjcloud/metering-env
 
 logger -t "$LOG_TAG" "env files written"

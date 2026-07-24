@@ -1,0 +1,40 @@
+UTC start: 2026-07-24T09:00:03Z
+Command: inspect staging data-plane metering-agent journal after admin-key convergence
+ssm_command_id=a0c1f5f1-3ea0-4880-82df-803083b211c3
+--- i-0c74e2fe5fa24b116 status=Success response_code=0 ---
+node=vm-shared-3bd2b971.flapjack.foo metering=active flapjack=active started_at=Fri 2026-07-24 08:57:51 UTC
+Jul 24 08:57:51 ip-10-0-1-254.ec2.internal systemd[1]: Stopping fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:51 ip-10-0-1-254.ec2.internal systemd[1]: fj-metering-agent.service: Deactivated successfully.
+Jul 24 08:57:51 ip-10-0-1-254.ec2.internal systemd[1]: Stopped fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 08:57:51 ip-10-0-1-254.ec2.internal systemd[1]: Starting fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:51 ip-10-0-1-254.ec2.internal systemd[1]: Started fj-metering-agent.service - Flapjack Metering Agent.
+--- i-00a3b28ba4c00433a status=Success response_code=0 ---
+node=vm-shared-f2b9c8a6.flapjack.foo metering=active flapjack=active started_at=Fri 2026-07-24 08:57:52 UTC
+Jul 24 08:57:52 ip-10-0-1-221.ec2.internal systemd[1]: Stopping fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:52 ip-10-0-1-221.ec2.internal systemd[1]: fj-metering-agent.service: Deactivated successfully.
+Jul 24 08:57:52 ip-10-0-1-221.ec2.internal systemd[1]: Stopped fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 08:57:52 ip-10-0-1-221.ec2.internal systemd[1]: Starting fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:52 ip-10-0-1-221.ec2.internal systemd[1]: Started fj-metering-agent.service - Flapjack Metering Agent.
+--- i-0b2188437baeeacdf status=Success response_code=0 ---
+node=node-149ffef7-c451-4d96-86e8-714aa3c33e27 metering=active flapjack=active started_at=Fri 2026-07-24 08:57:51 UTC
+Jul 24 08:57:51 ip-10-0-1-36.ec2.internal systemd[1]: Stopping fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:51 ip-10-0-1-36.ec2.internal systemd[1]: fj-metering-agent.service: Deactivated successfully.
+Jul 24 08:57:51 ip-10-0-1-36.ec2.internal systemd[1]: Stopped fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 08:57:51 ip-10-0-1-36.ec2.internal systemd[1]: Starting fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:51 ip-10-0-1-36.ec2.internal systemd[1]: Started fj-metering-agent.service - Flapjack Metering Agent.
+--- i-019d556392acdada7 status=Success response_code=0 ---
+node=vm-shared-480b5169.flapjack.foo metering=active flapjack=active started_at=Fri 2026-07-24 08:57:51 UTC
+Jul 24 08:57:51 ip-10-0-1-191.ec2.internal systemd[1]: Stopping fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:51 ip-10-0-1-191.ec2.internal systemd[1]: fj-metering-agent.service: Deactivated successfully.
+Jul 24 08:57:51 ip-10-0-1-191.ec2.internal systemd[1]: Stopped fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 08:57:51 ip-10-0-1-191.ec2.internal systemd[1]: Starting fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:51 ip-10-0-1-191.ec2.internal systemd[1]: Started fj-metering-agent.service - Flapjack Metering Agent.
+--- i-0f9b2a9bd8cbaeeec status=Success response_code=0 ---
+node=vm-shared-391f314f.flapjack.foo metering=active flapjack=active started_at=Fri 2026-07-24 08:57:51 UTC
+Jul 24 08:57:51 ip-10-0-1-107.ec2.internal systemd[1]: Stopping fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:51 ip-10-0-1-107.ec2.internal systemd[1]: fj-metering-agent.service: Deactivated successfully.
+Jul 24 08:57:51 ip-10-0-1-107.ec2.internal systemd[1]: Stopped fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 08:57:51 ip-10-0-1-107.ec2.internal systemd[1]: Starting fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:51 ip-10-0-1-107.ec2.internal systemd[1]: Started fj-metering-agent.service - Flapjack Metering Agent.
+
+Exit code: 0

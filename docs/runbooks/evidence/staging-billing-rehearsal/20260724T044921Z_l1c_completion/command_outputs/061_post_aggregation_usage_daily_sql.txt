@@ -1,0 +1,5 @@
+UTC start: 2026-07-24T09:19:35Z
+Command: query usage_daily and usage_records after current-day aggregation
+usage_daily|2026-07-24|2026-07-24T09:19:25.402867Z|165|1
+usage_records|2026-07-24T09:19:24.787099Z|113206|5
+Exit code: 0

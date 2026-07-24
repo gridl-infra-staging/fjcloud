@@ -1,0 +1,69 @@
+UTC start: 2026-07-24T09:13:58Z
+Command: inspect seeded node metering journal/process after staging URL fix
+ssm_command_id=a7df1aa5-6036-44da-b79d-8737e2cb1f7c
+status=Success response_code=0
+env_file_public_lines:
+FLAPJACK_URL=http://vm-shared-1ca0d103.flapjack.foo:7700
+CUSTOMER_ID=00000000-0000-0000-0000-000000000000
+NODE_ID=vm-shared-1ca0d103.flapjack.foo
+REGION=us-east-1
+ENVIRONMENT=staging
+TENANT_MAP_URL=https://api.staging.flapjack.foo/internal/tenant-map
+COLD_STORAGE_USAGE_URL=https://api.staging.flapjack.foo/internal/cold-storage-usage
+FLAPJACK_APPLICATION_ID=flapjack
+metering_active=activating main_pid=0 active_enter=Fri 2026-07-24 09:13:24 UTC
+journal_since_restart:
+Jul 24 09:11:06 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Scheduled restart job, restart counter is at 7519.
+Jul 24 09:11:06 ip-10-0-1-187.ec2.internal systemd[1]: Stopped fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 09:11:06 ip-10-0-1-187.ec2.internal systemd[1]: Starting fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 09:11:06 ip-10-0-1-187.ec2.internal systemd[1]: Started fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 09:11:06 ip-10-0-1-187.ec2.internal fj-metering-agent[571001]: Error: invalid value for TENANT_MAP_URL: relative URL without a base
+Jul 24 09:11:06 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Main process exited, code=exited, status=1/FAILURE
+Jul 24 09:11:06 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Failed with result 'exit-code'.
+Jul 24 09:11:16 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Scheduled restart job, restart counter is at 7520.
+Jul 24 09:11:16 ip-10-0-1-187.ec2.internal systemd[1]: Stopped fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 09:11:16 ip-10-0-1-187.ec2.internal systemd[1]: Starting fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 09:11:16 ip-10-0-1-187.ec2.internal systemd[1]: Started fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 09:11:16 ip-10-0-1-187.ec2.internal fj-metering-agent[571018]: Error: invalid value for TENANT_MAP_URL: relative URL without a base
+Jul 24 09:11:16 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Main process exited, code=exited, status=1/FAILURE
+Jul 24 09:11:16 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Failed with result 'exit-code'.
+Jul 24 09:11:24 ip-10-0-1-187.ec2.internal systemd[1]: Stopped fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 09:11:24 ip-10-0-1-187.ec2.internal systemd[1]: Starting fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 09:11:24 ip-10-0-1-187.ec2.internal systemd[1]: Started fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 09:11:54 ip-10-0-1-187.ec2.internal fj-metering-agent[571079]: Error: pool timed out while waiting for an open connection
+Jul 24 09:11:54 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Main process exited, code=exited, status=1/FAILURE
+Jul 24 09:11:54 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Failed with result 'exit-code'.
+Jul 24 09:12:04 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Scheduled restart job, restart counter is at 7521.
+Jul 24 09:12:04 ip-10-0-1-187.ec2.internal systemd[1]: Stopped fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 09:12:04 ip-10-0-1-187.ec2.internal systemd[1]: Starting fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 09:12:04 ip-10-0-1-187.ec2.internal systemd[1]: Started fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 09:12:34 ip-10-0-1-187.ec2.internal fj-metering-agent[571190]: Error: pool timed out while waiting for an open connection
+Jul 24 09:12:34 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Main process exited, code=exited, status=1/FAILURE
+Jul 24 09:12:34 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Failed with result 'exit-code'.
+Jul 24 09:12:44 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Scheduled restart job, restart counter is at 7522.
+Jul 24 09:12:44 ip-10-0-1-187.ec2.internal systemd[1]: Stopped fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 09:12:44 ip-10-0-1-187.ec2.internal systemd[1]: Starting fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 09:12:44 ip-10-0-1-187.ec2.internal systemd[1]: Started fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 09:13:14 ip-10-0-1-187.ec2.internal fj-metering-agent[571237]: Error: pool timed out while waiting for an open connection
+Jul 24 09:13:14 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Main process exited, code=exited, status=1/FAILURE
+Jul 24 09:13:14 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Failed with result 'exit-code'.
+Jul 24 09:13:24 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Scheduled restart job, restart counter is at 7523.
+Jul 24 09:13:24 ip-10-0-1-187.ec2.internal systemd[1]: Stopped fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 09:13:24 ip-10-0-1-187.ec2.internal systemd[1]: Starting fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 09:13:24 ip-10-0-1-187.ec2.internal systemd[1]: Started fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 09:13:54 ip-10-0-1-187.ec2.internal fj-metering-agent[571332]: Error: pool timed out while waiting for an open connection
+Jul 24 09:13:54 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Main process exited, code=exited, status=1/FAILURE
+Jul 24 09:13:54 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Failed with result 'exit-code'.
+recent_unit_status:
+● fj-metering-agent.service - Flapjack Metering Agent
+     Loaded: loaded (/etc/systemd/system/fj-metering-agent.service; enabled; preset: disabled)
+     Active: activating (auto-restart) (Result: exit-code) since Fri 2026-07-24 09:13:54 UTC; 4s ago
+       Docs: https://github.com/gridl/flapjack_dev
+    Process: 571332 ExecStart=/usr/local/bin/fj-metering-agent (code=exited, status=1/FAILURE)
+   Main PID: 571332 (code=exited, status=1/FAILURE)
+        CPU: 10ms
+
+Jul 24 09:13:54 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Main process exited, code=exited, status=1/FAILURE
+Jul 24 09:13:54 ip-10-0-1-187.ec2.internal systemd[1]: fj-metering-agent.service: Failed with result 'exit-code'.
+
+Exit code: 0

@@ -1,0 +1,165 @@
+UTC start: 2026-07-24T09:14:41Z
+Command: inspect all running data-plane node security groups and staging/prod SG rule summaries
+[
+    {
+        "InstanceId": "i-0c74e2fe5fa24b116",
+        "PrivateIpAddress": "10.0.1.254",
+        "SecurityGroups": [
+            {
+                "GroupId": "sg-047734af5235c69af",
+                "GroupName": "fjcloud-staging-sg-flapjack-vm"
+            }
+        ],
+        "NodeId": "vm-shared-3bd2b971.flapjack.foo",
+        "Name": "fj-vm-shared-3bd2b971.flapjack.foo"
+    },
+    {
+        "InstanceId": "i-00a3b28ba4c00433a",
+        "PrivateIpAddress": "10.0.1.221",
+        "SecurityGroups": [
+            {
+                "GroupId": "sg-047734af5235c69af",
+                "GroupName": "fjcloud-staging-sg-flapjack-vm"
+            }
+        ],
+        "NodeId": "vm-shared-f2b9c8a6.flapjack.foo",
+        "Name": "fj-vm-shared-f2b9c8a6.flapjack.foo"
+    },
+    {
+        "InstanceId": "i-0b2188437baeeacdf",
+        "PrivateIpAddress": "10.0.1.36",
+        "SecurityGroups": [
+            {
+                "GroupId": "sg-047734af5235c69af",
+                "GroupName": "fjcloud-staging-sg-flapjack-vm"
+            }
+        ],
+        "NodeId": "node-149ffef7-c451-4d96-86e8-714aa3c33e27",
+        "Name": "fj-vm-20aa6d79.flapjack.foo"
+    },
+    {
+        "InstanceId": "i-019d556392acdada7",
+        "PrivateIpAddress": "10.0.1.191",
+        "SecurityGroups": [
+            {
+                "GroupId": "sg-047734af5235c69af",
+                "GroupName": "fjcloud-staging-sg-flapjack-vm"
+            }
+        ],
+        "NodeId": "vm-shared-480b5169.flapjack.foo",
+        "Name": "fj-vm-shared-480b5169.flapjack.foo"
+    },
+    {
+        "InstanceId": "i-0f9b2a9bd8cbaeeec",
+        "PrivateIpAddress": "10.0.1.107",
+        "SecurityGroups": [
+            {
+                "GroupId": "sg-047734af5235c69af",
+                "GroupName": "fjcloud-staging-sg-flapjack-vm"
+            }
+        ],
+        "NodeId": "vm-shared-391f314f.flapjack.foo",
+        "Name": "fj-vm-shared-391f314f.flapjack.foo"
+    },
+    {
+        "InstanceId": "i-072d4333322ffd0eb",
+        "PrivateIpAddress": "10.0.1.187",
+        "SecurityGroups": [
+            {
+                "GroupId": "sg-0ab78cabd1b997099",
+                "GroupName": "fjcloud-prod-sg-flapjack-vm"
+            }
+        ],
+        "NodeId": "vm-shared-1ca0d103.flapjack.foo",
+        "Name": "fj-vm-shared-1ca0d103.flapjack.foo"
+    }
+]
+relevant_security_groups:
+[
+    {
+        "GroupId": "sg-0ab78cabd1b997099",
+        "GroupName": "fjcloud-prod-sg-flapjack-vm",
+        "IpPermissions": [
+            {
+                "IpProtocol": "tcp",
+                "FromPort": 7700,
+                "ToPort": 7700,
+                "UserIdGroupPairs": [
+                    {
+                        "UserId": "213880904778",
+                        "GroupId": "sg-007c0829f01e4f2fb"
+                    }
+                ],
+                "IpRanges": [
+                    {
+                        "Description": "public flapjack data plane",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ],
+                "Ipv6Ranges": [],
+                "PrefixListIds": []
+            }
+        ],
+        "IpPermissionsEgress": [
+            {
+                "IpProtocol": "-1",
+                "UserIdGroupPairs": [],
+                "IpRanges": [
+                    {
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ],
+                "Ipv6Ranges": [],
+                "PrefixListIds": []
+            }
+        ]
+    },
+    {
+        "GroupId": "sg-0c6ae08699b5405f0",
+        "GroupName": "fjcloud-prod-sg-rds",
+        "IpPermissions": [
+            {
+                "IpProtocol": "tcp",
+                "FromPort": 5432,
+                "ToPort": 5432,
+                "UserIdGroupPairs": [
+                    {
+                        "UserId": "213880904778",
+                        "GroupId": "sg-007c0829f01e4f2fb"
+                    }
+                ],
+                "IpRanges": [],
+                "Ipv6Ranges": [],
+                "PrefixListIds": []
+            }
+        ],
+        "IpPermissionsEgress": []
+    },
+    {
+        "GroupId": "sg-0e60946fafe060833",
+        "GroupName": "fjcloud-staging-sg-rds",
+        "IpPermissions": [
+            {
+                "IpProtocol": "tcp",
+                "FromPort": 5432,
+                "ToPort": 5432,
+                "UserIdGroupPairs": [
+                    {
+                        "UserId": "213880904778",
+                        "GroupId": "sg-0e8fd81b9247b53a5"
+                    },
+                    {
+                        "UserId": "213880904778",
+                        "GroupId": "sg-047734af5235c69af"
+                    }
+                ],
+                "IpRanges": [],
+                "Ipv6Ranges": [],
+                "PrefixListIds": []
+            }
+        ],
+        "IpPermissionsEgress": []
+    }
+]
+
+Exit code: 0

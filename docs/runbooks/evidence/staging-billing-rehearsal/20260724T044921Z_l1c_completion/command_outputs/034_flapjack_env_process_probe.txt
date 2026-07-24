@@ -1,0 +1,65 @@
+2026-07-24T08:53:38Z
+command_id=6664b9cb-bd56-4d57-b485-601510a12b1e
+===== i-0b2188437baeeacdf status=Success response_code=0 =====
+# /etc/systemd/system/flapjack.service
+[Unit]
+Description=Flapjack Search Engine
+Documentation=https://github.com/gridl/flapjack_dev
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=flapjack
+Group=flapjack
+
+WorkingDirectory=/var/lib/flapjack
+EnvironmentFile=/etc/flapjack/env
+ExecStart=/usr/local/bin/flapjack
+
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/flapjack /var/log/flapjack
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=flapjack
+
+[Install]
+WantedBy=multi-user.target
+● flapjack.service - Flapjack Search Engine
+     Loaded: loaded (/etc/systemd/system/flapjack.service; enabled; preset: disabled)
+     Active: active (running) since Fri 2026-07-24 08:50:51 UTC; 2min 47s ago
+       Docs: https://github.com/gridl/flapjack_dev
+   Main PID: 2581593 (flapjack)
+      Tasks: 5 (limit: 2116)
+     Memory: 7.6M
+        CPU: 33ms
+     CGroup: /system.slice/flapjack.service
+             └─2581593 /usr/local/bin/flapjack
+
+Jul 24 08:50:51 ip-10-0-1-36.ec2.internal flapjack[2581593]:   →  Dashboard:  http://0.0.0.0:7700/dashboard
+Jul 24 08:50:51 ip-10-0-1-36.ec2.internal flapjack[2581593]:   →  API Docs:   http://0.0.0.0:7700/swagger-ui
+Jul 24 08:50:51 ip-10-0-1-36.ec2.internal flapjack[2581593]:   →  Capabilities: vector-search: disabled, local-embeddings: disabled
+Jul 24 08:50:51 ip-10-0-1-36.ec2.internal flapjack[2581593]:   ✓ Auth enabled  (loaded from ./data/.admin_key)
+Jul 24 08:50:51 ip-10-0-1-36.ec2.internal flapjack[2581593]: 2026-07-24T08:50:51.943399Z  WARN http_request{request_id=cc94a7f1-a62e-4d29-ab1d-e6f6e0385b9f}: flapjack_http::auth::middleware: security event: auth failure event="security_audit_auth_failure" auth_attempt_type="direct" reason="invalid_credentials" path="/metrics"
+Jul 24 08:50:51 ip-10-0-1-36.ec2.internal flapjack[2581593]: 2026-07-24T08:50:51.945192Z  WARN http_request{request_id=00fab577-30f6-4cc8-b002-7433d4205b98}: flapjack_http::auth::middleware: security event: auth failure event="security_audit_auth_failure" auth_attempt_type="direct" reason="invalid_credentials" path="/internal/storage"
+Jul 24 08:51:51 ip-10-0-1-36.ec2.internal flapjack[2581593]: 2026-07-24T08:51:51.945834Z  WARN http_request{request_id=dddf4828-b97d-47b9-b0e7-137b3e88293e}: flapjack_http::auth::middleware: security event: auth failure event="security_audit_auth_failure" auth_attempt_type="direct" reason="invalid_credentials" path="/metrics"
+Jul 24 08:52:51 ip-10-0-1-36.ec2.internal flapjack[2581593]: 2026-07-24T08:52:51.947958Z  WARN http_request{request_id=dc333a30-2ebd-4f6b-92f8-42859a0c689d}: flapjack_http::auth::middleware: security event: auth failure event="security_audit_auth_failure" auth_attempt_type="direct" reason="invalid_credentials" path="/metrics"
+Jul 24 08:53:12 ip-10-0-1-36.ec2.internal flapjack[2581593]: 2026-07-24T08:53:12.510316Z  WARN http_request{request_id=25342154-c394-4351-9d18-eff2579879d2}: flapjack_http::auth::middleware: security event: auth failure event="security_audit_auth_failure" auth_attempt_type="direct" reason="invalid_credentials" path="/metrics"
+Jul 24 08:53:12 ip-10-0-1-36.ec2.internal flapjack[2581593]: 2026-07-24T08:53:12.518576Z  WARN http_request{request_id=33246068-a609-4b0c-9fe0-464b68ca1e8e}: flapjack_http::auth::middleware: security event: auth failure event="security_audit_auth_failure" auth_attempt_type="direct" reason="invalid_credentials" path="/internal/storage"
+node_id=node-149ffef7-c451-4d96-86e8-714aa3c33e27
+hosts=127.0.0.1       node-149ffef7-c451-4d96-86e8-714aa3c33e27
+curl_node=403 {"message":"Invalid Application-ID or API key","status":403}
+curl_loopback=403 {"message":"Invalid Application-ID or API key","status":403}
+process_has_flapjack_api_key=yes
+process_has_application_id=no
+
+exit=0

@@ -1,0 +1,4 @@
+UTC start: 2026-07-24T09:18:40Z
+Command: run fjcloud aggregation job on staging API host with TARGET_DATE=$(date -u +%F)
+Error: missing required env var: DATABASE_URL
+failed to run commands: exit status 1

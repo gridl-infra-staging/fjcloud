@@ -1,0 +1,13 @@
+# Stage 3 Frozen Source Guard Failure
+
+created_at_utc=20260724T102333Z
+frozen_origin_main_sha=7b5584e85dda27e7e6066d4eadb54bc604ac466b
+accepted_stage2_sha=10f00d6b81390f634c1e3f016203fe5cf0a5b13f
+command=git merge-base --is-ancestor 10f00d6b81390f634c1e3f016203fe5cf0a5b13f 7b5584e85dda27e7e6066d4eadb54bc604ac466b
+exit_code=1
+live_mutation_started=false
+detached_worktree_created=false
+secret_file_loaded=false
+terraform_init_started=false
+debbie_sync_started=false
+remote_branches_containing_accepted_sha=origin/batman/jul24_am_1_staging_metering_rollup_completion

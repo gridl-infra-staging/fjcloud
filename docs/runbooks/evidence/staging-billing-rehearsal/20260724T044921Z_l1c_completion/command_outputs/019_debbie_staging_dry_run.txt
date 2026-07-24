@@ -1,0 +1,40 @@
+
+debbie sync -> staging
+  project: fjcloud
+  config:  /private/tmp/fjcloud-stage1-accepted.2iy5AV/source/.debbie.toml
+  DOWNSTREAM: ci-automated: deploy-web step in mirror ci.yml deploy-staging
+
+DRY RUN
+
+  dir  .github/
+  dir  infra/
+        exclude: ['target']
+  dir  web/
+        exclude: ['node_modules', '.svelte-kit', 'build', 'dist',
+'playwright-report', 'test-results']
+  dir  ops/
+        exclude: ['.terraform', '*.tfstate', '*.tfstate.*']
+  dir  scripts/
+        exclude: ['reliability/fixtures/security/fake_aws_keys.txt']
+  dir  tests/
+  dir  docs/runbooks/
+        exclude: ['evidence/**/*.bin', 'evidence/prod-data-plane/',
+'evidence/prod-fleet-rebuild/', 'evidence/vm-teardown/',
+'evidence/**/state_snapshot.json', 'evidence/mirror-leak-scan/']
+  dir  docs/screen_specs/
+  dir  docs/getting-started/
+  file .debbie/post-sync.sh
+  file .env.local.example
+  file .gitignore
+  file .gitleaks.toml
+  file .nvmrc
+  file Makefile
+  file README.md
+  file ROADMAP.md
+  file docker-compose.yml
+  file docker-compose.override.yml.example
+  file docs/LOCAL_DEV.md
+  file docs/env-vars.md
+  file docs/checklists/LOCAL_SIGNOFF_CHECKLIST.md
+  file docs/load-testing/sla-baseline.md
+  file docs/reference/openapi.json

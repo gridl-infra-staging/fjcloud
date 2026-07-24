@@ -1,0 +1,5 @@
+UTC start: 2026-07-24T09:01:20Z
+Command: resolve EC2 instance backing seeded tenant node vm-shared-1ca0d103.flapjack.foo
+[]
+
+Exit code: 0

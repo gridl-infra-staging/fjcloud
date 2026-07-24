@@ -1,0 +1,1 @@
+Jul 17 20:22:38 fjcloud-api-staging systemd[1]: fj-metering-agent.service - Flapjack Metering Agent was skipped because of an unmet condition check (ConditionPathExists=/etc/fjcloud/metering-env).

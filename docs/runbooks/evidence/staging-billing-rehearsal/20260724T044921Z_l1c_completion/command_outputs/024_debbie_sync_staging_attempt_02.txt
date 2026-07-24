@@ -1,0 +1,35 @@
+
+debbie sync -> staging
+  project: fjcloud
+  config:  /private/tmp/fjcloud-stage1-accepted.A3NA2B/source/.debbie.toml
+  DOWNSTREAM: ci-automated: deploy-web step in mirror ci.yml deploy-staging
+
+scrai strip: files_discovered=1040 files_modified=529 candidates_removed=2870
+   Compiling api v0.1.0 (/Users/stuart/repos/gridl-infra-staging/fjcloud/infra/api)
+   Compiling pricing-calculator v0.1.0 (/Users/stuart/repos/gridl-infra-staging/fjcloud/infra/pricing-calculator)
+   Compiling billing v0.1.0 (/Users/stuart/repos/gridl-infra-staging/fjcloud/infra/billing)
+   Compiling aggregation-job v0.1.0 (/Users/stuart/repos/gridl-infra-staging/fjcloud/infra/aggregation-job)
+   Compiling retention-job v0.1.0 (/Users/stuart/repos/gridl-infra-staging/fjcloud/infra/retention-job)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.11s
+     Running tests/platform.rs (target/debug/deps/platform-75b204826b573356)
+
+running 1 test
+test openapi_spec_test::openapi_spec_matches_committed_artifact ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1564 filtered out; finished in 0.01s
+
+[main 4c96683] chore: debbie post-sync mirror update
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+To github.com:gridl-infra-staging/fjcloud.git
+   ca230d1..4c96683  main -> main
+ok Synced 9 dirs, 15 files
+   hook: executed
+   downstream: ci-automated: deploy-web step in mirror ci.yml deploy-staging
+   mirror changed: yes
+   target dirty before sync: no
+   hook left target dirty: no
+   target dirty after sync: no
+   commit: not attempted
+   push: not attempted
+
+ok fjcloud -> staging complete

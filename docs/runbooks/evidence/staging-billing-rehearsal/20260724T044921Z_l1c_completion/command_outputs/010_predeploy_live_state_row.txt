@@ -1,0 +1,7 @@
+### usage_rollup_freshness_staging
+- status: ACTION_REQUIRED
+- agent_executable: false
+- finding: usage-rollup freshness classifier reason=rollups_stale
+- raw: usage_rollup_freshness_staging.json
+
+asserted_status=ACTION_REQUIRED

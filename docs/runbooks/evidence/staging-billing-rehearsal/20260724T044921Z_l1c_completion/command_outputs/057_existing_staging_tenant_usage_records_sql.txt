@@ -1,0 +1,6 @@
+UTC start: 2026-07-24T09:17:56Z
+Command: query fresh usage_records after existing staging tenant write
+usage_records_recent|3|2026-07-24T09:17:24.772205Z|113204
+document_count|2|1|2026-07-24T09:17:24.772205Z
+storage_bytes|1|6827|2026-07-24T09:16:24.751744Z
+Exit code: 0

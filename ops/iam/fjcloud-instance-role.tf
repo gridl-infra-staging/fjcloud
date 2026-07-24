@@ -131,7 +131,7 @@ resource "aws_iam_role_policy" "fjcloud_s3_releases_read" {
 }
 
 # --------------------------------------------------------------------------
-# Policy — CloudWatch custom metrics for API heartbeat
+# Policy — CloudWatch custom metrics for API and aggregation jobs
 # --------------------------------------------------------------------------
 
 resource "aws_iam_role_policy" "fjcloud_cloudwatch_metrics" {
@@ -146,7 +146,7 @@ resource "aws_iam_role_policy" "fjcloud_cloudwatch_metrics" {
       Resource = "*"
       Condition = {
         "ForAnyValue:StringEquals" = {
-          "cloudwatch:namespace" = ["fjcloud/api", "CWAgent"]
+          "cloudwatch:namespace" = ["fjcloud/api", "CWAgent", "fjcloud/aggregation-job"]
         }
       }
     }]

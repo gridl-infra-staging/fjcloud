@@ -1,0 +1,17 @@
+UTC start: 2026-07-24T09:11:15Z
+Command: repair literal API_BASE_URL runtime env mistake, force staging API URLs, and restart metering
+ssm_command_id=6c02d09b-17c2-4d21-83f4-dc434f47d3ac
+--- i-0c74e2fe5fa24b116 status=Success response_code=0 ---
+node=vm-shared-3bd2b971.flapjack.foo environment=staging tenant_map_url=https://api.staging.flapjack.foo/internal/tenant-map tenant_http=200 tenant_contains_seeded=1 storage_http=200 storage_head={"tenants":[]}
+--- i-00a3b28ba4c00433a status=Success response_code=0 ---
+node=vm-shared-f2b9c8a6.flapjack.foo environment=staging tenant_map_url=https://api.staging.flapjack.foo/internal/tenant-map tenant_http=200 tenant_contains_seeded=1 storage_http=200 storage_head={"tenants":[]}
+--- i-0b2188437baeeacdf status=Success response_code=0 ---
+node=node-149ffef7-c451-4d96-86e8-714aa3c33e27 environment=staging tenant_map_url=https://api.staging.flapjack.foo/internal/tenant-map tenant_http=200 tenant_contains_seeded=1 storage_http=200 storage_head={"tenants":[]}
+--- i-019d556392acdada7 status=Success response_code=0 ---
+node=vm-shared-480b5169.flapjack.foo environment=staging tenant_map_url=https://api.staging.flapjack.foo/internal/tenant-map tenant_http=200 tenant_contains_seeded=1 storage_http=200 storage_head={"tenants":[]}
+--- i-0f9b2a9bd8cbaeeec status=Success response_code=0 ---
+node=vm-shared-391f314f.flapjack.foo environment=staging tenant_map_url=https://api.staging.flapjack.foo/internal/tenant-map tenant_http=200 tenant_contains_seeded=1 storage_http=200 storage_head={"tenants":[]}
+--- i-072d4333322ffd0eb status=Success response_code=0 ---
+node=vm-shared-1ca0d103.flapjack.foo environment=staging tenant_map_url=https://api.staging.flapjack.foo/internal/tenant-map tenant_http=200 tenant_contains_seeded=1 storage_http=200 storage_head={"tenants":[]}
+
+Exit code: 0

@@ -1,0 +1,12 @@
+UTC start: 2026-07-24T09:16:18Z
+Command: write one deterministic document to existing staging tenant using SSM internal token
+node_host=vm-shared-f2b9c8a6.flapjack.foo
+tenant_map_http=200
+tenant_id=canary-canary2026072017212313034
+flapjack_uid=77d5fe03059540dd96baca0687b2cc6f_canary-canary2026072017212313034
+write_http=200
+body_head={"taskID":1784884579845,"objectIDs":["doc-910000"]}
+storage_http=200
+storage_contains_uid=1
+storage_body_head={"tenants":[{"id":"77d5fe03059540dd96baca0687b2cc6f_canary-canary2026072017212313034","bytes":6827,"doc_count":1}]}
+Exit code: 0

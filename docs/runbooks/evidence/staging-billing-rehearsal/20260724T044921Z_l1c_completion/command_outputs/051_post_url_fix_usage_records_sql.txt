@@ -1,0 +1,4 @@
+UTC start: 2026-07-24T09:13:28Z
+Command: query fresh usage_records after staging URL fix and post-fix write
+usage_records_recent|0|2026-07-17T20:12:23.750566Z|113201
+Exit code: 0

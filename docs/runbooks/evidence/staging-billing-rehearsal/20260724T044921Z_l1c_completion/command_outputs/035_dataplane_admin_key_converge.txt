@@ -1,0 +1,50 @@
+UTC start: 2026-07-24T08:57:43Z
+Command: converge Flapjack persisted admin key and metering app-id on current staging data-plane nodes via SSM
+ssm_command_id=bd62d910-2951-4485-96f6-ffd905f52cb2
+--- i-0c74e2fe5fa24b116 status=Success response_code=0 ---
+node=vm-shared-3bd2b971.flapjack.foo flapjack=active metering=active admin_key_owner=flapjack:flapjack admin_key_mode=600 app_id_present=1 metrics_http=200 storage_http=200
+metrics_body_head=# HELP flapjack_active_writers Number of active index writers # TYPE flapjack_ac
+storage_body_head={"tenants":[]}
+Jul 24 08:57:51 ip-10-0-1-254.ec2.internal systemd[1]: Stopping fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:51 ip-10-0-1-254.ec2.internal systemd[1]: fj-metering-agent.service: Deactivated successfully.
+Jul 24 08:57:51 ip-10-0-1-254.ec2.internal systemd[1]: Stopped fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 08:57:51 ip-10-0-1-254.ec2.internal systemd[1]: Starting fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:51 ip-10-0-1-254.ec2.internal systemd[1]: Started fj-metering-agent.service - Flapjack Metering Agent.
+--- i-00a3b28ba4c00433a status=Success response_code=0 ---
+node=vm-shared-f2b9c8a6.flapjack.foo flapjack=active metering=active admin_key_owner=flapjack:flapjack admin_key_mode=600 app_id_present=1 metrics_http=200 storage_http=200
+metrics_body_head=# HELP flapjack_active_writers Number of active index writers # TYPE flapjack_ac
+storage_body_head={"tenants":[]}
+Jul 24 08:57:52 ip-10-0-1-221.ec2.internal systemd[1]: Stopping fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:52 ip-10-0-1-221.ec2.internal systemd[1]: fj-metering-agent.service: Deactivated successfully.
+Jul 24 08:57:52 ip-10-0-1-221.ec2.internal systemd[1]: Stopped fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 08:57:52 ip-10-0-1-221.ec2.internal systemd[1]: Starting fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:52 ip-10-0-1-221.ec2.internal systemd[1]: Started fj-metering-agent.service - Flapjack Metering Agent.
+--- i-0b2188437baeeacdf status=Success response_code=0 ---
+node=node-149ffef7-c451-4d96-86e8-714aa3c33e27 flapjack=active metering=active admin_key_owner=flapjack:flapjack admin_key_mode=600 app_id_present=1 metrics_http=200 storage_http=200
+metrics_body_head=# HELP flapjack_active_writers Number of active index writers # TYPE flapjack_ac
+storage_body_head={"tenants":[]}
+Jul 24 08:57:51 ip-10-0-1-36.ec2.internal systemd[1]: Stopping fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:51 ip-10-0-1-36.ec2.internal systemd[1]: fj-metering-agent.service: Deactivated successfully.
+Jul 24 08:57:51 ip-10-0-1-36.ec2.internal systemd[1]: Stopped fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 08:57:51 ip-10-0-1-36.ec2.internal systemd[1]: Starting fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:51 ip-10-0-1-36.ec2.internal systemd[1]: Started fj-metering-agent.service - Flapjack Metering Agent.
+--- i-019d556392acdada7 status=Success response_code=0 ---
+node=vm-shared-480b5169.flapjack.foo flapjack=active metering=active admin_key_owner=flapjack:flapjack admin_key_mode=600 app_id_present=1 metrics_http=200 storage_http=200
+metrics_body_head=# HELP flapjack_active_writers Number of active index writers # TYPE flapjack_ac
+storage_body_head={"tenants":[]}
+Jul 24 08:57:51 ip-10-0-1-191.ec2.internal systemd[1]: Stopping fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:51 ip-10-0-1-191.ec2.internal systemd[1]: fj-metering-agent.service: Deactivated successfully.
+Jul 24 08:57:51 ip-10-0-1-191.ec2.internal systemd[1]: Stopped fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 08:57:51 ip-10-0-1-191.ec2.internal systemd[1]: Starting fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:51 ip-10-0-1-191.ec2.internal systemd[1]: Started fj-metering-agent.service - Flapjack Metering Agent.
+--- i-0f9b2a9bd8cbaeeec status=Success response_code=0 ---
+node=vm-shared-391f314f.flapjack.foo flapjack=active metering=active admin_key_owner=flapjack:flapjack admin_key_mode=600 app_id_present=1 metrics_http=200 storage_http=200
+metrics_body_head=# HELP flapjack_active_writers Number of active index writers # TYPE flapjack_ac
+storage_body_head={"tenants":[]}
+Jul 24 08:57:51 ip-10-0-1-107.ec2.internal systemd[1]: Stopping fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:51 ip-10-0-1-107.ec2.internal systemd[1]: fj-metering-agent.service: Deactivated successfully.
+Jul 24 08:57:51 ip-10-0-1-107.ec2.internal systemd[1]: Stopped fj-metering-agent.service - Flapjack Metering Agent.
+Jul 24 08:57:51 ip-10-0-1-107.ec2.internal systemd[1]: Starting fj-metering-agent.service - Flapjack Metering Agent...
+Jul 24 08:57:51 ip-10-0-1-107.ec2.internal systemd[1]: Started fj-metering-agent.service - Flapjack Metering Agent.
+
+Exit code: 0

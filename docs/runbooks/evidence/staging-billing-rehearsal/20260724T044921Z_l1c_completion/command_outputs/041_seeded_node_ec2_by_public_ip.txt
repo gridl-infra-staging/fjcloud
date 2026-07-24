@@ -1,0 +1,29 @@
+UTC start: 2026-07-24T09:02:08Z
+Command: resolve seeded tenant node EC2 instance by public DNS address
+[
+    {
+        "InstanceId": "i-072d4333322ffd0eb",
+        "PrivateIpAddress": "10.0.1.187",
+        "PublicIpAddress": "34.228.66.185",
+        "Tags": [
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-1ca0d103.flapjack.foo"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-1ca0d103.flapjack.foo"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            }
+        ]
+    }
+]
+
+Exit code: 0

@@ -1,0 +1,29 @@
+2026-07-24T08:48:17Z
+○ fjcloud-aggregation-job.service - fjcloud Aggregation Job (nightly usage rollup)
+     Loaded: loaded (/etc/systemd/system/fjcloud-aggregation-job.service; static)
+     Active: inactive (dead) since Fri 2026-07-24 01:00:38 UTC; 7h ago
+TriggeredBy: ● fjcloud-aggregation-job.timer
+    Process: 4020028 ExecStart=/usr/local/bin/fjcloud-aggregation-job (code=exited, status=0/SUCCESS)
+   Main PID: 4020028 (code=exited, status=0/SUCCESS)
+        CPU: 19ms
+
+Jul 24 01:00:38 fjcloud-api-staging systemd[1]: Starting fjcloud-aggregation-job.service - fjcloud Aggregation Job (nightly usage rollup)...
+Jul 24 01:00:38 fjcloud-api-staging systemd[1]: fjcloud-aggregation-job.service: Deactivated successfully.
+Jul 24 01:00:38 fjcloud-api-staging systemd[1]: Finished fjcloud-aggregation-job.service - fjcloud Aggregation Job (nightly usage rollup).
+● fjcloud-aggregation-job.timer - fjcloud Aggregation Job Timer (daily at 01:00 UTC)
+     Loaded: loaded (/etc/systemd/system/fjcloud-aggregation-job.timer; enabled; preset: disabled)
+     Active: active (waiting) since Thu 2026-05-21 01:51:37 UTC; 2 months 3 days ago
+    Trigger: Sat 2026-07-25 01:00:00 UTC; 16h left
+   Triggers: ● fjcloud-aggregation-job.service
+NEXT                        LEFT     LAST                        PASSED UNIT                          ACTIVATES
+Sat 2026-07-25 01:00:00 UTC 16h left Fri 2026-07-24 01:00:38 UTC 7h ago fjcloud-aggregation-job.timer fjcloud-aggregation-job.service
+
+1 timers listed.
+Jul 23 01:00:06 fjcloud-api-staging systemd[1]: Starting fjcloud-aggregation-job.service - fjcloud Aggregation Job (nightly usage rollup)...
+Jul 23 01:00:06 fjcloud-api-staging systemd[1]: fjcloud-aggregation-job.service: Deactivated successfully.
+Jul 23 01:00:06 fjcloud-api-staging systemd[1]: Finished fjcloud-aggregation-job.service - fjcloud Aggregation Job (nightly usage rollup).
+Jul 24 01:00:38 fjcloud-api-staging systemd[1]: Starting fjcloud-aggregation-job.service - fjcloud Aggregation Job (nightly usage rollup)...
+Jul 24 01:00:38 fjcloud-api-staging systemd[1]: fjcloud-aggregation-job.service: Deactivated successfully.
+Jul 24 01:00:38 fjcloud-api-staging systemd[1]: Finished fjcloud-aggregation-job.service - fjcloud Aggregation Job (nightly usage rollup).
+-- No entries --
+exit=0

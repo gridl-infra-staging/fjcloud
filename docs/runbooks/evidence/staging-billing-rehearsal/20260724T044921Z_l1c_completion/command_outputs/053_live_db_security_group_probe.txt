@@ -1,0 +1,40 @@
+UTC start: 2026-07-24T09:14:22Z
+Command: inspect live seeded node security groups and staging RDS endpoint/security groups without secret values
+seeded_instance_sgs:
+[
+    {
+        "InstanceId": "i-072d4333322ffd0eb",
+        "PrivateIpAddress": "10.0.1.187",
+        "SecurityGroups": [
+            {
+                "GroupId": "sg-0ab78cabd1b997099",
+                "GroupName": "fjcloud-prod-sg-flapjack-vm"
+            }
+        ]
+    }
+]
+rds_instances:
+[
+    {
+        "DBInstanceIdentifier": "fjcloud-prod",
+        "Endpoint": "fjcloud-prod.cabwlew6jcjl.us-east-1.rds.amazonaws.com",
+        "VpcSecurityGroups": [
+            {
+                "VpcSecurityGroupId": "sg-0c6ae08699b5405f0",
+                "Status": "active"
+            }
+        ]
+    },
+    {
+        "DBInstanceIdentifier": "fjcloud-staging",
+        "Endpoint": "fjcloud-staging.cabwlew6jcjl.us-east-1.rds.amazonaws.com",
+        "VpcSecurityGroups": [
+            {
+                "VpcSecurityGroupId": "sg-0e60946fafe060833",
+                "Status": "active"
+            }
+        ]
+    }
+]
+
+Exit code: 0

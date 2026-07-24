@@ -1,0 +1,9 @@
+UTC start: 2026-07-24T09:02:40Z
+Command: converge persisted admin key/app-id on seeded tenant node i-072d4333322ffd0eb
+ssm_command_id=9a33c42c-59d0-40a6-9f8e-d5cc2ad0a38e
+status=Success response_code=0
+node=vm-shared-1ca0d103.flapjack.foo flapjack=active metering=active admin_key_owner=flapjack:flapjack admin_key_mode=600 app_id_present=1 metrics_http=200 storage_http=200
+metrics_body_head=# HELP flapjack_active_writers Number of active index writers # TYPE flapjack_ac
+storage_body_head={"tenants":[]}
+
+Exit code: 0

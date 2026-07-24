@@ -1,0 +1,5 @@
+UTC start: 2026-07-24T09:19:58Z
+Command: run canonical final bash scripts/probe_live_state.sh
+docs/live-state/20260724T091958Z/SUMMARY.md
+
+Exit code: 0

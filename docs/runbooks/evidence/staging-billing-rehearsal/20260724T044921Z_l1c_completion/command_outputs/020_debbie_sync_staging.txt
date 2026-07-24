@@ -1,0 +1,64 @@
+
+debbie sync -> staging
+  project: fjcloud
+  config:  /private/tmp/fjcloud-stage1-accepted.2iy5AV/source/.debbie.toml
+  DOWNSTREAM: ci-automated: deploy-web step in mirror ci.yml deploy-staging
+
+scrai strip: files_discovered=1040 files_modified=529 candidates_removed=2870
+   Compiling api v0.1.0 (/Users/stuart/repos/gridl-infra-staging/fjcloud/infra/api)
+   Compiling pricing-calculator v0.1.0 (/Users/stuart/repos/gridl-infra-staging/fjcloud/infra/pricing-calculator)
+   Compiling billing v0.1.0 (/Users/stuart/repos/gridl-infra-staging/fjcloud/infra/billing)
+   Compiling aggregation-job v0.1.0 (/Users/stuart/repos/gridl-infra-staging/fjcloud/infra/aggregation-job)
+   Compiling retention-job v0.1.0 (/Users/stuart/repos/gridl-infra-staging/fjcloud/infra/retention-job)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 13s
+     Running tests/platform.rs (target/debug/deps/platform-75b204826b573356)
+
+running 1 test
+test openapi_spec_test::openapi_spec_matches_committed_artifact ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1623 filtered out; finished in 0.01s
+
+[main 1673124] chore: debbie post-sync mirror update
+ 78 files changed, 7989 insertions(+), 446 deletions(-)
+ create mode 100644 docs/runbooks/evidence/vm-autorepair/20260723T220406Z_l3_detection_proof/instance_allowlist.txt
+ create mode 100644 docs/runbooks/evidence/vm-autorepair/20260723T221850Z_l3_detection_proof/instance_allowlist.txt
+ create mode 100644 docs/runbooks/evidence/vm-autorepair/20260723T223558Z_l3_detection_proof/instance_allowlist.txt
+ create mode 100644 docs/runbooks/evidence/vm-autorepair/20260723T224039Z_l3_detection_proof/command_evidence.txt
+ create mode 100644 docs/runbooks/evidence/vm-autorepair/20260723T224039Z_l3_detection_proof/engine_down_observation.json
+ create mode 100644 docs/runbooks/evidence/vm-autorepair/20260723T224039Z_l3_detection_proof/instance_allowlist.txt
+ create mode 100644 docs/runbooks/evidence/vm-autorepair/20260723T224039Z_l3_detection_proof/lifecycle_events.json
+ create mode 100644 docs/runbooks/evidence/vm-autorepair/20260723T224039Z_l3_detection_proof/summary.json
+ create mode 100644 docs/runbooks/evidence/vm-autorepair/20260723T225801Z_l3_detection_proof/command_evidence.txt
+ create mode 100644 docs/runbooks/evidence/vm-autorepair/20260723T225801Z_l3_detection_proof/engine_down_observation.json
+ create mode 100644 docs/runbooks/evidence/vm-autorepair/20260723T225801Z_l3_detection_proof/instance_allowlist.txt
+ create mode 100644 docs/runbooks/evidence/vm-autorepair/20260723T225801Z_l3_detection_proof/lifecycle_events.json
+ create mode 100644 docs/runbooks/evidence/vm-autorepair/20260723T225801Z_l3_detection_proof/summary.json
+ create mode 100644 docs/runbooks/vm_autorepair.md
+ create mode 100644 infra/api/src/models/vm_lifecycle_event.rs
+ create mode 100644 infra/api/src/repos/pg_vm_lifecycle_event_repo.rs
+ create mode 100644 infra/api/src/repos/vm_lifecycle_event_repo.rs
+ create mode 100644 infra/api/src/services/provisioning/auto_provision/teardown.rs
+ create mode 100644 infra/api/src/services/vm_autorepair.rs
+ create mode 100644 infra/api/src/services/vm_autorepair/lifecycle.rs
+ create mode 100644 infra/api/src/services/vm_autorepair/rules.rs
+ create mode 100644 infra/api/src/startup/server.rs
+ create mode 100644 infra/api/tests/integration/admin_vm_lifecycle_events_test.rs
+ create mode 100644 infra/api/tests/integration/vm_autorepair_test.rs
+ create mode 100644 infra/api/tests/integration/vm_lifecycle_events_repo_test.rs
+ create mode 100644 infra/migrations/064_vm_lifecycle_events.sql
+ create mode 100755 scripts/tests/validate_vm_autorepair_detection_test.sh
+ create mode 100755 scripts/tests/vm_autorepair_docs_contract_test.sh
+ create mode 100755 scripts/validate_vm_autorepair_detection.sh
+To github.com:gridl-infra-staging/fjcloud.git
+   7fba1c9..1673124  main -> main
+ok Synced 9 dirs, 15 files
+   hook: executed
+   downstream: ci-automated: deploy-web step in mirror ci.yml deploy-staging
+   mirror changed: yes
+   target dirty before sync: no
+   hook left target dirty: no
+   target dirty after sync: no
+   commit: not attempted
+   push: not attempted
+
+ok fjcloud -> staging complete

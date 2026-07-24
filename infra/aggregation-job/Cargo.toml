@@ -13,9 +13,16 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow      = { workspace = true }
+aws-config = { workspace = true }
+aws-sdk-cloudwatch = { workspace = true }
 chrono      = { workspace = true }
 sqlx        = { workspace = true }
 thiserror   = { workspace = true }
 tokio       = { workspace = true }
 tracing     = { workspace = true }
 tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+serde_cbor = "0.11"
+serde_json = { workspace = true }
+wiremock = "0.6"

@@ -1,0 +1,28 @@
+UTC start: 2026-07-24T09:19:07Z
+Command: inspect public-safe API host env key names for aggregation rerun
+DATABASE_URL=postgres://[redacted]@fjcloud-staging.cabwlew6jcjl.us-east-1.rds.amazonaws.com:5432/[db]
+# /etc/systemd/system/fjcloud-aggregation-job.service
+[Unit]
+Description=fjcloud Aggregation Job (nightly usage rollup)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=fjcloud
+Group=fjcloud
+
+EnvironmentFile=-/etc/fjcloud/env
+ExecStart=/usr/local/bin/fjcloud-aggregation-job
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fjcloud-aggregation-job
+Exit code: 0

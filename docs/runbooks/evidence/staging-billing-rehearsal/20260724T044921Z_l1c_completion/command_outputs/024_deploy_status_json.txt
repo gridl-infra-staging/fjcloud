@@ -1,0 +1,16 @@
+2026-07-24T08:44:32Z
+{
+  "dev_main_sha": "7b5584e85dda27e7e6066d4eadb54bc604ac466b",
+  "envs": {
+    "staging": {
+      "url": "https://api.staging.flapjack.foo/version",
+      "dev_sha": "7b5584e85dda27e7e6066d4eadb54bc604ac466b",
+      "mirror_sha": "e5a6f01a45cb86fef45e54522dfc643ed56c7912",
+      "synced_at": "2026-07-24T07:57:29Z",
+      "build_time": "2026-07-24T08:05:53Z",
+      "commits_behind_main": "0",
+      "deployable_drift": "false",
+      "doc_only_ahead": "false"
+    }
+  }
+}

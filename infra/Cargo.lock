@@ -48,12 +48,17 @@ name = "aggregation-job"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "aws-config",
+ "aws-sdk-cloudwatch",
  "chrono",
+ "serde_cbor",
+ "serde_json",
  "sqlx",
  "thiserror 1.0.69",
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "wiremock",
 ]
 
 [[package]]

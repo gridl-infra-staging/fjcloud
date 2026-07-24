@@ -1,0 +1,4 @@
+UTC start: 2026-07-24T09:19:24Z
+Command: export /etc/fjcloud/env and run fjcloud aggregation job with TARGET_DATE=$(date -u +%F)
+
+Exit code: 0

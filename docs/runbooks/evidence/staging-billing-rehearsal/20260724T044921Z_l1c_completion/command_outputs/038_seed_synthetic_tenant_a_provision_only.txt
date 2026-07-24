@@ -1,0 +1,22 @@
+UTC start: 2026-07-24T09:00:49Z
+Command: SSM-hydrate staging tooling env and run tenant A synthetic seeder --provision-only
+[seed-synthetic] === synthetic traffic seeder ===
+[seed-synthetic] mode:     execute
+[seed-synthetic] tenant:   A
+[seed-synthetic] duration: 60 min (if executing)
+[seed-synthetic]
+[seed-synthetic] === Tenant A ===
+[seed-synthetic]   name:              demo-shared-free
+[seed-synthetic]   plan:              shared
+[seed-synthetic]   target_storage_mb: 100
+[seed-synthetic]   writes_per_minute: 10
+[seed-synthetic]   searches_per_min:  1
+[seed-synthetic]   expected floor:    500 cents/month
+scripts/launch/seed_synthetic_traffic.sh: line 1075: /opt/homebrew/bin/python3: Argument list too long
+[seed-synthetic]   canonical synthetic email is blocked by deleted tenant history; retrying create with a unique synthetic email
+[seed-synthetic]   tenant mapping ready at docs/runbooks/evidence/staging-billing-rehearsal/20260724T044921Z_l1c_completion/seed_synthetic_state/seed-synthetic-demo-shared-free.json
+[seed-synthetic]   [provision-only] tenant A provisioned; skipping storage backfill and sustained traffic
+[seed-synthetic]
+[seed-synthetic] === done ===
+
+Exit code: 0

@@ -1,0 +1,22 @@
+UTC start: 2026-07-24T09:10:31Z
+Command: force staging environment label/API base on running staging data-plane nodes and restart metering
+ssm_command_id=68d35be7-b590-46ee-8f0c-a5542c335842
+--- i-0c74e2fe5fa24b116 status=Failed response_code=1 ---
+STDERR:
+/etc/fjcloud/metering-env: line 10: API_BASE_URL: unbound variable
+failed to run commands: exit status 1--- i-00a3b28ba4c00433a status=Failed response_code=1 ---
+STDERR:
+/etc/fjcloud/metering-env: line 10: API_BASE_URL: unbound variable
+failed to run commands: exit status 1--- i-0b2188437baeeacdf status=Failed response_code=1 ---
+STDERR:
+/etc/fjcloud/metering-env: line 10: API_BASE_URL: unbound variable
+failed to run commands: exit status 1--- i-019d556392acdada7 status=Failed response_code=1 ---
+STDERR:
+/etc/fjcloud/metering-env: line 10: API_BASE_URL: unbound variable
+failed to run commands: exit status 1--- i-0f9b2a9bd8cbaeeec status=Failed response_code=1 ---
+STDERR:
+/etc/fjcloud/metering-env: line 10: API_BASE_URL: unbound variable
+failed to run commands: exit status 1--- i-072d4333322ffd0eb status=Failed response_code=1 ---
+STDERR:
+/etc/fjcloud/metering-env: line 9: API_BASE_URL: unbound variable
+failed to run commands: exit status 1

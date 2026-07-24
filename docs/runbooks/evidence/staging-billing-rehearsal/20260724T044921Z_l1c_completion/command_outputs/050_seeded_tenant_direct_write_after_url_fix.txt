@@ -1,0 +1,9 @@
+UTC start: 2026-07-24T09:11:57Z
+Command: write one deterministic document after staging URL convergence
+node_host=vm-shared-1ca0d103.flapjack.foo
+flapjack_uid=0697348b79df4a20ac43f4f16ee3ca69_demo-shared-free
+write_http=200
+body_head={"taskID":1784884317812,"objectIDs":["doc-900001"]}
+storage_http=200
+storage_body={"tenants":[{"id":"0697348b79df4a20ac43f4f16ee3ca69_demo-shared-free","bytes":11245,"doc_count":2}]}
+Exit code: 0

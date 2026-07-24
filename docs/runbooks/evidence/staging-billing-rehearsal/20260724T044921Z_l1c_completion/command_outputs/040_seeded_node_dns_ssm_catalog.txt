@@ -1,0 +1,10 @@
+UTC start: 2026-07-24T09:01:53Z
+Command: inspect seeded node DNS and SSM catalog shape without printing secret values
+dns_addresses=34.228.66.185
+curl_health: 200
+health_body_head: {"status":"ok","version":"1.0.10","build":{"schemaVersion":1,"version":"1.0.10","revision":"bf1958bd3c679a2de70eba583b09
+matching_ssm_params:
+/fjcloud/vm-shared-1ca0d103.flapjack.foo/api-key
+running_shared_instances:
+
+Exit code: 0

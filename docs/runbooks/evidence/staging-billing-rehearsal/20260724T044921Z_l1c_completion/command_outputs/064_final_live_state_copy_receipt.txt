@@ -1,0 +1,4 @@
+latest_live_state=docs/live-state/20260724T091958Z
+summary_copy=docs/runbooks/evidence/staging-billing-rehearsal/20260724T044921Z_l1c_completion/POSTDEPLOY_LIVE_STATE_SUMMARY.md
+staging_json_copy=docs/runbooks/evidence/staging-billing-rehearsal/20260724T044921Z_l1c_completion/postdeploy_usage_rollup_freshness_staging.json
+prod_json_copy=docs/runbooks/evidence/staging-billing-rehearsal/20260724T044921Z_l1c_completion/postdeploy_usage_rollup_freshness_prod.json

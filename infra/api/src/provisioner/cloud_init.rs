@@ -176,8 +176,14 @@ logger -t "$LOG_TAG" "customer_id=$CUSTOMER_ID node_id=$NODE_ID region=$REGION e
 
 {secret_block}
 
-# Write environment files
-mkdir -p /etc/flapjack /etc/fjcloud
+if [ "$ENVIRONMENT" = "staging" ] && [[ "$DNS_DOMAIN" != staging.* ]]; then
+  API_BASE_URL="https://api.staging.$DNS_DOMAIN"
+else
+  API_BASE_URL="https://api.$DNS_DOMAIN"
+fi
+
+# Write environment files and Flapjack's persisted admin key
+mkdir -p /etc/flapjack /etc/fjcloud /var/lib/flapjack/data
 
 # Create secret-bearing env files with restrictive permissions from first write.
 (
@@ -198,20 +204,24 @@ cat > /etc/fjcloud/metering-env <<ENVEOF
 DATABASE_URL=$DB_URL
 FLAPJACK_URL=http://$NODE_ID:7700
 FLAPJACK_API_KEY=$API_KEY
+FLAPJACK_APPLICATION_ID=flapjack
 INTERNAL_KEY=$INTERNAL_AUTH_TOKEN
 CUSTOMER_ID=$CUSTOMER_ID
 NODE_ID=$NODE_ID
 REGION=$REGION
 ENVIRONMENT=$ENVIRONMENT
-TENANT_MAP_URL=https://api.$DNS_DOMAIN/internal/tenant-map
-COLD_STORAGE_USAGE_URL=https://api.$DNS_DOMAIN/internal/cold-storage-usage
+TENANT_MAP_URL=$API_BASE_URL/internal/tenant-map
+COLD_STORAGE_USAGE_URL=$API_BASE_URL/internal/cold-storage-usage
 SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL
 DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL
 ENVEOF
+
+printf '%s\n' "$API_KEY" > /var/lib/flapjack/data/.admin_key
 )
 
-chmod 600 /etc/flapjack/env /etc/fjcloud/metering-env
+chmod 600 /etc/flapjack/env /etc/fjcloud/metering-env /var/lib/flapjack/data/.admin_key
 chown flapjack:flapjack /etc/flapjack/env
+chown flapjack:flapjack /var/lib/flapjack/data/.admin_key
 chown fjcloud:fjcloud /etc/fjcloud/metering-env
 # Metering unit contract (owned in ops/systemd/fj-metering-agent.service):
 # User=fjcloud
@@ -262,9 +272,13 @@ mod tests {
         assert!(script.contains("FLAPJACK_DISABLE_DASHBOARD=1"));
         assert!(script.contains("FLAPJACK_URL=http://$NODE_ID:7700"));
         assert!(script.contains("ENVIRONMENT=$ENVIRONMENT"));
-        assert!(script.contains("TENANT_MAP_URL=https://api.$DNS_DOMAIN/internal/tenant-map"));
+        // API_BASE_URL is resolved at runtime by an emitted shell if/else that
+        // special-cases staging (api.staging.$DNS_DOMAIN); the literal block is
+        // present in every generated script, so metering URLs derive from it.
+        assert!(script.contains(r#"API_BASE_URL="https://api.staging.$DNS_DOMAIN""#));
+        assert!(script.contains("TENANT_MAP_URL=$API_BASE_URL/internal/tenant-map"));
         assert!(script.contains(
-            "COLD_STORAGE_USAGE_URL=https://api.$DNS_DOMAIN/internal/cold-storage-usage"
+            "COLD_STORAGE_USAGE_URL=$API_BASE_URL/internal/cold-storage-usage"
         ));
         assert!(script.contains("SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL"));
         assert!(script.contains("DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL"));

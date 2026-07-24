@@ -1779,6 +1779,44 @@ test_node_api_key_for_url_treats_ssm_value_as_data_not_code() {
     fi
 }
 
+test_healthy_shared_vm_url_scopes_discovery_to_target_environment_sg() {
+    load_seed_synthetic_functions
+    local resolved curl_calls_file aws_calls_file
+    curl_calls_file="$(mktemp)"
+    aws_calls_file="$(mktemp)"
+    aws() {
+        printf '%s\n' "$*" >> "$aws_calls_file"
+        if [ "$1" = "ec2" ] && [ "$2" = "describe-instances" ]; then
+            case "$*" in
+                *'Name=instance.group-name,Values=fjcloud-staging-sg-flapjack-vm'*)
+                    printf '%s\n' "vm-shared-staging.flapjack.foo"
+                    return 0
+                    ;;
+            esac
+            echo "missing staging security-group filter: $*" >&2
+            return 91
+        fi
+        echo "unexpected aws call: $*" >&2
+        return 92
+    }
+    curl() {
+        printf '%s\n' "$*" >> "$curl_calls_file"
+        printf '200'
+    }
+
+    ENVIRONMENT=staging resolved="$(healthy_shared_vm_url_from_ssm)"
+
+    assert_eq "$resolved" "http://vm-shared-staging.flapjack.foo:7700" \
+        "shared VM discovery must return a host from the staging Flapjack security group"
+    assert_not_contains "$(cat "$aws_calls_file")" "ssm describe-parameters" \
+        "shared VM discovery must not use the unscoped SSM node-key catalog when EC2 inventory is available"
+    assert_contains "$(cat "$curl_calls_file")" "http://vm-shared-staging.flapjack.foo:7700/health" \
+        "shared VM discovery should health-check the environment-scoped candidate"
+
+    unset -f aws
+    unset -f curl
+}
+
 test_duration_minutes_zero_is_a_supported_provisioning_only_seam() {
     local tmp_dir
     tmp_dir=$(mktemp -d)
@@ -1884,6 +1922,7 @@ main() {
             test_provisioning_contract_prefers_active_customer_when_lookup_returns_soft_deleted_first
             test_provisioning_contract_replaces_control_plane_endpoint_with_direct_fallback
             test_provisioning_contract_sends_direct_fallback_to_seed_index_payload
+            test_healthy_shared_vm_url_scopes_discovery_to_target_environment_sg
             test_seed_state_dir_accepts_writable_symlinked_directory_without_chmod
             test_resolve_customer_id_ignores_deleted_only_tenant_history
             ;;
@@ -1942,6 +1981,7 @@ main() {
             test_node_api_key_for_url_treats_ssm_value_as_data_not_code
             test_node_api_key_for_url_caches_per_host_to_avoid_repeat_lookups
             test_node_api_key_for_url_dies_when_url_has_no_host
+            test_healthy_shared_vm_url_scopes_discovery_to_target_environment_sg
             test_preflight_env_does_not_require_flapjack_api_key
             test_storage_floor_treats_absent_tenant_uid_as_zero_mb
             test_duration_minutes_zero_is_a_supported_provisioning_only_seam

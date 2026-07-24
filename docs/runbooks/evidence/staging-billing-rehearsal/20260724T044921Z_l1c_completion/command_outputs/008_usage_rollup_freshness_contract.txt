@@ -1,0 +1,20 @@
+Running 1 gate(s): usage-rollup-freshness-contract
+Mode: fast  Max parallel: 8
+
+
+=== local-ci summary (wall 218s) ===
+GATE                STATUS   SECS  LOG
+----                ------   ----  ---
+usage-rollup-freshness-contract  PASS      218  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/usage-rollup-freshness-contract.log
+
+## Prod deploy drift (informational — does not affect exit code)
+Prod deploy drift:
+  dev_sha:            9d521e1c9e873b777a4833b7de0dade01b49a3a8
+  build_time:         2026-07-22T20:43:38Z (32h 13m ago)
+  commits_behind:     342
+  deployable_drift:   true (behind)
+  doc_only_ahead:     false
+  dev_main_sha:       11737bafecc8
+
+Totals: pass=1 fail=0 skip=0
+Result: PASS

@@ -133,6 +133,14 @@ assert_file_contains "$iam_file" 'logs:CreateLogStream' "IAM policy includes log
 assert_file_contains "$iam_file" 'logs:PutLogEvents' "IAM policy includes logs:PutLogEvents"
 assert_file_contains "$iam_file" 'logs:DescribeLogStreams' "IAM policy includes logs:DescribeLogStreams"
 
+cloudwatch_metrics_policy="fjcloud_cloudwatch_metrics"
+cloudwatch_namespace_wildcard='"cloudwatch:namespace"[[:space:]]*=[[:space:]]*.*("\*"|"fjcloud/\*")'
+cloudwatch_aggregation_namespace='"cloudwatch:namespace"[[:space:]]*=[[:space:]]*.*("fjcloud/aggregation-job"|"fjcloud/\*"|"\*")'
+
+assert_resource_block_contains "$iam_file" "aws_iam_role_policy" "$cloudwatch_metrics_policy" '"cloudwatch:namespace"[[:space:]]*=[[:space:]]*\["fjcloud/api",[[:space:]]*"CWAgent",[[:space:]]*"fjcloud/aggregation-job"\]' "CloudWatch metrics policy has exact namespace allow-list"
+assert_resource_block_not_contains "$iam_file" "aws_iam_role_policy" "$cloudwatch_metrics_policy" "$cloudwatch_namespace_wildcard" "CloudWatch metrics policy rejects wildcard namespace grants"
+assert_sibling_resource_blocks_not_contains "$iam_file" "aws_iam_role_policy" "$cloudwatch_metrics_policy" "$cloudwatch_aggregation_namespace" "Aggregation CloudWatch namespace has no sibling IAM policy owner"
+
 ses_send_events_read_policy="fjcloud_ses_send_events_read"
 ses_send_events_filter_group='arn:aws:logs:us-east-1:\$\{data\.aws_caller_identity\.current\.account_id\}:log-group:/fjcloud/staging/ses/send-events:\*'
 ses_send_events_get_stream='arn:aws:logs:us-east-1:\$\{data\.aws_caller_identity\.current\.account_id\}:log-group:/fjcloud/staging/ses/send-events:log-stream:\*'

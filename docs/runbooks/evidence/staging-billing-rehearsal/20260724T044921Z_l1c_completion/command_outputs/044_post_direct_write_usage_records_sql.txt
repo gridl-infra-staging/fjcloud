@@ -1,0 +1,4 @@
+UTC start: 2026-07-24T09:05:33Z
+Command: query fresh usage_records after seeded direct write
+usage_records_recent|0|2026-07-17T20:12:23.750566Z|113201
+Exit code: 0

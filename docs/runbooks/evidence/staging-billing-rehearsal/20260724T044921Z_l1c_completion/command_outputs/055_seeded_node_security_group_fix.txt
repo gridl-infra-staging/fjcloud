@@ -1,0 +1,4 @@
+UTC start: 2026-07-24T09:15:06Z
+Command: attach seeded staging node to staging Flapjack VM security group and restart metering
+
+aws: [ERROR]: An error occurred (InvalidGroup.NotFound) when calling the ModifyInstanceAttribute operation: You have specified two resources that belong to different networks.

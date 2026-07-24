@@ -1,0 +1,28 @@
+○ fjcloud-aggregation-job.service - fjcloud Aggregation Job (nightly usage rollup)
+     Loaded: loaded (/etc/systemd/system/fjcloud-aggregation-job.service; static)
+     Active: inactive (dead) since Fri 2026-07-24 01:00:38 UTC; 4h 1min ago
+TriggeredBy: ● fjcloud-aggregation-job.timer
+    Process: 4020028 ExecStart=/usr/local/bin/fjcloud-aggregation-job (code=exited, status=0/SUCCESS)
+   Main PID: 4020028 (code=exited, status=0/SUCCESS)
+        CPU: 19ms
+
+Jul 24 01:00:38 fjcloud-api-staging systemd[1]: Starting fjcloud-aggregation-job.service - fjcloud Aggregation Job (nightly usage rollup)...
+Jul 24 01:00:38 fjcloud-api-staging systemd[1]: fjcloud-aggregation-job.service: Deactivated successfully.
+Jul 24 01:00:38 fjcloud-api-staging systemd[1]: Finished fjcloud-aggregation-job.service - fjcloud Aggregation Job (nightly usage rollup).
+
+● fjcloud-aggregation-job.timer - fjcloud Aggregation Job Timer (daily at 01:00 UTC)
+     Loaded: loaded (/etc/systemd/system/fjcloud-aggregation-job.timer; enabled; preset: disabled)
+     Active: active (waiting) since Thu 2026-05-21 01:51:37 UTC; 2 months 3 days ago
+    Trigger: Sat 2026-07-25 01:00:00 UTC; 19h left
+   Triggers: ● fjcloud-aggregation-job.service
+
+○ fj-metering-agent.service - Flapjack Metering Agent
+     Loaded: loaded (/etc/systemd/system/fj-metering-agent.service; disabled; preset: disabled)
+     Active: inactive (dead)
+       Docs: https://github.com/gridl/flapjack_dev
+
+Jul 17 20:22:38 fjcloud-api-staging systemd[1]: fj-metering-agent.service - Flapjack Metering Agent was skipped because of an unmet condition check (ConditionPathExists=/etc/fjcloud/metering-env).
+NEXT                        LEFT     LAST                        PASSED      UNIT                          ACTIVATES
+Sat 2026-07-25 01:00:00 UTC 19h left Fri 2026-07-24 01:00:38 UTC 4h 1min ago fjcloud-aggregation-job.timer fjcloud-aggregation-job.service
+
+1 timers listed.

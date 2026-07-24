@@ -1,0 +1,10 @@
+UTC start: 2026-07-24T09:06:08Z
+Command: inspect seeded node tenant-map response, storage, and metering journal after direct write
+ssm_command_id=f3c5b9fd-7201-42e3-aa7b-759c9fb4d5fe
+status=Failed response_code=1
+node=vm-shared-1ca0d103.flapjack.foo tenant_map_url=https://api.flapjack.foo/internal/tenant-map tenant_map_http=200 storage_http=200
+tenant_map_contains_seeded=0
+tenant_map_body_head=[{"tenant_id":"canary-canary202607201210574608","flapjack_uid":"96aec65509dd43448c91737f9723ee6a_canary-canary202607201210574608","customer_id":"96aec655-09dd-4344-8c91-737f9723ee6a","vm_id":"055030ec-c610-4ea8-90fc-9b494de527d9","flapjack_url":"http://vm-shared-f2b9c8a6.flapjack.foo:7700","tier":"active","created_at":"2026-07-20T12:11:23.054917Z"},{"tenant_id":"stage5-stage520260518035203338","flapjack_uid":"eb0d9cffcd5b4ff7aa67d1933bb20593_stage5-stage520260518035203338","customer_id":"eb0d9cff-cd5b-4ff7-aa67-d1933bb20593","vm_id":"055030ec-c610-4ea8-90fc-9b494de527d9","flapjack_url":"http:/
+storage_body={"tenants":[{"id":"0697348b79df4a20ac43f4f16ee3ca69_demo-shared-free","bytes":7266,"doc_count":1}]}
+process_env_summary: STDERR:
+failed to run commands: exit status 1

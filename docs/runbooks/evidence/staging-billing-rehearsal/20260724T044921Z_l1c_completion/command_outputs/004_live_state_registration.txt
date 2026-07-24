@@ -1,0 +1,6 @@
+for env in staging prod; do
+for env in staging prod; do
+for env in staging prod; do
+  usage_rollup_raw_name="usage_rollup_freshness_${env}.json"
+    add_row "usage_rollup_freshness_${env}" "SKIP_NO_CREDS" "false" \
+  add_row "usage_rollup_freshness_${env}" "$usage_rollup_status" "false" \

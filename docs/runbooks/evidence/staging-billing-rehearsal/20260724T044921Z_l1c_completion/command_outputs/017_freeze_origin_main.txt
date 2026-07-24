@@ -1,0 +1,4 @@
+accepted_sha=11737bafecc8def4174c3f6bbfaa9ee0f7e166da
+repair_ancestor=yes
+accepted_subject=Refresh supervisor followup feed
+accepted_committed_at=2026-07-24T00:35:05-04:00

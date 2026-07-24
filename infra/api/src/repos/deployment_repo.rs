@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
+use crate::models::vm_inventory::VmInventory;
 use crate::models::Deployment;
 use crate::repos::error::RepoError;
 
@@ -21,6 +22,13 @@ pub trait DeploymentRepo {
     /// Finds the requested deployments with the same raw inclusion semantics
     /// as `find_by_id`; status and `flapjack_url` are not filtered.
     async fn find_by_ids(&self, ids: &[Uuid]) -> Result<Vec<Deployment>, RepoError>;
+
+    async fn create_running_shared_deployment(
+        &self,
+        customer_id: Uuid,
+        region: &str,
+        vm: &VmInventory,
+    ) -> Result<Deployment, RepoError>;
 
     async fn create(
         &self,

@@ -1272,6 +1272,7 @@ impl CustomerRepo for MockCustomerRepo {
         {
             Some(c) => {
                 c.status = "active".to_string();
+                c.lifecycle_generation += 1;
                 c.updated_at = Utc::now();
                 Ok(true)
             }
@@ -1596,6 +1597,34 @@ impl DeploymentRepo for MockDeploymentRepo {
             .filter(|deployment| requested_ids.contains(&deployment.id))
             .cloned()
             .collect())
+    }
+
+    async fn create_running_shared_deployment(
+        &self,
+        customer_id: Uuid,
+        region: &str,
+        vm: &api::models::vm_inventory::VmInventory,
+    ) -> Result<Deployment, RepoError> {
+        let deployment = Deployment {
+            id: Uuid::new_v4(),
+            customer_id,
+            node_id: format!("node-{}", Uuid::new_v4()),
+            region: region.to_string(),
+            vm_type: "shared".to_string(),
+            vm_provider: vm.provider.clone(),
+            ip_address: Some("0.0.0.0".to_string()),
+            status: "running".to_string(),
+            failure_reason: None,
+            created_at: Utc::now(),
+            terminated_at: None,
+            provider_vm_id: Some(vm.id.to_string()),
+            hostname: Some(vm.hostname.clone()),
+            flapjack_url: Some(vm.flapjack_url.clone()),
+            last_health_check_at: None,
+            health_status: "unknown".to_string(),
+        };
+        self.deployments.lock().unwrap().push(deployment.clone());
+        Ok(deployment)
     }
 
     /// Implements `DeploymentRepo::create`. Inserts a new deployment with status

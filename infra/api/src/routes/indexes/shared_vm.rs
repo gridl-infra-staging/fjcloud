@@ -626,7 +626,8 @@ pub(crate) async fn create_shared_deployment(
     destination: &AdmittedIndexDestination,
     vm: &crate::models::vm_inventory::VmInventory,
 ) -> Result<(Uuid, ResolvedFlapjackTarget), ApiError> {
-    let deployment = crate::repos::PgDeploymentRepo::new(state.pool.clone())
+    let deployment = state
+        .deployment_repo
         .create_running_shared_deployment(destination.customer_id, &destination.region, vm)
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;

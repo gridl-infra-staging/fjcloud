@@ -119,6 +119,15 @@ impl DeploymentRepo for PgDeploymentRepo {
             .map_err(|e| RepoError::Other(e.to_string()))
     }
 
+    async fn create_running_shared_deployment(
+        &self,
+        customer_id: Uuid,
+        region: &str,
+        vm: &VmInventory,
+    ) -> Result<Deployment, RepoError> {
+        PgDeploymentRepo::create_running_shared_deployment(self, customer_id, region, vm).await
+    }
+
     /// INSERT RETURNING for a new deployment. Unique violation on node_id
     /// returns `Conflict`.
     async fn create(

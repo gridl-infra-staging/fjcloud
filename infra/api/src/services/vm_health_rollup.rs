@@ -118,6 +118,15 @@ mod tests {
                 .collect())
         }
 
+        async fn create_running_shared_deployment(
+            &self,
+            _customer_id: Uuid,
+            _region: &str,
+            _vm: &crate::models::vm_inventory::VmInventory,
+        ) -> Result<Deployment, RepoError> {
+            unimplemented!("not needed by vm health rollup tests")
+        }
+
         async fn create(
             &self,
             _customer_id: Uuid,

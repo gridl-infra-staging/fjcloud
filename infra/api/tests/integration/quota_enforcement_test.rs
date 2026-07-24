@@ -300,7 +300,8 @@ async fn free_tier_customer_can_create_first_index() {
         .await
         .unwrap();
 
-    assert_eq!(resp.status(), StatusCode::CREATED);
+    let (status, body) = response_json(resp).await;
+    assert_eq!(status, StatusCode::CREATED, "unexpected body: {body}");
 }
 
 #[tokio::test]

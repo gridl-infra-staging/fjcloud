@@ -1,0 +1,234 @@
+##### SERVICE_USER_FJCLOUD_BEGIN #####
+whoami=fjcloud uid=992 gid=992 region=us-east-1 config_set_present=yes
+proxy_booleans_begin
+proxy_booleans_end
+--- dns_email.us-east-1.amazonaws.com_begin ---
+18.204.163.48   STREAM email.us-east-1.amazonaws.com
+18.204.163.48   DGRAM  
+18.204.163.48   RAW    
+exit_status=0
+--- dns_email.us-east-1.amazonaws.com_end ---
+--- route4_email.us-east-1.amazonaws.com_begin ---
+no_ipv4_address
+exit_status=64
+--- route4_email.us-east-1.amazonaws.com_end ---
+--- route6_email.us-east-1.amazonaws.com_begin ---
+no_ipv6_address
+exit_status=64
+--- route6_email.us-east-1.amazonaws.com_end ---
+--- dns_monitoring.us-east-1.amazonaws.com_begin ---
+44.223.121.8    STREAM monitoring.us-east-1.amazonaws.com
+44.223.121.8    DGRAM  
+44.223.121.8    RAW    
+44.213.98.126   STREAM 
+44.213.98.126   DGRAM  
+44.213.98.126   RAW    
+44.213.98.124   STREAM 
+44.213.98.124   DGRAM  
+44.213.98.124   RAW    
+44.213.98.220   STREAM 
+44.213.98.220   DGRAM  
+44.213.98.220   RAW    
+44.213.98.78    STREAM 
+44.213.98.78    DGRAM  
+44.213.98.78    RAW    
+44.223.121.70   STREAM 
+44.223.121.70   DGRAM  
+44.223.121.70   RAW    
+44.213.98.13    STREAM 
+44.213.98.13    DGRAM  
+44.213.98.13    RAW    
+44.213.98.40    STREAM 
+44.213.98.40    DGRAM  
+44.213.98.40    RAW    
+exit_status=0
+--- dns_monitoring.us-east-1.amazonaws.com_end ---
+--- route4_monitoring.us-east-1.amazonaws.com_begin ---
+no_ipv4_address
+exit_status=64
+--- route4_monitoring.us-east-1.amazonaws.com_end ---
+--- route6_monitoring.us-east-1.amazonaws.com_begin ---
+no_ipv6_address
+exit_status=64
+--- route6_monitoring.us-east-1.amazonaws.com_end ---
+--- dns_sts.us-east-1.amazonaws.com_begin ---
+44.213.78.45    STREAM sts.us-east-1.amazonaws.com
+44.213.78.45    DGRAM  
+44.213.78.45    RAW    
+exit_status=0
+--- dns_sts.us-east-1.amazonaws.com_end ---
+--- route4_sts.us-east-1.amazonaws.com_begin ---
+no_ipv4_address
+exit_status=64
+--- route4_sts.us-east-1.amazonaws.com_end ---
+--- route6_sts.us-east-1.amazonaws.com_begin ---
+no_ipv6_address
+exit_status=64
+--- route6_sts.us-east-1.amazonaws.com_end ---
+--- dns_discord.com_begin ---
+162.159.128.233 STREAM discord.com
+162.159.128.233 DGRAM  
+162.159.128.233 RAW    
+162.159.135.232 STREAM 
+162.159.135.232 DGRAM  
+162.159.135.232 RAW    
+162.159.138.232 STREAM 
+162.159.138.232 DGRAM  
+162.159.138.232 RAW    
+162.159.137.232 STREAM 
+162.159.137.232 DGRAM  
+162.159.137.232 RAW    
+162.159.136.232 STREAM 
+162.159.136.232 DGRAM  
+162.159.136.232 RAW    
+exit_status=0
+--- dns_discord.com_end ---
+--- route4_discord.com_begin ---
+no_ipv4_address
+exit_status=64
+--- route4_discord.com_end ---
+--- route6_discord.com_begin ---
+no_ipv6_address
+exit_status=64
+--- route6_discord.com_end ---
+--- dns_github.com_begin ---
+140.82.112.4    STREAM github.com
+140.82.112.4    DGRAM  
+140.82.112.4    RAW    
+exit_status=0
+--- dns_github.com_end ---
+--- route4_github.com_begin ---
+no_ipv4_address
+exit_status=64
+--- route4_github.com_end ---
+--- route6_github.com_begin ---
+no_ipv6_address
+exit_status=64
+--- route6_github.com_end ---
+--- imdsv2_role_begin ---
+role_name_present=YESexit_status=0
+--- imdsv2_role_end ---
+--- aws_cli_version_begin ---
+aws-cli/2.33.15 Python/3.9.25 Linux/6.1.170-213.321.amzn2023.aarch64 source/aarch64.amzn.2023
+exit_status=0
+--- aws_cli_version_end ---
+--- aws_debug_sts_begin ---
+2026-07-24 18:39:02,976 - MainThread - awscli.clidriver - DEBUG - CLI version: aws-cli/2.33.15 Python/3.9.25 Linux/6.1.170-213.321.amzn2023.aarch64 source/aarch64.amzn.2023
+2026-07-24 18:39:02,976 - MainThread - awscli.clidriver - DEBUG - Arguments entered to CLI: ['--debug', 'sts', 'get-caller-identity', '--region', 'us-east-1', '--output', 'json', '--no-cli-pager']
+2026-07-24 18:39:02,985 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <function add_s3 at 0xffff8a81eee0>
+2026-07-24 18:39:02,985 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <function add_ddb at 0xffff8aade8b0>
+2026-07-24 18:39:02,985 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <bound method BasicCommand.add_command of <class 'awscli.customizations.configure.configure.ConfigureCommand'>>
+2026-07-24 18:39:02,985 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <function change_name at 0xffff8abc4430>
+2026-07-24 18:39:02,985 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <function change_name at 0xffff8abca3a0>
+2026-07-24 18:39:02,985 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <function add_history_commands at 0xffff8a9d2820>
+2026-07-24 18:39:02,985 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <bound method BasicCommand.add_command of <class 'awscli.customizations.devcommands.CLIDevCommand'>>
+2026-07-24 18:39:02,985 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <bound method BasicCommand.add_command of <class 'awscli.customizations.login.login.LoginCommand'>>
+2026-07-24 18:39:02,985 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <bound method BasicCommand.add_command of <class 'awscli.customizations.login.logout.LogoutCommand'>>
+2026-07-24 18:39:02,985 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <function add_waiters at 0xffff8a83cee0>
+2026-07-24 18:39:02,985 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <bound method AliasSubCommandInjector.on_building_command_table of <awscli.alias.AliasSubCommandInjector object at 0xffff8a7c63d0>>
+2026-07-24 18:39:02,986 - MainThread - botocore.loaders - DEBUG - Loading JSON file: /usr/lib/python3.9/site-packages/awscli/data/cli.json
+2026-07-24 18:39:02,988 - MainThread - botocore.hooks - DEBUG - Event top-level-args-parsed: calling handler <function resolve_types at 0xffff8a9b1c10>
+2026-07-24 18:39:02,988 - MainThread - botocore.hooks - DEBUG - Event top-level-args-parsed: calling handler <function no_sign_request at 0xffff8a9b1ee0>
+2026-07-24 18:39:02,988 - MainThread - botocore.hooks - DEBUG - Event top-level-args-parsed: calling handler <function resolve_verify_ssl at 0xffff8a9b1e50>
+2026-07-24 18:39:02,988 - MainThread - botocore.hooks - DEBUG - Event top-level-args-parsed: calling handler <function resolve_cli_read_timeout at 0xffff8a9b5040>
+2026-07-24 18:39:02,988 - MainThread - botocore.hooks - DEBUG - Event top-level-args-parsed: calling handler <function resolve_cli_connect_timeout at 0xffff8a9b1f70>
+2026-07-24 18:39:02,988 - MainThread - botocore.hooks - DEBUG - Event top-level-args-parsed: calling handler <built-in method update of dict object at 0xffff8a7caa00>
+2026-07-24 18:39:02,988 - MainThread - botocore.session - DEBUG - Setting config variable for region to 'us-east-1'
+2026-07-24 18:39:02,989 - MainThread - awscli.clidriver - DEBUG - CLI version: aws-cli/2.33.15 Python/3.9.25 Linux/6.1.170-213.321.amzn2023.aarch64 source/aarch64.amzn.2023
+2026-07-24 18:39:02,989 - MainThread - awscli.clidriver - DEBUG - Arguments entered to CLI: ['--debug', 'sts', 'get-caller-identity', '--region', 'us-east-1', '--output', 'json', '--no-cli-pager']
+2026-07-24 18:39:02,989 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function add_timestamp_parser at 0xffff8a835d30>
+2026-07-24 18:39:02,989 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function register_uri_param_handler at 0xffff8c4c99d0>
+2026-07-24 18:39:02,989 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function add_binary_formatter at 0xffff8ae92550>
+2026-07-24 18:39:02,989 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function no_pager_handler at 0xffff8af27040>
+2026-07-24 18:39:02,989 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function inject_assume_role_provider_cache at 0xffff8ae91dc0>
+2026-07-24 18:39:02,992 - MainThread - botocore.utils - DEBUG - IMDS ENDPOINT: http://169.254.169.254/
+2026-07-24 18:39:02,994 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function attach_history_handler at 0xffff8a9d2700>
+2026-07-24 18:39:02,994 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function inject_json_file_cache at 0xffff8ab4c280>
+2026-07-24 18:39:03,004 - MainThread - botocore.loaders - DEBUG - Loading JSON file: /usr/lib/python3.9/site-packages/awscli/botocore/data/sts/2011-06-15/service-2.json
+2026-07-24 18:39:03,006 - MainThread - botocore.hooks - DEBUG - Event building-command-table.sts: calling handler <function add_waiters at 0xffff8a83cee0>
+2026-07-24 18:39:03,015 - MainThread - botocore.hooks - DEBUG - Event building-command-table.sts: calling handler <bound method AliasSubCommandInjector.on_building_command_table of <awscli.alias.AliasSubCommandInjector object at 0xffff8a7c63d0>>
+2026-07-24 18:39:03,015 - MainThread - awscli.clidriver - DEBUG - OrderedDict()
+2026-07-24 18:39:03,016 - MainThread - botocore.hooks - DEBUG - Event building-argument-table.sts.get-caller-identity: calling handler <function add_streaming_output_arg at 0xffff8a8350d0>
+2026-07-24 18:39:03,016 - MainThread - botocore.hooks - DEBUG - Event building-argument-table.sts.get-caller-identity: calling handler <function add_cli_input_json at 0xffff8aea29d0>
+2026-07-24 18:39:03,016 - MainThread - botocore.hooks - DEBUG - Event building-argument-table.sts.get-caller-identity: calling handler <function add_cli_input_yaml at 0xffff8aea2a60>
+2026-07-24 18:39:03,016 - MainThread - botocore.hooks - DEBUG - Event building-argument-table.sts.get-caller-identity: calling handler <function unify_paging_params at 0xffff8aadedc0>
+2026-07-24 18:39:03,025 - MainThread - botocore.loaders - DEBUG - Loading JSON file: /usr/lib/python3.9/site-packages/awscli/botocore/data/sts/2011-06-15/paginators-1.json
+2026-07-24 18:39:03,025 - MainThread - botocore.hooks - DEBUG - Event building-argument-table.sts.get-caller-identity: calling handler <function add_generate_skeleton at 0xffff8a9a8790>
+2026-07-24 18:39:03,026 - MainThread - botocore.hooks - DEBUG - Event before-building-argument-table-parser.sts.get-caller-identity: calling handler <bound method OverrideRequiredArgsArgument.override_required_args of <awscli.customizations.cliinput.CliInputJSONArgument object at 0xffff8a6a11f0>>
+2026-07-24 18:39:03,026 - MainThread - botocore.hooks - DEBUG - Event before-building-argument-table-parser.sts.get-caller-identity: calling handler <bound method OverrideRequiredArgsArgument.override_required_args of <awscli.customizations.cliinput.CliInputYAMLArgument object at 0xffff8a6a1220>>
+2026-07-24 18:39:03,026 - MainThread - botocore.hooks - DEBUG - Event before-building-argument-table-parser.sts.get-caller-identity: calling handler <bound method GenerateCliSkeletonArgument.override_required_args of <awscli.customizations.generatecliskeleton.GenerateCliSkeletonArgument object at 0xffff8a6a1310>>
+2026-07-24 18:39:03,026 - MainThread - botocore.hooks - DEBUG - Event building-command-table.sts_get-caller-identity: calling handler <function add_waiters at 0xffff8a83cee0>
+2026-07-24 18:39:03,026 - MainThread - botocore.hooks - DEBUG - Event building-command-table.sts_get-caller-identity: calling handler <bound method AliasSubCommandInjector.on_building_command_table of <awscli.alias.AliasSubCommandInjector object at 0xffff8a7c63d0>>
+2026-07-24 18:39:03,026 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.sts.get-caller-identity.cli-input-json: calling handler <awscli.paramfile.URIArgumentHandler object at 0xffff8a723e80>
+2026-07-24 18:39:03,026 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.sts.get-caller-identity.cli-input-yaml: calling handler <awscli.paramfile.URIArgumentHandler object at 0xffff8a723e80>
+2026-07-24 18:39:03,027 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.sts.get-caller-identity.generate-cli-skeleton: calling handler <awscli.paramfile.URIArgumentHandler object at 0xffff8a723e80>
+2026-07-24 18:39:03,027 - MainThread - botocore.hooks - DEBUG - Event calling-command.sts.get-caller-identity: calling handler <bound method CliInputArgument.add_to_call_parameters of <awscli.customizations.cliinput.CliInputJSONArgument object at 0xffff8a6a11f0>>
+2026-07-24 18:39:03,027 - MainThread - botocore.hooks - DEBUG - Event calling-command.sts.get-caller-identity: calling handler <bound method CliInputArgument.add_to_call_parameters of <awscli.customizations.cliinput.CliInputYAMLArgument object at 0xffff8a6a1220>>
+2026-07-24 18:39:03,027 - MainThread - botocore.hooks - DEBUG - Event calling-command.sts.get-caller-identity: calling handler <bound method GenerateCliSkeletonArgument.generate_skeleton of <awscli.customizations.generatecliskeleton.GenerateCliSkeletonArgument object at 0xffff8a6a1310>>
+2026-07-24 18:39:03,027 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: env
+2026-07-24 18:39:03,027 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: assume-role
+2026-07-24 18:39:03,027 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: assume-role-with-web-identity
+2026-07-24 18:39:03,027 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: sso
+2026-07-24 18:39:03,027 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: shared-credentials-file
+2026-07-24 18:39:03,028 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: login
+2026-07-24 18:39:03,028 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: custom-process
+2026-07-24 18:39:03,028 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: config-file
+2026-07-24 18:39:03,028 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: ec2-credentials-file
+2026-07-24 18:39:03,028 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: boto-config
+2026-07-24 18:39:03,028 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: container-role
+2026-07-24 18:39:03,028 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: iam-role
+2026-07-24 18:39:03,029 - MainThread - urllib3.connectionpool - DEBUG - Starting new HTTP connection (1): 169.254.169.254:80
+2026-07-24 18:39:03,030 - MainThread - urllib3.connectionpool - DEBUG - http://169.254.169.254:80 "PUT /latest/api/token HTTP/1.1" 200 56
+2026-07-24 18:39:03,031 - MainThread - urllib3.connectionpool - DEBUG - Resetting dropped connection: 169.254.169.254
+2026-07-24 18:39:03,032 - MainThread - urllib3.connectionpool - DEBUG - http://169.254.169.254:80 "GET /latest/meta-data/iam/security-credentials/ HTTP/1.1" 200 21
+2026-07-24 18:39:03,033 - MainThread - urllib3.connectionpool - DEBUG - Resetting dropped connection: 169.254.169.254
+2026-07-24 18:39:03,033 - MainThread - urllib3.connectionpool - DEBUG - http://169.254.169.254:80 "GET /latest/meta-data/iam/security-credentials/fjcloud-instance-role HTTP/1.1" 200 1570
+2026-07-24 18:39:03,035 - MainThread - botocore.credentials - DEBUG - Found credentials from IAM Role: fjcloud-instance-role
+2026-07-24 18:39:03,037 - MainThread - botocore.loaders - DEBUG - Loading JSON file: /usr/lib/python3.9/site-packages/awscli/botocore/data/endpoints.json
+2026-07-24 18:39:03,060 - MainThread - botocore.hooks - DEBUG - Event choose-service-name: calling handler <function handle_service_name_alias at 0xffff8c839c10>
+2026-07-24 18:39:03,070 - MainThread - botocore.loaders - DEBUG - Loading JSON file: /usr/lib/python3.9/site-packages/awscli/botocore/data/sts/2011-06-15/endpoint-rule-set-1.json
+2026-07-24 18:39:03,071 - MainThread - botocore.loaders - DEBUG - Loading JSON file: /usr/lib/python3.9/site-packages/awscli/botocore/data/partitions.json
+2026-07-24 18:39:03,071 - MainThread - botocore.hooks - DEBUG - Event creating-client-class.sts: calling handler <function add_generate_presigned_url at 0xffff8c8e7ca0>
+2026-07-24 18:39:03,072 - MainThread - botocore.configprovider - DEBUG - Looking for endpoint for sts via: environment_service
+2026-07-24 18:39:03,072 - MainThread - botocore.configprovider - DEBUG - Looking for endpoint for sts via: environment_global
+2026-07-24 18:39:03,072 - MainThread - botocore.configprovider - DEBUG - Looking for endpoint for sts via: config_service
+2026-07-24 18:39:03,072 - MainThread - botocore.configprovider - DEBUG - Looking for endpoint for sts via: config_global
+2026-07-24 18:39:03,072 - MainThread - botocore.configprovider - DEBUG - No configured endpoint found.
+2026-07-24 18:39:03,075 - MainThread - botocore.endpoint - DEBUG - Setting sts timeout as (60, 60)
+2026-07-24 18:39:03,077 - MainThread - botocore.hooks - DEBUG - Event provide-client-params.sts.GetCallerIdentity: calling handler <function base64_decode_input_blobs at 0xffff8ae925e0>
+2026-07-24 18:39:03,077 - MainThread - botocore.hooks - DEBUG - Event before-parameter-build.sts.GetCallerIdentity: calling handler <function generate_idempotent_uuid at 0xffff8c7d2280>
+2026-07-24 18:39:03,077 - MainThread - botocore.hooks - DEBUG - Event before-parameter-build.sts.GetCallerIdentity: calling handler <function _handle_request_validation_mode_member at 0xffff8c7d48b0>
+2026-07-24 18:39:03,077 - MainThread - botocore.regions - DEBUG - Calling endpoint provider with parameters: {'Region': 'us-east-1', 'UseDualStack': False, 'UseFIPS': False, 'UseGlobalEndpoint': False}
+2026-07-24 18:39:03,077 - MainThread - botocore.regions - DEBUG - Endpoint provider result: https://sts.us-east-1.amazonaws.com
+2026-07-24 18:39:03,078 - MainThread - botocore.hooks - DEBUG - Event before-call.sts.GetCallerIdentity: calling handler <function inject_api_version_header_if_needed at 0xffff8c7d3af0>
+2026-07-24 18:39:03,078 - MainThread - botocore.endpoint - DEBUG - Making request for OperationModel(name=GetCallerIdentity) with params: {'url_path': '/', 'query_string': '', 'method': 'POST', 'headers': {'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8', 'User-Agent': 'aws-cli/2.33.15 md/awscrt#0.31.1 ua/2.1 os/linux#6.1.170-213.321.amzn2023.aarch64 md/arch#aarch64 lang/python#3.9.25 md/pyimpl#CPython m/E,0,Z,b cfg/retry-mode#standard md/installer#source md/distrib#amzn.2023 md/prompt#off md/command#sts.get-caller-identity'}, 'body': {'Action': 'GetCallerIdentity', 'Version': '2011-06-15'}, 'url': 'https://sts.us-east-1.amazonaws.com/', 'context': {'client_region': 'us-east-1', 'client_config': <botocore.config.Config object at 0xffff8a5408b0>, 'has_streaming_input': False, 'auth_type': None, 'unsigned_payload': None, 'auth_options': ['aws.auth#sigv4']}}
+2026-07-24 18:39:03,078 - MainThread - botocore.hooks - DEBUG - Event request-created.sts.GetCallerIdentity: calling handler <bound method RequestSigner.handler of <botocore.signers.RequestSigner object at 0xffff8a5408e0>>
+2026-07-24 18:39:03,078 - MainThread - botocore.hooks - DEBUG - Event choose-signer.sts.GetCallerIdentity: calling handler <function set_operation_specific_signer at 0xffff8c7d20d0>
+2026-07-24 18:39:03,078 - MainThread - botocore.hooks - DEBUG - Event choose-signer.sts.GetCallerIdentity: calling handler <function _set_auth_scheme_preference_signer at 0xffff8c7d4940>
+2026-07-24 18:39:03,078 - MainThread - botocore.auth - DEBUG - Calculating signature using v4 auth.
+2026-07-24 18:39:03,079 - MainThread - botocore.auth - DEBUG - CanonicalRequest:
+POST
+/
+
+content-type:application/x-www-form-urlencoded; charset=utf-8
+host:sts.us-east-1.amazonaws.com
+x-amz-date:20260724T183903Z
+AWS_TOKEN_HEADER_REDACTED
+
+content-type;host;x-amz-date;AWS_TOKEN_HEADER_REDACTED
+ab821ae955788b0e33ebd34c208442ccfc2d406e2edc5e7a39bd6458fbb4f843
+2026-07-24 18:39:03,079 - MainThread - botocore.auth - DEBUG - StringToSign:
+AWS4-HMAC-SHA256
+20260724T183903Z
+20260724/us-east-1/sts/aws4_request
+7905b0eab4cceed08f10ff7b9e70432e1b55cd0c22992b7cce4abc6e8b663bb6
+2026-07-24 18:39:03,079 - MainThread - botocore.auth - DEBUG - Signature:
+SIGV4_SIGNATURE_REDACTED
+2026-07-24 18:39:03,079 - MainThread - botocore.hooks - DEBUG - Event request-created.sts.GetCallerIdentity: calling handler <bound method UserAgentString.rebuild_and_replace_user_agent_handler of <botocore.useragent.UserAgentString object at 0xffff8a494fd0>>
+2026-07-24 18:39:03,079 - MainThread - botocore.endpoint - DEBUG - Sending http request: <AWSPreparedRequest stream_output=False, method=POST, url=https://sts.us-east-1.amazonaws.com/, headers={'Content-Type': b'application/x-www-form-urlencoded; charset=utf-8', 'User-Agent': b'aws-cli/2.33.15 md/awscrt#0.31.1 ua/2.1 os/linux#6.1.170-213.321.amzn2023.aarch64 md/arch#aarch64 lang/python#3.9.25 md/pyimpl#CPython m/E,0,Z,b cfg/retry-mode#standard md/installer#source md/distrib#amzn.2023 md/prompt#off md/command#sts.get-caller-identity', 'X-Amz-Date': b'20260724T183903Z', 'AWS_TOKEN_HEADER_REDACTED, 'AWS_AUTH_HEADER': b'REDACTED'Content-Length': '43'}>
+2026-07-24 18:39:03,080 - MainThread - botocore.httpsession - DEBUG - Certificate path: /etc/pki/tls/certs/ca-bundle.crt
+2026-07-24 18:39:03,080 - MainThread - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): sts.us-east-1.amazonaws.com:443
+2026-07-24 18:39:03,113 - MainThread - urllib3.connectionpool - DEBUG - https://sts.us-east-1.amazonaws.com:443 "POST / HTTP/1.1" 200 466
+2026-07-24 18:39:03,113 - MainThread - botocore.parsers - DEBUG - Response headers: {'x-amzn-RequestId': '185f4e79-b5b2-43e2-9659-288af935f75a', 'X-Amz-Sts-Extended-Request-Id': 'MTp1cy1lYXN0LTE6UzoxNzg0OTE4MzQzMTAzOlI6UU5TcFdzQlA=', 'Content-Type': 'text/xml', 'Content-Length': '466', 'Date': 'Fri, 24 Jul 2026 18:39:03 GMT'}
+2026-07-24 18:39:03,113 - MainThread - botocore.parsers - DEBUG - Response body:
+b'<GetCallerIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">\n  <GetCallerIdentityResult>\n    <Arn>arn:aws:sts::ACCOUNT_ID_REDACTED:assumed-role/fjcloud-instance-role/i-0fbc6d6bbbc8bdc6d</Arn>\n    <UserId>AROATDTCLTRFMYLOOODMQ:i-0fbc6d6bbbc8bdc6d</UserId>\n    <Account>ACCOUNT_ID_REDACTED</Account>\n  </GetCallerIdentityResult>\n  <ResponseMetadata>\n    <--output truncated--

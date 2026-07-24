@@ -19,36 +19,75 @@
 	<header class="space-y-2">
 		<h2 class="text-xl font-semibold text-flapjack-ink">Migrate from Algolia</h2>
 		<p class="max-w-3xl text-sm leading-6 text-flapjack-ink/70">
-			Direct imports from Algolia are paused while we replace the importer with a safer migration
-			path.
+			{#if availability.available}
+				Local activation is wired and the migration surface can report live capability state.
+			{:else}
+				Direct imports from Algolia are paused while we replace the importer with a safer
+				migration path.
+			{/if}
 		</p>
 	</header>
 
-	<section
-		data-testid="migration-unavailable"
-		class="rounded-md border border-flapjack-ink/20 bg-white p-5"
-		aria-labelledby="migration-unavailable-title"
-	>
-		<div class="space-y-3">
-			<p id="migration-unavailable-title" class="text-base font-semibold text-flapjack-ink">
-				Algolia migration is temporarily unavailable
-			</p>
-			<p class="text-sm leading-6 text-flapjack-ink/75">
-				{availability.message}
-			</p>
-			<p class="text-sm leading-6 text-flapjack-ink/75">
-				We have temporarily turned off new Algolia imports while we replace the customer import
-				flow. Existing fjcloud indexes and search APIs continue to work.
-			</p>
-			<p class="text-sm leading-6 text-flapjack-ink/75">
-				For migration planning help while this is unavailable, contact
-				<a
-					class="font-medium text-flapjack-rose hover:text-flapjack-plum"
-					href={`mailto:${SUPPORT_EMAIL}`}
-				>
-					{SUPPORT_EMAIL}
-				</a>.
-			</p>
-		</div>
-	</section>
+	{#if availability.available}
+		<section
+			data-testid="migration-available"
+			class="rounded-md border border-emerald-200 bg-emerald-50 p-5"
+			aria-labelledby="migration-available-title"
+		>
+			<div class="space-y-3">
+				<p id="migration-available-title" class="text-base font-semibold text-flapjack-ink">
+					Algolia migration is available
+				</p>
+				<p class="text-sm leading-6 text-flapjack-ink/75">
+					{availability.message}
+				</p>
+				<dl class="grid gap-3 text-sm text-flapjack-ink/75 sm:grid-cols-3">
+					<div>
+						<dt class="font-medium text-flapjack-ink">Cancel</dt>
+						<dd>{availability.capabilities.cancel ? 'Supported' : 'Unavailable'}</dd>
+					</div>
+					<div>
+						<dt class="font-medium text-flapjack-ink">Resume</dt>
+						<dd>{availability.capabilities.resume ? 'Supported' : 'Unavailable'}</dd>
+					</div>
+					<div>
+						<dt class="font-medium text-flapjack-ink">Replace</dt>
+						<dd>{availability.capabilities.replace ? 'Supported' : 'Unavailable'}</dd>
+					</div>
+				</dl>
+				<p class="text-sm leading-6 text-flapjack-ink/75">
+					This branch only reports the activation state. The full customer import flow stays
+					with later Algolia migration waves.
+				</p>
+			</div>
+		</section>
+	{:else}
+		<section
+			data-testid="migration-unavailable"
+			class="rounded-md border border-flapjack-ink/20 bg-white p-5"
+			aria-labelledby="migration-unavailable-title"
+		>
+			<div class="space-y-3">
+				<p id="migration-unavailable-title" class="text-base font-semibold text-flapjack-ink">
+					Algolia migration is temporarily unavailable
+				</p>
+				<p class="text-sm leading-6 text-flapjack-ink/75">
+					{availability.message}
+				</p>
+				<p class="text-sm leading-6 text-flapjack-ink/75">
+					We have temporarily turned off new Algolia imports while we replace the customer import
+					flow. Existing fjcloud indexes and search APIs continue to work.
+				</p>
+				<p class="text-sm leading-6 text-flapjack-ink/75">
+					For migration planning help while this is unavailable, contact
+					<a
+						class="font-medium text-flapjack-rose hover:text-flapjack-plum"
+						href={`mailto:${SUPPORT_EMAIL}`}
+					>
+						{SUPPORT_EMAIL}
+					</a>.
+				</p>
+			</div>
+		</section>
+	{/if}
 </div>

@@ -325,6 +325,135 @@ fn default_shared_vm_type_maps_known_providers() {
 }
 
 #[test]
+fn shared_vm_draft_routes_durable_urls_through_transport_policy() {
+    let _lock = super::super::ENGINE_TLS_ENV_LOCK.lock().unwrap();
+    let canonical_hostname = "vm-shared-canonical.flapjack.foo";
+
+    let tls_off_guard = EnvVarGuard::set("FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED", Some("false"));
+    let draft = shared_vm_draft(
+        "aws",
+        "flapjack.foo",
+        Some(DurableSharedVmDraft {
+            hostname: canonical_hostname.to_string(),
+            node_id: canonical_hostname.to_string(),
+        }),
+    )
+    .expect("canonical durable draft should succeed");
+    assert_eq!(draft.hostname, canonical_hostname);
+    assert_eq!(
+        draft.flapjack_url,
+        "http://vm-shared-canonical.flapjack.foo:7700"
+    );
+    assert_eq!(draft.node_id, canonical_hostname);
+    drop(tls_off_guard);
+
+    let tls_on_guard = EnvVarGuard::set("FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED", Some("true"));
+    let draft = shared_vm_draft(
+        "aws",
+        "flapjack.foo",
+        Some(DurableSharedVmDraft {
+            hostname: canonical_hostname.to_string(),
+            node_id: canonical_hostname.to_string(),
+        }),
+    )
+    .expect("canonical durable draft should succeed");
+    assert_eq!(draft.hostname, canonical_hostname);
+    assert_eq!(
+        draft.flapjack_url,
+        "https://vm-shared-canonical.flapjack.foo"
+    );
+    assert_eq!(draft.node_id, canonical_hostname);
+
+    let draft = shared_vm_draft(
+        "hetzner",
+        "flapjack.foo",
+        Some(DurableSharedVmDraft {
+            hostname: canonical_hostname.to_string(),
+            node_id: canonical_hostname.to_string(),
+        }),
+    )
+    .expect("canonical durable draft should succeed");
+    assert_eq!(draft.hostname, canonical_hostname);
+    assert_eq!(
+        draft.flapjack_url,
+        "http://vm-shared-canonical.flapjack.foo:7700"
+    );
+    assert_eq!(draft.node_id, canonical_hostname);
+    drop(tls_on_guard);
+}
+
+#[test]
+fn shared_vm_draft_builds_fresh_cleartext_identity() {
+    let _lock = super::super::ENGINE_TLS_ENV_LOCK.lock().unwrap();
+    let _tls_guard = EnvVarGuard::set("FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED", None);
+
+    let draft = shared_vm_draft("aws", "flapjack.foo", None).expect("fresh draft should succeed");
+
+    assert_eq!(draft.flapjack_url, engine_base_url("aws", &draft.hostname));
+    assert!(draft.flapjack_url.starts_with("http://vm-shared-"));
+    assert!(draft.flapjack_url.ends_with(":7700"));
+    assert_eq!(draft.node_id, draft.hostname);
+}
+
+#[test]
+fn shared_vm_draft_rejects_non_canonical_durable_identity() {
+    let error = shared_vm_draft(
+        "aws",
+        "flapjack.foo",
+        Some(DurableSharedVmDraft {
+            hostname: "evil.example.com".to_string(),
+            node_id: "evil.example.com".to_string(),
+        }),
+    )
+    .expect_err("non-canonical durable hostnames must be rejected");
+    assert!(matches!(error, ProvisioningError::InvalidState(message)
+        if message == "durable shared VM hostname 'evil.example.com' is not canonical for DNS domain 'flapjack.foo'"));
+
+    let error = shared_vm_draft(
+        "aws",
+        "flapjack.foo",
+        Some(DurableSharedVmDraft {
+            hostname: "vm-shared-abcd1234.flapjack.foo".to_string(),
+            node_id: "node-x".to_string(),
+        }),
+    )
+    .expect_err("durable node_id must stay aligned with the canonical hostname");
+    assert!(matches!(error, ProvisioningError::InvalidState(message)
+        if message == "durable shared VM node_id 'node-x' must match hostname 'vm-shared-abcd1234.flapjack.foo'"));
+}
+
+#[test]
+fn durable_shared_vm_recovery_rehydrates_existing_row_url() {
+    let _lock = super::super::ENGINE_TLS_ENV_LOCK.lock().unwrap();
+    let _tls_guard = EnvVarGuard::set("FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED", Some("true"));
+    let stale_vm = InMemoryVmRepo::make_vm("vm-shared-canonical.flapjack.foo", "us-east-1")
+        .with_provider("aws", "http://vm-shared-canonical.flapjack.foo:7700");
+    let draft = shared_vm_draft(
+        "aws",
+        "flapjack.foo",
+        Some(DurableSharedVmDraft {
+            hostname: "vm-shared-canonical.flapjack.foo".to_string(),
+            node_id: "vm-shared-canonical.flapjack.foo".to_string(),
+        }),
+    )
+    .expect("canonical durable draft should succeed");
+
+    let vm = rehydrate_existing_shared_vm(stale_vm, &draft, "aws")
+        .expect("matching stored and requested providers should rehydrate");
+
+    assert_eq!(vm.hostname, "vm-shared-canonical.flapjack.foo");
+    assert_eq!(vm.provider, "aws");
+    assert_eq!(vm.flapjack_url, "https://vm-shared-canonical.flapjack.foo");
+
+    let mismatched_vm = InMemoryVmRepo::make_vm("vm-shared-canonical.flapjack.foo", "us-east-1")
+        .with_provider("hetzner", "http://vm-shared-canonical.flapjack.foo:7700");
+    let error = rehydrate_existing_shared_vm(mismatched_vm, &draft, "aws")
+        .expect_err("provider mismatch must fail before returning an inconsistent row");
+    assert!(matches!(error, ProvisioningError::InvalidState(message)
+        if message == "existing shared VM provider 'hetzner' does not match requested provider 'aws'"));
+}
+
+#[test]
 fn canonical_shared_vm_hostname_for_domain_rejects_other_environment_subdomains() {
     assert!(is_canonical_shared_vm_hostname_for_domain(
         "vm-shared-abcd1234.flapjack.foo",
@@ -353,6 +482,82 @@ fn build_user_data_capacity_has_required_fields() {
     let capacity = default_shared_vm_capacity();
     assert_eq!(capacity["cpu_weight"], 4.0);
     assert_eq!(capacity["query_rps"], 500.0);
+}
+
+#[test]
+fn engine_base_url_defaults_to_cleartext_when_tls_switch_unset_for_aws() {
+    let _lock = super::super::ENGINE_TLS_ENV_LOCK.lock().unwrap();
+    let _tls_guard = EnvVarGuard::set("FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED", None);
+
+    assert_eq!(
+        engine_base_url("aws", "vm-x.example.com"),
+        "http://vm-x.example.com:7700"
+    );
+}
+
+#[test]
+fn engine_base_url_requires_switch_and_caddy_runtime_for_https() {
+    let _lock = super::super::ENGINE_TLS_ENV_LOCK.lock().unwrap();
+
+    let false_guard = EnvVarGuard::set("FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED", Some("false"));
+    assert_eq!(
+        engine_base_url("aws", "vm-x.example.com"),
+        "http://vm-x.example.com:7700"
+    );
+    drop(false_guard);
+
+    let true_guard = EnvVarGuard::set("FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED", Some("true"));
+    let url = engine_base_url("aws", "vm-x.example.com");
+    assert_eq!(url, "https://vm-x.example.com");
+    assert!(!url.contains(":7700"));
+    assert!(!url.contains(":443"));
+    assert_eq!(
+        engine_base_url("hetzner", "vm-x.example.com"),
+        "http://vm-x.example.com:7700"
+    );
+    drop(true_guard);
+}
+
+#[test]
+fn engine_base_url_fails_safe_to_cleartext_for_unsupported_provider() {
+    let _lock = super::super::ENGINE_TLS_ENV_LOCK.lock().unwrap();
+    let _tls_guard = EnvVarGuard::set("FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED", Some("true"));
+
+    for provider in ["gcp", "oci", "bare_metal", "totally-bogus"] {
+        assert_eq!(
+            engine_base_url(provider, "vm-x.example.com"),
+            "http://vm-x.example.com:7700",
+            "{provider} must not select HTTPS"
+        );
+    }
+}
+
+#[test]
+fn engine_data_plane_tls_enabled_fails_closed_for_invalid_or_blank_values() {
+    let _lock = super::super::ENGINE_TLS_ENV_LOCK.lock().unwrap();
+
+    let unset_guard = EnvVarGuard::set("FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED", None);
+    assert!(!engine_data_plane_tls_enabled());
+    drop(unset_guard);
+
+    let true_guard = EnvVarGuard::set("FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED", Some("true"));
+    assert!(engine_data_plane_tls_enabled());
+    drop(true_guard);
+
+    for (raw, expected) in [
+        ("false", false),
+        ("1", false),
+        ("yes", false),
+        ("  ", false),
+    ] {
+        let guard = EnvVarGuard::set("FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED", Some(raw));
+        assert_eq!(
+            engine_data_plane_tls_enabled(),
+            expected,
+            "{raw:?} should parse to {expected}"
+        );
+        drop(guard);
+    }
 }
 
 // -- try_local_dev_provision tests ----------------------------------------
@@ -428,6 +633,18 @@ impl InMemoryVmRepo {
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         }
+    }
+}
+
+trait VmInventoryTestExt {
+    fn with_provider(self, provider: &str, flapjack_url: &str) -> Self;
+}
+
+impl VmInventoryTestExt for VmInventory {
+    fn with_provider(mut self, provider: &str, flapjack_url: &str) -> Self {
+        self.provider = provider.to_string();
+        self.flapjack_url = flapjack_url.to_string();
+        self
     }
 }
 

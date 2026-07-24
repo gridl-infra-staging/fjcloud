@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/svelte';
 import { layoutTestDefaults } from '../layout-test-context';
+import type { AlgoliaMigrationAvailabilityResponse } from '$lib/api/types';
 
 vi.mock('$app/navigation', () => ({
 	goto: vi.fn(),
@@ -22,21 +23,67 @@ afterEach(() => {
 	vi.clearAllMocks();
 });
 
-function renderMigratePage() {
+const unavailableAvailability: AlgoliaMigrationAvailabilityResponse = {
+	available: false,
+	reason: 'temporarily_unavailable' as const,
+	message: 'Algolia migration is temporarily unavailable while we replace the importer.',
+	capabilities: { cancel: false, resume: false, replace: false }
+};
+
+function renderMigratePage(
+	availability: AlgoliaMigrationAvailabilityResponse = unavailableAvailability
+) {
 	return render(MigratePage, {
 		data: {
 			...layoutTestDefaults,
-			availability: {
-				available: false,
-				reason: 'temporarily_unavailable',
-				message: 'Algolia migration is temporarily unavailable while we replace the importer.',
-				capabilities: { cancel: false, resume: false, replace: false }
-			}
+			availability
 		}
 	});
 }
 
+function capabilityRows(section: HTMLElement): string[] {
+	return Array.from(section.querySelectorAll('dl > div')).map((row) => {
+		const label = row.querySelector('dt')?.textContent?.trim();
+		const value = row.querySelector('dd')?.textContent?.trim();
+		return `${label} — ${value}`;
+	});
+}
+
+function expectNoDormantMigrationControls(container: HTMLElement) {
+	expect(container.querySelector('form')).not.toBeInTheDocument();
+	expect(screen.queryByLabelText(/app.*id/i)).not.toBeInTheDocument();
+	expect(screen.queryByLabelText(/api key/i)).not.toBeInTheDocument();
+	expect(screen.queryByRole('textbox', { name: /source index/i })).not.toBeInTheDocument();
+	expect(screen.queryByRole('textbox', { name: /target index/i })).not.toBeInTheDocument();
+	expect(screen.queryByRole('textbox', { name: /destination index/i })).not.toBeInTheDocument();
+	expect(screen.queryByRole('button', { name: /browse indexes/i })).not.toBeInTheDocument();
+	expect(screen.queryByRole('button', { name: /connect to algolia/i })).not.toBeInTheDocument();
+	expect(screen.queryByRole('button', { name: /migrate/i })).not.toBeInTheDocument();
+	expect(screen.queryByRole('button', { name: /replace/i })).not.toBeInTheDocument();
+	expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument();
+	expect(screen.queryByRole('button', { name: /resume/i })).not.toBeInTheDocument();
+}
+
 describe('Migrate page unavailable state', () => {
+	it('renders the available state branch when availability.available is true', () => {
+		const { container } = renderMigratePage({
+			available: true,
+			message: 'Algolia migration is available.',
+			capabilities: { cancel: true, resume: false, replace: true }
+		});
+		const available = screen.getByTestId('migration-available');
+
+		expect(available).toHaveTextContent('Algolia migration is available.');
+		expect(capabilityRows(available)).toEqual([
+			'Cancel — Supported',
+			'Resume — Unavailable',
+			'Replace — Supported'
+		]);
+		expect(screen.queryByTestId('migration-unavailable')).not.toBeInTheDocument();
+		expectNoDormantMigrationControls(container);
+		expect(container.querySelectorAll('a')).toHaveLength(0);
+	});
+
 	it('renders the authenticated unavailable explanation page', () => {
 		const { container } = renderMigratePage();
 
@@ -51,19 +98,9 @@ describe('Migrate page unavailable state', () => {
 	});
 
 	it('does not render migration credentials, source controls, or import CTAs', () => {
-		renderMigratePage();
+		const { container } = renderMigratePage();
 
-		expect(screen.queryByLabelText(/app.*id/i)).not.toBeInTheDocument();
-		expect(screen.queryByLabelText(/api key/i)).not.toBeInTheDocument();
-		expect(screen.queryByRole('textbox', { name: /source index/i })).not.toBeInTheDocument();
-		expect(screen.queryByRole('textbox', { name: /target index/i })).not.toBeInTheDocument();
-		expect(screen.queryByRole('textbox', { name: /destination index/i })).not.toBeInTheDocument();
-		expect(screen.queryByRole('button', { name: /browse indexes/i })).not.toBeInTheDocument();
-		expect(screen.queryByRole('button', { name: /connect to algolia/i })).not.toBeInTheDocument();
-		expect(screen.queryByRole('button', { name: /migrate/i })).not.toBeInTheDocument();
-		expect(screen.queryByRole('button', { name: /replace/i })).not.toBeInTheDocument();
-		expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument();
-		expect(screen.queryByRole('button', { name: /resume/i })).not.toBeInTheDocument();
+		expectNoDormantMigrationControls(container);
 	});
 
 	it('does not mount the dormant migration create flow component', () => {

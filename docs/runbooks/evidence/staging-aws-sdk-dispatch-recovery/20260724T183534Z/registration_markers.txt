@@ -1,0 +1,4 @@
+registration_start_utc=2026-07-24T18:41:56Z
+registration_nonce=stage1aws2026072418415618421
+registration_end_utc=2026-07-24T18:41:56Z
+registration_status=201

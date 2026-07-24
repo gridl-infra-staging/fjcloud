@@ -20,7 +20,6 @@ const AUTH_HEADERS = {
 	'Content-Type': 'application/json',
 	Authorization: 'Bearer my-jwt-token'
 };
-
 const VOLATILE_SOURCE_CREDENTIALS = {
 	appId: 'ALGOLIA_APP_123',
 	apiKey: 'algolia-source-key',
@@ -191,18 +190,37 @@ describe('ApiClient - migration availability', () => {
 		expect(result.capabilities).toEqual({ cancel: false, resume: false, replace: false });
 	});
 
-	it('preserves a fully-specified mixed capability payload exactly', async () => {
+	it('accepts an available payload with no reason', async () => {
 		const wirePayload = {
-			available: false,
-			reason: 'temporarily_unavailable',
-			message: 'Algolia migration is temporarily unavailable while we replace the importer.',
+			available: true,
+			message: 'Algolia migration is available.',
 			capabilities: { cancel: true, resume: false, replace: true }
 		};
 		client.setFetch(mockFetch(200, wirePayload));
 
 		const result = await client.getAlgoliaMigrationAvailability();
 
-		expect(result.capabilities).toEqual({ cancel: true, resume: false, replace: true });
+		expect(result).toEqual(wirePayload);
+		expect('reason' in result).toBe(false);
+	});
+
+	it('omits a nullable OpenAPI reason from the normalized response', async () => {
+		const wirePayload = {
+			available: true,
+			reason: null,
+			message: 'Algolia migration is available.',
+			capabilities: { cancel: true, resume: false, replace: true }
+		};
+		client.setFetch(mockFetch(200, wirePayload));
+
+		const result = await client.getAlgoliaMigrationAvailability();
+
+		expect(result).toEqual({
+			available: true,
+			message: 'Algolia migration is available.',
+			capabilities: { cancel: true, resume: false, replace: true }
+		});
+		expect('reason' in result).toBe(false);
 	});
 
 	it('normalizes a present-but-partial payload with an unknown capability without throwing', async () => {
@@ -227,10 +245,20 @@ describe('ApiClient - migration availability', () => {
 			capabilities: { cancel: 'false', resume: 1, replace: true }
 		};
 		client.setFetch(mockFetch(200, wirePayload));
-
 		const result = await client.getAlgoliaMigrationAvailability();
-
 		expect(result.capabilities).toEqual({ cancel: false, resume: false, replace: true });
+	});
+
+	it('fails closed when the availability value is truthy but not boolean true', async () => {
+		client.setFetch(
+			mockFetch(200, {
+				available: 'false',
+				message: 'Malformed upstream availability.',
+				capabilities: { cancel: true, resume: false, replace: true }
+			})
+		);
+		const result = await client.getAlgoliaMigrationAvailability();
+		expect(result.available).toBe(false);
 	});
 
 	it('omits absent/null source-list cursor and hitsPerPage values while preserving nextCursor', async () => {

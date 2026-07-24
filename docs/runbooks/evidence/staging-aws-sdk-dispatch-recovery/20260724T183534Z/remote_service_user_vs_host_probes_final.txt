@@ -1,0 +1,22 @@
+##### SERVICE_USER_FJCLOUD_BEGIN #####
+whoami=fjcloud uid=992 gid=992 region=us-east-1 config_set_present=yes
+proxy_booleans_begin
+proxy_booleans_end
+--- dns_email.us-east-1.amazonaws.com_begin ---
+44.207.80.153   STREAM email.us-east-1.amazonaws.com
+44.207.80.153   DGRAM  
+44.207.80.153   RAW    
+exit_status=0
+--- dns_email.us-east-1.amazonaws.com_end ---
+##### SERVICE_USER_FJCLOUD_END #####
+##### HOST_CONTEXT_BEGIN #####
+whoami=root uid=0 gid=0 region=us-east-1 config_set_present=yes
+proxy_booleans_begin
+proxy_booleans_end
+--- dns_email.us-east-1.amazonaws.com_begin ---
+44.207.80.153   STREAM email.us-east-1.amazonaws.com
+44.207.80.153   DGRAM  
+44.207.80.153   RAW    
+exit_status=0
+--- dns_email.us-east-1.amazonaws.com_end ---
+##### HOST_CONTEXT_END #####

@@ -1,0 +1,6 @@
+Redaction rules applied before persistence for live data:
+- Raw environment values are never copied; only key names and proxy key booleans are recorded.
+- AWS access-key IDs, AWS secret/session-token assignments, Authorization headers, SigV4 signature values, AWS_TOKEN_HEADER_NAME_REDACTED values, webhook URLs, and email addresses are replaced with REDACTED markers.
+- AWS account IDs in JSON/ARN output are replaced with ACCOUNT_ID_REDACTED while preserving role/profile names.
+- Registration evidence stores only nonce, HTTP status, and a redacted response body.
+- Journal evidence is bounded by the unique nonce request window and redacted before writing.

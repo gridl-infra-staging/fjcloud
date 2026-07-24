@@ -1,0 +1,20 @@
+##### SERVICE_USER_FJCLOUD_BEGIN #####
+whoami=fjcloud uid=992 region=us-east-1
+--- ssm_get_parameter_metadata_begin ---
+{
+    "Name": "/fjcloud/staging/dns_domain",
+    "Type": "String"
+}
+exit_status=0
+--- ssm_get_parameter_metadata_end ---
+##### SERVICE_USER_FJCLOUD_END #####
+##### HOST_CONTEXT_BEGIN #####
+whoami=root uid=0 region=us-east-1
+--- ssm_get_parameter_metadata_begin ---
+{
+    "Name": "/fjcloud/staging/dns_domain",
+    "Type": "String"
+}
+exit_status=0
+--- ssm_get_parameter_metadata_end ---
+##### HOST_CONTEXT_END #####

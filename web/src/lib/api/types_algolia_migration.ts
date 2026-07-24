@@ -14,17 +14,18 @@ export interface AlgoliaMigrationCapabilities {
 
 export interface AlgoliaMigrationAvailabilityResponse {
 	available: boolean;
-	reason: 'temporarily_unavailable';
+	reason?: 'temporarily_unavailable';
 	message: string;
 	capabilities: AlgoliaMigrationCapabilities;
 }
 
 // Raw wire shape before normalization: the server may omit `capabilities`
-// entirely or supply only some known flags. The client normalizer fills any
-// omitted known flag with `false` (fail closed).
+// entirely, omit or null `reason` for available responses, or supply only some
+// known capability flags. The client normalizer fills any omitted known flag
+// with `false` (fail closed) and removes a null reason.
 export interface AlgoliaMigrationAvailabilityWire {
 	available: boolean;
-	reason: 'temporarily_unavailable';
+	reason?: 'temporarily_unavailable' | null;
 	message: string;
 	capabilities?: Partial<AlgoliaMigrationCapabilities>;
 }

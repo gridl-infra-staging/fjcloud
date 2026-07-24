@@ -141,10 +141,9 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
         vec![
             "available".to_string(),
             "capabilities".to_string(),
-            "message".to_string(),
-            "reason".to_string()
+            "message".to_string()
         ],
-        "availability response must require every serialized field"
+        "availability response must not require optional reason"
     );
     assert_eq!(
         spec.pointer(
@@ -276,6 +275,18 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
         ]),
         "list-indexes hitsPerPage must remain an optional nullable integer override"
     );
+    assert_eq!(
+        spec.pointer("/components/schemas/ListAlgoliaIndexesRequest/properties/hitsPerPage/minimum")
+            .and_then(|value| value.as_u64()),
+        Some(1),
+        "list-indexes hitsPerPage must reject zero and negative values at the contract boundary"
+    );
+    assert_eq!(
+        spec.pointer("/components/schemas/ListAlgoliaIndexesRequest/properties/hitsPerPage/maximum")
+            .and_then(|value| value.as_u64()),
+        Some(100),
+        "list-indexes hitsPerPage must cap authenticated discovery page fan-out"
+    );
     let mut expected_metadata_required = [
         "name",
         "entries",
@@ -324,13 +335,17 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
         );
     }
 
+    let reason_one_of = spec
+        .pointer("/components/schemas/AlgoliaMigrationAvailabilityResponse/properties/reason/oneOf")
+        .and_then(|value| value.as_array())
+        .expect("availability reason must be documented as an optional typed wrapper");
     assert_eq!(
-        spec.pointer(
-            "/components/schemas/AlgoliaMigrationAvailabilityResponse/properties/reason/$ref"
-        )
-        .and_then(|value| value.as_str()),
-        Some("#/components/schemas/AlgoliaMigrationAvailabilityReason"),
-        "availability reason must be a typed fail-closed enum"
+        reason_one_of,
+        &[
+            serde_json::json!({ "type": "null" }),
+            serde_json::json!({ "$ref": "#/components/schemas/AlgoliaMigrationAvailabilityReason" })
+        ],
+        "availability reason must retain the typed fail-closed enum through the optional wrapper"
     );
     let reason_values = spec
         .pointer("/components/schemas/AlgoliaMigrationAvailabilityReason/enum")
@@ -392,8 +407,8 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
         std::fs::read_to_string(repo_root.join("web/src/lib/api/types_algolia_migration.ts"))
             .expect("read generated migration API types");
     assert!(
-        types_source.contains("reason: 'temporarily_unavailable';"),
-        "generated migration type must expose the fail-closed reason literal"
+        types_source.contains("reason?: 'temporarily_unavailable';"),
+        "generated migration type must expose the optional fail-closed reason literal"
     );
     assert!(
         types_source.contains("hitsPerPage?: number | null;"),

@@ -16,7 +16,11 @@ use crate::services::algolia_source::{
 };
 use crate::state::AppState;
 
-use super::{migration_backend_unavailable, migration_error, ALGOLIA_ACL_GUIDANCE};
+use super::{
+    migration_backend_unavailable, migration_error, migration_unavailable, ALGOLIA_ACL_GUIDANCE,
+};
+
+const MAX_LIST_INDEXES_HITS_PER_PAGE: u32 = 100;
 
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -24,6 +28,7 @@ pub struct ListAlgoliaIndexesRequest {
     pub app_id: String,
     pub api_key: String,
     pub cursor: Option<String>,
+    #[schema(minimum = 1, maximum = 100)]
     pub hits_per_page: Option<u32>,
 }
 
@@ -57,11 +62,23 @@ pub async fn list_algolia_indexes(
     State(state): State<AppState>,
     Json(request): Json<ListAlgoliaIndexesRequest>,
 ) -> Result<Json<AlgoliaSourceListResponse>, ApiError> {
+    if !super::migration_available(&state) {
+        return Err(migration_unavailable());
+    }
     if request.api_key.is_empty() {
         return Err(migration_error(
             StatusCode::BAD_REQUEST,
             "invalid_algolia_credentials",
             AlgoliaImportErrorCode::InvalidCredentials,
+        ));
+    }
+    if matches!(request.hits_per_page, Some(0))
+        || request.hits_per_page > Some(MAX_LIST_INDEXES_HITS_PER_PAGE)
+    {
+        return Err(migration_error(
+            StatusCode::BAD_REQUEST,
+            "source_catalog_too_large",
+            AlgoliaImportErrorCode::SourceCatalogTooLarge,
         ));
     }
     let response = state

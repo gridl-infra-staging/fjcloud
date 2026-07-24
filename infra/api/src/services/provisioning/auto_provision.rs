@@ -36,6 +36,7 @@ pub struct DurableSharedVmDraft {
     pub node_id: String,
 }
 
+#[derive(Debug)]
 struct SharedVmDraft {
     hostname: String,
     flapjack_url: String,
@@ -78,7 +79,7 @@ impl ProvisioningService {
         }
 
         let is_durable_recovery = durable_draft.is_some();
-        let draft = self.build_shared_vm_draft(durable_draft);
+        let draft = self.build_shared_vm_draft(provider, durable_draft)?;
         let _provisioning_guard = if is_durable_recovery {
             Some(
                 vm_inventory_repo
@@ -92,6 +93,7 @@ impl ProvisioningService {
         if let Some(vm) =
             find_non_decommissioned_vm_by_hostname(vm_inventory_repo, &draft.hostname).await?
         {
+            let vm = rehydrate_existing_shared_vm(vm, &draft, provider)?;
             if is_durable_recovery && self.shared_vm_health_deadline_exhausted(&draft).await {
                 return Err(ProvisioningError::ProvisionerFailed(
                     ENGINE_HEALTH_FAILURE_REASON.into(),
@@ -273,25 +275,12 @@ impl ProvisioningService {
         .await;
     }
 
-    fn build_shared_vm_draft(&self, durable_draft: Option<DurableSharedVmDraft>) -> SharedVmDraft {
-        if let Some(draft) = durable_draft {
-            return SharedVmDraft {
-                flapjack_url: format!("http://{}:7700", draft.hostname),
-                node_id: draft.node_id,
-                hostname: draft.hostname,
-            };
-        }
-
-        let shared_vm_id = Uuid::new_v4();
-        let short_id = &shared_vm_id.to_string()[..8];
-        let hostname = format!("{SHARED_VM_HOSTNAME_PREFIX}{short_id}.{}", self.dns_domain);
-
-        SharedVmDraft {
-            // Shared flapjack VMs expose the engine directly on port 7700.
-            flapjack_url: format!("http://{hostname}:7700"),
-            node_id: hostname.clone(),
-            hostname,
-        }
+    fn build_shared_vm_draft(
+        &self,
+        provider: &str,
+        durable_draft: Option<DurableSharedVmDraft>,
+    ) -> Result<SharedVmDraft, ProvisioningError> {
+        shared_vm_draft(provider, &self.dns_domain, durable_draft)
     }
 
     async fn recover_managed_shared_vm(
@@ -333,6 +322,66 @@ impl ProvisioningService {
         }
         Ok(Some(vm_row))
     }
+}
+
+fn shared_vm_draft(
+    provider: &str,
+    dns_domain: &str,
+    durable_draft: Option<DurableSharedVmDraft>,
+) -> Result<SharedVmDraft, ProvisioningError> {
+    if let Some(draft) = durable_draft {
+        validate_durable_shared_vm_identity(&draft, dns_domain)?;
+        return Ok(SharedVmDraft {
+            flapjack_url: engine_base_url(provider, &draft.hostname),
+            node_id: draft.node_id,
+            hostname: draft.hostname,
+        });
+    }
+
+    let shared_vm_id = Uuid::new_v4();
+    let short_id = &shared_vm_id.to_string()[..8];
+    let hostname = format!("{SHARED_VM_HOSTNAME_PREFIX}{short_id}.{dns_domain}");
+
+    Ok(SharedVmDraft {
+        flapjack_url: engine_base_url(provider, &hostname),
+        node_id: hostname.clone(),
+        hostname,
+    })
+}
+
+fn validate_durable_shared_vm_identity(
+    draft: &DurableSharedVmDraft,
+    dns_domain: &str,
+) -> Result<(), ProvisioningError> {
+    if !is_canonical_shared_vm_hostname_for_domain(&draft.hostname, dns_domain) {
+        return Err(ProvisioningError::InvalidState(format!(
+            "durable shared VM hostname '{}' is not canonical for DNS domain '{dns_domain}'",
+            draft.hostname
+        )));
+    }
+    if draft.node_id != draft.hostname {
+        return Err(ProvisioningError::InvalidState(format!(
+            "durable shared VM node_id '{}' must match hostname '{}'",
+            draft.node_id, draft.hostname
+        )));
+    }
+
+    Ok(())
+}
+
+fn rehydrate_existing_shared_vm(
+    mut vm: VmInventory,
+    draft: &SharedVmDraft,
+    requested_provider: &str,
+) -> Result<VmInventory, ProvisioningError> {
+    if vm.provider != requested_provider {
+        return Err(ProvisioningError::InvalidState(format!(
+            "existing shared VM provider '{}' does not match requested provider '{requested_provider}'",
+            vm.provider
+        )));
+    }
+    vm.flapjack_url = draft.flapjack_url.clone();
+    Ok(vm)
 }
 
 pub(crate) fn is_canonical_shared_vm_hostname_for_domain(hostname: &str, dns_domain: &str) -> bool {
@@ -621,6 +670,30 @@ pub(crate) fn build_user_data(
         caddy_runtime,
         secrets,
     })
+}
+
+#[allow(dead_code)]
+pub(crate) fn engine_base_url(vm_provider: &str, hostname: &str) -> String {
+    let cleartext_url = || format!("http://{hostname}:7700");
+
+    if !engine_data_plane_tls_enabled() || ensure_supported_vm_provider(vm_provider).is_err() {
+        return cleartext_url();
+    }
+
+    match caddy_runtime_for_provider(vm_provider, hostname) {
+        CaddyRuntime::Available { served_hostname } => format!("https://{served_hostname}"),
+        CaddyRuntime::Unavailable => cleartext_url(),
+    }
+}
+
+#[allow(dead_code)]
+fn engine_data_plane_tls_enabled() -> bool {
+    crate::config::parse_bool_with_default(
+        std::env::var("FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED").ok(),
+        "FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED",
+        false,
+    )
+    .unwrap_or(false)
 }
 
 fn secret_delivery_for_provider(vm_provider: &str, region: &str, api_key: &str) -> SecretDelivery {

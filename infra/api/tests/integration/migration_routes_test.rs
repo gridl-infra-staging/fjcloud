@@ -446,6 +446,13 @@ impl AlgoliaImportJobRepo for RecordCommitFailingRepo {
 async fn setup_algolia_cloud_discovery_app(
     service: Arc<dyn AlgoliaSourceLister>,
 ) -> (axum::Router, String) {
+    setup_algolia_cloud_discovery_app_with_flag(service, true).await
+}
+
+async fn setup_algolia_cloud_discovery_app_with_flag(
+    service: Arc<dyn AlgoliaSourceLister>,
+    algolia_migration_enabled: bool,
+) -> (axum::Router, String) {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed_verified_free_customer("Alice", "alice@example.com");
     let jwt = create_test_jwt(customer.id);
@@ -453,6 +460,7 @@ async fn setup_algolia_cloud_discovery_app(
         TestStateBuilder::new()
             .with_customer_repo(customer_repo)
             .with_algolia_source_service(service)
+            .with_algolia_migration_enabled(algolia_migration_enabled)
             .build(),
     );
     (app, jwt)

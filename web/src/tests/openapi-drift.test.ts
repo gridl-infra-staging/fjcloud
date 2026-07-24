@@ -303,7 +303,7 @@ const schemaDescriptors: SchemaDescriptor[] = [
 		schemaName: 'AlgoliaMigrationAvailabilityResponse',
 		properties: [
 			{ name: 'available', kind: 'primitive', type: 'boolean', required: true },
-			{ name: 'reason', kind: 'ref', ref: 'AlgoliaMigrationAvailabilityReason', required: true },
+			{ name: 'reason', kind: 'nullableRef', ref: 'AlgoliaMigrationAvailabilityReason' },
 			{ name: 'message', kind: 'primitive', type: 'string', required: true },
 			{ name: 'capabilities', kind: 'ref', ref: 'AlgoliaMigrationCapabilities', required: true }
 		]

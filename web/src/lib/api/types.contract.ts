@@ -114,9 +114,27 @@ const migration = {
 	capabilities: { cancel: false, resume: false, replace: false }
 } satisfies AlgoliaMigrationAvailabilityResponse;
 
+const migrationAvailableWithoutReason = {
+	available: true,
+	message: 'Algolia migration is available.',
+	capabilities: { cancel: true, resume: false, replace: true }
+} satisfies AlgoliaMigrationAvailabilityResponse;
+
 const dictionary = {
 	objectID: 'd1',
 	language: 'en'
 } satisfies DictionaryEntry;
 
-void [auth, invoice, index, rule, synonym, metrics, infrastructure, pricing, migration, dictionary];
+void [
+	auth,
+	invoice,
+	index,
+	rule,
+	synonym,
+	metrics,
+	infrastructure,
+	pricing,
+	migration,
+	migrationAvailableWithoutReason,
+	dictionary
+];

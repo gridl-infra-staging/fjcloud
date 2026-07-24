@@ -9,6 +9,25 @@ pub struct AlgoliaMigrationCapabilities {
     pub replace: bool,
 }
 
+#[allow(dead_code)]
+pub fn route_mounted_migration_capabilities() -> AlgoliaMigrationCapabilities {
+    AlgoliaMigrationCapabilities {
+        cancel: true,
+        resume: false,
+        replace: true,
+    }
+}
+
+#[allow(dead_code)]
+pub fn engine_supported_migration_capabilities() -> AlgoliaMigrationCapabilities {
+    // This is the code-owned engine support declaration, not a live HTTP probe.
+    AlgoliaMigrationCapabilities {
+        cancel: true,
+        resume: false,
+        replace: true,
+    }
+}
+
 pub fn migration_capabilities(
     route_mounted: AlgoliaMigrationCapabilities,
     engine_supported: AlgoliaMigrationCapabilities,
@@ -27,7 +46,10 @@ pub fn migration_capabilities(
 mod tests {
     use serde_json::json;
 
-    use super::{migration_capabilities, AlgoliaMigrationCapabilities};
+    use super::{
+        engine_supported_migration_capabilities, migration_capabilities,
+        route_mounted_migration_capabilities, AlgoliaMigrationCapabilities,
+    };
     use crate::routes::migration::AlgoliaMigrationAvailabilityResponse;
 
     #[test]
@@ -135,5 +157,31 @@ mod tests {
                 expected
             );
         }
+    }
+
+    #[test]
+    fn route_mounted_migration_capabilities_matches_mounted_route_surface() {
+        // Mirrors infra/api/src/router/route_assembly.rs:add_migration_routes.
+        assert_eq!(
+            route_mounted_migration_capabilities(),
+            AlgoliaMigrationCapabilities {
+                cancel: true,
+                resume: false,
+                replace: true,
+            }
+        );
+    }
+
+    #[test]
+    fn engine_supported_migration_capabilities_preserves_resume_false_invariant() {
+        assert_eq!(
+            engine_supported_migration_capabilities(),
+            AlgoliaMigrationCapabilities {
+                cancel: true,
+                resume: false,
+                replace: true,
+            },
+            "resume remains false even when the engine receipt includes base and cancel support"
+        );
     }
 }

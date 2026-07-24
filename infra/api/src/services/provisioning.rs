@@ -210,7 +210,8 @@ impl ProvisioningService {
         deployment_id: Uuid,
     ) -> Result<(), ProvisioningError> {
         let deployment = self.load_and_claim_deployment(deployment_id).await?;
-        let (hostname, flapjack_url) = self.derive_provisioning_hostname(&deployment.id);
+        let (hostname, flapjack_url) =
+            self.derive_provisioning_hostname(&deployment.id, &deployment.vm_provider);
 
         let (ip, vm_instance) = match self.create_node_secret_and_vm(&deployment, &hostname).await {
             Ok(result) => result,
@@ -277,13 +278,12 @@ impl ProvisioningService {
     }
 
     /// Derive hostname and flapjack URL from a deployment's short ID.
-    fn derive_provisioning_hostname(&self, deployment_id: &Uuid) -> (String, String) {
-        let short_id = &deployment_id.to_string()[..8];
-        let hostname = format!("vm-{short_id}.{}", self.dns_domain);
-        // Provisioned flapjack nodes listen on port 7700, and the current VM
-        // security group only admits that internal API-to-node traffic.
-        let flapjack_url = format!("http://{hostname}:7700");
-        (hostname, flapjack_url)
+    fn derive_provisioning_hostname(
+        &self,
+        deployment_id: &Uuid,
+        vm_provider: &str,
+    ) -> (String, String) {
+        derive_hostname_and_url(&self.dns_domain, deployment_id, vm_provider)
     }
 
     /// Create the per-node API key, build user-data, create the VM, and
@@ -599,6 +599,17 @@ impl ProvisioningService {
 
 // Shared VM auto-provision helpers and tests now live in `auto_provision`.
 
+fn derive_hostname_and_url(
+    dns_domain: &str,
+    deployment_id: &Uuid,
+    vm_provider: &str,
+) -> (String, String) {
+    let short_id = &deployment_id.to_string()[..8];
+    let hostname = format!("vm-{short_id}.{dns_domain}");
+    let flapjack_url = auto_provision::engine_base_url(vm_provider, &hostname);
+    (hostname, flapjack_url)
+}
+
 /// Resolve the DNS domain from `DNS_DOMAIN` env var, falling back to [`DEFAULT_DNS_DOMAIN`].
 ///
 /// Both the Route53 DNS manager and ProvisioningService should use this
@@ -606,6 +617,9 @@ impl ProvisioningService {
 pub fn resolve_dns_domain() -> String {
     std::env::var("DNS_DOMAIN").unwrap_or_else(|_| DEFAULT_DNS_DOMAIN.to_string())
 }
+
+#[cfg(test)]
+pub(crate) static ENGINE_TLS_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[cfg(test)]
 mod tests {
@@ -661,5 +675,40 @@ mod tests {
 
         let result = resolve_dns_domain();
         assert_eq!(result, "custom.example.com");
+    }
+
+    #[test]
+    fn derive_hostname_and_url_preserves_cleartext_when_tls_is_disabled() {
+        let _lock = ENGINE_TLS_ENV_LOCK.lock().expect("TLS env lock poisoned");
+        let deployment_id =
+            Uuid::parse_str("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").expect("valid deployment UUID");
+
+        for tls_enabled in [None, Some("false")] {
+            let tls_guard = EnvVarGuard::set("FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED", tls_enabled);
+            assert_eq!(
+                derive_hostname_and_url("flapjack.foo", &deployment_id, "aws"),
+                (
+                    "vm-aaaaaaaa.flapjack.foo".to_string(),
+                    "http://vm-aaaaaaaa.flapjack.foo:7700".to_string()
+                )
+            );
+            drop(tls_guard);
+        }
+    }
+
+    #[test]
+    fn derive_hostname_and_url_uses_https_for_enabled_aws() {
+        let _lock = ENGINE_TLS_ENV_LOCK.lock().expect("TLS env lock poisoned");
+        let _tls_guard = EnvVarGuard::set("FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED", Some("true"));
+        let deployment_id =
+            Uuid::parse_str("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").expect("valid deployment UUID");
+
+        assert_eq!(
+            derive_hostname_and_url("flapjack.foo", &deployment_id, "aws"),
+            (
+                "vm-aaaaaaaa.flapjack.foo".to_string(),
+                "https://vm-aaaaaaaa.flapjack.foo".to_string()
+            )
+        );
     }
 }

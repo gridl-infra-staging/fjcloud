@@ -1,0 +1,9 @@
+stage_evidence_path=docs/runbooks/evidence/staging-aws-sdk-dispatch-recovery/20260724T183534Z
+created_utc=20260724T183534Z
+source_contract=/Users/stuart/.matt/projects/fjcloud_dev-25fdd6a8/jul24_pm_6_staging_aws_sdk_dispatch_recovery.md-d75a9b4d/stages.md
+live_failure_run=gridl-infra-staging/fjcloud actions run 30113123441
+live_failure_deployed_sha=125abd2359de01cc74269ea37619eb2fa105b39f
+live_failure_status=POST /auth/register returned 503 with verification email temporarily unavailable
+reviewed_owner=scripts/launch/ssm_exec_staging.sh
+reviewed_owner=ops/systemd/fjcloud-api.service
+reviewed_owner=scripts/canary/customer_loop_synthetic.sh

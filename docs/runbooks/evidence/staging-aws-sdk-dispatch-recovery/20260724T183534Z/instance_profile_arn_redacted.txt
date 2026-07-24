@@ -1,0 +1,1 @@
+arn:aws:iam::ACCOUNT_ID_REDACTED:instance-profile/fjcloud-instance-profile

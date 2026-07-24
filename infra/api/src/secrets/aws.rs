@@ -30,12 +30,28 @@ impl SsmNodeSecretManager {
         format!("fj_live_{}", hex::encode(key_bytes))
     }
 
-    fn parameter_name(node_id: &str) -> String {
-        format!("/fjcloud/{node_id}/api-key")
+    fn validate_node_id(node_id: &str) -> Result<&str, NodeSecretError> {
+        if node_id.is_empty() || node_id.contains('/') || node_id.chars().any(char::is_control) {
+            return Err(NodeSecretError::Api(
+                "node id must be a single non-empty path segment".to_string(),
+            ));
+        }
+
+        Ok(node_id)
     }
 
-    fn previous_parameter_name(node_id: &str) -> String {
-        format!("/fjcloud/{node_id}/api-key-previous")
+    fn parameter_name(node_id: &str) -> Result<String, NodeSecretError> {
+        Ok(format!(
+            "/fjcloud/{}/api-key",
+            Self::validate_node_id(node_id)?
+        ))
+    }
+
+    fn previous_parameter_name(node_id: &str) -> Result<String, NodeSecretError> {
+        Ok(format!(
+            "/fjcloud/{}/api-key-previous",
+            Self::validate_node_id(node_id)?
+        ))
     }
 
     fn listed_node_id(path: &str) -> Option<&str> {
@@ -43,7 +59,10 @@ impl SsmNodeSecretManager {
         let node_id = path
             .strip_suffix(PREVIOUS_NODE_KEY_SUFFIX)
             .or_else(|| path.strip_suffix(NODE_KEY_SUFFIX))?;
-        (!node_id.is_empty() && !node_id.contains('/')).then_some(node_id)
+        (!node_id.is_empty()
+            && !node_id.contains('/')
+            && !node_id.chars().any(char::is_control))
+        .then_some(node_id)
     }
 
     async fn delete_parameter_if_present(&self, param_name: &str) -> Result<(), NodeSecretError> {
@@ -66,7 +85,7 @@ impl SsmNodeSecretManager {
     /// implementation collapses them into the generic "service error" string.
     /// Seed-index creation relies on this remaining distinguishable so the
     /// existing "create the missing key" recovery path can run.
-    fn map_get_parameter_error<R>(
+    fn map_get_parameter_error<R: std::fmt::Debug>(
         param_name: &str,
         error: aws_sdk_ssm::error::SdkError<GetParameterError, R>,
     ) -> NodeSecretError {
@@ -77,7 +96,10 @@ impl SsmNodeSecretManager {
             return NodeSecretError::Api(format!("parameter not found: {param_name}"));
         }
 
-        NodeSecretError::Api(format!("SSM GetParameter failed: {error}"))
+        NodeSecretError::Api(format!(
+            "SSM GetParameter failed: {}",
+            aws_sdk_ssm::error::DisplayErrorContext(&error)
+        ))
     }
 }
 
@@ -91,7 +113,8 @@ impl NodeSecretManager for SsmNodeSecretManager {
         _region: &str,
     ) -> Result<String, NodeSecretError> {
         let api_key = Self::generate_api_key();
-        let param_name = Self::parameter_name(node_id);
+        let validated_node_id = Self::validate_node_id(node_id)?;
+        let param_name = Self::parameter_name(validated_node_id)?;
 
         self.client
             .put_parameter()
@@ -99,7 +122,7 @@ impl NodeSecretManager for SsmNodeSecretManager {
             .value(&api_key)
             .r#type(aws_sdk_ssm::types::ParameterType::SecureString)
             .overwrite(true)
-            .description(format!("Flapjack API key for {node_id}"))
+            .description(format!("Flapjack API key for {validated_node_id}"))
             .send()
             .await
             .map_err(|e| NodeSecretError::Api(format!("SSM PutParameter failed: {e}")))?;
@@ -116,8 +139,8 @@ impl NodeSecretManager for SsmNodeSecretManager {
         _region: &str,
     ) -> Result<(), NodeSecretError> {
         let parameter_names = [
-            Self::parameter_name(node_id),
-            Self::previous_parameter_name(node_id),
+            Self::parameter_name(node_id)?,
+            Self::previous_parameter_name(node_id)?,
         ];
         let mut first_error = None;
 
@@ -136,7 +159,7 @@ impl NodeSecretManager for SsmNodeSecretManager {
         node_id: &str,
         _region: &str,
     ) -> Result<String, NodeSecretError> {
-        let param_name = Self::parameter_name(node_id);
+        let param_name = Self::parameter_name(node_id)?;
 
         let output = self
             .client
@@ -161,29 +184,30 @@ impl NodeSecretManager for SsmNodeSecretManager {
         node_id: &str,
         _region: &str,
     ) -> Result<(String, String), NodeSecretError> {
+        let validated_node_id = Self::validate_node_id(node_id)?;
         let old_key = self.get_node_api_key(node_id, _region).await?;
 
-        let previous_param_name = Self::previous_parameter_name(node_id);
+        let previous_param_name = Self::previous_parameter_name(validated_node_id)?;
         self.client
             .put_parameter()
             .name(&previous_param_name)
             .value(&old_key)
             .r#type(aws_sdk_ssm::types::ParameterType::SecureString)
             .overwrite(true)
-            .description(format!("Previous Flapjack API key for {node_id}"))
+            .description(format!("Previous Flapjack API key for {validated_node_id}"))
             .send()
             .await
             .map_err(|e| NodeSecretError::Api(format!("SSM PutParameter failed: {e}")))?;
 
         let new_key = Self::generate_api_key();
-        let param_name = Self::parameter_name(node_id);
+        let param_name = Self::parameter_name(validated_node_id)?;
         self.client
             .put_parameter()
             .name(&param_name)
             .value(&new_key)
             .r#type(aws_sdk_ssm::types::ParameterType::SecureString)
             .overwrite(true)
-            .description(format!("Flapjack API key for {node_id}"))
+            .description(format!("Flapjack API key for {validated_node_id}"))
             .send()
             .await
             .map_err(|e| NodeSecretError::Api(format!("SSM PutParameter failed: {e}")))?;
@@ -200,7 +224,8 @@ impl NodeSecretManager for SsmNodeSecretManager {
         _region: &str,
         old_key: &str,
     ) -> Result<(), NodeSecretError> {
-        let previous_param_name = Self::previous_parameter_name(node_id);
+        let validated_node_id = Self::validate_node_id(node_id)?;
+        let previous_param_name = Self::previous_parameter_name(validated_node_id)?;
 
         let previous_key = match self
             .client
@@ -234,7 +259,7 @@ impl NodeSecretManager for SsmNodeSecretManager {
 
         if previous_key != old_key {
             return Err(NodeSecretError::Api(format!(
-                "rotation commit old key mismatch for node {node_id}"
+                "rotation commit old key mismatch for node {validated_node_id}"
             )));
         }
 
@@ -323,8 +348,9 @@ impl NodeSecretManager for SsmNodeSecretManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use aws_sdk_ssm::error::SdkError;
+    use aws_sdk_ssm::error::{ConnectorError, SdkError};
     use aws_sdk_ssm::types::error::ParameterNotFound;
+    use std::io;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
     use wiremock::matchers::{body_partial_json, header, method};
@@ -382,8 +408,23 @@ mod tests {
     #[test]
     fn parameter_name_format() {
         assert_eq!(
-            SsmNodeSecretManager::parameter_name("node-abc123"),
+            SsmNodeSecretManager::parameter_name("node-abc123").expect("valid node id"),
             "/fjcloud/node-abc123/api-key"
+        );
+    }
+
+    #[test]
+    fn parameter_name_rejects_path_injection_node_ids() {
+        let invalid_with_slash = SsmNodeSecretManager::parameter_name("node-abc123/other-node");
+        let invalid_with_newline = SsmNodeSecretManager::parameter_name("node-abc123\nsuffix");
+
+        assert!(
+            matches!(invalid_with_slash, Err(NodeSecretError::Api(ref message)) if message.contains("single non-empty path segment")),
+            "slash-containing node ids must be rejected before building SSM paths"
+        );
+        assert!(
+            matches!(invalid_with_newline, Err(NodeSecretError::Api(ref message)) if message.contains("single non-empty path segment")),
+            "control characters must be rejected before building SSM paths"
         );
     }
 
@@ -464,6 +505,32 @@ mod tests {
         assert!(
             matches!(mapped, NodeSecretError::Api(message) if message.contains("parameter not found")),
             "mapped missing-parameter errors should preserve an actionable missing-secret message"
+        );
+    }
+
+    #[test]
+    fn maps_dispatch_failure_with_nested_source_context() {
+        let sdk_error = SdkError::<GetParameterError, ()>::dispatch_failure(ConnectorError::io(
+            io::Error::new(
+                io::ErrorKind::ConnectionRefused,
+                "nested-connector-cause-marker",
+            )
+            .into(),
+        ));
+
+        let mapped = SsmNodeSecretManager::map_get_parameter_error(
+            "/fjcloud/node-abc123/api-key",
+            sdk_error,
+        );
+
+        assert!(
+            matches!(
+                mapped,
+                NodeSecretError::Api(ref message)
+                    if message.contains("SSM GetParameter failed")
+                        && message.contains("nested-connector-cause-marker")
+            ),
+            "mapped dispatch failures must preserve the operation context and nested connector source: {mapped:?}"
         );
     }
 }

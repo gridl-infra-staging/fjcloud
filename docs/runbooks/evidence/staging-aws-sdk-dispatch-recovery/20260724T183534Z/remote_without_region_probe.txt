@@ -1,0 +1,34 @@
+##### SERVICE_USER_FJCLOUD_BEGIN #####
+whoami=fjcloud uid=992
+generic_region_env_keys_begin
+generic_region_env_keys_end
+--- ssm_without_region_begin ---
+{
+    "Name": "/fjcloud/staging/dns_domain",
+    "Type": "String"
+}
+exit_status=0
+--- ssm_without_region_end ---
+--- cloudwatch_without_region_begin ---
+
+An error occurred (AccessDenied) when calling the ListMetrics operation: User: arn:aws:sts::ACCOUNT_ID_REDACTED:assumed-role/fjcloud-instance-role/i-0fbc6d6bbbc8bdc6d is not authorized to perform: cloudwatch:ListMetrics because no identity-based policy allows the cloudwatch:ListMetrics action
+exit_status=254
+--- cloudwatch_without_region_end ---
+##### SERVICE_USER_FJCLOUD_END #####
+##### HOST_CONTEXT_BEGIN #####
+whoami=root uid=0
+generic_region_env_keys_begin
+generic_region_env_keys_end
+--- ssm_without_region_begin ---
+{
+    "Name": "/fjcloud/staging/dns_domain",
+    "Type": "String"
+}
+exit_status=0
+--- ssm_without_region_end ---
+--- cloudwatch_without_region_begin ---
+
+An error occurred (AccessDenied) when calling the ListMetrics operation: User: arn:aws:sts::ACCOUNT_ID_REDACTED:assumed-role/fjcloud-instance-role/i-0fbc6d6bbbc8bdc6d is not authorized to perform: cloudwatch:ListMetrics because no identity-based policy allows the cloudwatch:ListMetrics action
+exit_status=254
+--- cloudwatch_without_region_end ---
+##### HOST_CONTEXT_END #####

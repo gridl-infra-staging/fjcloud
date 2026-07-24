@@ -60,9 +60,19 @@ export function normalizeAlgoliaMigrationAvailability(
 		replace: payload.capabilities?.replace === true
 	};
 
-	return {
-		...payload,
+	const response = {
+		available: payload.available === true,
+		message: payload.message,
 		capabilities
+	};
+
+	if (payload.reason == null) {
+		return response;
+	}
+
+	return {
+		...response,
+		reason: payload.reason
 	};
 }
 

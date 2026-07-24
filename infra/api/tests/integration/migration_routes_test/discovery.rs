@@ -52,8 +52,10 @@ async fn algolia_availability_returns_typed_unavailable_payload() {
     );
 }
 
+/// The availability route is locally decidable: it depends only on API config
+/// and code-owned engine support declarations, not on live external calls.
 #[tokio::test]
-async fn algolia_availability_stays_unavailable_when_flag_is_enabled() {
+async fn algolia_availability_flips_available_when_flag_enabled_and_engine_supports() {
     let (app, jwt) = setup_authenticated_app_with_algolia_flag(true).await;
 
     let resp = app
@@ -73,16 +75,16 @@ async fn algolia_availability_stays_unavailable_when_flag_is_enabled() {
     assert_eq!(
         body,
         json!({
-            "available": false,
-            "reason": "temporarily_unavailable",
-            "message": "Algolia migration is temporarily unavailable while we replace the importer.",
+            "available": true,
+            "message": "Algolia migration is available.",
             "capabilities": {
-                "cancel": false,
+                "cancel": true,
                 "resume": false,
-                "replace": false
+                "replace": true
             }
         })
     );
+    assert!(body.get("reason").is_none());
 }
 
 #[tokio::test]
@@ -96,6 +98,29 @@ async fn algolia_cloud_discovery_list_indexes_requires_auth() {
     )
     .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert!(service.requests().is_empty());
+}
+
+#[tokio::test]
+async fn list_indexes_is_gated_closed_when_migration_unavailable() {
+    let service = FakeAlgoliaSourceLister::new([Ok(discovery_response(None))]);
+    let (app, jwt) = setup_algolia_cloud_discovery_app_with_flag(service.clone(), false).await;
+
+    let (status, body) = post_discovery(
+        app,
+        Some(&jwt),
+        json!({"appId": "TESTAPP123", "apiKey": "volatile-key"}),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(
+        body,
+        json!({
+            "error": AlgoliaImportErrorCode::BackendUnavailable.as_str(),
+            "code": AlgoliaImportErrorCode::BackendUnavailable.as_str(),
+        })
+    );
     assert!(service.requests().is_empty());
 }
 
@@ -154,6 +179,35 @@ async fn algolia_cloud_discovery_forwards_probe_page_size_override() {
     let requests = service.requests();
     assert_eq!(requests.len(), 1);
     assert_eq!(requests[0].hits_per_page, Some(1));
+}
+
+#[tokio::test]
+async fn algolia_cloud_discovery_rejects_out_of_range_page_size_without_upstream_call() {
+    for hits_per_page in [0, 101] {
+        let service = FakeAlgoliaSourceLister::new([Ok(discovery_response(None))]);
+        let (app, jwt) = setup_algolia_cloud_discovery_app(service.clone()).await;
+
+        let (status, body) = post_discovery(
+            app,
+            Some(&jwt),
+            json!({
+                "appId": "TESTAPP123",
+                "apiKey": "volatile-key",
+                "hitsPerPage": hits_per_page
+            }),
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            body,
+            json!({
+                "error": "source_catalog_too_large",
+                "code": AlgoliaImportErrorCode::SourceCatalogTooLarge.as_str(),
+            })
+        );
+        assert!(service.requests().is_empty());
+    }
 }
 
 #[tokio::test]

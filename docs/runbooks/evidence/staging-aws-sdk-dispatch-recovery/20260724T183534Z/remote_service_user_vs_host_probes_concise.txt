@@ -1,0 +1,330 @@
+##### SERVICE_USER_FJCLOUD_BEGIN #####
+whoami=fjcloud uid=992 gid=992 region=us-east-1 config_set_present=yes
+proxy_booleans_begin
+proxy_booleans_end
+--- dns_email.us-east-1.amazonaws.com_begin ---
+18.208.240.210  STREAM email.us-east-1.amazonaws.com
+18.208.240.210  DGRAM  
+18.208.240.210  RAW    
+exit_status=0
+--- dns_email.us-east-1.amazonaws.com_end ---
+--- route4_email.us-east-1.amazonaws.com_begin ---
+18.208.240.210 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 992 
+    cache 
+exit_status=0
+--- route4_email.us-east-1.amazonaws.com_end ---
+--- route6_email.us-east-1.amazonaws.com_begin ---
+RTNETLINK answers: Network is unreachable
+exit_status=2
+--- route6_email.us-east-1.amazonaws.com_end ---
+--- dns_monitoring.us-east-1.amazonaws.com_begin ---
+44.213.98.187   STREAM monitoring.us-east-1.amazonaws.com
+44.213.98.187   DGRAM  
+44.213.98.187   RAW    
+44.213.98.182   STREAM 
+44.213.98.182   DGRAM  
+44.213.98.182   RAW    
+44.213.98.130   STREAM 
+44.213.98.130   DGRAM  
+44.213.98.130   RAW    
+44.223.121.197  STREAM 
+44.223.121.197  DGRAM  
+44.223.121.197  RAW    
+44.213.98.143   STREAM 
+44.213.98.143   DGRAM  
+44.213.98.143   RAW    
+44.220.25.89    STREAM 
+44.220.25.89    DGRAM  
+44.220.25.89    RAW    
+44.213.98.9     STREAM 
+44.213.98.9     DGRAM  
+44.213.98.9     RAW    
+44.213.98.47    STREAM 
+44.213.98.47    DGRAM  
+44.213.98.47    RAW    
+exit_status=0
+--- dns_monitoring.us-east-1.amazonaws.com_end ---
+--- route4_monitoring.us-east-1.amazonaws.com_begin ---
+44.213.98.47 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 992 
+    cache 
+exit_status=0
+--- route4_monitoring.us-east-1.amazonaws.com_end ---
+--- route6_monitoring.us-east-1.amazonaws.com_begin ---
+RTNETLINK answers: Network is unreachable
+exit_status=2
+--- route6_monitoring.us-east-1.amazonaws.com_end ---
+--- dns_sts.us-east-1.amazonaws.com_begin ---
+44.216.202.239  STREAM sts.us-east-1.amazonaws.com
+44.216.202.239  DGRAM  
+44.216.202.239  RAW    
+exit_status=0
+--- dns_sts.us-east-1.amazonaws.com_end ---
+--- route4_sts.us-east-1.amazonaws.com_begin ---
+44.216.202.239 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 992 
+    cache 
+exit_status=0
+--- route4_sts.us-east-1.amazonaws.com_end ---
+--- route6_sts.us-east-1.amazonaws.com_begin ---
+RTNETLINK answers: Network is unreachable
+exit_status=2
+--- route6_sts.us-east-1.amazonaws.com_end ---
+--- dns_discord.com_begin ---
+162.159.136.232 STREAM discord.com
+162.159.136.232 DGRAM  
+162.159.136.232 RAW    
+162.159.137.232 STREAM 
+162.159.137.232 DGRAM  
+162.159.137.232 RAW    
+162.159.138.232 STREAM 
+162.159.138.232 DGRAM  
+162.159.138.232 RAW    
+162.159.135.232 STREAM 
+162.159.135.232 DGRAM  
+162.159.135.232 RAW    
+162.159.128.233 STREAM 
+162.159.128.233 DGRAM  
+162.159.128.233 RAW    
+exit_status=0
+--- dns_discord.com_end ---
+--- route4_discord.com_begin ---
+162.159.128.233 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 992 
+    cache 
+exit_status=0
+--- route4_discord.com_end ---
+--- route6_discord.com_begin ---
+RTNETLINK answers: Network is unreachable
+exit_status=2
+--- route6_discord.com_end ---
+--- dns_github.com_begin ---
+140.82.112.4    STREAM github.com
+140.82.112.4    DGRAM  
+140.82.112.4    RAW    
+exit_status=0
+--- dns_github.com_end ---
+--- route4_github.com_begin ---
+140.82.112.4 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 992 
+    cache 
+exit_status=0
+--- route4_github.com_end ---
+--- route6_github.com_begin ---
+RTNETLINK answers: Network is unreachable
+exit_status=2
+--- route6_github.com_end ---
+--- imdsv2_role_begin ---
+role_name_present=YESexit_status=0
+--- imdsv2_role_end ---
+--- aws_cli_version_begin ---
+aws-cli/2.33.15 Python/3.9.25 Linux/6.1.170-213.321.amzn2023.aarch64 source/aarch64.amzn.2023
+exit_status=0
+--- aws_cli_version_end ---
+--- aws_debug_credential_provider_begin ---
+2026-07-24 18:40:39,544 - MainThread - botocore.utils - DEBUG - IMDS ENDPOINT: http://169.254.169.254/
+2026-07-24 18:40:39,578 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: env
+2026-07-24 18:40:39,578 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: assume-role
+2026-07-24 18:40:39,578 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: assume-role-with-web-identity
+2026-07-24 18:40:39,578 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: sso
+2026-07-24 18:40:39,578 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: shared-credentials-file
+2026-07-24 18:40:39,578 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: login
+2026-07-24 18:40:39,578 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: custom-process
+2026-07-24 18:40:39,578 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: config-file
+2026-07-24 18:40:39,578 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: ec2-credentials-file
+2026-07-24 18:40:39,578 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: boto-config
+2026-07-24 18:40:39,578 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: container-role
+2026-07-24 18:40:39,578 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: iam-role
+2026-07-24 18:40:39,581 - MainThread - urllib3.connectionpool - DEBUG - http://169.254.169.254:80 "PUT /latest/api/token HTTP/1.1" 200 56
+2026-07-24 18:40:39,582 - MainThread - urllib3.connectionpool - DEBUG - http://169.254.169.254:80 "GET /latest/meta-data/iam/security-credentials/ HTTP/1.1" 200 21
+2026-07-24 18:40:39,584 - MainThread - urllib3.connectionpool - DEBUG - http://169.254.169.254:80 "GET /latest/meta-data/iam/security-credentials/fjcloud-instance-role HTTP/1.1" 200 1570
+2026-07-24 18:40:39,586 - MainThread - botocore.credentials - DEBUG - Found credentials from IAM Role: fjcloud-instance-role
+2026-07-24 18:40:39,627 - MainThread - botocore.regions - DEBUG - Endpoint provider result: https://sts.us-east-1.amazonaws.com
+2026-07-24 18:40:39,659 - MainThread - urllib3.connectionpool - DEBUG - https://sts.us-east-1.amazonaws.com:443 "POST / HTTP/1.1" 200 466
+exit_status=0
+--- aws_debug_credential_provider_end ---
+--- sts_identity_begin ---
+{
+    "Account": "ACCOUNT_ID_REDACTED",
+    "Arn": "arn:aws:sts::ACCOUNT_ID_REDACTED:assumed-role/fjcloud-instance-role/i-0fbc6d6bbbc8bdc6d",
+    "UserId": "AROATDTCLTRFMYLOOODMQ:i-0fbc6d6bbbc8bdc6d"
+}
+exit_status=0
+--- sts_identity_end ---
+--- ses_get_account_begin ---
+
+An error occurred (AccessDeniedException) when calling the GetAccount operation: User: arn:aws:sts::ACCOUNT_ID_REDACTED:assumed-role/fjcloud-instance-role/i-0fbc6d6bbbc8bdc6d is not authorized to perform: ses:GetAccount on resource: * because no identity-based policy allows the ses:GetAccount action
+exit_status=254
+--- ses_get_account_end ---
+--- ses_get_configuration_set_begin ---
+
+An error occurred (AccessDeniedException) when calling the GetConfigurationSet operation: User: arn:aws:sts::ACCOUNT_ID_REDACTED:assumed-role/fjcloud-instance-role/i-0fbc6d6bbbc8bdc6d is not authorized to perform: ses:GetConfigurationSet on resource: arn:aws:ses:us-east-1:ACCOUNT_ID_REDACTED:configuration-set/fjcloud-staging-staging-flapjack-foo-feedback because no identity-based policy allows the ses:GetConfigurationSet action
+exit_status=254
+--- ses_get_configuration_set_end ---
+--- cloudwatch_list_metrics_begin ---
+
+An error occurred (AccessDenied) when calling the ListMetrics operation: User: arn:aws:sts::ACCOUNT_ID_REDACTED:assumed-role/fjcloud-instance-role/i-0fbc6d6bbbc8bdc6d is not authorized to perform: cloudwatch:ListMetrics because no identity-based policy allows the cloudwatch:ListMetrics action
+exit_status=254
+--- cloudwatch_list_metrics_end ---
+##### SERVICE_USER_FJCLOUD_END #####
+##### HOST_CONTEXT_BEGIN #####
+whoami=root uid=0 gid=0 region=us-east-1 config_set_present=yes
+proxy_booleans_begin
+proxy_booleans_end
+--- dns_email.us-east-1.amazonaws.com_begin ---
+18.208.240.210  STREAM email.us-east-1.amazonaws.com
+18.208.240.210  DGRAM  
+18.208.240.210  RAW    
+exit_status=0
+--- dns_email.us-east-1.amazonaws.com_end ---
+--- route4_email.us-east-1.amazonaws.com_begin ---
+18.208.240.210 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 0 
+    cache 
+exit_status=0
+--- route4_email.us-east-1.amazonaws.com_end ---
+--- route6_email.us-east-1.amazonaws.com_begin ---
+RTNETLINK answers: Network is unreachable
+exit_status=2
+--- route6_email.us-east-1.amazonaws.com_end ---
+--- dns_monitoring.us-east-1.amazonaws.com_begin ---
+44.213.98.149   STREAM monitoring.us-east-1.amazonaws.com
+44.213.98.149   DGRAM  
+44.213.98.149   RAW    
+44.220.25.72    STREAM 
+44.220.25.72    DGRAM  
+44.220.25.72    RAW    
+44.223.121.149  STREAM 
+44.223.121.149  DGRAM  
+44.223.121.149  RAW    
+44.213.98.86    STREAM 
+44.213.98.86    DGRAM  
+44.213.98.86    RAW    
+44.213.98.237   STREAM 
+44.213.98.237   DGRAM  
+44.213.98.237   RAW    
+44.223.121.253  STREAM 
+44.223.121.253  DGRAM  
+44.223.121.253  RAW    
+44.223.121.191  STREAM 
+44.223.121.191  DGRAM  
+44.223.121.191  RAW    
+44.213.98.147   STREAM 
+44.213.98.147   DGRAM  
+44.213.98.147   RAW    
+exit_status=0
+--- dns_monitoring.us-east-1.amazonaws.com_end ---
+--- route4_monitoring.us-east-1.amazonaws.com_begin ---
+44.213.98.147 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 0 
+    cache 
+exit_status=0
+--- route4_monitoring.us-east-1.amazonaws.com_end ---
+--- route6_monitoring.us-east-1.amazonaws.com_begin ---
+RTNETLINK answers: Network is unreachable
+exit_status=2
+--- route6_monitoring.us-east-1.amazonaws.com_end ---
+--- dns_sts.us-east-1.amazonaws.com_begin ---
+44.216.202.239  STREAM sts.us-east-1.amazonaws.com
+44.216.202.239  DGRAM  
+44.216.202.239  RAW    
+exit_status=0
+--- dns_sts.us-east-1.amazonaws.com_end ---
+--- route4_sts.us-east-1.amazonaws.com_begin ---
+44.216.202.239 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 0 
+    cache 
+exit_status=0
+--- route4_sts.us-east-1.amazonaws.com_end ---
+--- route6_sts.us-east-1.amazonaws.com_begin ---
+RTNETLINK answers: Network is unreachable
+exit_status=2
+--- route6_sts.us-east-1.amazonaws.com_end ---
+--- dns_discord.com_begin ---
+162.159.138.232 STREAM discord.com
+162.159.138.232 DGRAM  
+162.159.138.232 RAW    
+162.159.135.232 STREAM 
+162.159.135.232 DGRAM  
+162.159.135.232 RAW    
+162.159.128.233 STREAM 
+162.159.128.233 DGRAM  
+162.159.128.233 RAW    
+162.159.136.232 STREAM 
+162.159.136.232 DGRAM  
+162.159.136.232 RAW    
+162.159.137.232 STREAM 
+162.159.137.232 DGRAM  
+162.159.137.232 RAW    
+exit_status=0
+--- dns_discord.com_end ---
+--- route4_discord.com_begin ---
+162.159.137.232 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 0 
+    cache 
+exit_status=0
+--- route4_discord.com_end ---
+--- route6_discord.com_begin ---
+RTNETLINK answers: Network is unreachable
+exit_status=2
+--- route6_discord.com_end ---
+--- dns_github.com_begin ---
+140.82.112.4    STREAM github.com
+140.82.112.4    DGRAM  
+140.82.112.4    RAW    
+exit_status=0
+--- dns_github.com_end ---
+--- route4_github.com_begin ---
+140.82.112.4 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 0 
+    cache 
+exit_status=0
+--- route4_github.com_end ---
+--- route6_github.com_begin ---
+RTNETLINK answers: Network is unreachable
+exit_status=2
+--- route6_github.com_end ---
+--- imdsv2_role_begin ---
+role_name_present=YESexit_status=0
+--- imdsv2_role_end ---
+--- aws_cli_version_begin ---
+aws-cli/2.33.15 Python/3.9.25 Linux/6.1.170-213.321.amzn2023.aarch64 source/aarch64.amzn.2023
+exit_status=0
+--- aws_cli_version_end ---
+--- aws_debug_credential_provider_begin ---
+2026-07-24 18:40:44,568 - MainThread - botocore.utils - DEBUG - IMDS ENDPOINT: http://169.254.169.254/
+2026-07-24 18:40:44,601 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: env
+2026-07-24 18:40:44,601 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: assume-role
+2026-07-24 18:40:44,601 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: assume-role-with-web-identity
+2026-07-24 18:40:44,601 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: sso
+2026-07-24 18:40:44,601 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: shared-credentials-file
+2026-07-24 18:40:44,602 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: login
+2026-07-24 18:40:44,602 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: custom-process
+2026-07-24 18:40:44,602 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: config-file
+2026-07-24 18:40:44,602 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: ec2-credentials-file
+2026-07-24 18:40:44,602 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: boto-config
+2026-07-24 18:40:44,602 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: container-role
+2026-07-24 18:40:44,602 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: iam-role
+2026-07-24 18:40:44,604 - MainThread - urllib3.connectionpool - DEBUG - http://169.254.169.254:80 "PUT /latest/api/token HTTP/1.1" 200 56
+2026-07-24 18:40:44,606 - MainThread - urllib3.connectionpool - DEBUG - http://169.254.169.254:80 "GET /latest/meta-data/iam/security-credentials/ HTTP/1.1" 200 21
+2026-07-24 18:40:44,608 - MainThread - urllib3.connectionpool - DEBUG - http://169.254.169.254:80 "GET /latest/meta-data/iam/security-credentials/fjcloud-instance-role HTTP/1.1" 200 1570
+2026-07-24 18:40:44,610 - MainThread - botocore.credentials - DEBUG - Found credentials from IAM Role: fjcloud-instance-role
+2026-07-24 18:40:44,651 - MainThread - botocore.regions - DEBUG - Endpoint provider result: https://sts.us-east-1.amazonaws.com
+2026-07-24 18:40:44,682 - MainThread - urllib3.connectionpool - DEBUG - https://sts.us-east-1.amazonaws.com:443 "POST / HTTP/1.1" 200 466
+exit_status=0
+--- aws_debug_credential_provider_end ---
+--- sts_identity_begin ---
+{
+    "Account": "ACCOUNT_ID_REDACTED",
+    "Arn": "arn:aws:sts::ACCOUNT_ID_REDACTED:assumed-role/fjcloud-instance-role/i-0fbc6d6bbbc8bdc6d",
+    "UserId": "AROATDTCLTRFMYLOOODMQ:i-0fbc6d6bbbc8bdc6d"
+}
+exit_status=0
+--- sts_identity_end ---
+--- ses_get_account_begin ---
+
+An error occurred (AccessDeniedException) when calling the GetAccount operation: User: arn:aws:sts::ACCOUNT_ID_REDACTED:assumed-role/fjcloud-instance-role/i-0fbc6d6bbbc8bdc6d is not authorized to perform: ses:GetAccount on resource: * because no identity-based policy allows the ses:GetAccount action
+exit_status=254
+--- ses_get_account_end ---
+--- ses_get_configuration_set_begin ---
+
+An error occurred (AccessDeniedException) when calling the GetConfigurationSet operation: User: arn:aws:sts::ACCOUNT_ID_REDACTED:assumed-role/fjcloud-instance-role/i-0fbc6d6bbbc8bdc6d is not authorized to perform: ses:GetConfigurationSet on resource: arn:aws:ses:us-east-1:ACCOUNT_ID_REDACTED:configuration-set/fjcloud-staging-staging-flapjack-foo-feedback because no identity-based policy allows the ses:GetConfigurationSet action
+exit_status=254
+--- ses_get_configuration_set_end ---
+--- cloudwatch_list_metrics_begin ---
+
+An error occurred (AccessDenied) when calling the ListMetrics operation: User: arn:aws:sts::ACCOUNT_ID_REDACTED:assumed-role/fjcloud-instance-role/i-0fbc6d6bbbc8bdc6d is not authorized to perform: cloudwatch:ListMetrics because no identity-based policy allows the cloudwatch:ListMetrics action
+exit_status=254
+--- cloudwatch_list_metrics_end ---
+##### HOST_CONTEXT_END #####

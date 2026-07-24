@@ -58,7 +58,8 @@ describe('Migrate page server', () => {
 		getAlgoliaMigrationAvailabilityMock.mockResolvedValue({
 			available: false,
 			reason: 'temporarily_unavailable',
-			message: 'Algolia migration is temporarily unavailable while we replace the importer.'
+			message: 'Algolia migration is temporarily unavailable while we replace the importer.',
+			capabilities: { cancel: false, resume: false, replace: false }
 		});
 	});
 
@@ -72,7 +73,8 @@ describe('Migrate page server', () => {
 			availability: {
 				available: false,
 				reason: 'temporarily_unavailable',
-				message: 'Algolia migration is temporarily unavailable while we replace the importer.'
+				message: 'Algolia migration is temporarily unavailable while we replace the importer.',
+				capabilities: { cancel: false, resume: false, replace: false }
 			}
 		});
 	});

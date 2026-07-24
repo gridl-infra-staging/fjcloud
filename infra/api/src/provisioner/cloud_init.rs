@@ -277,9 +277,7 @@ mod tests {
         // present in every generated script, so metering URLs derive from it.
         assert!(script.contains(r#"API_BASE_URL="https://api.staging.$DNS_DOMAIN""#));
         assert!(script.contains("TENANT_MAP_URL=$API_BASE_URL/internal/tenant-map"));
-        assert!(script.contains(
-            "COLD_STORAGE_USAGE_URL=$API_BASE_URL/internal/cold-storage-usage"
-        ));
+        assert!(script.contains("COLD_STORAGE_USAGE_URL=$API_BASE_URL/internal/cold-storage-usage"));
         assert!(script.contains("SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL"));
         assert!(script.contains("DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL"));
         assert!(script.contains("User=fjcloud"));

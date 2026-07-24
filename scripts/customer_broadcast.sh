@@ -44,6 +44,7 @@ trim_is_empty() {
     [ -z "${1//[[:space:]]/}" ]
 }
 
+# TODO: Document env_file_value.
 env_file_value() {
     local env_file="$1"
     local requested_key="$2"
@@ -85,6 +86,7 @@ is_staging_admin_target() {
     esac
 }
 
+# TODO: Document is_shared_dev_checkout_secret_file.
 is_shared_dev_checkout_secret_file() {
     local secret_file="$1"
     local secret_dir
@@ -108,6 +110,7 @@ is_shared_dev_checkout_secret_file() {
     esac
 }
 
+# TODO: Document should_hydrate_staging_admin_key.
 should_hydrate_staging_admin_key() {
     if [ "$ADMIN_KEY_EXPLICIT" = true ]; then
         return 1
@@ -130,6 +133,7 @@ should_hydrate_staging_admin_key() {
     return 1
 }
 
+# TODO: Document hydrate_staging_admin_key_from_owner.
 hydrate_staging_admin_key_from_owner() {
     local hydrator="$SCRIPT_DIR/launch/hydrate_seeder_env_from_ssm.sh"
     local hydrated_admin_key

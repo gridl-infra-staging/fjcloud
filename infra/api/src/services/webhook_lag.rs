@@ -1,3 +1,4 @@
+//! Stub summary for webhook_lag.rs.
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -34,6 +35,7 @@ impl WebhookLagPublisher {
         }
     }
 
+    /// TODO: Document WebhookLagPublisher.publish_once.
     async fn publish_once(&self) -> Result<(), String> {
         let stale_count = self
             .webhook_event_repo
@@ -64,6 +66,7 @@ impl WebhookLagPublisher {
         Ok(())
     }
 
+    /// TODO: Document WebhookLagPublisher.run.
     pub async fn run(self, mut shutdown_rx: watch::Receiver<bool>) {
         let mut interval = tokio::time::interval(self.period);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);

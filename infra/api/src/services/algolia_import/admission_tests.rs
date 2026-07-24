@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/algolia_import/admission_tests.rs.
 use chrono::Utc;
 use serde_json::json;
 use uuid::Uuid;
@@ -28,6 +29,7 @@ fn compatible_health() -> serde_json::Value {
     })
 }
 
+/// TODO: Document admission_compatibility_decision_is_typed_and_exhaustive.
 #[tokio::test]
 async fn admission_compatibility_decision_is_typed_and_exhaustive() {
     let (service, _, _) = harness(vec![response(200, compatible_health())]).await;
@@ -57,6 +59,7 @@ async fn admission_compatibility_decision_is_typed_and_exhaustive() {
     );
 }
 
+/// TODO: Document persisted_destination_is_reresolved_without_using_physical_uid.
 #[tokio::test]
 async fn persisted_destination_is_reresolved_without_using_physical_uid() {
     let now = Utc::now();

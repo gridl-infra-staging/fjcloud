@@ -1,3 +1,4 @@
+//! Stub summary for oauth.rs.
 use aes_gcm::aead::{Aead, OsRng};
 use aes_gcm::{AeadCore, Aes256Gcm, KeyInit};
 use axum::extract::{Path, State};
@@ -106,6 +107,7 @@ struct GitHubEmailEntry {
     verified: bool,
 }
 
+/// TODO: Document start_oauth.
 pub async fn start_oauth(
     State(state): State<AppState>,
     Path(provider): Path<String>,
@@ -173,6 +175,7 @@ pub async fn start_oauth(
     response
 }
 
+/// TODO: Document oauth_status.
 pub async fn oauth_status(State(state): State<AppState>) -> axum::response::Response {
     let status = OAuthStatusResponse {
         google: OAuthProviderStatus {
@@ -190,6 +193,7 @@ pub async fn oauth_status(State(state): State<AppState>) -> axum::response::Resp
     response
 }
 
+/// TODO: Document exchange_oauth_code.
 pub async fn exchange_oauth_code(
     State(state): State<AppState>,
     Path(provider): Path<String>,
@@ -280,6 +284,7 @@ pub async fn exchange_oauth_code(
         .into_response()
 }
 
+/// TODO: Document resolve_oauth_customer.
 async fn resolve_oauth_customer(
     state: &AppState,
     provider: &str,
@@ -381,6 +386,7 @@ async fn resolve_oauth_customer(
     }
 }
 
+/// TODO: Document create_or_find_oauth_customer.
 async fn create_or_find_oauth_customer(
     state: &AppState,
     customer_name: &str,
@@ -410,6 +416,7 @@ async fn create_or_find_oauth_customer(
     }
 }
 
+/// TODO: Document create_or_find_synthetic_oauth_customer.
 async fn create_or_find_synthetic_oauth_customer(
     state: &AppState,
     customer_name: &str,
@@ -471,6 +478,7 @@ fn synthetic_oauth_email(provider: &str, provider_user_id: &str) -> String {
     format!("oauth-{provider}-{normalized}@oauth.flapjack.foo").to_ascii_lowercase()
 }
 
+/// TODO: Document fetch_provider_identity.
 async fn fetch_provider_identity(
     provider: OAuthProvider,
     provider_cfg: &OAuthProviderRuntimeConfig,
@@ -649,6 +657,7 @@ fn provider_config_for(
     }
 }
 
+/// TODO: Document build_authorization_url.
 fn build_authorization_url(
     provider: OAuthProvider,
     provider_cfg: &OAuthProviderRuntimeConfig,
@@ -708,6 +717,7 @@ fn pkce_challenge(verifier: &str) -> String {
 // Path=/, HttpOnly, SameSite, Max-Age, optional Secure + Domain — because
 // they must arrive together at exchange time. Differing scopes would
 // silently break the binding check.
+/// TODO: Document build_oauth_cookie_header.
 fn build_oauth_cookie_header(
     state: &AppState,
     cookie_name: &str,
@@ -740,6 +750,7 @@ fn random_urlsafe(length: usize) -> String {
         .collect()
 }
 
+/// TODO: Document encrypt_oauth_state_cookie.
 fn encrypt_oauth_state_cookie(
     jwt_secret: &str,
     oauth_state: &OAuthState,
@@ -759,6 +770,7 @@ fn encrypt_oauth_state_cookie(
     ))
 }
 
+/// TODO: Document decrypt_oauth_state_cookie.
 fn decrypt_oauth_state_cookie(jwt_secret: &str, cookie_value: &str) -> Result<OAuthState, String> {
     let (nonce_encoded, ciphertext_encoded) = cookie_value
         .split_once('.')

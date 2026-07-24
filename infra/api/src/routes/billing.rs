@@ -1,3 +1,4 @@
+//! Stub summary for billing.rs.
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -112,6 +113,7 @@ fn anchors_match_at_storage_precision(
         == normalize_anchor_to_storage_precision(right_anchor_at)
 }
 
+/// TODO: Document activation_invoice_metadata.
 fn activation_invoice_metadata(
     customer_id: uuid::Uuid,
     anchor_at: DateTime<Utc>,
@@ -144,6 +146,7 @@ fn payment_required_response(payment: &PaidInvoice) -> Option<UpgradePaymentRequ
     })
 }
 
+/// TODO: Document rollback_upgrade_for_anchor.
 async fn rollback_upgrade_for_anchor(
     state: &AppState,
     customer_id: uuid::Uuid,
@@ -162,6 +165,7 @@ async fn rollback_upgrade_for_anchor(
     Ok(())
 }
 
+/// TODO: Document rollback_upgrade_and_void_invoice.
 async fn rollback_upgrade_and_void_invoice(
     state: &AppState,
     customer_id: uuid::Uuid,
@@ -181,6 +185,7 @@ async fn rollback_upgrade_and_void_invoice(
     }
 }
 
+/// TODO: Document validated_billing_return_url.
 fn validated_billing_return_url(state: &AppState, return_url: &str) -> Result<String, ApiError> {
     let parsed = reqwest::Url::parse(return_url)
         .map_err(|_| ApiError::BadRequest("return_url must be an absolute URL".into()))?;
@@ -405,6 +410,7 @@ pub async fn set_default_payment_method(
         (status = 503, description = "Billing service unavailable", body = ErrorResponse),
     )
 )]
+/// TODO: Document upgrade_to_shared.
 pub async fn upgrade_to_shared(
     tenant: AuthenticatedTenant,
     State(state): State<AppState>,

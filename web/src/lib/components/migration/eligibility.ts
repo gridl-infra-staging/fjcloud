@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for web/src/lib/components/migration/eligibility.ts.
+ */
 import type { AlgoliaDestinationEligibilityResponse } from '$lib/api/types';
 
 const MAX_TIMEOUT_MS = 2_147_483_647;
@@ -12,6 +15,9 @@ export function eligibilityExpiresAtMillis(
 	return Number.isNaN(expiresAtMillis) ? null : expiresAtMillis;
 }
 
+/**
+ * TODO: Document scheduleEligibilityExpiry.
+ */
 export function scheduleEligibilityExpiry(
 	eligibility: AlgoliaDestinationEligibilityResponse | null,
 	onClockUpdate: (nowMillis: number) => void

@@ -79,6 +79,7 @@ api_post() {
 http_body()   { printf '%s\n' "$1" | sed '$d'; }
 http_status() { printf '%s\n' "$1" | tail -1; }
 
+# TODO: Document force_verify_email.
 force_verify_email() {
     local email="$1"
     local sql="UPDATE customers SET email_verified_at = COALESCE(email_verified_at, NOW()), email_verify_token = NULL, email_verify_expires_at = NULL, updated_at = NOW() WHERE email = '$email' AND status != 'deleted'"

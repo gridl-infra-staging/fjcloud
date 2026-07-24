@@ -11,6 +11,7 @@ if ! declare -F setup >/dev/null 2>&1 ||
   exit 2
 fi
 
+# TODO: Document assert_json_top_level_field_equals.
 assert_json_top_level_field_equals() {
   local json_path="$1"
   local field_name="$2"

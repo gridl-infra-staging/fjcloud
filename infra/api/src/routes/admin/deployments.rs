@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/routes/admin/deployments.rs.
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -239,6 +240,7 @@ pub async fn terminate_deployment(
     }
 }
 
+/// TODO: Document fail_provisioning_deployment.
 pub async fn fail_provisioning_deployment(
     _auth: AdminAuth,
     State(state): State<AppState>,

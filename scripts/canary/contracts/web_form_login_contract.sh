@@ -59,6 +59,7 @@ is_rate_limited_body() {
   printf "%s" "$body" | grep -qi "too many requests"
 }
 
+# TODO: Document run_self_test.
 run_self_test() {
   local good bad_jwt empty malformed
   local usage_output
@@ -140,6 +141,7 @@ run_self_test() {
   echo "self-test PASS: redirect/failure shape assertions behave as expected"
 }
 
+# TODO: Document probe_env.
 probe_env() {
   local env="$1"
   local api_origin web_origin
@@ -244,6 +246,7 @@ probe_env() {
   return 1
 }
 
+# TODO: Document main.
 main() {
   local arg="${1:-all}"
   case "$arg" in

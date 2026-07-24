@@ -24,6 +24,9 @@ function decodeBase64UrlJson(segment: string): unknown | null {
 	}
 }
 
+/**
+ * TODO: Document decodeJwt.
+ */
 export function decodeJwt(token: string): JwtPayload | null {
 	const parts = token.split('.');
 	if (parts.length !== 3) return null;
@@ -41,6 +44,9 @@ export function decodeJwt(token: string): JwtPayload | null {
 	return { sub: maybeSub, exp: maybeExp, iat: maybeIat };
 }
 
+/**
+ * TODO: Document isJwtHs256SignatureValid.
+ */
 export function isJwtHs256SignatureValid(token: string, secret: string): boolean {
 	if (!secret) return false;
 

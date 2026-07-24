@@ -31,6 +31,7 @@ runtime_fail() {
     exit "$EXIT_RUNTIME"
 }
 
+# TODO: Document reset_token_poll_until_cleared.
 reset_token_poll_until_cleared() {
     local probe_email="$1"
     local token_cleared_sql="$2"

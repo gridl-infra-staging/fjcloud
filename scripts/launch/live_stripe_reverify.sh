@@ -30,6 +30,7 @@ VERSION_PREFLIGHT_JSON=""
 VERSION_POSTFLIGHT_JSON=""
 GREEN_BUNDLE_DIR=""
 
+# TODO: Document parse_args.
 parse_args() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
@@ -69,6 +70,7 @@ fail_with_classification() {
     exit 1
 }
 
+# TODO: Document capture_version_probe.
 capture_version_probe() {
     # Single owner of /version probe failure classification: transport
     # failures (curl exit non-zero) and payload-shape failures (missing
@@ -117,6 +119,7 @@ PY
     fi
 }
 
+# TODO: Document run_owner_and_extract_identifiers.
 run_owner_and_extract_identifiers() {
     local stdout_file stderr_file owner_rc=0
     local -a owner_args=(--env=prod)
@@ -167,6 +170,7 @@ PY
     fi
 }
 
+# TODO: Document request_refund_with_retry.
 request_refund_with_retry() {
     local attempt=1
     local max_attempts=3
@@ -202,6 +206,7 @@ PY
     fail_with_classification "refund_failed_unrefunded_charge" "failed to refund charge_id=${CHARGE_ID}; ${last_failure_message}"
 }
 
+# TODO: Document verify_payment_intent_readback.
 verify_payment_intent_readback() {
     stripe_request GET "/v1/payment_intents/${PAYMENT_INTENT_ID}" || fail_with_classification "stripe_readback_request_failed" "payment_intent readback request failed"
     if [ "${STRIPE_HTTP_CODE:-000}" != "200" ]; then
@@ -225,6 +230,7 @@ PY
 )" || fail_with_classification "stripe_readback_validation_failed" "$payment_intent_validation"
 }
 
+# TODO: Document verify_refund_readback.
 verify_refund_readback() {
     stripe_request GET "/v1/refunds/${REFUND_ID}" || fail_with_classification "stripe_readback_request_failed" "refund readback request failed"
     if [ "${STRIPE_HTTP_CODE:-000}" != "200" ]; then
@@ -248,6 +254,7 @@ PY
 )" || fail_with_classification "stripe_readback_validation_failed" "$refund_validation"
 }
 
+# TODO: Document assert_version_no_drift.
 assert_version_no_drift() {
     local drift_result
     drift_result="$(python3 - "$VERSION_PREFLIGHT_JSON" "$VERSION_POSTFLIGHT_JSON" <<'PY'
@@ -265,6 +272,7 @@ PY
 )" || fail_with_classification "version_drift_detected" "$drift_result"
 }
 
+# TODO: Document render_runtime_summary_json.
 render_runtime_summary_json() {
     # Stripe object IDs are routed through redact_identifier before serializing
     # because the GREEN bundle this output lands in is publicly synced via
@@ -321,6 +329,7 @@ print(json.dumps(summary, separators=(",", ":")))
 PY
 }
 
+# TODO: Document write_green_bundle.
 write_green_bundle() {
     local timestamp summary_path summary_md_path summary_json
     timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -357,6 +366,7 @@ print(f"- postflight mirror_sha: `{summary['version_postflight']['mirror_sha']}`
 PY
 }
 
+# TODO: Document main.
 main() {
     parse_args "$@"
 

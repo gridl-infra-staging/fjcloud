@@ -1,0 +1,9 @@
+command=bash ops/terraform/tests_stage2_cleanup_unit.sh
+start_utc=2026-07-24T14:23:24Z
+end_utc=2026-07-24T14:23:24Z
+head_sha=5c951e4b3188c8b81ac268c95c4a23ef58c332ac
+clean_tree=False
+cached=false
+timeout_seconds=600
+timed_out=false
+exit_status=0

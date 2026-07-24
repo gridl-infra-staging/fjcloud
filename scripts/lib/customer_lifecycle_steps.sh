@@ -19,6 +19,7 @@ mark_failure() {
     fi
 }
 
+# TODO: Document json_get_field.
 json_get_field() {
     local json_body="$1"
     local field_name="$2"
@@ -52,6 +53,7 @@ generate_canary_signup_password() {
     generate_customer_signup_password
 }
 
+# TODO: Document run_signup_step.
 run_signup_step() {
     CANARY_NONCE="canary$(date -u +%Y%m%d%H%M%S)${RANDOM}"
     CANARY_SIGNUP_EMAIL="canary+${CANARY_NONCE}@${CANARY_TEST_INBOX_DOMAIN}"
@@ -75,6 +77,7 @@ run_signup_step() {
     log "signup succeeded for ${CANARY_SIGNUP_EMAIL} (customer=${CANARY_CUSTOMER_ID})"
 }
 
+# TODO: Document run_verify_email_step.
 run_verify_email_step() {
     local bucket prefix parsed_s3 message_key rfc822_payload verify_token
 

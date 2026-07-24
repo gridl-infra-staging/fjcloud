@@ -25,6 +25,7 @@ const SNS_SUPPRESSION_SOURCE: &str = "ses_sns_webhook";
 const TRUSTED_SNS_ACCOUNT_ID: &str = "213880904778";
 const TRUSTED_SES_FEEDBACK_TOPIC_PREFIX: &str = "fjcloud-ses-feedback-";
 
+/// TODO: Document process_ses_sns_request.
 pub(super) async fn process_ses_sns_request(
     state: &AppState,
     body: &str,
@@ -52,6 +53,7 @@ enum SnsType {
     UnsubscribeConfirmation,
 }
 
+/// TODO: Document SnsEnvelope.
 #[derive(Debug, Deserialize)]
 struct SnsEnvelope {
     #[serde(rename = "Type")]
@@ -118,6 +120,7 @@ struct SesRecipient {
     email_address: String,
 }
 
+/// TODO: Document parse_sns_envelope.
 fn parse_sns_envelope(body: &str) -> Result<SnsEnvelope, ApiError> {
     let envelope: SnsEnvelope = serde_json::from_str(body)
         .map_err(|error| ApiError::BadRequest(format!("invalid SNS envelope JSON: {error}")))?;
@@ -189,6 +192,7 @@ fn validate_sns_topic_arn(topic_arn: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
+/// TODO: Document validate_sns_url.
 fn validate_sns_url(url_value: &str, field_name: &str) -> Result<(), ApiError> {
     let parsed = reqwest::Url::parse(url_value).map_err(|error| {
         ApiError::BadRequest(format!("{field_name} is not a valid URL: {error}"))
@@ -235,6 +239,7 @@ fn required_subscription_token(envelope: &SnsEnvelope) -> Result<&str, ApiError>
         .ok_or_else(|| ApiError::BadRequest("missing required SNS field: Token".to_string()))
 }
 
+/// TODO: Document verify_sns_signature.
 async fn verify_sns_signature(
     state: &AppState,
     envelope: &SnsEnvelope,
@@ -362,6 +367,7 @@ async fn handle_ses_notification(state: &AppState, envelope: &SnsEnvelope) -> Re
     }
 }
 
+/// TODO: Document handle_bounce_notification.
 async fn handle_bounce_notification(
     state: &AppState,
     envelope: &SnsEnvelope,
@@ -432,6 +438,7 @@ async fn handle_bounce_notification(
     Ok(())
 }
 
+/// TODO: Document handle_complaint_notification.
 async fn handle_complaint_notification(
     state: &AppState,
     envelope: &SnsEnvelope,
@@ -487,6 +494,7 @@ async fn handle_complaint_notification(
     Ok(())
 }
 
+/// TODO: Document ses_suppression_alert.
 fn ses_suppression_alert(
     severity: AlertSeverity,
     title_prefix: &str,
@@ -533,6 +541,7 @@ fn extract_recipient_from_complaint(complaint: &SesComplaint) -> Result<String, 
     Ok(first.email_address.clone())
 }
 
+/// TODO: Document write_ses_suppression_audit.
 async fn write_ses_suppression_audit(
     state: &AppState,
     action: &str,

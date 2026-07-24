@@ -94,6 +94,7 @@ is_rate_limited_body() {
   printf '%s' "$body" | grep -qi "too many requests"
 }
 
+# TODO: Document read_or_fetch_forgot_resend.
 read_or_fetch_forgot_resend() {
   if [[ -n "$FORGOT_RESPONSE_FILE" ]]; then
     cat "$FORGOT_RESPONSE_FILE"
@@ -124,6 +125,7 @@ read_or_fetch_forgot_resend() {
   printf '%s' "$response"
 }
 
+# TODO: Document read_or_fetch_reset_invalid.
 read_or_fetch_reset_invalid() {
   if [[ -n "$RESET_RESPONSE_FILE" ]]; then
     cat "$RESET_RESPONSE_FILE"
@@ -154,6 +156,7 @@ read_or_fetch_reset_invalid() {
   printf '%s' "$response"
 }
 
+# TODO: Document read_or_fetch_billing_load.
 read_or_fetch_billing_load() {
   if [[ -n "$BILLING_RESPONSE_FILE" ]]; then
     cat "$BILLING_RESPONSE_FILE"

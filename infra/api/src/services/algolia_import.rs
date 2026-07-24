@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/algolia_import.rs.
 use std::fmt;
 use std::sync::Arc;
 
@@ -168,6 +169,7 @@ pub struct AlgoliaImportSubmitRequest {
 }
 
 impl AlgoliaImportSubmitRequest {
+    /// TODO: Document AlgoliaImportSubmitRequest.new.
     pub fn new(
         app_id: String,
         api_key: Zeroizing<String>,
@@ -186,6 +188,7 @@ impl AlgoliaImportSubmitRequest {
         }
     }
 
+    /// TODO: Document AlgoliaImportSubmitRequest.into_payload.
     fn into_payload(self) -> AlgoliaImportSubmitPayload {
         #[derive(Serialize)]
         #[serde(rename_all = "camelCase")]
@@ -271,6 +274,7 @@ pub enum AlgoliaImportEngineError {
 }
 
 impl AlgoliaImportEngineError {
+    /// TODO: Document AlgoliaImportEngineError.from_proxy.
     fn from_proxy(error: ProxyError) -> Self {
         match error {
             ProxyError::FlapjackError {
@@ -336,6 +340,7 @@ mod tests {
                 .expect("test response must be configured")
         }
 
+        /// TODO: Document CapturingHttpClient.send_sensitive.
         async fn send_sensitive(
             &self,
             request: SensitiveFlapjackHttpRequest<'_>,
@@ -357,6 +362,7 @@ mod tests {
         }
     }
 
+    /// TODO: Document service_with_results.
     async fn service_with_results(
         responses: Vec<Result<FlapjackHttpResponse, ProxyError>>,
         secret_failure: bool,
@@ -410,6 +416,7 @@ mod tests {
         })
     }
 
+    /// TODO: Document submit_sends_exact_authenticated_request_and_decodes_status.
     #[tokio::test]
     async fn submit_sends_exact_authenticated_request_and_decodes_status() {
         let (http, service) = service_with_response(202, status_body()).await;
@@ -492,6 +499,7 @@ mod tests {
         }
     }
 
+    /// TODO: Document status_and_cancel_send_no_algolia_credentials.
     #[tokio::test]
     async fn status_and_cancel_send_no_algolia_credentials() {
         let (http, service) =
@@ -527,6 +535,7 @@ mod tests {
         assert_eq!(cancel_request.json_body, None);
     }
 
+    /// TODO: Document non_success_and_malformed_responses_are_typed_errors.
     #[tokio::test]
     async fn non_success_and_malformed_responses_are_typed_errors() {
         let (_, service) = service_with_response(
@@ -563,6 +572,7 @@ mod tests {
         ));
     }
 
+    /// TODO: Document assert_submit_payload_wiped.
     async fn assert_submit_payload_wiped(
         response: Result<FlapjackHttpResponse, ProxyError>,
         secret_failure: bool,
@@ -606,6 +616,7 @@ mod tests {
         assert_submit_payload_wiped(Err(ProxyError::Timeout), true).await;
     }
 
+    /// TODO: Document enum_decoding_is_exhaustive_against_contract_fixture.
     #[test]
     fn enum_decoding_is_exhaustive_against_contract_fixture() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
@@ -627,6 +638,7 @@ mod tests {
         }
     }
 
+    /// TODO: Document terminal_fact_accepts_only_canonical_terminal_pairs.
     #[test]
     fn terminal_fact_accepts_only_canonical_terminal_pairs() {
         use crate::models::algolia_import_job::{
@@ -695,6 +707,7 @@ mod tests {
         }
     }
 
+    /// TODO: Document pinned_submit_request_has_no_cloud_reservation_bound_field.
     #[test]
     fn pinned_submit_request_has_no_cloud_reservation_bound_field() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(

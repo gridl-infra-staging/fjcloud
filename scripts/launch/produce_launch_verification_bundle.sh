@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LAUNCHER_SCRIPT="$REPO_ROOT/scripts/launch/run_browser_lane_against_staging.sh"
 OUTPUT_ROOT="$REPO_ROOT/docs/runbooks/evidence/launch-verification"
 
+# TODO: Document parse_lane_exit_code.
 parse_lane_exit_code() {
   local lane_log_path="$1"
   if [ ! -f "$lane_log_path" ]; then
@@ -71,6 +72,7 @@ ensure_trace_artifact() {
   echo "WARN: launcher produced no trace.zip; wrote placeholder at staging-browser/lb2/trace.zip" >&2
 }
 
+# TODO: Document main.
 main() {
   local utc_stamp
   utc_stamp="$(date -u +%Y%m%dT%H%M%SZ)"

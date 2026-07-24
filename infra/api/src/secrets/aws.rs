@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/secrets/aws.rs.
 use async_trait::async_trait;
 use chrono::{TimeZone, Utc};
 use rand::RngCore;
@@ -258,6 +259,7 @@ impl NodeSecretManager for SsmNodeSecretManager {
         }
     }
 
+    /// TODO: Document SsmNodeSecretManager.list_node_api_keys.
     async fn list_node_api_keys(&self) -> Result<Vec<NodeSecretRecord>, NodeSecretError> {
         let mut records = Vec::new();
         let mut next_token: Option<String> = None;
@@ -330,6 +332,7 @@ mod tests {
     use wiremock::matchers::{body_partial_json, header, method};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
+    /// TODO: Document ssm_client_for_mock_server.
     async fn ssm_client_for_mock_server(server: &MockServer) -> aws_sdk_ssm::Client {
         let aws_config = aws_config::defaults(aws_config::BehaviorVersion::latest())
             .region(aws_sdk_ssm::config::Region::new("us-east-1"))
@@ -387,6 +390,7 @@ mod tests {
         );
     }
 
+    /// TODO: Document orphan_report_ssm_listing_exhausts_current_and_previous_key_pages.
     #[tokio::test]
     async fn orphan_report_ssm_listing_exhausts_current_and_previous_key_pages() {
         let server = MockServer::start().await;
@@ -441,6 +445,7 @@ mod tests {
         assert_eq!(records[1].node_id, "vm-shared-second.flapjack.foo");
     }
 
+    /// TODO: Document maps_parameter_not_found_get_error_to_missing_secret_error.
     #[test]
     fn maps_parameter_not_found_get_error_to_missing_secret_error() {
         let sdk_error = SdkError::service_error(

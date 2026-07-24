@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/repos/pg_algolia_import_job_lifecycle.rs.
 use chrono::{DateTime, Utc};
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
@@ -68,6 +69,7 @@ fn stale_customer_lifecycle_error(
 }
 
 impl PgAlgoliaImportJobRepo {
+    /// TODO: Document PgAlgoliaImportJobRepo.assert_guarded_target_identity.
     pub async fn assert_guarded_target_identity(
         &self,
         guard: &mut CatalogLifecycleTargetGuard,
@@ -239,6 +241,7 @@ impl PgAlgoliaImportJobRepo {
         Ok(outcome)
     }
 
+    /// TODO: Document PgAlgoliaImportJobRepo.request_cancel_for_customer_inner.
     pub(super) async fn request_cancel_for_customer_inner(
         &self,
         customer_id: Uuid,
@@ -270,6 +273,7 @@ impl PgAlgoliaImportJobRepo {
         Ok(outcome)
     }
 
+    /// TODO: Document PgAlgoliaImportJobRepo.prepare_resume_for_customer_inner.
     pub(super) async fn prepare_resume_for_customer_inner(
         &self,
         customer_id: Uuid,
@@ -312,6 +316,7 @@ impl PgAlgoliaImportJobRepo {
         Ok(outcome)
     }
 
+    /// TODO: Document PgAlgoliaImportJobRepo.record_resume_accepted_inner.
     pub(super) async fn record_resume_accepted_inner(
         &self,
         id: Uuid,
@@ -379,6 +384,7 @@ impl PgAlgoliaImportJobRepo {
         Ok(updated)
     }
 
+    /// TODO: Document PgAlgoliaImportJobRepo.begin_lifecycle_target_guard_inner.
     pub(super) async fn begin_lifecycle_target_guard_inner(
         &self,
         customer_id: Uuid,
@@ -434,6 +440,7 @@ impl PgAlgoliaImportJobRepo {
         })
     }
 
+    /// TODO: Document PgAlgoliaImportJobRepo.commit_lifecycle_target_guard_inner.
     pub(super) async fn commit_lifecycle_target_guard_inner(
         &self,
         guard: CatalogLifecycleTargetGuard,

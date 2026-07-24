@@ -1,3 +1,4 @@
+//! Stub summary for infra/retention-job/src/job.rs.
 use api::models::Customer;
 use api::repos::{CustomerRepo, PgCustomerRepo, RepoError};
 use async_trait::async_trait;
@@ -104,6 +105,7 @@ impl HttpHardEraseClient {
 
 #[async_trait]
 impl HardEraseClient for HttpHardEraseClient {
+    /// TODO: Document HttpHardEraseClient.hard_erase_customer.
     async fn hard_erase_customer(&self, customer_id: Uuid) -> Result<(), String> {
         let url = format!(
             "{}/admin/customers/{}/hard-erase",
@@ -125,6 +127,7 @@ impl HardEraseClient for HttpHardEraseClient {
     }
 }
 
+/// TODO: Document run_retention.
 pub async fn run_retention<R, E>(
     repo: &R,
     eraser: &E,
@@ -179,6 +182,7 @@ where
     })
 }
 
+/// TODO: Document run_from_config.
 pub async fn run_from_config(
     cfg: &Config,
     pool: PgPool,
@@ -239,6 +243,7 @@ mod tests {
         }
     }
 
+    /// TODO: Document customer.
     fn customer(id: Uuid) -> Customer {
         let now = Utc::now();
         Customer {
@@ -301,6 +306,7 @@ mod tests {
         }
     }
 
+    /// TODO: Document passes_cutoff_selection_input_through_unchanged.
     #[tokio::test]
     async fn passes_cutoff_selection_input_through_unchanged() {
         let now = DateTime::parse_from_rfc3339("2026-07-07T12:00:00Z")
@@ -323,6 +329,7 @@ mod tests {
         );
     }
 
+    /// TODO: Document rejects_negative_retention_days_before_listing_candidates.
     #[tokio::test]
     async fn rejects_negative_retention_days_before_listing_candidates() {
         let repo = repo_with(vec![customer(Uuid::new_v4())]);
@@ -352,6 +359,7 @@ mod tests {
         assert!(eraser.calls.lock().unwrap().is_empty());
     }
 
+    /// TODO: Document max_per_run_cap_counts_skipped_by_bound_before_erasing.
     #[tokio::test]
     async fn max_per_run_cap_counts_skipped_by_bound_before_erasing() {
         let ids = [Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4()];
@@ -391,6 +399,7 @@ mod tests {
         assert!(eraser.calls.lock().unwrap().is_empty());
     }
 
+    /// TODO: Document continue_on_error_reports_failed_and_attempts_later_customers.
     #[tokio::test]
     async fn continue_on_error_reports_failed_and_attempts_later_customers() {
         let ids = [

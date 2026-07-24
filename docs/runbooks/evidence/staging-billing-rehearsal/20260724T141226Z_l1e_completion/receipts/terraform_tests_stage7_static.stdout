@@ -1,0 +1,295 @@
+
+=== Stage 7 Static Tests: Monitoring & Final Validation ===
+
+--- Monitoring module file existence ---
+PASS: monitoring/main.tf exists
+PASS: monitoring/variables.tf exists
+PASS: monitoring/outputs.tf exists
+PASS: monitoring/providers.tf exists
+
+--- Runtime validation harness ---
+PASS: tests_stage7_runtime_smoke.sh exists
+PASS: Runtime harness initializes Terraform backend
+PASS: Runtime harness runs Terraform plan
+PASS: Runtime harness checks Cloudflare zone access
+PASS: Runtime harness validates Cloudflare DNS authority before apply
+PASS: Runtime harness validates Cloudflare public records
+PASS: Runtime harness validates SES identity state
+PASS: Runtime harness builds health endpoint from --domain
+PASS: Runtime harness checks public health endpoint with timeout
+PASS: Runtime harness invokes deploy script
+PASS: Runtime harness invokes migrate script
+PASS: Cloudflare DNS preflight runs unconditionally (not gated by --apply)
+
+--- Stage 5 canary image packaging owner ---
+PASS: Canary Lambda image Dockerfile exists
+PASS: Canary Lambda runtime bootstrap exists
+PASS: Existing customer loop canary owner script exists
+PASS: Canary image uses AWS Lambda provided.al2023 base
+PASS: Canary image installs runtime dependencies (awscli/bash/python3; curl-minimal already provides curl on al2023)
+PASS: Canary image copies canonical scripts tree
+PASS: Canary image wires bootstrap entrypoint from repo-owned file
+PASS: Canary image ensures bootstrap and owner script are executable
+PASS: Bootstrap dispatches to Lambda handler command with canary owner default
+PASS: Bootstrap executes the canary owner script command instead of re-implementing flow logic
+PASS: Bootstrap polls Lambda Runtime API for invocations
+PASS: Bootstrap posts successful invocation responses to Lambda Runtime API
+PASS: Bootstrap posts invocation failures to Lambda Runtime API error endpoint
+PASS: Bootstrap captures handler exit code inside the failure branch before reporting runtime errors
+
+--- Stage 7.6 runtime signal checks ---
+PASS: Runtime harness verifies ACM certificate status
+PASS: Runtime harness asserts ACM cert status is ISSUED
+PASS: Runtime harness verifies ALB has HTTPS listener
+PASS: Runtime harness verifies HTTPS listener on port 443
+PASS: Runtime harness verifies target group health
+PASS: Runtime harness verifies SES identity state
+
+--- SNS topic and email subscription ---
+PASS: Monitoring defines SNS topic
+PASS: SNS topic is named fjcloud-alerts-<env>
+PASS: Monitoring defines SNS email subscription resource
+PASS: SNS subscription uses email protocol
+PASS: Email subscriptions iterate alert_emails list
+
+--- Stage 5 canary runtime packaging contract ---
+PASS: Monitoring defines dedicated ECR repository for canary image
+PASS: Monitoring defines IAM role for canary Lambda runtime
+PASS: Monitoring defines IAM policy for canary Lambda runtime
+PASS: Monitoring defines canary Lambda function
+PASS: Canary Lambda uses image package type
+PASS: Canary Lambda image URI comes from canonical local image contract
+PASS: Canary Lambda command invokes the existing customer loop owner script
+PASS: Monitoring defines EventBridge schedule rule for canary
+PASS: Canary schedule expression is provided via canonical monitoring input
+PASS: Canary schedule enable state is operator-controlled input
+PASS: Monitoring defines EventBridge target for canary Lambda
+PASS: Monitoring allows EventBridge to invoke canary Lambda
+PASS: Lambda invoke permission grants EventBridge principal
+PASS: Canary Lambda IAM policy grants SSM GetParameter access
+PASS: Canary Lambda IAM policy is scoped to canonical quiet-window parameter path
+
+--- Stage 7 customer-loop runtime hydration contract ---
+PASS: Monitoring locals define customer-loop ADMIN_KEY parameter-name contract
+PASS: Monitoring locals define customer-loop STRIPE_SECRET_KEY parameter-name contract
+PASS: Monitoring locals define customer-loop Slack webhook parameter-name contract
+PASS: Monitoring locals define customer-loop Discord webhook parameter-name contract
+PASS: Monitoring locals define customer-loop ADMIN_KEY parameter ARN for IAM scoping
+PASS: Monitoring locals define customer-loop STRIPE secret parameter ARN for IAM scoping
+PASS: Monitoring locals define customer-loop Slack parameter ARN for IAM scoping
+PASS: Monitoring locals define customer-loop Discord parameter ARN for IAM scoping
+PASS: Canary Lambda IAM policy grants batched SSM parameter reads for runtime hydration
+PASS: Canary Lambda IAM policy scopes ADMIN_KEY read to canonical parameter ARN
+PASS: Canary Lambda IAM policy scopes STRIPE secret read to canonical parameter ARN
+PASS: Canary Lambda IAM policy scopes Slack webhook read to canonical parameter ARN
+PASS: Canary Lambda IAM policy scopes Discord webhook read to canonical parameter ARN
+PASS: Customer-loop Lambda env passes canonical API URL directly
+PASS: Customer-loop Lambda env reuses support-email recipient-domain owner
+PASS: Customer-loop Lambda env reuses support-email inbound S3 owner
+PASS: Customer-loop Lambda env passes ADMIN_KEY as parameter name for runtime hydration
+PASS: Customer-loop Lambda env passes STRIPE_SECRET_KEY as parameter name for runtime hydration
+PASS: Customer-loop Lambda env passes Slack webhook as parameter name for runtime hydration
+PASS: Customer-loop Lambda env passes Discord webhook as parameter name for runtime hydration
+PASS: Bootstrap defines explicit runtime-hydration env var allowlist
+PASS: Bootstrap hydration allowlist includes ADMIN_KEY
+PASS: Bootstrap hydration allowlist includes STRIPE_SECRET_KEY
+PASS: Bootstrap hydration allowlist includes SLACK_WEBHOOK_URL
+PASS: Bootstrap hydration allowlist includes DISCORD_WEBHOOK_URL
+PASS: Bootstrap resolves SSM parameter-name env vars via batched get-parameters
+PASS: Bootstrap requests decrypted parameter values at runtime
+PASS: Customer-loop script does not resolve ADMIN_KEY parameter names directly
+PASS: Customer-loop script does not resolve STRIPE secret parameter names directly
+PASS: Customer-loop script does not resolve Slack webhook parameter names directly
+PASS: Customer-loop script does not resolve Discord webhook parameter names directly
+
+--- Monitoring resource count ---
+PASS: monitoring/main.tf has exactly 38 resources (alerts + SES feedback + canary + cloudtrail + budget + alarms)
+
+--- API CPU alarm ---
+PASS: API CPU alarm resource exists
+PASS: API CPU alarm name follows naming convention
+PASS: API and RDS alarms use CPUUtilization metric
+PASS: API CPU alarm targets AWS/EC2 namespace
+PASS: API CPU alarm dimensions use API instance id
+
+--- API StatusCheckFailed alarm ---
+PASS: API StatusCheckFailed alarm resource exists
+PASS: API StatusCheckFailed alarm name follows naming convention
+PASS: API StatusCheckFailed alarm uses StatusCheckFailed metric
+PASS: API StatusCheckFailed uses GreaterThanOrEqualToThreshold operator
+PASS: API StatusCheckFailed uses Maximum statistic
+
+--- RDS CPU alarm ---
+PASS: RDS CPU alarm resource exists
+PASS: RDS CPU alarm name follows naming convention
+PASS: RDS CPU alarm targets AWS/RDS namespace
+PASS: RDS alarms use DBInstanceIdentifier dimension
+
+--- RDS free storage alarm ---
+PASS: RDS free storage alarm resource exists
+PASS: RDS storage alarm name follows naming convention
+PASS: RDS free storage alarm uses FreeStorageSpace metric
+PASS: RDS free storage alarm uses less-than threshold
+PASS: RDS free storage alarm threshold is 2 GiB
+
+--- ALB 5XX error rate alarm ---
+PASS: ALB 5xx rate alarm resource exists
+PASS: ALB 5XX alarm name follows naming convention
+PASS: ALB 5xx alarm uses metric_query blocks
+PASS: ALB 5xx alarm uses HTTPCode_ELB_5XX_Count metric
+PASS: ALB 5xx alarm uses RequestCount metric
+PASS: ALB 5xx alarm uses m2/m1 ratio
+PASS: ALB 5xx alarm scales ratio to percentage
+
+--- ALB P99 latency alarm ---
+PASS: ALB P99 latency alarm resource exists
+PASS: ALB P99 alarm name follows naming convention
+PASS: ALB P99 alarm uses TargetResponseTime metric
+PASS: ALB latency alarm uses p99 extended statistic
+PASS: ALB alarms target AWS/ApplicationELB namespace
+
+--- Stage 2 alarm coverage additions ---
+PASS: API root disk alarm resource exists
+PASS: API root disk alarm name follows naming convention
+PASS: API root disk alarm uses CWAgent namespace
+PASS: API root disk alarm targets disk_used_percent metric
+PASS: API root disk alarm threshold is 85%
+PASS: API root disk alarm dimensions include API instance id
+PASS: API root disk alarm dimensions include root mount path
+PASS: API root disk alarm dimensions include root block device
+PASS: API root disk alarm dimensions include root filesystem type
+PASS: RDS connection pressure alarm resource exists
+PASS: RDS connection pressure alarm name follows naming convention
+PASS: RDS connection pressure alarm uses DatabaseConnections metric
+PASS: RDS connection pressure alarm threshold is the locked literal value
+PASS: RDS connection pressure alarm description records live max_connections source
+PASS: ALB unhealthy-host alarm resource exists
+PASS: ALB unhealthy-host alarm name follows naming convention
+PASS: ALB unhealthy-host alarm uses UnHealthyHostCount metric
+PASS: ALB unhealthy-host alarm dimensions include ALB arn suffix
+PASS: ALB unhealthy-host alarm dimensions include target-group arn suffix
+PASS: Customer-loop canary errors alarm resource exists
+PASS: Customer-loop canary errors alarm name follows naming convention
+PASS: Customer-loop canary errors alarm uses AWS/Lambda namespace
+PASS: Customer-loop canary errors alarm uses Errors metric
+PASS: Customer-loop canary errors alarm dimensions use canonical local function-name owner
+
+--- API panic paging alarm ---
+PASS: API panic paging alarm resource exists
+PASS: API panic paging alarm name follows naming convention
+PASS: API panic paging alarm watches PanicsPerPeriod
+PASS: API panic paging alarm uses fjcloud/api namespace
+PASS: API panic paging alarm sums per-period panics
+PASS: API panic paging alarm uses one-minute periods
+PASS: API panic paging alarm threshold is zero
+PASS: API panic paging alarm fires above zero
+PASS: API panic paging alarm evaluates one period
+PASS: API panic paging alarm pages on one breaching datapoint
+PASS: API panic paging alarm treats missing panic metrics as non-breaching
+PASS: API panic paging alarm dimensions include canonical Env
+PASS: API panic paging alarm wires alarm_actions to SNS topic
+PASS: API panic paging alarm wires ok_actions to SNS topic
+
+--- Customer-loop canary liveness alarm (regression guard) ---
+PASS: Customer-loop canary liveness alarm resource exists
+PASS: Customer-loop canary liveness alarm name follows naming convention
+PASS: Customer-loop liveness alarm watches the Invocations metric
+PASS: Customer-loop liveness alarm uses AWS/Lambda namespace
+PASS: Customer-loop liveness alarm fires when invocations fall below threshold
+PASS: Customer-loop liveness alarm treats missing data as breaching so a disabled rule pages
+PASS: Customer-loop liveness alarm dimensions use canonical local function-name owner
+PASS: Customer-loop liveness alarm wires alarm_actions to SNS topic
+PASS: Customer-loop liveness alarm wires ok_actions to SNS topic
+
+--- Usage-daily rollup liveness alarm ---
+PASS: Usage-daily rollup liveness alarm resource exists
+PASS: Usage-daily rollup liveness alarm name follows naming convention
+PASS: Usage-daily rollup liveness alarm uses the canonical aggregation namespace
+PASS: Usage-daily rollup liveness alarm watches the canonical success metric
+PASS: Usage-daily rollup liveness alarm sums daily successes
+PASS: Usage-daily rollup liveness alarm fires below one success
+PASS: Usage-daily rollup liveness alarm evaluates daily periods
+PASS: Usage-daily rollup liveness alarm requires two consecutive periods
+PASS: Usage-daily rollup liveness alarm requires both periods to breach
+PASS: Usage-daily rollup liveness alarm threshold is one success
+PASS: Usage-daily rollup liveness alarm treats missing data as breaching
+PASS: Usage-daily rollup liveness alarm dimensions include canonical Env
+PASS: Usage-daily rollup liveness alarm wires alarm_actions to SNS topic
+PASS: Usage-daily rollup liveness alarm wires ok_actions to SNS topic
+
+--- Cross-alarm contract checks ---
+PASS: CPU/latency alarms use GreaterThanThreshold operator
+PASS: Alarms use 5-minute period
+PASS: EC2/RDS alarms evaluate over 10 minutes (2 periods)
+PASS: API root disk alarm block wires alarm_actions to SNS topic
+PASS: API root disk alarm block wires ok_actions to SNS topic
+PASS: RDS connections alarm block wires alarm_actions to SNS topic
+PASS: RDS connections alarm block wires ok_actions to SNS topic
+PASS: ALB unhealthy-host alarm block wires alarm_actions to SNS topic
+PASS: ALB unhealthy-host alarm block wires ok_actions to SNS topic
+PASS: Customer-loop canary errors alarm block wires alarm_actions to SNS topic
+PASS: Customer-loop canary errors alarm block wires ok_actions to SNS topic
+PASS: All baseline + Stage 2 alarms wire alarm_actions to SNS topic
+PASS: All baseline + Stage 2 alarms wire ok_actions to SNS topic (recovery notifications)
+PASS: All non-heartbeat alarms treat missing data as not breaching
+
+--- Monitoring module variables ---
+PASS: Monitoring has alert_emails variable
+PASS: Monitoring has api_instance_id variable
+PASS: Monitoring has db_instance_identifier variable
+PASS: Monitoring has alb_arn_suffix variable
+PASS: Monitoring has API target-group arn suffix variable
+PASS: Monitoring has env variable
+PASS: Monitoring has region variable
+PASS: Monitoring has canary_image publication input
+PASS: canary_image variable includes image tag field
+PASS: Monitoring has canary_schedule input
+PASS: canary_schedule variable includes schedule expression field
+PASS: canary_schedule variable includes operator enable flag
+PASS: canary_schedule default enables the canary (off-by-default caused the 2026-05-20 silent-rot incident)
+PASS: canary_schedule default is not disabled
+PASS: _shared canary_schedule passthrough default enables the canary
+PASS: _shared canary_schedule passthrough default is not disabled
+--- Monitoring module canary outputs ---
+PASS: Monitoring exports canary ECR repository URL
+PASS: Monitoring exports canonical canary image URI
+PASS: Monitoring exports canary Lambda function ARN
+PASS: Monitoring exports canary schedule rule name
+PASS: Monitoring exports API root disk alarm ARN
+PASS: Monitoring exports RDS connections alarm ARN
+PASS: Monitoring exports ALB unhealthy-host alarm ARN
+PASS: Monitoring exports customer-loop canary errors alarm ARN
+PASS: Monitoring exports customer-loop canary liveness alarm ARN
+--- Shared module contract updates ---
+PASS: Data module exports db_instance_identifier
+PASS: db_instance_identifier output uses aws_db_instance.main.identifier
+PASS: DNS module exports ALB arn suffix
+PASS: DNS module exports API target-group arn suffix
+PASS: Root main wires monitoring module
+PASS: monitoring module source is ../monitoring
+PASS: monitoring module receives API instance id
+PASS: monitoring module receives DB instance identifier
+PASS: monitoring module receives ALB arn suffix
+PASS: monitoring module receives API target-group arn suffix
+PASS: ALB unhealthy-host alarm does not hardcode target-group suffix in monitoring owner
+PASS: Shared module does not hardcode target-group suffix
+PASS: Monitoring module does not introduce parallel target-group data discovery
+PASS: Shared module does not introduce parallel target-group data discovery
+PASS: api_target_group_arn_suffix contract is restricted to canonical dns -> shared -> monitoring path
+PASS: root forwards normalized alert_emails local to monitoring
+PASS: root forwards canonical canary image input to monitoring
+PASS: root forwards canonical canary schedule input to monitoring
+PASS: shared variables define alert_emails
+PASS: shared alert_emails validation enforces each normalized entry
+PASS: shared alert_emails validation rejects blank values after normalization
+PASS: shared alert_emails validation enforces email-shaped values
+PASS: root module defines prod alert_emails guard resource
+PASS: prod alert_emails guard rejects empty normalized list in prod
+PASS: shared variables define canary_image
+PASS: shared variables define canary_schedule
+
+--- Hardening checks ---
+PASS: Monitoring config contains no hardcoded ARNs
+PASS: Monitoring config contains no hardcoded AWS account IDs
+
+Stage 7 static checks: 247/247 passed.

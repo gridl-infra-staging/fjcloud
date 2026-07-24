@@ -39,6 +39,7 @@ assert_active_count_at_least() {
 # an assertion to a single resource block. They are still available here via
 # the `source test_helpers.sh` above.
 
+# TODO: Document assert_file_contains_multiline_regex.
 assert_file_contains_multiline_regex() {
   local file="$1"
   local pattern="$2"
@@ -194,10 +195,10 @@ echo "--- Monitoring resource count ---"
 #   8  customer-loop canary (ECR repo + lifecycle, IAM role+policy, Lambda, EventBridge rule+target, Lambda permission)
 #   5  cloudtrail export (S3 bucket + public-access-block + lifecycle + bucket-policy + cloudtrail trail)
 #   2  budget (budget + budget action)
-#   17 cloudwatch metric alarms (incl. customer_loop_canary_not_running liveness alarm and api_panics_high panic paging alarm)
-# Sum: 2 + 3 + 8 + 5 + 2 + 17 = 37. Update this number and the assertion together
+#   18 cloudwatch metric alarms (incl. customer_loop_canary_not_running liveness alarm, api_panics_high panic paging alarm, and usage_daily_rollup_missing aggregation heartbeat alarm)
+# Sum: 2 + 3 + 8 + 5 + 2 + 18 = 38. Update this number and the assertion together
 # whenever a resource is added to or removed from monitoring/main.tf.
-assert_resource_count "$monitor_main_file" 37 "monitoring/main.tf has exactly 37 resources (alerts + SES feedback + canary + cloudtrail + budget + alarms)"
+assert_resource_count "$monitor_main_file" 38 "monitoring/main.tf has exactly 38 resources (alerts + SES feedback + canary + cloudtrail + budget + alarms)"
 
 echo ""
 echo "--- API CPU alarm ---"
@@ -314,6 +315,23 @@ assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm
 assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "customer_loop_canary_not_running" 'FunctionName[[:space:]]*=[[:space:]]*local\.customer_loop_canary_function_name' "Customer-loop liveness alarm dimensions use canonical local function-name owner"
 assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "customer_loop_canary_not_running" 'alarm_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\]' "Customer-loop liveness alarm wires alarm_actions to SNS topic"
 assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "customer_loop_canary_not_running" 'ok_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\]' "Customer-loop liveness alarm wires ok_actions to SNS topic"
+
+echo ""
+echo "--- Usage-daily rollup liveness alarm ---"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "usage_daily_rollup_missing" '^resource[[:space:]]+"aws_cloudwatch_metric_alarm"[[:space:]]+"usage_daily_rollup_missing"[[:space:]]*\{[[:space:]]*$' "Usage-daily rollup liveness alarm resource exists"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "usage_daily_rollup_missing" '^[[:space:]]*alarm_name[[:space:]]*=[[:space:]]*"fjcloud-\$\{var\.env\}-usage-daily-rollup-missing"[[:space:]]*$' "Usage-daily rollup liveness alarm name follows naming convention"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "usage_daily_rollup_missing" '^[[:space:]]*namespace[[:space:]]*=[[:space:]]*"fjcloud/aggregation-job"[[:space:]]*$' "Usage-daily rollup liveness alarm uses the canonical aggregation namespace"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "usage_daily_rollup_missing" '^[[:space:]]*metric_name[[:space:]]*=[[:space:]]*"UsageDailyRollupSuccess"[[:space:]]*$' "Usage-daily rollup liveness alarm watches the canonical success metric"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "usage_daily_rollup_missing" '^[[:space:]]*statistic[[:space:]]*=[[:space:]]*"Sum"[[:space:]]*$' "Usage-daily rollup liveness alarm sums daily successes"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "usage_daily_rollup_missing" '^[[:space:]]*comparison_operator[[:space:]]*=[[:space:]]*"LessThanThreshold"[[:space:]]*$' "Usage-daily rollup liveness alarm fires below one success"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "usage_daily_rollup_missing" '^[[:space:]]*period[[:space:]]*=[[:space:]]*86400[[:space:]]*$' "Usage-daily rollup liveness alarm evaluates daily periods"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "usage_daily_rollup_missing" '^[[:space:]]*evaluation_periods[[:space:]]*=[[:space:]]*2[[:space:]]*$' "Usage-daily rollup liveness alarm requires two consecutive periods"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "usage_daily_rollup_missing" '^[[:space:]]*datapoints_to_alarm[[:space:]]*=[[:space:]]*2[[:space:]]*$' "Usage-daily rollup liveness alarm requires both periods to breach"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "usage_daily_rollup_missing" '^[[:space:]]*threshold[[:space:]]*=[[:space:]]*1[[:space:]]*$' "Usage-daily rollup liveness alarm threshold is one success"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "usage_daily_rollup_missing" '^[[:space:]]*treat_missing_data[[:space:]]*=[[:space:]]*"breaching"[[:space:]]*$' "Usage-daily rollup liveness alarm treats missing data as breaching"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "usage_daily_rollup_missing" '^[[:space:]]*Env[[:space:]]*=[[:space:]]*var\.env[[:space:]]*$' "Usage-daily rollup liveness alarm dimensions include canonical Env"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "usage_daily_rollup_missing" '^[[:space:]]*alarm_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\][[:space:]]*$' "Usage-daily rollup liveness alarm wires alarm_actions to SNS topic"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "usage_daily_rollup_missing" '^[[:space:]]*ok_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\][[:space:]]*$' "Usage-daily rollup liveness alarm wires ok_actions to SNS topic"
 
 echo ""
 echo "--- Cross-alarm contract checks ---"

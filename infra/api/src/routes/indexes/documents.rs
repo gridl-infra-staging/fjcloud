@@ -1,9 +1,11 @@
+//! Stub summary for documents.rs.
 use super::*;
 use crate::models::IngestQuotaWarningMetric;
 use std::collections::HashMap;
 
 const BYTES_PER_MIB: u64 = 1024 * 1024;
 
+/// TODO: Document projected_batch_ingest.
 fn projected_batch_ingest(body: &serde_json::Value) -> (u64, u64) {
     let mut projected_records = 0_u64;
     let mut projected_bytes = 0_u64;
@@ -82,6 +84,7 @@ fn serialize_request_body<T: Serialize>(
     })
 }
 
+/// TODO: Document check_free_tier_ingest_caps.
 async fn check_free_tier_ingest_caps(
     state: &AppState,
     customer_id: Uuid,

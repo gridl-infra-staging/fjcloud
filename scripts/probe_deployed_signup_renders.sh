@@ -53,6 +53,7 @@ TMP_BODY=""
 cleanup() { [[ -n "${TMP_BODY:-}" ]] && rm -f "$TMP_BODY"; }
 trap cleanup EXIT
 
+# TODO: Document main.
 main() {
     local body http_code
     TMP_BODY="$(mktemp)"

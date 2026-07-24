@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Stub summary for author_lane_files.py."""
 
 from __future__ import annotations
 
@@ -51,6 +52,7 @@ def _owner_files_text(owner_files: Any) -> str:
 
 
 def _render_lane_markdown(ts: str, lane_number: int, row: dict[str, Any]) -> str:
+    """TODO: Document _render_lane_markdown."""
     title = str(row.get("title") or "Untitled recommendation")
     body = str(row.get("body") or "")
     source_path = str(row.get("source_path") or "unknown-source")
@@ -103,6 +105,7 @@ def _render_lane_markdown(ts: str, lane_number: int, row: dict[str, Any]) -> str
 
 
 def author_lane_files(to_author_path: Path, output_dir: Path) -> dict[str, Any]:
+    """TODO: Document author_lane_files."""
     payload = json.loads(to_author_path.read_text(encoding="utf-8"))
     rows = payload.get("rows")
     if not isinstance(rows, list):

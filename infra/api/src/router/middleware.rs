@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/router/middleware.rs.
 use axum::{
     extract::{Request, State},
     http::{header, HeaderName, HeaderValue, Method, StatusCode},
@@ -105,6 +106,7 @@ pub(super) async fn security_headers_middleware(request: Request, next: Next) ->
     response
 }
 
+/// TODO: Document auth_rate_limit_middleware.
 pub(super) async fn auth_rate_limit_middleware(
     State(rate_state): State<AuthRateLimitState>,
     request: Request,

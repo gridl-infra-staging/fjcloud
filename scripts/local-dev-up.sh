@@ -48,6 +48,7 @@ die() {
     exit 1
 }
 
+# TODO: Document wait_until_success.
 wait_until_success() {
     local timeout_seconds="$1"
     local sleep_seconds="$2"
@@ -163,6 +164,7 @@ require_database_url_part() {
     printf '%s\n' "$value"
 }
 
+# TODO: Document ensure_postgres_volume_matches_env.
 ensure_postgres_volume_matches_env() {
     local db_user="$1"
     local db_password="$2"

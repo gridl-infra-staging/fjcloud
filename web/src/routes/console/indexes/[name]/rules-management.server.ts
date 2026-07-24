@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for rules-management.server.ts.
+ */
 import { fail } from '@sveltejs/kit';
 import { createApiClient } from '$lib/server/api';
 import { mapDashboardSessionFailure } from '$lib/server/auth-action-errors';
@@ -29,6 +32,9 @@ export async function loadRulesPayload(api: ReturnType<typeof createApiClient>, 
 
 type RuleLoadPayload = (RuleSearchResponse & { totalNbHits: number; query: string }) | null;
 
+/**
+ * TODO: Document loadRulesPayloadForQuery.
+ */
 export async function loadRulesPayloadForQuery(
 	api: ReturnType<typeof createApiClient>,
 	indexName: string,
@@ -64,6 +70,9 @@ export async function loadRulesPayloadForQuery(
 	}
 }
 
+/**
+ * TODO: Document saveRuleAction.
+ */
 export async function saveRuleAction({ request, indexName, token }: RulesActionArgs) {
 	const data = await request.formData();
 	const objectID = (data.get('objectID') as string)?.trim();
@@ -101,6 +110,9 @@ export async function deleteRuleAction({ request, indexName, token }: RulesActio
 	}
 }
 
+/**
+ * TODO: Document clearRulesAction.
+ */
 export async function clearRulesAction({ indexName, token }: Omit<RulesActionArgs, 'request'>) {
 	const api = createApiClient(token);
 	const requestedDeletes = new Set<string>();

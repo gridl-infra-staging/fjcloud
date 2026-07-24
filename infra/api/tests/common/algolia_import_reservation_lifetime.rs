@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/tests/common/algolia_import_reservation_lifetime.rs.
 use std::collections::BTreeSet;
 
 use api::models::algolia_import_job::{
@@ -45,6 +46,7 @@ pub fn assert_algolia_import_job_unchanged_except_worker_claim(
     );
 }
 
+/// TODO: Document algolia_import_statuses.
 pub fn algolia_import_statuses() -> &'static [AlgoliaImportJobStatus] {
     use AlgoliaImportJobStatus::{
         Cancelled, Cancelling, Completed, CompletedWithWarnings, CopyingConfiguration,
@@ -86,6 +88,7 @@ pub fn algolia_import_engine_ack_states() -> &'static [AlgoliaImportEngineAckSta
     ]
 }
 
+/// TODO: Document reservation_lifetime_denominator.
 pub fn reservation_lifetime_denominator() -> Vec<ReservationLifetimeCase> {
     let mut cases = Vec::new();
     for &status in algolia_import_statuses() {
@@ -126,6 +129,7 @@ pub fn reservation_lifetime_denominator() -> Vec<ReservationLifetimeCase> {
     cases
 }
 
+/// TODO: Document validate_reservation_lifetime_denominator.
 pub fn validate_reservation_lifetime_denominator(
     cases: &[ReservationLifetimeCase],
 ) -> DenominatorValidation {
@@ -144,6 +148,7 @@ pub fn validate_reservation_lifetime_denominator(
     }
 }
 
+/// TODO: Document force_reservation_lifetime_case.
 pub async fn force_reservation_lifetime_case(
     pool: &PgPool,
     job_id: Uuid,
@@ -183,6 +188,7 @@ pub async fn force_reservation_lifetime_case(
     .unwrap_or_else(|error| panic!("force reservation lifetime case {}: {error}", case.label));
 }
 
+/// TODO: Document expected_reservation_case_labels.
 fn expected_reservation_case_labels() -> BTreeSet<String> {
     let mut labels = BTreeSet::new();
     for &status in algolia_import_statuses() {
@@ -209,6 +215,7 @@ fn expected_reservation_case_labels() -> BTreeSet<String> {
     labels
 }
 
+/// TODO: Document reservation_expectation.
 fn reservation_expectation(
     status: AlgoliaImportJobStatus,
     publication_disposition: AlgoliaImportPublicationDisposition,
@@ -226,6 +233,7 @@ fn reservation_expectation(
     }
 }
 
+/// TODO: Document schema_valid_reservation_quad.
 fn schema_valid_reservation_quad(
     status: AlgoliaImportJobStatus,
     publication_disposition: AlgoliaImportPublicationDisposition,
@@ -269,6 +277,7 @@ fn schema_valid_reservation_quad(
     }
 }
 
+/// TODO: Document interrupted_ack_state_is_schema_valid.
 fn interrupted_ack_state_is_schema_valid(
     publication_disposition: AlgoliaImportPublicationDisposition,
     engine_ack_state: AlgoliaImportEngineAckState,

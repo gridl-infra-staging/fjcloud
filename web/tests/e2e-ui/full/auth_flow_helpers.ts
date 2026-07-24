@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for web/tests/e2e-ui/full/auth_flow_helpers.ts.
+ */
 import { expect, type Locator, type Page } from '@playwright/test';
 
 const TRANSIENT_RATE_LIMIT_PATTERN = /too many requests/i;
@@ -12,6 +15,9 @@ async function readAlertText(alert: Locator): Promise<string> {
 	return (await alert.textContent())?.trim() ?? '';
 }
 
+/**
+ * TODO: Document loginThroughUiWithRetry.
+ */
 export async function loginThroughUiWithRetry(
 	page: Page,
 	email: string,
@@ -48,6 +54,9 @@ export async function loginThroughUiWithRetry(
 	});
 }
 
+/**
+ * TODO: Document submitDuplicateSignupWithRetry.
+ */
 export async function submitDuplicateSignupWithRetry(
 	page: Page,
 	email: string,

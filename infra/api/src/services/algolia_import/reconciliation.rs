@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/algolia_import/reconciliation.rs.
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
@@ -151,6 +152,7 @@ enum ClaimObservation {
 }
 
 impl AlgoliaImportService {
+    /// TODO: Document AlgoliaImportService.reconcile_once.
     pub(crate) async fn reconcile_once<S>(
         &self,
         runtime: &AlgoliaImportReconciliationRuntime<S>,
@@ -183,6 +185,7 @@ impl AlgoliaImportService {
         Ok(report)
     }
 
+    /// TODO: Document AlgoliaImportService.run_reconciliation_loop.
     pub(crate) async fn run_reconciliation_loop<S>(
         &self,
         runtime: AlgoliaImportReconciliationRuntime<S>,
@@ -221,6 +224,7 @@ impl AlgoliaImportService {
         }
     }
 
+    /// TODO: Document AlgoliaImportService.reconcile_claim.
     async fn reconcile_claim<S>(
         &self,
         runtime: &AlgoliaImportReconciliationRuntime<S>,
@@ -289,6 +293,7 @@ impl AlgoliaImportService {
         }
     }
 
+    /// TODO: Document AlgoliaImportService.status_for_claim.
     async fn status_for_claim(
         &self,
         vm_repo: &(dyn VmInventoryRepo + Send + Sync),
@@ -326,6 +331,7 @@ impl AlgoliaImportService {
         .await
     }
 
+    /// TODO: Document AlgoliaImportService.persist_unavailable.
     async fn persist_unavailable<S>(
         &self,
         runtime: &AlgoliaImportReconciliationRuntime<S>,
@@ -345,6 +351,7 @@ impl AlgoliaImportService {
             .await
     }
 
+    /// TODO: Document AlgoliaImportService.persist_observation.
     async fn persist_observation<S>(
         &self,
         runtime: &AlgoliaImportReconciliationRuntime<S>,
@@ -480,6 +487,7 @@ impl AlgoliaImportService {
         }
     }
 
+    /// TODO: Document AlgoliaImportService.alert_reconciliation_unavailable.
     async fn alert_reconciliation_unavailable(
         alert_service: &(dyn AlertService + Send + Sync),
         claim: &AlgoliaImportReconciliationClaim,

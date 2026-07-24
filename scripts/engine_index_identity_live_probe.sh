@@ -113,6 +113,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# TODO: Document validate_inventory.
 validate_inventory() {
     python3 - "$INVENTORY" <<'PY'
 import json
@@ -162,6 +163,7 @@ if len(ids) != len(set(ids)):
 PY
 }
 
+# TODO: Document validate_observed_artifact.
 validate_observed_artifact() {
     python3 - "$INVENTORY" "$OBSERVED_CALLERS_FILE" "$PROBE_CUSTOMER_ID" "$PROBE_INDEX" "$PROBE_AUTH_HEADER_PROOF" <<'PY'
 import json
@@ -277,6 +279,7 @@ PY
 HTTP_RESPONSE_BODY=""
 HTTP_RESPONSE_CODE=""
 
+# TODO: Document json_field.
 json_field() {
     local payload="$1"
     local field="$2"
@@ -353,6 +356,7 @@ admin_call() {
         "$@"
 }
 
+# TODO: Document discover_destination_vm.
 discover_destination_vm() {
     if [ -n "$PROBE_DEST_VM_ID" ]; then
         return 0
@@ -420,6 +424,7 @@ seed_source_index() {
     expect_status "source document seed" "200"
 }
 
+# TODO: Document delete_probe_replicas.
 delete_probe_replicas() {
     local replica_ids replica_to_delete
 
@@ -453,6 +458,7 @@ $replica_ids
 EOF
 }
 
+# TODO: Document drive_live_entrypoints.
 drive_live_entrypoints() {
     local token isolation_token isolation_customer_id replica_id migration_status
     local unrelated_state_before unrelated_state_after

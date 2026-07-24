@@ -36,6 +36,7 @@ validation_emit_result() {
     printf '{"passed":%s,"steps":[%s],"elapsed_ms":%s}\n' "$passed" "$VALIDATION_STEPS_JSON" "$elapsed_ms"
 }
 
+# TODO: Document validation_json_get_field.
 validation_json_get_field() {
     local json_body="$1"
     local field="$2"

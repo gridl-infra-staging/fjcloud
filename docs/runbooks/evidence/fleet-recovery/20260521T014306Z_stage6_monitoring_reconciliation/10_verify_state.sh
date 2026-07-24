@@ -20,6 +20,7 @@ AWS_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 TF_DIR="$REPO_ROOT/ops/terraform/_shared"
 EVID_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# TODO: Document verify_env.
 verify_env() {
   local env_name="$1"
   local bucket_name="$2"

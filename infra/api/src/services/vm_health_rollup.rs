@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/vm_health_rollup.rs.
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -12,6 +13,7 @@ pub enum VmHealth {
     Unknown,
 }
 
+/// TODO: Document vm_health_rollup.
 pub fn vm_health_rollup(deployment_healths: &[&str]) -> VmHealth {
     if deployment_healths.contains(&"unhealthy") {
         return VmHealth::Unhealthy;
@@ -189,6 +191,7 @@ mod tests {
         }
     }
 
+    /// TODO: Document deployment.
     fn deployment(id: Uuid, health_status: &str) -> Deployment {
         Deployment {
             id,
@@ -225,6 +228,7 @@ mod tests {
         }
     }
 
+    /// TODO: Document health_rollup_for_tenants_deduplicates_deployments_before_classifying.
     #[tokio::test]
     async fn health_rollup_for_tenants_deduplicates_deployments_before_classifying() {
         let healthy_id = Uuid::new_v4();
@@ -267,6 +271,7 @@ mod tests {
         assert_eq!(health, VmHealth::Healthy);
     }
 
+    /// TODO: Document health_rollup_from_deployment_healths_classifies_mixed_values.
     #[test]
     fn health_rollup_from_deployment_healths_classifies_mixed_values() {
         let healthy_id = Uuid::new_v4();

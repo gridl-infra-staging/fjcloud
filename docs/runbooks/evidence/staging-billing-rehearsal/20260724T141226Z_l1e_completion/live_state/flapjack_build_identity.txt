@@ -1,0 +1,8 @@
+=== staging ===
+[probe-flapjack-build-identity] no Stage 1 expected identity (manifest/env) for remote comparison
+{"classification": "setup_infra", "detail": "no expected identity", "env": "staging", "expected_sha256": "", "installed_sha256": "", "probe": "flapjack_build_identity", "reason": "missing_expected_identity", "runtime_version": ""}
+(classification=setup_infra reason=missing_expected_identity status=SKIP_NO_CREDS)
+=== prod ===
+[probe-flapjack-build-identity] no Stage 1 expected identity (manifest/env) for remote comparison
+{"classification": "setup_infra", "detail": "no expected identity", "env": "prod", "expected_sha256": "", "installed_sha256": "", "probe": "flapjack_build_identity", "reason": "missing_expected_identity", "runtime_version": ""}
+(classification=setup_infra reason=missing_expected_identity status=SKIP_NO_CREDS)

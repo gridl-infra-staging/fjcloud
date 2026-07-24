@@ -9,6 +9,7 @@ SES_COVERAGE_A1_RUNNER_HARNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd
 # shellcheck source=ses_coverage_a1_runner_stubs.sh
 source "$SES_COVERAGE_A1_RUNNER_HARNESS_DIR/ses_coverage_a1_runner_stubs.sh"
 
+# TODO: Document ses_coverage_a1_prepare_runner_workspace.
 ses_coverage_a1_prepare_runner_workspace() {
     mkdir -p "$TEST_WORKSPACE/bin"
     mkdir -p "$TEST_WORKSPACE/scripts/launch"
@@ -45,6 +46,7 @@ ses_coverage_a1_setup_workspace() {
     ses_coverage_a1_prepare_runner_workspace
 }
 
+# TODO: Document ses_coverage_a1_run_runner.
 ses_coverage_a1_run_runner() {
     local stdout_file="$TEST_WORKSPACE/tmp/runner_stdout.txt"
     local stderr_file="$TEST_WORKSPACE/tmp/runner_stderr.txt"
@@ -68,6 +70,7 @@ ses_coverage_a1_run_runner() {
     RUN_STDERR="$(cat "$stderr_file" 2>/dev/null || true)"
 }
 
+# TODO: Document ses_coverage_a1_run_runner_scenario.
 ses_coverage_a1_run_runner_scenario() {
     local scenario="$1"
     local sha="${2:-${VALID_SHA:?}}"
@@ -114,6 +117,7 @@ latest_artifact_dir() {
     ls -d "$TEST_WORKSPACE"/docs/runbooks/evidence/ses-coverage-a1/artifact_${scenario}_* 2>/dev/null | head -1
 }
 
+# TODO: Document assert_expected_deployable_currency.
 assert_expected_deployable_currency() {
     local manifest="$1" uploaded="$2"
     if python3 - "$manifest" "$uploaded" "$VALID_SHA" <<'PY'
@@ -140,6 +144,7 @@ PY
     fi
 }
 
+# TODO: Document assert_no_transport_or_probe_commands.
 assert_no_transport_or_probe_commands() {
     if [ -f "$TEST_WORKSPACE/tmp/aws_commands.log" ]; then
         assert_not_contains "$(cat "$TEST_WORKSPACE/tmp/aws_commands.log")" " s3 cp " \
@@ -169,6 +174,7 @@ assert_status_and_no_manifest() {
     fi
 }
 
+# TODO: Document test_verdict_transport_failures_are_structural.
 test_verdict_transport_failures_are_structural() {
     setup_workspace
 

@@ -1,3 +1,4 @@
+//! Stub summary for heartbeat.rs.
 use std::time::Duration;
 
 use aws_sdk_cloudwatch::types::{Dimension, MetricDatum, StandardUnit};
@@ -21,6 +22,7 @@ impl HeartbeatPublisher {
         }
     }
 
+    /// TODO: Document HeartbeatPublisher.publish_once.
     async fn publish_once(
         &self,
     ) -> Result<
@@ -50,6 +52,7 @@ impl HeartbeatPublisher {
         Ok(())
     }
 
+    /// TODO: Document HeartbeatPublisher.run.
     pub async fn run(self, mut shutdown_rx: watch::Receiver<bool>) {
         let mut interval = tokio::time::interval(self.period);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);

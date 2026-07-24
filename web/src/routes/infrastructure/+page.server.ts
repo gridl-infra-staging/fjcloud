@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for web/src/routes/infrastructure/+page.server.ts.
+ */
 import { createCanonicalPublicApiClient } from '$lib/server/api';
 import type { PageServerLoad } from './$types';
 import {
@@ -7,6 +10,9 @@ import {
 
 const PUBLIC_INFRASTRUCTURE_ERROR_MESSAGE = 'Infrastructure data is temporarily unavailable.';
 
+/**
+ * TODO: Document load.
+ */
 export const load: PageServerLoad = async ({ fetch }): Promise<InfrastructureRouteData> => {
 	try {
 		const infrastructure = parsePublicInfrastructureResponse(

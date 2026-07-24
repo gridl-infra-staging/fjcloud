@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/models/algolia_import_job.rs.
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -35,6 +36,7 @@ pub enum AlgoliaImportJobStatus {
 }
 
 impl AlgoliaImportJobStatus {
+    /// TODO: Document AlgoliaImportJobStatus.as_str.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Queued => "queued",
@@ -53,6 +55,7 @@ impl AlgoliaImportJobStatus {
         }
     }
 
+    /// TODO: Document AlgoliaImportJobStatus.has_valid_terminal_disposition.
     pub fn has_valid_terminal_disposition(
         self,
         publication_disposition: AlgoliaImportPublicationDisposition,
@@ -100,6 +103,7 @@ pub struct EngineResumeMirror {
 }
 
 impl EngineResumeMirror {
+    /// TODO: Document EngineResumeMirror.new.
     pub fn new(
         checkpoint: String,
         status_observed_at: DateTime<Utc>,
@@ -257,6 +261,7 @@ impl AlgoliaImportDispatchIntentState {
     }
 }
 
+/// TODO: Document AlgoliaImportErrorCode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AlgoliaImportErrorCode {
@@ -282,6 +287,7 @@ pub enum AlgoliaImportErrorCode {
 }
 
 impl AlgoliaImportErrorCode {
+    /// TODO: Document AlgoliaImportErrorCode.as_str.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::InvalidCredentials => "invalid_credentials",
@@ -323,6 +329,7 @@ pub struct AlgoliaImportSummary {
     pub rules_rejected: i64,
 }
 
+/// TODO: Document AlgoliaImportJob.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlgoliaImportJob {
     pub id: Uuid,
@@ -413,6 +420,7 @@ impl AlgoliaImportSourceMetadata {
 }
 
 impl AlgoliaImportSource {
+    /// TODO: Document AlgoliaImportSource.from_final_key_metadata.
     pub fn from_final_key_metadata(
         algolia_app_id: impl Into<String>,
         source_name: impl Into<String>,
@@ -446,6 +454,7 @@ impl AlgoliaImportSource {
     }
 }
 
+/// TODO: Document source_metadata_fingerprint.
 fn source_metadata_fingerprint(
     algolia_app_id: &str,
     source_name: &str,
@@ -591,6 +600,7 @@ impl AuthenticatedAlgoliaReplacementTarget {
         &self.routing_identity
     }
 
+    /// TODO: Document AuthenticatedAlgoliaReplacementTarget.from_existing_index.
     pub(crate) fn from_existing_index(
         customer_id: Uuid,
         logical_target: impl Into<String>,
@@ -664,6 +674,7 @@ impl AlgoliaImportDestination {
 }
 
 impl NewAlgoliaImportJob {
+    /// TODO: Document NewAlgoliaImportJob.create.
     pub fn create(
         customer_id: Uuid,
         destination: AlgoliaImportCreateDestination,
@@ -679,6 +690,7 @@ impl NewAlgoliaImportJob {
         )
     }
 
+    /// TODO: Document NewAlgoliaImportJob.replace.
     pub fn replace(
         customer_id: Uuid,
         destination: AuthenticatedAlgoliaReplacementTarget,
@@ -695,6 +707,7 @@ impl NewAlgoliaImportJob {
         )
     }
 
+    /// TODO: Document NewAlgoliaImportJob.from_destination.
     fn from_destination(
         customer_id: Uuid,
         destination: AlgoliaImportDestination,
@@ -792,6 +805,7 @@ mod tests {
         assert!(EngineResumeMirror::new("opaque".into(), observed_at, observed_at).is_err());
     }
 
+    /// TODO: Document resumable_engine_failure_is_not_finally_terminal.
     #[test]
     fn resumable_engine_failure_is_not_finally_terminal() {
         let observed_at = Utc::now();

@@ -28,6 +28,7 @@ flapjack_region_entry_port_is_valid() {
     [ "$port" -ge 1 ] && [ "$port" -le 65535 ]
 }
 
+# TODO: Document resolve_seed_vm_regions.
 resolve_seed_vm_regions() {
     if [ "${FLAPJACK_SINGLE_INSTANCE:-}" = "1" ] || [ -z "${FLAPJACK_REGIONS:-}" ]; then
         print_default_local_seed_vm_regions

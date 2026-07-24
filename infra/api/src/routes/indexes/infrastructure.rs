@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/routes/indexes/infrastructure.rs.
 use std::collections::HashMap;
 
 use axum::extract::{Path, State};
@@ -74,6 +75,7 @@ pub enum HeadroomStatus {
         (status = 503, description = "Backend temporarily unavailable", body = ErrorResponse),
     )
 )]
+/// TODO: Document get_index_infrastructure.
 pub async fn get_index_infrastructure(
     auth: AuthenticatedTenant,
     State(state): State<AppState>,
@@ -178,6 +180,7 @@ impl From<CustomerIndexMetricsResponse> for InfrastructureFootprint {
 mod tests {
     use super::*;
 
+    /// TODO: Document headroom_status_boundaries_use_storage_ratio_only.
     #[test]
     fn headroom_status_boundaries_use_storage_ratio_only() {
         let footprint = |storage_bytes, search_requests_total, write_operations_total| {

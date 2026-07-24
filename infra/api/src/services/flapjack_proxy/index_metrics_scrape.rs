@@ -1,6 +1,8 @@
+//! Stub summary for infra/api/src/services/flapjack_proxy/index_metrics_scrape.rs.
 use super::{FlapjackProxy, ProxyError};
 
 impl FlapjackProxy {
+    /// TODO: Document FlapjackProxy.fetch_metrics_text.
     pub async fn fetch_metrics_text(
         &self,
         flapjack_url: &str,
@@ -13,6 +15,7 @@ impl FlapjackProxy {
         Ok(body)
     }
 
+    /// TODO: Document FlapjackProxy.fetch_metrics_text_with_auth_observation.
     pub async fn fetch_metrics_text_with_auth_observation(
         &self,
         flapjack_url: &str,

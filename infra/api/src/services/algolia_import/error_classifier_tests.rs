@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/algolia_import/error_classifier_tests.rs.
 use crate::models::AlgoliaImportErrorCode;
 
 use super::{
@@ -12,6 +13,7 @@ fn engine_error(status: u16, code: &str) -> AlgoliaImportEngineError {
     }
 }
 
+/// TODO: Document engine_error_classifier_maps_only_operation_specific_pinned_codes.
 #[test]
 fn engine_error_classifier_maps_only_operation_specific_pinned_codes() {
     use AlgoliaImportEngineOperation::{Cancel, Status, Submit};
@@ -52,6 +54,7 @@ fn engine_error_classifier_maps_only_operation_specific_pinned_codes() {
     }
 }
 
+/// TODO: Document engine_error_classifier_fails_closed_for_wrong_operation_status_or_unknown_code.
 #[test]
 fn engine_error_classifier_fails_closed_for_wrong_operation_status_or_unknown_code() {
     use AlgoliaImportEngineOperation::{Cancel, Status, Submit};

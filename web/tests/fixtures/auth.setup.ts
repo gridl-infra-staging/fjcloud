@@ -1,4 +1,7 @@
 /**
+ * @module Stub summary for auth.setup.ts.
+ */
+/**
  * Auth setup — runs once before any test project that depends on it.
  *
  * Logs in through the real browser UI and saves the resulting browser state
@@ -41,6 +44,9 @@ const AUTH_SETUP_TIMEOUT_MS =
 
 setup.setTimeout(AUTH_SETUP_TIMEOUT_MS);
 
+/**
+ * TODO: Document attemptCustomerLogin.
+ */
 async function attemptCustomerLogin(
 	page: Page,
 	email: string,

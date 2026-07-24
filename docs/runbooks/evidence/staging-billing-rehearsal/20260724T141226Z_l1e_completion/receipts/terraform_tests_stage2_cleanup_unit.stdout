@@ -1,0 +1,30 @@
+
+=== Stage 2 Cleanup Behavioral Tests ===
+PASS: Stage 2 cleanup library exists
+
+--- Canonicalized worktree cleanup ---
+PASS: Cleanup removes the private saved plan
+PASS: Cleanup removes the private plan JSON
+PASS: Cleanup removes the aliased detached worktree path
+PASS: Cleanup removes the canonical detached worktree path
+PASS: Cleanup unregisters the detached worktree from Git
+
+--- Trap cleanup preserves failure while removing artifacts ---
+PASS: Trap preserves the failing command status
+PASS: Trap cleanup does not print private paths during normal cleanup
+PASS: Trap removes the private saved plan
+PASS: Trap removes the private plan JSON
+PASS: Trap removes the aliased detached worktree path
+PASS: Trap removes the canonical detached worktree path
+PASS: Trap unregisters the detached worktree from Git
+
+--- Trap cleanup handles interruption ---
+PASS: Trap maps TERM interruption to exit code 143
+PASS: Interrupted trap cleanup does not print private paths during normal cleanup
+PASS: Interrupted trap removes the private saved plan
+PASS: Interrupted trap removes the private plan JSON
+PASS: Interrupted trap removes the aliased detached worktree path
+PASS: Interrupted trap removes the canonical detached worktree path
+PASS: Interrupted trap unregisters the detached worktree from Git
+
+Stage 2 cleanup behavioral: 20/20 passed.

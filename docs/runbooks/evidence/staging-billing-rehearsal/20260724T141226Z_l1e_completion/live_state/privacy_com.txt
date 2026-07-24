@@ -1,0 +1,3 @@
+endpoint=https://api.privacy.com/v1/cards?page_size=1
+http_status=200
+(body NOT captured — Privacy.com responses contain cardholder PAN tails)

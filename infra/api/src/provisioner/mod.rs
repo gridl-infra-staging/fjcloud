@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/provisioner/mod.rs.
 pub mod aws;
 pub mod cloud_init;
 pub(crate) mod env_config;
@@ -57,6 +58,7 @@ pub struct VmInstance {
     pub region: String,
 }
 
+/// TODO: Document VmProvisioner.
 #[async_trait]
 pub trait VmProvisioner: Send + Sync {
     async fn create_vm(&self, config: &CreateVmRequest) -> Result<VmInstance, VmProvisionerError>;

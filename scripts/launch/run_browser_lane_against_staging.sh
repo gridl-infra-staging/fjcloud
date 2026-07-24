@@ -72,6 +72,7 @@ print(os.path.realpath(sys.argv[1]))
 PY
 }
 
+# TODO: Document validate_repo_owned_output_dir.
 validate_repo_owned_output_dir() {
   local candidate="$1"
   local repo_root_real candidate_real
@@ -96,6 +97,7 @@ SHOW_HELP=0
 LANE_TIMEOUT_SECONDS="${BROWSER_LANE_TIMEOUT_SECONDS:-480}"
 RAN_LANE_OUTPUT_DIRS=()
 
+# TODO: Document print_usage.
 print_usage() {
   cat <<'EOF'
 Usage:
@@ -331,6 +333,7 @@ EOF
 # Run the lanes.
 # ---------------------------------------------------------------------------
 
+# TODO: Document terminate_pid_tree.
 terminate_pid_tree() {
   local signal="$1"
   local root_pid="$2"
@@ -345,6 +348,7 @@ terminate_pid_tree() {
   kill "-$signal" "$root_pid" 2>/dev/null || true
 }
 
+# TODO: Document run_playwright_with_timeout.
 run_playwright_with_timeout() {
   local timeout_seconds="$1"
   local stdout_path="$2"
@@ -389,6 +393,7 @@ run_playwright_with_timeout() {
   return "$exit_code"
 }
 
+# TODO: Document run_one_lane.
 run_one_lane() {
   local lane="$1"
   local spec_file
@@ -426,6 +431,7 @@ run_one_lane() {
   return "$exit_code"
 }
 
+# TODO: Document copy_trace_artifacts_into_bundle.
 copy_trace_artifacts_into_bundle() {
   local trace_bundle_subdir="playwright-traces"
   local trace_bundle_dir="$EVIDENCE_DIR_ARG/$trace_bundle_subdir"

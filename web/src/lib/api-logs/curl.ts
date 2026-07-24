@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for curl.ts.
+ */
 import type { StoredLogEntry } from './store';
 import { normalizeJsonValue } from './exporters';
 

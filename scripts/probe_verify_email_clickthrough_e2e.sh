@@ -31,6 +31,7 @@ runtime_fail() {
     exit "$EXIT_RUNTIME"
 }
 
+# TODO: Document verify_email_poll_until_verified.
 verify_email_poll_until_verified() {
     local probe_email="$1"
     local verified_sql="$2"

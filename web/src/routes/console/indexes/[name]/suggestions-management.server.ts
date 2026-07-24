@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for suggestions-management.server.ts.
+ */
 import { fail } from '@sveltejs/kit';
 import { createApiClient } from '$lib/server/api';
 import { mapDashboardSessionFailure } from '$lib/server/auth-action-errors';
@@ -16,6 +19,9 @@ function failForSuggestionsAction<T extends Record<string, unknown>>(error: unkn
 	return fail(400, payload);
 }
 
+/**
+ * TODO: Document saveQsConfigAction.
+ */
 export async function saveQsConfigAction({ request, indexName, token }: SuggestionsActionArgs) {
 	const data = await request.formData();
 	const rawConfig = (data.get('config') as string)?.trim();
@@ -41,6 +47,9 @@ export async function saveQsConfigAction({ request, indexName, token }: Suggesti
 	}
 }
 
+/**
+ * TODO: Document deleteQsConfigAction.
+ */
 export async function deleteQsConfigAction({
 	indexName,
 	token
@@ -56,6 +65,9 @@ export async function deleteQsConfigAction({
 	}
 }
 
+/**
+ * TODO: Document rebuildQsConfigAction.
+ */
 export async function rebuildQsConfigAction({
 	indexName,
 	token

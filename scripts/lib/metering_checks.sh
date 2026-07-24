@@ -64,6 +64,7 @@ COPY (
 SQL
 }
 
+# TODO: Document _run_metering_query.
 _run_metering_query() {
     local db_url="$1"
     local sql="$2"
@@ -98,6 +99,7 @@ _run_metering_query() {
     return 22
 }
 
+# TODO: Document _handle_metering_query_failure.
 _handle_metering_query_failure() {
     local query_label="$1"
     local query_status="$2"

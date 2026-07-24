@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Stub summary for lambda_handler.py."""
 
 from __future__ import annotations
 
@@ -23,6 +24,7 @@ def _is_parameter_not_found_error(error: Exception) -> bool:
 
 
 def _resolve_webhook_value(raw_value: str, ssm_client) -> str:
+    """TODO: Document _resolve_webhook_value."""
     value = raw_value.strip()
     if not value:
         return ""
@@ -56,6 +58,7 @@ def _hydrate_webhook_env() -> None:
 
 
 def _run_canary() -> Dict[str, object]:
+    """TODO: Document _run_canary."""
     completed = subprocess.run(
         [CANARY_SCRIPT],
         check=False,

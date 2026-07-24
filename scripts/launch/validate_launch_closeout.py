@@ -89,6 +89,7 @@ def fail(message: str) -> None:
 
 
 def parse_args(argv: list[str]) -> Inputs:
+    """TODO: Document parse_args."""
     values: dict[str, Path] = {}
     allowed = set(FLAG_NAMES)
     for argument in argv:
@@ -154,6 +155,7 @@ def has_symlink_component(root: Path, relative: Path) -> bool:
 
 
 def committed_path(root: Path, reference: object, label: str) -> Path:
+    """TODO: Document committed_path."""
     if not isinstance(reference, str) or not reference:
         fail(f"committed {label} path must be a non-empty string")
     path = Path(reference)
@@ -185,6 +187,7 @@ def evidence_reference(closeout: dict[str, Any], label: str) -> dict[str, Any]:
 
 
 def validate_committed_evidence(root: Path, closeout: dict[str, Any]) -> dict[str, Path]:
+    """TODO: Document validate_committed_evidence."""
     paths: dict[str, Path] = {}
     for label in COMMITTED_ROOTS:
         reference = evidence_reference(closeout, label)
@@ -243,6 +246,7 @@ def validate_source_paths(closeout: dict[str, Any], inputs: Inputs) -> None:
 def validate_section1(
     closeout: dict[str, Any], manifest: dict[str, Any], receipt: dict[str, Any], digest: str
 ) -> str:
+    """TODO: Document validate_section1."""
     require_equal(receipt.get("status"), "validated", "Section 1 validation status")
     require_equal(receipt.get("manifest_digest"), digest, "Section 1 validation manifest digest")
     require_equal(receipt.get("sha"), manifest.get("source_sha"), "Section 1 validation SHA")
@@ -281,6 +285,7 @@ def iam_status_passed(value: object) -> bool:
 def validate_iam_source(
     closeout: dict[str, Any], owner: dict[str, Any], validation: dict[str, Any]
 ) -> None:
+    """TODO: Document validate_iam_source."""
     if not iam_status_passed(validation.get("status")):
         fail(f"IAM validation status is not passed/ok: {validation.get('status')!r}")
     if not iam_status_passed(owner.get("status")):
@@ -318,6 +323,7 @@ def rc_is_allowed(verdict: dict[str, Any]) -> bool:
 
 
 def validate_rc_classifications(verdict: dict[str, Any]) -> int:
+    """TODO: Document validate_rc_classifications."""
     rows = verdict.get("non_pass_steps")
     if not isinstance(rows, list):
         fail("RC non_pass_steps must be an array")
@@ -366,6 +372,7 @@ def validate_rc(
     digests: dict[str, str],
     section1_state: str,
 ) -> None:
+    """TODO: Document validate_rc."""
     if not rc_is_allowed(verdict):
         fail("RC verdict is not launch-allowed")
     other_real_count = validate_rc_classifications(verdict)
@@ -436,6 +443,7 @@ def canonical_status_lines(
 def validate_status_owners(
     root: Path, closeout: dict[str, Any], inputs: Inputs
 ) -> None:
+    """TODO: Document validate_status_owners."""
     owners = closeout.get("status_owners")
     if not isinstance(owners, dict):
         fail("closeout missing status_owners")
@@ -470,6 +478,7 @@ def validate_status_owners(
 
 
 def validate(inputs: Inputs) -> dict[str, object]:
+    """TODO: Document validate."""
     root = checkout_root(inputs)
     closeout = load_json(inputs.closeout, "closeout")
     committed = validate_committed_evidence(root, closeout)

@@ -1,3 +1,5 @@
+//! Stub summary for infra/api/tests/common/vm_inventory_repo_races.rs.
+
 use std::time::Duration;
 
 use api::repos::{PgVmInventoryRepo, VmDecommissionResult, VmInventoryRepo, VmRetirementBlocker};
@@ -9,6 +11,7 @@ use super::vm_inventory_reference_guard_races::{
     assert_final_state, assert_guard_rejection, seed_unassigned_tenant, wait_until_blocked,
 };
 
+/// TODO: Document assert_repo_inventory_lock_wins_publication.
 pub async fn assert_repo_inventory_lock_wins_publication(schema: &str, observer: &PgPool) {
     let worker_pool = pool_in_schema(schema, 3).await;
     let repo_pool = pool_in_schema(schema, 1).await;
@@ -66,6 +69,7 @@ pub async fn assert_repo_inventory_lock_wins_publication(schema: &str, observer:
     assert_final_state(observer, &fixture, "decommissioned", None).await;
 }
 
+/// TODO: Document assert_repo_reference_publication_wins.
 pub async fn assert_repo_reference_publication_wins(schema: &str, observer: &PgPool) {
     let worker_pool = pool_in_schema(schema, 2).await;
     let repo_pool = pool_in_schema(schema, 1).await;

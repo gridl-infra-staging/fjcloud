@@ -20,6 +20,7 @@ print(json.dumps(sys.argv[1]))
 PYQ
 }
 
+# TODO: Document capture_http.
 capture_http() {
   local label="$1"
   local caller="$2"

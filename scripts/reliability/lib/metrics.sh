@@ -22,6 +22,7 @@ rdie() { echo "[reliability] ERROR: $*" >&2; exit 1; }
 
 iso_timestamp() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
 
+# TODO: Document read_repo_env_value.
 read_repo_env_value() {
     local env_file="$1"
     local target_key="$2"

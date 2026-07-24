@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for web/src/hooks.server.ts.
+ */
 import type { Handle, HandleServerError } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
 import { ApiRequestError } from '$lib/api/client';
@@ -45,6 +48,9 @@ function backendRequestId(error: unknown): string | undefined {
 	return undefined;
 }
 
+/**
+ * TODO: Document routeErrorReport.
+ */
 function routeErrorReport(input: {
 	pathname: string;
 	status: number;
@@ -66,6 +72,9 @@ function routeErrorReport(input: {
 	return report;
 }
 
+/**
+ * TODO: Document handle.
+ */
 export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.apiBaseUrl = deriveApiBaseUrl(resolveRequestHostname(event));
 
@@ -99,6 +108,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 	return response;
 };
 
+/**
+ * TODO: Document handleError.
+ */
 export const handleError: HandleServerError = ({ error, event, status, message }) => {
 	const scope = resolveBoundaryScope(event.url.pathname);
 	const boundaryCopy = buildBoundaryCopy({

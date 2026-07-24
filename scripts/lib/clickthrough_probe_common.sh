@@ -24,6 +24,7 @@ probe_env_file_maybe_load() {
     fi
 }
 
+# TODO: Document probe_materialize_app_base_url_from_staging_tool_env.
 probe_materialize_app_base_url_from_staging_tool_env() {
     derive_staging_contract_env_aliases
     if [[ -z "${APP_BASE_URL:-}" && -n "${STAGING_CLOUD_URL:-}" ]]; then
@@ -44,6 +45,7 @@ probe_materialize_app_base_url_from_staging_tool_env() {
     fi
 }
 
+# TODO: Document probe_post_json.
 probe_post_json() {
     local api_url="$1"
     local route_path="$2"
@@ -67,6 +69,7 @@ probe_http_status() {
     curl -sSL -o /dev/null -w '%{http_code}' "$url"
 }
 
+# TODO: Document probe_json_field.
 probe_json_field() {
     local json_body="$1"
     local field="$2"
@@ -92,6 +95,7 @@ else:
 PY
 }
 
+# TODO: Document probe_build_remote_sql_command.
 probe_build_remote_sql_command() {
     local sql_query="$1"
     local escaped_sql
@@ -114,6 +118,7 @@ probe_running_in_ssm_host_context() {
     [[ -n "${AWS_SSM_INSTANCE_ID:-}" ]]
 }
 
+# TODO: Document probe_sql_single_value.
 probe_sql_single_value() {
     local sql_query="$1"
     local ssm_exec_script remote_command
@@ -133,6 +138,7 @@ probe_sql_single_value() {
     "$ssm_exec_script" "$remote_command"
 }
 
+# TODO: Document probe_assert_customer_visible_or_wrong_db.
 probe_assert_customer_visible_or_wrong_db() {
     local customer_id="$1"
     local probe_email="$2"
@@ -170,6 +176,7 @@ probe_required_env_value() {
     printf '%s\n' "$value"
 }
 
+# TODO: Document probe_poll_rfc822_for_term.
 probe_poll_rfc822_for_term() {
     local search_term="$1"
     local bucket prefix region max_attempts sleep_seconds object_key rfc822_payload
@@ -194,6 +201,7 @@ probe_poll_rfc822_for_term() {
     printf '%s\n%s\n' "$object_key" "$rfc822_payload"
 }
 
+# TODO: Document probe_poll_rfc822_for_terms.
 probe_poll_rfc822_for_terms() {
     local primary_term="$1"
     local secondary_term="${2:-}"

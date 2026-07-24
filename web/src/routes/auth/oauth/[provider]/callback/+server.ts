@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for +server.ts.
+ */
 import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { AUTH_COOKIE, COOKIE_MAX_AGE } from '$lib/config';
@@ -9,6 +12,9 @@ function hasUnsafeCookieHeaderBytes(value: string): boolean {
 	return /[\u0000-\u001f\u007f\s;",\\]/u.test(value);
 }
 
+/**
+ * TODO: Document GET.
+ */
 export const GET: RequestHandler = async ({ params, url, cookies, fetch }) => {
 	const code = url.searchParams.get('code');
 	const state = url.searchParams.get('state');

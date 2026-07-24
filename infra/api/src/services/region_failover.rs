@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/region_failover.rs.
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -163,6 +164,7 @@ impl RegionFailoverMonitor {
         )
     }
 
+    /// TODO: Document RegionFailoverMonitor.new_without_lifecycle_guard_for_tests.
     pub fn new_without_lifecycle_guard_for_tests(
         vm_repo: Arc<dyn VmInventoryRepo + Send + Sync>,
         tenant_repo: Arc<dyn TenantRepo + Send + Sync>,
@@ -180,6 +182,7 @@ impl RegionFailoverMonitor {
         )
     }
 
+    /// TODO: Document RegionFailoverMonitor.new_with_optional_lifecycle_guard.
     fn new_with_optional_lifecycle_guard(
         vm_repo: Arc<dyn VmInventoryRepo + Send + Sync>,
         tenant_repo: Arc<dyn TenantRepo + Send + Sync>,

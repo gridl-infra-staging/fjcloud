@@ -1,0 +1,192 @@
+{
+  "result": {
+    "id": "0ef8ecde-5a6a-4e21-af7b-1276c457d715",
+    "name": "allyourbase-api-docs",
+    "subdomain": "allyourbase-api-docs.pages.dev",
+    "domains": [
+      "allyourbase-api-docs.pages.dev"
+    ],
+    "build_config": {
+      "web_analytics_tag": null,
+      "web_analytics_token": null
+    },
+    "deployment_configs": {
+      "preview": {
+        "env_vars": null,
+        "fail_open": true,
+        "always_use_latest_compatibility_date": false,
+        "compatibility_date": "2026-02-18",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": "standard"
+      },
+      "production": {
+        "env_vars": null,
+        "fail_open": true,
+        "always_use_latest_compatibility_date": false,
+        "compatibility_date": "2026-02-18",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": "standard"
+      }
+    },
+    "latest_deployment": {
+      "id": "8170e55e-7aef-4a79-92aa-f16ebd6303fa",
+      "short_id": "8170e55e",
+      "project_id": "0ef8ecde-5a6a-4e21-af7b-1276c457d715",
+      "project_name": "allyourbase-api-docs",
+      "environment": "production",
+      "url": "https://8170e55e.allyourbase-api-docs.pages.dev",
+      "created_on": "2026-07-24T09:46:10.957877Z",
+      "modified_on": "2026-07-24T09:46:12.079353Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-07-24T09:46:12.079353Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "43cbf7e835885102f16846091442abb6268d2206",
+          "commit_message": "sync v0.0.20 beta candidate to staging",
+          "commit_dirty": true
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-07-24T09:46:10.957877Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-24T09:46:12.079353Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": null,
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {},
+      "compatibility_date": "2026-02-18",
+      "compatibility_flags": [],
+      "build_image_major_version": 3,
+      "usage_model": null,
+      "aliases": null,
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": false
+    },
+    "canonical_deployment": {
+      "id": "8170e55e-7aef-4a79-92aa-f16ebd6303fa",
+      "short_id": "8170e55e",
+      "project_id": "0ef8ecde-5a6a-4e21-af7b-1276c457d715",
+      "project_name": "allyourbase-api-docs",
+      "environment": "production",
+      "url": "https://8170e55e.allyourbase-api-docs.pages.dev",
+      "created_on": "2026-07-24T09:46:10.957877Z",
+      "modified_on": "2026-07-24T09:46:12.079353Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-07-24T09:46:12.079353Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "43cbf7e835885102f16846091442abb6268d2206",
+          "commit_message": "sync v0.0.20 beta candidate to staging",
+          "commit_dirty": true
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-07-24T09:46:10.957877Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-24T09:46:12.079353Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": null,
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {},
+      "compatibility_date": "2026-02-18",
+      "compatibility_flags": [],
+      "build_image_major_version": 3,
+      "usage_model": null,
+      "aliases": null,
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": false
+    },
+    "created_on": "2026-02-18T15:25:19.985548Z",
+    "production_branch": "main",
+    "production_script_name": "pages-worker--11094118-production",
+    "preview_script_name": "pages-worker--11094118-preview",
+    "uses_functions": false,
+    "framework": "",
+    "framework_version": ""
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}

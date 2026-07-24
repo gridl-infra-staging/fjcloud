@@ -78,6 +78,7 @@ Usage: algolia_import_dispatch_live_probe.sh --phases dispatch,cancel,lease_rete
 USAGE
 }
 
+# TODO: Document sanitize.
 sanitize() {
     local value="$1"
     if [ -n "${ALGOLIA_ADMIN_KEY:-}" ]; then
@@ -166,6 +167,7 @@ curl_http() {
     return 1
 }
 
+# TODO: Document json_field.
 json_field() {
     local payload="$1"
     local field="$2"
@@ -206,6 +208,7 @@ with open(sys.argv[1], "w", encoding="utf-8") as handle:
 PY
 }
 
+# TODO: Document parse_args.
 parse_args() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
@@ -264,6 +267,7 @@ safe_opaque_token() {
     algolia_import_probe_safe_opaque_token "$1"
 }
 
+# TODO: Document load_algolia_secrets.
 load_algolia_secrets() {
     local line line_number=0 parse_status
     [ -n "$SECRET_FILE" ] || finish_action_required "missing_credentials"
@@ -319,6 +323,7 @@ algolia_request() {
     curl_http "$expected" "${args[@]}" "$(algolia_url "$path")"
 }
 
+# TODO: Document api_request.
 api_request() {
     local expected="$1"
     local method="$2"
@@ -345,6 +350,7 @@ wait_for_algolia_task() {
     algolia_import_probe_wait_for_algolia_task "$@"
 }
 
+# TODO: Document prepare_runtime.
 prepare_runtime() {
     [[ "$PROBE_PREFIX" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || finish_action_required "invalid_probe_prefix"
     [[ "$ALGOLIA_IMPORT_DISPATCH_RUN_ID" =~ ^[A-Za-z0-9_]+$ ]] || finish_action_required "invalid_probe_run_id"
@@ -399,6 +405,7 @@ finish_pass() {
     emit_result "PASS"
 }
 
+# TODO: Document cleanup_resources.
 cleanup_resources() {
     [ "$CLEANUP_DONE" -eq 0 ] || return 0
     CLEANUP_DONE=1
@@ -445,6 +452,7 @@ cleanup_resources() {
     set -e
 }
 
+# TODO: Document count_owned_database_residue.
 count_owned_database_residue() {
     local residue
     [ -n "$INTEGRATION_DB_EFFECTIVE" ] || {
@@ -469,6 +477,7 @@ count_owned_database_residue() {
     esac
 }
 
+# TODO: Document count_algolia_index_residue.
 count_algolia_index_residue() {
     if [ -z "${ALGOLIA_AUTH_CONFIG:-}" ] || [ -z "${SOURCE_INDEX:-}" ]; then
         printf '0\n'
@@ -504,6 +513,7 @@ print(
 PY
 }
 
+# TODO: Document count_algolia_key_residue.
 count_algolia_key_residue() {
     local key residue=0
     if [ -z "${ALGOLIA_AUTH_CONFIG:-}" ]; then
@@ -568,6 +578,7 @@ require_probe_pid_file() {
     [[ "$pid" =~ ^[0-9]+$ ]] || finish_action_required "inconclusive_evidence"
 }
 
+# TODO: Document create_algolia_fixture.
 create_algolia_fixture() {
     CURRENT_STEP="algolia_fixture"
     local payload task_id key_payload
@@ -639,11 +650,13 @@ delete_node_key_warmup_index() {
     NODE_KEY_WARMUP_CREATED=0
 }
 
+# TODO: Document obtain_target_envelope.
 obtain_target_envelope() {
     CURRENT_STEP="destination_eligibility"
     algolia_import_probe_obtain_target_envelope "$TARGET_INDEX"
 }
 
+# TODO: Document create_job_once.
 create_job_once() {
     CURRENT_STEP="dispatch_create"
     local payload expected_observed
@@ -672,6 +685,7 @@ replay_job() {
     [ "$replay_id" = "$JOB_ID" ] || finish_action_required "inconclusive_evidence"
 }
 
+# TODO: Document cancel_job.
 cancel_job() {
     CURRENT_STEP="cancel"
     local payload first_status replay_status cancel_count
@@ -783,6 +797,7 @@ require_engine_status_observation() {
     [ "$observed_job_id" = "$engine_job_id" ] || finish_action_required "inconclusive_evidence"
 }
 
+# TODO: Document public_field_evidence.
 public_field_evidence() {
     CURRENT_STEP="public_projection"
     api_request "200" GET "/migration/algolia/jobs/$JOB_ID" "" "" \
@@ -801,6 +816,7 @@ public_field_evidence() {
     emit "EVIDENCE|public_fields=get_allowlisted,list_allowlisted|retained_job_id=${JOB_ID}|secret_matches=${secret_matches}|alert_duplicates=${alert_duplicates}"
 }
 
+# TODO: Document assert_public_job_payload.
 assert_public_job_payload() {
     python3 - "$1" "$2" <<'PY'
 import json
@@ -900,6 +916,7 @@ alert_duplicate_count() {
     printf '%s\n' "$duplicates"
 }
 
+# TODO: Document http_body_summary.
 http_body_summary() {
     if [ -z "${HTTP_BODY:-}" ]; then
         printf 'none\n'
@@ -977,6 +994,7 @@ delete_algolia_index() {
     algolia_import_probe_delete_algolia_index "$1"
 }
 
+# TODO: Document main.
 main() {
     parse_args "$@"
     validate_phase_set

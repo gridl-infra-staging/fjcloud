@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/provisioner/multi.rs.
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -100,6 +101,7 @@ impl VmProvisioner for MultiProviderProvisioner {
         provider.get_vm_status(raw_id).await
     }
 
+    /// TODO: Document MultiProviderProvisioner.find_running_vm_by_hostname.
     async fn find_running_vm_by_hostname(
         &self,
         provider: &str,
@@ -128,6 +130,7 @@ impl VmProvisioner for MultiProviderProvisioner {
         Ok(Some(instance))
     }
 
+    /// TODO: Document MultiProviderProvisioner.find_managed_vm_by_hostname.
     async fn find_managed_vm_by_hostname(
         &self,
         provider: &str,

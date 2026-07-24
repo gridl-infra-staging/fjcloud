@@ -29,6 +29,7 @@ Usage:
 USAGE
 }
 
+# TODO: Document require_option_value.
 require_option_value() {
     local option_name="$1"
     local option_value="${2-}"
@@ -38,6 +39,7 @@ require_option_value() {
     fi
 }
 
+# TODO: Document parse_args.
 parse_args() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
@@ -104,6 +106,7 @@ validate_inputs() {
     fi
 }
 
+# TODO: Document hydrate_database_url_from_ssm.
 hydrate_database_url_from_ssm() {
     local hydrate_output hydrate_file
     local line parse_status hydrated_database_url=""
@@ -135,6 +138,7 @@ hydrate_database_url_from_ssm() {
     export DATABASE_URL INTEGRATION_DB_URL
 }
 
+# TODO: Document main.
 main() {
     umask 077
     parse_args "$@"

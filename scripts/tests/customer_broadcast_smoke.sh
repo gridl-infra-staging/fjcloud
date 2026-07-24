@@ -39,6 +39,7 @@ wait_for_file() {
     return 1
 }
 
+# TODO: Document start_http_capture_server.
 start_http_capture_server() {
     local tmp_dir="$1"
     local port_file="$tmp_dir/server_port"
@@ -98,6 +99,7 @@ PYEOF
     printf '%s %s\n' "$server_pid" "$server_port"
 }
 
+# TODO: Document assert_json_string_field.
 assert_json_string_field() {
     local payload="$1"
     local field_name="$2"
@@ -121,6 +123,7 @@ PYEOF
     fi
 }
 
+# TODO: Document assert_json_field_absent.
 assert_json_field_absent() {
     local payload="$1"
     local field_name="$2"
@@ -141,6 +144,7 @@ PYEOF
     fi
 }
 
+# TODO: Document assert_meta_field.
 assert_meta_field() {
     local meta_json="$1"
     local field_name="$2"
@@ -237,6 +241,7 @@ AWS_DEFAULT_REGION=us-west-2
 EOF_SECRET
 }
 
+# TODO: Document mock_staging_hydrator_aws_body.
 mock_staging_hydrator_aws_body() {
     cat <<'MOCK'
 set -euo pipefail
@@ -275,6 +280,7 @@ esac
 MOCK
 }
 
+# TODO: Document mock_capture_curl_body.
 mock_capture_curl_body() {
     cat <<'MOCK'
 set -euo pipefail
@@ -323,6 +329,7 @@ setup_staging_hydration_mocks() {
     write_mock_script "$tmp_dir/bin/curl" "$(mock_capture_curl_body)"
 }
 
+# TODO: Document test_dry_run_text_body_posts_expected_payload_and_headers.
 test_dry_run_text_body_posts_expected_payload_and_headers() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"
@@ -373,6 +380,7 @@ test_dry_run_text_body_posts_expected_payload_and_headers() {
     rm -rf "$tmp_dir"
 }
 
+# TODO: Document test_staging_file_admin_key_uses_hydrated_deployed_value.
 test_staging_file_admin_key_uses_hydrated_deployed_value() {
     local tmp_dir secret_file output exit_code=0 curl_log
     tmp_dir="$(mktemp -d)"
@@ -408,6 +416,7 @@ test_staging_file_admin_key_uses_hydrated_deployed_value() {
     rm -rf "$tmp_dir"
 }
 
+# TODO: Document test_prod_file_admin_key_does_not_use_staging_hydration.
 test_prod_file_admin_key_does_not_use_staging_hydration() {
     local tmp_dir secret_file output exit_code=0 curl_log aws_log
     tmp_dir="$(mktemp -d)"
@@ -438,6 +447,7 @@ test_prod_file_admin_key_does_not_use_staging_hydration() {
     rm -rf "$tmp_dir"
 }
 
+# TODO: Document test_shared_dev_secret_file_hydrates_staging_for_dry_run.
 test_shared_dev_secret_file_hydrates_staging_for_dry_run() {
     local tmp_dir secret_file output exit_code=0 curl_log
     tmp_dir="$(mktemp -d)"
@@ -468,6 +478,7 @@ test_shared_dev_secret_file_hydrates_staging_for_dry_run() {
     rm -rf "$tmp_dir"
 }
 
+# TODO: Document test_explicit_admin_key_precedence_skips_staging_hydration.
 test_explicit_admin_key_precedence_skips_staging_hydration() {
     local tmp_dir secret_file output exit_code=0 curl_log aws_log
     tmp_dir="$(mktemp -d)"
@@ -497,6 +508,7 @@ test_explicit_admin_key_precedence_skips_staging_hydration() {
     rm -rf "$tmp_dir"
 }
 
+# TODO: Document test_dry_run_html_body_omits_text_body.
 test_dry_run_html_body_omits_text_body() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"
@@ -540,6 +552,7 @@ test_dry_run_html_body_omits_text_body() {
     rm -rf "$tmp_dir"
 }
 
+# TODO: Document test_missing_subject_rejected_before_http_request.
 test_missing_subject_rejected_before_http_request() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"
@@ -575,6 +588,7 @@ test_missing_subject_rejected_before_http_request() {
     rm -rf "$tmp_dir"
 }
 
+# TODO: Document test_text_body_and_file_are_mutually_exclusive.
 test_text_body_and_file_are_mutually_exclusive() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"

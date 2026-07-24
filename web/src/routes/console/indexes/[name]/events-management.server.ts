@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for events-management.server.ts.
+ */
 import { fail } from '@sveltejs/kit';
 import { ApiRequestError } from '$lib/api/client';
 import { createApiClient } from '$lib/server/api';
@@ -26,6 +29,9 @@ function refreshEventsErrorMessage(error: unknown): string {
 	return errorMessage(error, 'Failed to fetch events');
 }
 
+/**
+ * TODO: Document refreshEventsAction.
+ */
 export async function refreshEventsAction({ request, indexName, token }: RefreshEventsActionArgs) {
 	const data = await request.formData();
 	const eventType = (data.get('eventType') as string) || undefined;

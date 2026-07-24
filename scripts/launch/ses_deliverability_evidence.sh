@@ -63,6 +63,7 @@ Usage:
 USAGE
 }
 
+# TODO: Document parse_args_token.
 parse_args_token() {
     local token="$1"
     local next_value="${2:-}"
@@ -187,6 +188,7 @@ collect_redaction_values_from_env() {
     add_redaction_value "${SES_TEST_RECIPIENT_RESOLVED:-}"
 }
 
+# TODO: Document redact_text.
 redact_text() {
     local text="$1"
     local redacted_text
@@ -226,6 +228,7 @@ redact_file_in_place() {
     printf '%s' "$redacted_payload" > "$path"
 }
 
+# TODO: Document json_step_field.
 json_step_field() {
     local json_payload="$1"
     local step_name="$2"
@@ -259,6 +262,7 @@ print("")
 PY
 }
 
+# TODO: Document json_top_level_field.
 json_top_level_field() {
     local json_payload="$1"
     local field_name="$2"
@@ -302,6 +306,7 @@ resolve_inputs() {
     SES_TEST_RECIPIENT_RESOLVED="${SES_TEST_RECIPIENT:-}"
 }
 
+# TODO: Document find_sts_preflight_path.
 find_sts_preflight_path() {
     local artifact_root="$1"
     local candidate=""
@@ -319,6 +324,7 @@ find_sts_preflight_path() {
     printf '\n'
 }
 
+# TODO: Document delegate_readiness_check.
 delegate_readiness_check() {
     local readiness_stdout_log="$LOGS_DIR/readiness_stdout.json"
     local readiness_stderr_log="$LOGS_DIR/readiness_stderr.log"
@@ -416,6 +422,7 @@ delegate_readiness_check() {
     fi
 }
 
+# TODO: Document request_production_access_if_needed.
 request_production_access_if_needed() {
     local pre_account_log="$LOGS_DIR/ses_account_pre.json"
     local post_account_log="$LOGS_DIR/ses_account_post.json"
@@ -511,6 +518,7 @@ derive_self_discovery_recipient() {
     printf 'deliverability-self-check@%s\n' "$sender_domain"
 }
 
+# TODO: Document verify_recipient_identity.
 verify_recipient_identity() {
     local recipient="$1"
     local verify_stdout_log="$LOGS_DIR/recipient_preflight_stdout.json"
@@ -538,6 +546,7 @@ verify_recipient_identity() {
     return 1
 }
 
+# TODO: Document run_recipient_preflight.
 run_recipient_preflight() {
     local candidate_recipient=""
 
@@ -597,6 +606,7 @@ run_recipient_preflight() {
     fi
 }
 
+# TODO: Document run_live_send_seam.
 run_live_send_seam() {
     local cargo_stdout_log="$LOGS_DIR/cargo_live_send_stdout.log"
     local cargo_stderr_log="$LOGS_DIR/cargo_live_send_stderr.log"
@@ -690,6 +700,7 @@ derive_overall_verdict() {
     printf 'pass\n'
 }
 
+# TODO: Document assemble_summary_json.
 assemble_summary_json() {
     local overall_verdict="$1"
 
@@ -794,6 +805,7 @@ emit_summary() {
     printf '%s\n' "$redacted_summary"
 }
 
+# TODO: Document main.
 main() {
     parse_args "$@" || exit 2
     validate_required_args || exit 2

@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for web/src/routes/admin/alerts/+page.server.ts.
+ */
 import type { PageServerLoad } from './$types';
 import { createAdminClient, type AdminAlertRecord, type AlertSeverity } from '$lib/admin-client';
 
@@ -10,6 +13,9 @@ function parseSeverityFilter(value: string | null): SeverityFilter {
 	return 'all';
 }
 
+/**
+ * TODO: Document load.
+ */
 export const load: PageServerLoad = async ({ fetch, depends, url, platform }) => {
 	depends('admin:alerts');
 

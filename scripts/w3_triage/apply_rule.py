@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Stub summary for apply_rule.py."""
 
 from __future__ import annotations
 
@@ -92,6 +93,7 @@ def _evaluate_row(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _is_demo_override_candidate(row: dict[str, Any]) -> bool:
+    """TODO: Document _is_demo_override_candidate."""
     title = _normalize_text(row.get("title"))
     if "demo" not in title or ("loader" not in title and "index" not in title):
         return False
@@ -119,6 +121,7 @@ def _is_billingplan_override(row: dict[str, Any]) -> bool:
 
 
 def _source_warnings(sources: Any) -> list[dict[str, Any]]:
+    """TODO: Document _source_warnings."""
     if not isinstance(sources, list):
         return []
 
@@ -141,6 +144,7 @@ def _source_warnings(sources: Any) -> list[dict[str, Any]]:
 
 
 def _discover_demo_owner_files() -> list[str]:
+    """TODO: Document _discover_demo_owner_files."""
     cmd = [
         "rg",
         "-n",
@@ -172,6 +176,7 @@ def _discover_demo_owner_files() -> list[str]:
 
 
 def _build_demo_row(demo_owner_files_seed: list[str]) -> dict[str, Any]:
+    """TODO: Document _build_demo_row."""
     owners = demo_owner_files_seed or [DEMO_FALLBACK_OWNER]
     return {
         "source_path": "standing_inclusion",
@@ -198,6 +203,7 @@ def _build_demo_row(demo_owner_files_seed: list[str]) -> dict[str, Any]:
 
 
 def _build_forced_billing_row(matched_row: dict[str, Any] | None) -> dict[str, Any]:
+    """TODO: Document _build_forced_billing_row."""
     forced_row = {
         "source_path": "standing_exclusion",
         "source_type": "standing_exclusion",
@@ -251,6 +257,7 @@ def apply_rules(
     recommendations: dict[str, Any],
     demo_owner_files_seed: list[str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    """TODO: Document apply_rules."""
     sources = recommendations.get("sources")
     rows = recommendations.get("rows")
     if not isinstance(sources, list):
@@ -335,6 +342,7 @@ def apply_rules(
 
 
 def main(argv: list[str]) -> int:
+    """TODO: Document main."""
     if len(argv) != 3:
         print(
             "usage: python3 scripts/w3_triage/apply_rule.py "

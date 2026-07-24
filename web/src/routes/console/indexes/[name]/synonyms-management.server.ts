@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for synonyms-management.server.ts.
+ */
 import { fail } from '@sveltejs/kit';
 import type { ApiClient } from '$lib/api/client';
 import { createApiClient } from '$lib/server/api';
@@ -30,6 +33,9 @@ export async function loadSynonymsPayload(
 	}
 }
 
+/**
+ * TODO: Document saveSynonymAction.
+ */
 export async function saveSynonymAction({ request, indexName, token }: SynonymActionArgs) {
 	const data = await request.formData();
 	const objectID = (data.get('objectID') as string)?.trim();

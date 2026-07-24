@@ -1,0 +1,7 @@
+http_status=200
+probe_mode=live
+statement_descriptor: FLAPJACK CLOUD
+business_profile.support_email: support@flapjack.foo
+business_profile.url: https://cloud.flapjack.foo
+business_profile.name: Flapjack Cloud
+missing: (none)

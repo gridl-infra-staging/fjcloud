@@ -118,6 +118,7 @@ record_observed_var() {
   fi
 }
 
+# TODO: Document record_shell_refs_from_line.
 record_shell_refs_from_line() {
   local line="$1"
   local rel="$2"
@@ -138,6 +139,7 @@ record_shell_refs_from_line() {
   done
 }
 
+# TODO: Document scan_shell_file.
 scan_shell_file() {
   local file="$1"
   local rel="$2"
@@ -161,6 +163,7 @@ scan_shell_file() {
   done < "$file"
 }
 
+# TODO: Document scan_workflow_file.
 scan_workflow_file() {
   local file="$1"
   local rel="$2"
@@ -179,6 +182,7 @@ scan_workflow_file() {
   done < <(extract_workflow_secret_refs "$file")
 }
 
+# TODO: Document scan_c_like_file.
 scan_c_like_file() {
   local file="$1"
   local rel="$2"
@@ -276,6 +280,7 @@ scan_terraform_file() {
   done < <(strip_tf_comments "$file")
 }
 
+# TODO: Document parse_inventory.
 parse_inventory() {
     local line line_no=0
     while IFS= read -r line || [[ -n "$line" ]]; do
@@ -303,6 +308,7 @@ deferred_gap_path_is_valid() {
     [[ "$deferred_path" != *".."* ]] || return 1
 }
 
+# TODO: Document filter_deferred_findings.
 filter_deferred_findings() {
     local finding category name location status deferred_path
 
@@ -330,6 +336,7 @@ filter_deferred_findings() {
     done < "$FINDINGS"
 }
 
+# TODO: Document scan_scope.
 scan_scope() {
   local dir rel file
 

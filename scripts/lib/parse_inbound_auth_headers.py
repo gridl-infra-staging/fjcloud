@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Stub summary for parse_inbound_auth_headers.py."""
 
 from __future__ import annotations
 
@@ -48,6 +49,7 @@ def _build_detail(verdicts: dict[str, str], failed_components: list[str]) -> str
 
 # TODO: Document main.
 def main() -> int:
+    """TODO: Document main."""
     if len(sys.argv) != 2:
         print("usage: parse_inbound_auth_headers.py <rfc822_path>", file=sys.stderr)
         return USAGE_EXIT_CODE

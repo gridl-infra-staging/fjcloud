@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/algolia_source/tests.rs.
 use super::*;
 use async_trait::async_trait;
 use chrono::{TimeZone, Utc};
@@ -97,6 +98,7 @@ fn service(client: Arc<FakeClient>) -> AlgoliaSourceService {
     AlgoliaSourceService::new(client, CURSOR_KEY).unwrap()
 }
 
+/// TODO: Document algolia_cloud_discovery_returns_typed_picker_metadata_and_shape.
 #[tokio::test]
 async fn algolia_cloud_discovery_returns_typed_picker_metadata_and_shape() {
     let client = FakeClient::with_responses([Ok(response(0, 1, vec![item("products")]))]);
@@ -137,6 +139,7 @@ async fn algolia_cloud_discovery_accepts_live_list_response_without_page_field()
     assert_eq!(client.requests()[0].page, 0);
 }
 
+/// TODO: Document algolia_cloud_discovery_uses_fixed_validated_host_and_explicit_page_size.
 #[tokio::test]
 async fn algolia_cloud_discovery_uses_fixed_validated_host_and_explicit_page_size() {
     let client = FakeClient::with_responses([Ok(response(0, 1, vec![]))]);
@@ -166,6 +169,7 @@ async fn algolia_cloud_discovery_uses_fixed_validated_host_and_explicit_page_siz
     assert_eq!(error, AlgoliaSourceError::InvalidApplicationId);
 }
 
+/// TODO: Document algolia_cloud_discovery_credentials_are_redacted_and_never_enter_cursor.
 #[tokio::test]
 async fn algolia_cloud_discovery_credentials_are_redacted_and_never_enter_cursor() {
     let client = FakeClient::with_responses([Ok(response(0, 2, vec![item("products")]))]);
@@ -188,6 +192,7 @@ async fn algolia_cloud_discovery_credentials_are_redacted_and_never_enter_cursor
     assert!(!result.next_cursor.as_deref().unwrap().contains(APP_ID));
 }
 
+/// TODO: Document algolia_cloud_discovery_cursors_are_bound_to_volatile_api_key.
 #[tokio::test]
 async fn algolia_cloud_discovery_cursors_are_bound_to_volatile_api_key() {
     let client = FakeClient::with_responses([
@@ -234,6 +239,7 @@ async fn algolia_cloud_discovery_cursors_are_bound_to_volatile_api_key() {
     );
 }
 
+/// TODO: Document algolia_cloud_discovery_fetches_at_most_one_page_per_call_and_tracks_progress.
 #[tokio::test]
 async fn algolia_cloud_discovery_fetches_at_most_one_page_per_call_and_tracks_progress() {
     let client = FakeClient::with_responses([
@@ -270,6 +276,7 @@ async fn algolia_cloud_discovery_empty_application_has_no_cursor() {
     assert_eq!(result.next_cursor, None);
 }
 
+/// TODO: Document algolia_cloud_discovery_refuses_empty_tampered_repeated_and_wrong_source_cursors.
 #[tokio::test]
 async fn algolia_cloud_discovery_refuses_empty_tampered_repeated_and_wrong_source_cursors() {
     let client = FakeClient::with_responses([
@@ -339,6 +346,7 @@ async fn algolia_cloud_discovery_rejects_non_progress_page_response() {
     );
 }
 
+/// TODO: Document algolia_cloud_discovery_maps_acl_auth_timeout_and_transport_failures.
 #[tokio::test]
 async fn algolia_cloud_discovery_maps_acl_auth_timeout_and_transport_failures() {
     let cases = [
@@ -380,6 +388,7 @@ async fn algolia_cloud_discovery_maps_acl_auth_timeout_and_transport_failures() 
     );
 }
 
+/// TODO: Document algolia_cloud_discovery_retries_only_bounded_retryable_statuses.
 #[tokio::test]
 async fn algolia_cloud_discovery_retries_only_bounded_retryable_statuses() {
     for retryable_status in [429, 500, 503] {
@@ -399,6 +408,7 @@ async fn algolia_cloud_discovery_retries_only_bounded_retryable_statuses() {
     }
 }
 
+/// TODO: Document algolia_cloud_discovery_fails_closed_when_catalog_caps_are_exceeded.
 #[tokio::test]
 async fn algolia_cloud_discovery_fails_closed_when_catalog_caps_are_exceeded() {
     let too_many_items = vec![item("oversized"); MAX_TOTAL_ITEMS + 1];
@@ -431,6 +441,7 @@ async fn algolia_cloud_discovery_fails_closed_when_catalog_caps_are_exceeded() {
     );
 }
 
+/// TODO: Document algolia_cloud_discovery_rejects_redirects.
 #[tokio::test]
 async fn algolia_cloud_discovery_rejects_redirects() {
     use wiremock::matchers::{method, path};
@@ -499,6 +510,7 @@ fn expected_source(item: &AlgoliaIndexMetadata) -> AlgoliaImportSource {
     )
 }
 
+/// TODO: Document algolia_cloud_job_inspect_source_builds_source_from_server_metadata_only.
 #[tokio::test]
 async fn algolia_cloud_job_inspect_source_builds_source_from_server_metadata_only() {
     let server_item = sized_item("products", 42, 2048, 4096);
@@ -522,6 +534,7 @@ async fn algolia_cloud_job_inspect_source_builds_source_from_server_metadata_onl
     );
 }
 
+/// TODO: Document algolia_cloud_job_inspect_source_uses_server_size_not_client_picker_numbers.
 #[tokio::test]
 async fn algolia_cloud_job_inspect_source_uses_server_size_not_client_picker_numbers() {
     // Two server responses for the same index name differing only in the
@@ -560,6 +573,7 @@ async fn algolia_cloud_job_inspect_source_uses_server_size_not_client_picker_num
     );
 }
 
+/// TODO: Document algolia_cloud_job_inspect_source_finds_index_on_later_page.
 #[tokio::test]
 async fn algolia_cloud_job_inspect_source_finds_index_on_later_page() {
     let target = sized_item("products", 7, 1024, 2048);
@@ -600,6 +614,7 @@ async fn algolia_cloud_job_inspect_source_missing_index_is_source_index_not_foun
     );
 }
 
+/// TODO: Document algolia_cloud_job_inspect_source_maps_credential_and_acl_failures.
 #[tokio::test]
 async fn algolia_cloud_job_inspect_source_maps_credential_and_acl_failures() {
     let client = FakeClient::with_responses([Ok(AlgoliaClientResponse::status(401))]);
@@ -774,6 +789,7 @@ async fn algolia_cloud_job_inspect_source_rejects_oversized_catalog() {
     );
 }
 
+/// TODO: Document algolia_cloud_job_inspect_source_request_and_result_never_reveal_key.
 #[tokio::test]
 async fn algolia_cloud_job_inspect_source_request_and_result_never_reveal_key() {
     let secret = "do-not-log-this-temporary-key";

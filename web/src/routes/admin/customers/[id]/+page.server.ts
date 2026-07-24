@@ -1,4 +1,7 @@
 /**
+ * @module Stub summary for web/src/routes/admin/customers/[id]/+page.server.ts.
+ */
+/**
  */
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
@@ -22,6 +25,9 @@ import type {
 import type { InvoiceDetailResponse, InvoiceListItem, UsageSummaryResponse } from '$lib/api/types';
 import type { Index } from '$lib/api/types/indexes';
 
+/**
+ * TODO: Document CustomerDetailData.
+ */
 type CustomerDetailData = {
 	tenant: AdminTenantDetail;
 	indexes: Array<{
@@ -82,6 +88,9 @@ function toCustomerDetailIndex(index: Index) {
 	};
 }
 
+/**
+ * TODO: Document runAdminAction.
+ */
 async function runAdminAction(
 	context: AdminActionContext,
 	successMessage: string,
@@ -101,6 +110,9 @@ async function runAdminAction(
 	}
 }
 
+/**
+ * TODO: Document load.
+ */
 export const load: PageServerLoad = async ({ fetch, params, depends, cookies, platform }) => {
 	depends(`admin:customers:detail:${params.id}`);
 

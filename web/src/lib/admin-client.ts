@@ -1,4 +1,7 @@
 /**
+ * @module Stub summary for web/src/lib/admin-client.ts.
+ */
+/**
  */
 import { env } from '$env/dynamic/private';
 import { getApiBaseUrl } from '$lib/config';
@@ -103,6 +106,9 @@ export interface AdminBillingMonthBucket {
 	paid_total_cents: number;
 }
 
+/**
+ * TODO: Document AdminBillingInvoiceRow.
+ */
 export interface AdminBillingInvoiceRow {
 	id: string;
 	customer_id: string;
@@ -323,6 +329,9 @@ const ADMIN_RATE_LIMIT_MAX_RETRIES = 2;
 const ADMIN_RATE_LIMIT_FALLBACK_DELAY_MS = 1_000;
 const ADMIN_RATE_LIMIT_MAX_DELAY_MS = 5_000;
 
+/**
+ * TODO: Document AdminClient.
+ */
 export class AdminClient extends BaseClient {
 	private readonly adminKey: string;
 

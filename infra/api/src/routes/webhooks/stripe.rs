@@ -14,6 +14,7 @@ use crate::services::email::{
 };
 use crate::state::AppState;
 
+/// TODO: Document process_stripe_webhook.
 pub(super) async fn process_stripe_webhook(
     state: &AppState,
     headers: &HeaderMap,
@@ -279,6 +280,7 @@ async fn handle_payment_succeeded(
     Ok(())
 }
 
+/// TODO: Document handle_payment_failed.
 async fn handle_payment_failed(state: &AppState, data: &serde_json::Value) -> Result<(), ApiError> {
     let Some(invoice) = find_event_invoice(state, data, "invoice.payment_failed").await? else {
         return Ok(());
@@ -513,6 +515,7 @@ async fn handle_retry_scheduled(
     Ok(())
 }
 
+/// TODO: Document send_dunning_retry_scheduled_email_best_effort.
 async fn send_dunning_retry_scheduled_email_best_effort(
     state: &AppState,
     to: &str,
@@ -545,6 +548,7 @@ async fn send_dunning_retry_scheduled_email_best_effort(
     }
 }
 
+/// TODO: Document send_dunning_retries_exhausted_email_best_effort.
 async fn send_dunning_retries_exhausted_email_best_effort(
     state: &AppState,
     to: &str,
@@ -575,6 +579,7 @@ async fn send_dunning_retries_exhausted_email_best_effort(
     }
 }
 
+/// TODO: Document send_dunning_recovered_after_failure_email_best_effort.
 async fn send_dunning_recovered_after_failure_email_best_effort(
     state: &AppState,
     to: &str,
@@ -699,6 +704,7 @@ mod tests {
         }
     }
 
+    /// TODO: Document mark_webhook_event_processed_cleans_up_failed_finalize_attempt.
     #[tokio::test]
     async fn mark_webhook_event_processed_cleans_up_failed_finalize_attempt() {
         let repo = MarkProcessedTestRepo::fail_mark_processed("mark processed failed");
@@ -721,6 +727,7 @@ mod tests {
         );
     }
 
+    /// TODO: Document mark_webhook_event_processed_keeps_successful_finalize_rows_intact.
     #[tokio::test]
     async fn mark_webhook_event_processed_keeps_successful_finalize_rows_intact() {
         let repo = MarkProcessedTestRepo::succeed();

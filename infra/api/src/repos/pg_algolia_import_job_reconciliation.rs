@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/repos/pg_algolia_import_job_reconciliation.rs.
 use chrono::{DateTime, Utc};
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
@@ -52,6 +53,7 @@ struct TerminalStatePatch {
     destination_deployment_id: Option<Uuid>,
 }
 
+/// TODO: Document validate_state_write.
 pub(super) fn validate_state_write(
     current: &AlgoliaImportJob,
     state: &AlgoliaImportJobState,
@@ -76,6 +78,7 @@ pub(super) fn validate_state_write(
     validate_transition(current, state)
 }
 
+/// TODO: Document persist_job_state.
 pub(super) async fn persist_job_state(
     tx: &mut Transaction<'_, Postgres>,
     id: Uuid,
@@ -317,6 +320,7 @@ impl PgAlgoliaImportJobRepo {
         Ok(AlgoliaImportTerminalFinalizationOutcome::Applied(updated))
     }
 
+    /// TODO: Document PgAlgoliaImportJobRepo.claim_reconciliation_jobs_inner.
     pub(super) async fn claim_reconciliation_jobs_inner(
         &self,
         now: DateTime<Utc>,
@@ -380,6 +384,7 @@ impl PgAlgoliaImportJobRepo {
         Ok(claims)
     }
 
+    /// TODO: Document PgAlgoliaImportJobRepo.record_reconciliation_observation_inner.
     pub(super) async fn record_reconciliation_observation_inner(
         &self,
         lease: &AlgoliaImportReconciliationLease,
@@ -762,6 +767,7 @@ fn exact_terminal_replay(
 impl TryFrom<AlgoliaImportJob> for AlgoliaImportReconciliationClaim {
     type Error = RepoError;
 
+    /// TODO: Document AlgoliaImportReconciliationClaim.try_from.
     fn try_from(job: AlgoliaImportJob) -> Result<Self, Self::Error> {
         let claimed_at = job.worker_claimed_at.ok_or_else(|| {
             RepoError::Conflict("reconciliation claim is missing its claim timestamp".into())

@@ -78,6 +78,7 @@ usage() {
     exit 0
 }
 
+# TODO: Document check_only.
 check_only() {
     local deploy_status_script="${POST_WAVE_DEPLOY_STATUS_SCRIPT:-$REPO_ROOT/scripts/deploy_status.sh}"
     local deploy_json

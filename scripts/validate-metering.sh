@@ -5,6 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/validation_json.sh"
 
+# TODO: Document append_check.
 append_check() {
     local name="$1"
     local passed="$2"

@@ -117,6 +117,7 @@ validate_staging_api_url() {
     record_success "staging_api_url_format" "STAGING_API_URL is a valid absolute URL"
 }
 
+# TODO: Document validate_public_webhook_url.
 validate_public_webhook_url() {
     if ! require_nonempty_env "STAGING_STRIPE_WEBHOOK_URL" "staging_webhook_url_present" "dns_or_cloudflare_blocked"; then
         return 0
@@ -142,6 +143,7 @@ validate_public_webhook_url() {
     record_success "staging_webhook_url_path" "Public Stripe webhook URL targets /webhooks/stripe"
 }
 
+# TODO: Document validate_runtime_stripe_key.
 validate_runtime_stripe_key() {
     if ! require_nonempty_env "STRIPE_SECRET_KEY" "stripe_secret_key_present" "stripe_secret_key_missing"; then
         return 0
@@ -183,6 +185,7 @@ validate_webhook_secret() {
     record_success "stripe_webhook_secret_prefix" "Webhook signing secret uses the expected Stripe prefix"
 }
 
+# TODO: Document validate_operator_auth_path.
 validate_operator_auth_path() {
     # The later credentialed rehearsal needs one operator-controlled path to
     # inspect or drive the pipeline. We accept either API admin auth or direct
@@ -201,6 +204,7 @@ validate_operator_auth_path() {
         "operator_auth_missing"
 }
 
+# TODO: Document run_non_mutating_health_probe.
 run_non_mutating_health_probe() {
     local health_url="${STAGING_API_URL%/}/health"
 
@@ -219,6 +223,7 @@ run_non_mutating_health_probe() {
     return 0
 }
 
+# TODO: Document load_explicit_env_files.
 load_explicit_env_files() {
     local env_file load_error
 
@@ -248,6 +253,7 @@ load_explicit_env_files() {
     load_layered_env_files "${ENV_FILES[@]}"
 }
 
+# TODO: Document parse_args.
 parse_args() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
@@ -281,6 +287,7 @@ parse_args() {
     done
 }
 
+# TODO: Document main.
 main() {
     parse_args "$@"
     if ! load_explicit_env_files; then

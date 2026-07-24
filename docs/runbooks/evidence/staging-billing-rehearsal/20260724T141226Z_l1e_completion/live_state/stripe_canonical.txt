@@ -1,0 +1,5 @@
+label=stripe_canonical
+env_var=STRIPE_SECRET_KEY
+key_prefix=sk_test_...
+probe_exit_code=0
+--- probe output ---

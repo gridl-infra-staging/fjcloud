@@ -1,3 +1,4 @@
+//! Stub summary for cloud_init.rs.
 /// Cloud-init user-data generation for flapjack VM bootstrapping.
 ///
 /// Supports multiple providers: AWS uses SSM for secrets, Hetzner receives
@@ -182,6 +183,30 @@ else
   API_BASE_URL="https://api.$DNS_DOMAIN"
 fi
 
+require_single_line_env_value() {{
+  local key="$1"
+  local value="$2"
+
+  case "$value" in
+    *$'\n'*|*$'\r'*)
+      logger -t "$LOG_TAG" "ERROR: refusing to write multiline value for $key"
+      return 1
+      ;;
+  esac
+}}
+
+require_single_line_env_value "DATABASE_URL" "$DB_URL"
+require_single_line_env_value "API_KEY" "$API_KEY"
+require_single_line_env_value "INTERNAL_AUTH_TOKEN" "$INTERNAL_AUTH_TOKEN"
+require_single_line_env_value "CUSTOMER_ID" "$CUSTOMER_ID"
+require_single_line_env_value "NODE_ID" "$NODE_ID"
+require_single_line_env_value "REGION" "$REGION"
+require_single_line_env_value "ENVIRONMENT" "$ENVIRONMENT"
+require_single_line_env_value "TENANT_MAP_URL" "$API_BASE_URL/internal/tenant-map"
+require_single_line_env_value "COLD_STORAGE_USAGE_URL" "$API_BASE_URL/internal/cold-storage-usage"
+require_single_line_env_value "SLACK_WEBHOOK_URL" "$SLACK_WEBHOOK_URL"
+require_single_line_env_value "DISCORD_WEBHOOK_URL" "$DISCORD_WEBHOOK_URL"
+
 # Write environment files and Flapjack's persisted admin key
 mkdir -p /etc/flapjack /etc/fjcloud /var/lib/flapjack/data
 
@@ -264,6 +289,9 @@ mod tests {
     }
 
     fn assert_core_flapjack_and_metering_script(script: &str) {
+        assert!(script.contains("require_single_line_env_value()"));
+        assert!(script.contains("require_single_line_env_value \"DATABASE_URL\" \"$DB_URL\""));
+        assert!(script.contains("require_single_line_env_value \"API_KEY\" \"$API_KEY\""));
         assert!(script.contains("cat > /etc/flapjack/env <<ENVEOF"));
         assert!(script.contains("cat > /etc/fjcloud/metering-env <<ENVEOF"));
         assert!(script.contains("FLAPJACK_API_KEY=$API_KEY"));
@@ -280,6 +308,7 @@ mod tests {
         assert!(script.contains("COLD_STORAGE_USAGE_URL=$API_BASE_URL/internal/cold-storage-usage"));
         assert!(script.contains("SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL"));
         assert!(script.contains("DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL"));
+        assert!(script.contains("printf '%s\\n' \"$API_KEY\" > /var/lib/flapjack/data/.admin_key"));
         assert!(script.contains("User=fjcloud"));
         assert!(script.contains("Group=fjcloud"));
         assert!(script.contains("systemctl enable --now flapjack fj-metering-agent"));
@@ -540,6 +569,7 @@ mod tests {
         assert!(!script.contains("reverse_proxy attacker:80"));
     }
 
+    /// TODO: Document cloud_init_sets_secure_permissions.
     #[test]
     fn cloud_init_sets_secure_permissions() {
         let params = CloudInitParams {
@@ -559,5 +589,30 @@ mod tests {
         assert!(script.contains("chown fjcloud:fjcloud"));
         assert!(script.contains("/etc/fjcloud/metering-env"));
         assert!(!script.contains("/etc/flapjack/metering-env"));
+    }
+
+    #[test]
+    fn cloud_init_rejects_multiline_values_before_writing_env_files() {
+        let params = CloudInitParams {
+            customer_id: "cust".to_string(),
+            node_id: "node".to_string(),
+            region: "us-east-1".to_string(),
+            environment: "staging".to_string(),
+            caddy_runtime: CaddyRuntime::Unavailable,
+            secrets: SecretDelivery::Direct {
+                db_url: "postgres://db.example.com/fjcloud".to_string(),
+                api_key: "sk-secret-key".to_string(),
+            },
+        };
+        let script = generate_cloud_init(&params);
+
+        assert!(script.contains("*$'\\n'*|*$'\\r'*"));
+        assert!(script.contains("ERROR: refusing to write multiline value for $key"));
+        assert!(script.contains(
+            "require_single_line_env_value \"TENANT_MAP_URL\" \"$API_BASE_URL/internal/tenant-map\""
+        ));
+        assert!(script.contains(
+            "require_single_line_env_value \"DISCORD_WEBHOOK_URL\" \"$DISCORD_WEBHOOK_URL\""
+        ));
     }
 }

@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for web/tests/e2e-ui/full/index_detail_helpers.ts.
+ */
 import type { Download, Locator, Page } from '@playwright/test';
 import { expect } from '../../fixtures/fixtures';
 import { openIndexDetailTab as openFixtureIndexDetailTab } from '../../fixtures/index_detail_helpers';
@@ -6,6 +9,9 @@ function tabTestIdForLabel(tabName: string): string {
 	return `tab-${tabName.trim().toLowerCase().replaceAll(' ', '-')}`;
 }
 
+/**
+ * TODO: Document openIndexDetailTab.
+ */
 export async function openIndexDetailTab(
 	page: Page,
 	tabName: string,
@@ -54,6 +60,9 @@ async function expectClassTokens(locator: Locator, tokens: string[]): Promise<vo
 	}
 }
 
+/**
+ * TODO: Document expectEditorDialogTokens.
+ */
 async function expectEditorDialogTokens(page: Page, dialog: Locator): Promise<void> {
 	await expectClassTokens(page.getByTestId('editor-dialog-backdrop'), [
 		'fixed',
@@ -80,6 +89,9 @@ export async function openSynonymCreateDialog(page: Page): Promise<Locator> {
 	return section;
 }
 
+/**
+ * TODO: Document createSynonymThroughDialog.
+ */
 export async function createSynonymThroughDialog(
 	page: Page,
 	objectId: string,
@@ -133,6 +145,9 @@ export async function openSeededIndexDetailPage(
 	return indexName;
 }
 
+/**
+ * TODO: Document createExperimentViaWizard.
+ */
 export async function createExperimentViaWizard(page: Page, name: string) {
 	let section = await openIndexDetailTab(page, 'Experiments', 'experiments-section');
 	await section.getByRole('button', { name: 'Create Experiment' }).click();
@@ -174,6 +189,9 @@ export async function findExperimentRowByName(page: Page, experimentName: string
 	throw new Error(`Could not find experiment row for ${experimentName}`);
 }
 
+/**
+ * TODO: Document openExperimentDetailByName.
+ */
 export async function openExperimentDetailByName(
 	page: Page,
 	indexName: string,
@@ -206,6 +224,9 @@ export async function openExperimentDetailByName(
 	throw lastError ?? new Error(`Could not open detail route for experiment ${experimentName}`);
 }
 
+/**
+ * TODO: Document findExperimentRowActionButton.
+ */
 export async function findExperimentRowActionButton(
 	page: Page,
 	experimentName: string,
@@ -227,6 +248,9 @@ export async function findExperimentRowActionButton(
 	throw new Error(`Could not find ${action} action for experiment ${experimentName}`);
 }
 
+/**
+ * TODO: Document assertSingleVisiblePersonalizationProfileState.
+ */
 export async function assertSingleVisiblePersonalizationProfileState(
 	page: Page,
 	visibleTestId: string

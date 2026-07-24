@@ -22,6 +22,7 @@ assert_file_contains "$consumer_audit_script" "scripts/lib/secret_audit_parsing.
 assert_file_not_contains "$audit_script" "^strip_tf_comments\\(\\)" "audit_no_secrets.sh no longer defines strip_tf_comments inline"
 assert_file_not_contains "$audit_script" "^extract_workflow_secret_refs\\(\\)" "audit_no_secrets.sh no longer defines extract_workflow_secret_refs inline"
 
+# TODO: Document run_missing_root_case.
 run_missing_root_case() {
     local tmpdir
     local output_file
@@ -45,6 +46,7 @@ run_missing_root_case() {
     rm -rf "$tmpdir"
 }
 
+# TODO: Document run_case.
 run_case() {
   local case_name="$1"
   local expected_exit="$2"

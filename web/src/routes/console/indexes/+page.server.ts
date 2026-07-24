@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for +page.server.ts.
+ */
 import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { ApiRequestError } from '$lib/api/client';
@@ -54,6 +57,9 @@ function isValidRegionId(regionId: string): boolean {
 	return REGION_ID_PATTERN.test(regionId);
 }
 
+/**
+ * TODO: Document failTemplateSeedPhase.
+ */
 function failTemplateSeedPhase(
 	error: unknown,
 	phase: TemplateSeedPhase,

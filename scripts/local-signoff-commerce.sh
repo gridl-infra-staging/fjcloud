@@ -37,6 +37,7 @@ die() { echo "[commerce-signoff] ERROR: $*" >&2; exit 1; }
 # Preflight: require strict signoff environment
 # ---------------------------------------------------------------------------
 
+# TODO: Document require_strict_signoff_env.
 require_strict_signoff_env() {
     local missing=()
 
@@ -104,6 +105,7 @@ run_seed_twice() {
     append_step "seed_pass_2" true "seed_local.sh pass 2 completed (idempotent)"
 }
 
+# TODO: Document login_seeded_shared_user.
 login_seeded_shared_user() {
     capture_json_response api_json_call POST "/auth/login" \
         -d "{\"email\":\"${SEED_USER_EMAIL}\",\"password\":\"${SEED_USER_PASSWORD}\"}"
@@ -127,6 +129,7 @@ login_seeded_shared_user() {
         "Authenticated ${SEED_USER_EMAIL}"
 }
 
+# TODO: Document assert_seeded_customer_stripe_linked.
 assert_seeded_customer_stripe_linked() {
     local customer_id="$1" user_email="$2"
     local stripe_customer_id
@@ -151,6 +154,7 @@ assert_seeded_customer_stripe_linked() {
         "$user_email linked as $stripe_customer_id"
 }
 
+# TODO: Document register_fresh_signup.
 register_fresh_signup() {
     local email="$1"
 
@@ -168,6 +172,7 @@ register_fresh_signup() {
     append_step "fresh_signup_register" true "Registered $email"
 }
 
+# TODO: Document verify_signup_via_mailpit.
 verify_signup_via_mailpit() {
     local email="$1"
     local max_attempts=10 attempt=0
@@ -223,6 +228,7 @@ else: print("")
     return 1
 }
 
+# TODO: Document run_local_batch_billing.
 run_local_batch_billing() {
     local billing_month
     # Defaults to the current UTC month so repeated local signoff runs have a
@@ -249,6 +255,7 @@ run_local_batch_billing() {
         "Created $invoices_created invoices for ${billing_month}"
 }
 
+# TODO: Document wait_for_invoice_paid.
 wait_for_invoice_paid() {
     local invoice_id="$1" user_token="$2"
     local max_attempts=15 attempt=0
@@ -277,6 +284,7 @@ wait_for_invoice_paid() {
     return 1
 }
 
+# TODO: Document check_mailpit_invoice_email.
 check_mailpit_invoice_email() {
     local email="$1"
     local max_attempts=10 attempt=0
@@ -303,6 +311,7 @@ check_mailpit_invoice_email() {
     return 1
 }
 
+# TODO: Document batch_created_invoice_for_customer.
 batch_created_invoice_for_customer() {
     local batch_json="$1" customer_id="$2"
     python3 - "$batch_json" "$customer_id" <<'PY' || true
@@ -320,6 +329,7 @@ for result in data.get("results", []):
 PY
 }
 
+# TODO: Document batch_customer_already_invoiced.
 batch_customer_already_invoiced() {
     local batch_json="$1" customer_id="$2"
     python3 - "$batch_json" "$customer_id" <<'PY' || true
@@ -337,6 +347,7 @@ for result in data.get("results", []):
 PY
 }
 
+# TODO: Document existing_invoice_for_month.
 existing_invoice_for_month() {
     local user_token="$1" billing_month="$2"
 
@@ -363,6 +374,7 @@ PY
 # Evidence writing
 # ---------------------------------------------------------------------------
 
+# TODO: Document write_run_artifacts.
 write_run_artifacts() {
     local passed="$1"
     local timestamp
@@ -395,6 +407,7 @@ for s in data.get("steps", []):
 # Main
 # ---------------------------------------------------------------------------
 
+# TODO: Document main.
 main() {
     log "Starting strict local commerce proof..."
 

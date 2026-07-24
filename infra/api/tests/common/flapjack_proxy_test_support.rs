@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/tests/common/flapjack_proxy_test_support.rs.
 // Each test binary compiles this support module independently, so helpers
 // that are used by one test file appear unused in others.
 #![allow(dead_code)]
@@ -122,6 +123,7 @@ impl MockFlapjackHttpClient {
 
 #[async_trait]
 impl FlapjackHttpClient for MockFlapjackHttpClient {
+    /// TODO: Document MockFlapjackHttpClient.send.
     async fn send(&self, request: FlapjackHttpRequest) -> Result<FlapjackHttpResponse, ProxyError> {
         Self::run_boundary_hook(&self.before_next_send).await;
         let request_api_key = request.api_key.clone();
@@ -145,6 +147,7 @@ impl FlapjackHttpClient for MockFlapjackHttpClient {
         Ok(response)
     }
 
+    /// TODO: Document MockFlapjackHttpClient.send_sensitive.
     async fn send_sensitive(
         &self,
         request: SensitiveFlapjackHttpRequest<'_>,
@@ -207,6 +210,7 @@ pub fn test_flapjack_uid(customer_id: uuid::Uuid, index_name: &str) -> String {
     format!("{}_{}", customer_id.as_simple(), index_name)
 }
 
+/// TODO: Document setup_ready_index_inner.
 async fn setup_ready_index_inner(
     index_name: &str,
 ) -> (

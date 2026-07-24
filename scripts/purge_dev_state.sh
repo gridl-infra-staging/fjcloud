@@ -45,6 +45,7 @@ purge_dev_target_values_csv() {
     purge_dev_tenant_target_sql_values | paste -sd, -
 }
 
+# TODO: Document purge_dev_state_target_sql.
 purge_dev_state_target_sql() {
     local target_values
     target_values="$(purge_dev_target_values_csv)"
@@ -69,6 +70,7 @@ WHERE c.email = :'dev_customer_email';
 SQL
 }
 
+# TODO: Document purge_dev_state_plan_sql.
 purge_dev_state_plan_sql() {
     cat <<'SQL'
 \if :execute_purge
@@ -115,6 +117,7 @@ run_purge_plan() {
         -v dev_customer_email="$LOCAL_SEED_SHARED_USER_EMAIL"
 }
 
+# TODO: Document main.
 main() {
     local execute_purge=0 mode_label="dry-run" selected_mode=""
 

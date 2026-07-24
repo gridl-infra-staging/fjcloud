@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/migration/protocol.rs.
 use std::time::Instant;
 
 use reqwest::Method;
@@ -54,6 +55,7 @@ impl MigrationService {
         Ok(())
     }
 
+    /// TODO: Document MigrationService.probe_rollback_after_replication.
     pub async fn probe_rollback_after_replication(
         &self,
         req: MigrationRequest,
@@ -74,6 +76,7 @@ impl MigrationService {
         Ok(intent.row.id)
     }
 
+    /// TODO: Document MigrationService.probe_failure_after_replication.
     pub async fn probe_failure_after_replication(
         &self,
         req: MigrationRequest,
@@ -226,6 +229,7 @@ impl MigrationService {
         .await
     }
 
+    /// TODO: Document MigrationService.reopen_source_restore_after_destination_resume_failure.
     async fn reopen_source_restore_after_destination_resume_failure(
         &self,
         migration_id: Uuid,
@@ -271,6 +275,7 @@ impl MigrationService {
         .await
     }
 
+    /// TODO: Document MigrationService.fetch_source_ops.
     async fn fetch_source_ops(
         &self,
         index_uid: &str,
@@ -314,6 +319,7 @@ impl MigrationService {
         })
     }
 
+    /// TODO: Document MigrationService.pause_index.
     pub(super) async fn pause_index(
         &self,
         vm: &VmInventory,
@@ -335,6 +341,7 @@ impl MigrationService {
         .map(|_| ())
     }
 
+    /// TODO: Document MigrationService.resume_index.
     pub(super) async fn resume_index(
         &self,
         vm: &VmInventory,
@@ -356,6 +363,7 @@ impl MigrationService {
         .map(|_| ())
     }
 
+    /// TODO: Document MigrationService.delete_index_observing.
     pub(super) async fn delete_index_observing(
         &self,
         caller_id: &str,
@@ -403,6 +411,7 @@ impl MigrationService {
         }
     }
 
+    /// TODO: Document MigrationService.send_observed_http_request.
     async fn send_observed_http_request(
         &self,
         caller_id: &str,
@@ -441,6 +450,7 @@ impl MigrationService {
     }
 }
 
+/// TODO: Document record_migration_boundary.
 pub(super) fn record_migration_boundary(
     caller_id: &str,
     index_uid: &str,

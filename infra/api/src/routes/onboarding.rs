@@ -1,3 +1,4 @@
+//! Stub summary for onboarding.rs.
 use axum::extract::State;
 use axum::response::IntoResponse;
 use axum::Json;
@@ -124,6 +125,7 @@ fn find_running_deployment(deployments: &[Deployment]) -> Option<&Deployment> {
         .find(|deployment| deployment.status == "running")
 }
 
+/// TODO: Document free_tier_limits.
 fn free_tier_limits(state: &AppState, billing_plan: BillingPlan) -> Option<FreeTierLimitsResponse> {
     matches!(billing_plan, BillingPlan::Free).then(|| FreeTierLimitsResponse {
         max_searches_per_month: state.free_tier_limits.max_searches_per_month,

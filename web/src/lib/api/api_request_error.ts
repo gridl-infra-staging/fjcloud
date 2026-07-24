@@ -1,3 +1,6 @@
+/**
+ * TODO: Document ApiRequestError.
+ */
 export class ApiRequestError extends Error {
 	constructor(
 		public readonly status: number,

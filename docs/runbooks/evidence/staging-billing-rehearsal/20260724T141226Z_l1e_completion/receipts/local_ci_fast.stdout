@@ -1,0 +1,51 @@
+Running 32 gate(s): check-sizes script-exec-bits port-collision-diagnose compose-project mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run source-pollution stripe-checks status-doc-consistency roadmap-v2-shape package-manager-consistency dirmap-merge-driver secret-scan evidence-secret-hygiene web-lint index-export-clientside-contract rust-lint migration-test validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract usage-rollup-freshness-contract web-test (sequential)
+Mode: fast  Max parallel: 8
+
+
+=== local-ci summary (wall 248s) ===
+GATE                STATUS   SECS  LOG
+----                ------   ----  ---
+algolia-safety-probe-contract  PASS        2  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/algolia-safety-probe-contract.log
+check-sizes         PASS        3  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/check-sizes.log
+compose-project     PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/compose-project.log
+debbie-dry-run      PASS        3  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/debbie-dry-run.log
+deploy-currency-check-contract  PASS        5  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/deploy-currency-check-contract.log
+dirmap-merge-driver  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/dirmap-merge-driver.log
+engine-exposure-probe-contract  PASS        2  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/engine-exposure-probe-contract.log
+evidence-secret-hygiene  PASS        7  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/evidence-secret-hygiene.log
+flapjack-ami-pointer-contract  PASS       30  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/flapjack-ami-pointer-contract.log
+fleet-dataplane-probe-contract  PASS        4  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/fleet-dataplane-probe-contract.log
+index-export-clientside-contract  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/index-export-clientside-contract.log
+launch-closeout     PASS        3  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/launch-closeout.log
+migration-test      PASS        2  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/migration-test.log
+mirror-sync-contract  PASS        9  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/mirror-sync-contract.log
+package-manager-consistency  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/package-manager-consistency.log
+port-collision-diagnose  PASS        3  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/port-collision-diagnose.log
+publish-scripts-buildx  PASS        1  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/publish-scripts-buildx.log
+rc-wrapper-contract  PASS      108  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/rc-wrapper-contract.log
+roadmap-v2-shape    PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/roadmap-v2-shape.log
+rust-lint           PASS       85  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/rust-lint.log
+script-exec-bits    PASS        1  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/script-exec-bits.log
+secret-scan         PASS        1  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/secret-scan.log
+ses-coverage-a1     PASS       35  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/ses-coverage-a1.log
+source-pollution    PASS        6  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/source-pollution.log
+status-doc-consistency  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/status-doc-consistency.log
+stripe-checks       PASS        5  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/stripe-checks.log
+usage-rollup-freshness-contract  PASS      221  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/usage-rollup-freshness-contract.log
+validate-bootstrap-env-local  PASS        2  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/validate-bootstrap-env-local.log
+validate-bootstrap-parser  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/validate-bootstrap-parser.log
+wave3-phase-receipt  PASS        2  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/wave3-phase-receipt.log
+web-lint            PASS       27  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/web-lint.log
+web-test            PASS       15  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/web-test.log
+
+## Prod deploy drift (informational — does not affect exit code)
+Prod deploy drift:
+  dev_sha:            9d521e1c9e873b777a4833b7de0dade01b49a3a8
+  build_time:         2026-07-22T20:43:38Z (41h 47m ago)
+  commits_behind:     422
+  deployable_drift:   true (behind)
+  doc_only_ahead:     false
+  dev_main_sha:       a29a7d74a956
+
+Totals: pass=32 fail=0 skip=0
+Result: PASS

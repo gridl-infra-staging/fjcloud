@@ -24,6 +24,7 @@ RESTORE_MODE=""
 SOURCE_DB_SUBNET_GROUP_NAME=""
 RESTORE_COMMAND=()
 
+# TODO: Document usage.
 usage() {
   cat <<'EOF'
 Usage: rds_restore_drill.sh <env> [options]
@@ -40,6 +41,7 @@ Exactly one restore mode selector is required:
 EOF
 }
 
+# TODO: Document parse_args.
 parse_args() {
   if [[ $# -lt 1 ]]; then
     usage
@@ -113,6 +115,7 @@ parse_args() {
   fi
 }
 
+# TODO: Document validate_restore_mode.
 validate_restore_mode() {
   local has_snapshot=false
   local has_restore_time=false
@@ -155,6 +158,7 @@ require_execute_gate() {
   fi
 }
 
+# TODO: Document resolve_source_subnet_group.
 resolve_source_subnet_group() {
   local describe_payload=""
   local parse_output=""
@@ -225,6 +229,7 @@ PY
   SOURCE_DB_SUBNET_GROUP_NAME="$parsed_subnet_group"
 }
 
+# TODO: Document build_restore_command.
 build_restore_command() {
   resolve_source_subnet_group
   if [[ "$RESTORE_MODE" == "snapshot" ]]; then
@@ -248,6 +253,7 @@ build_restore_command() {
 
 }
 
+# TODO: Document redact_command.
 redact_command() {
   local token=""
   local redact_next=false
@@ -274,6 +280,7 @@ redact_command() {
   printf '%q ' "${redacted[@]}"
 }
 
+# TODO: Document run_restore_command.
 run_restore_command() {
   local printed_command
   printed_command="$(redact_command "${RESTORE_COMMAND[@]}")"

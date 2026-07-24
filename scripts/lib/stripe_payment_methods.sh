@@ -40,6 +40,7 @@ print(f"{etype}/{ecode}: {msg}")
 PY
 }
 
+# TODO: Document stripe_payment_method_extract_field.
 stripe_payment_method_extract_field() {
     local json_body="$1"
     local field_name="$2"
@@ -60,6 +61,7 @@ else:
 PY
 }
 
+# TODO: Document stripe_attach_payment_method_to_customer.
 stripe_attach_payment_method_to_customer() {
     local payment_method_id="$1"
     local customer_id="$2"
@@ -93,6 +95,7 @@ stripe_attach_payment_method_to_customer() {
     fi
 }
 
+# TODO: Document stripe_set_default_payment_method_for_customer.
 stripe_set_default_payment_method_for_customer() {
     local customer_id="$1"
     local payment_method_id="$2"
@@ -115,6 +118,7 @@ stripe_set_default_payment_method_for_customer() {
     fi
 }
 
+# TODO: Document stripe_detach_payment_method.
 stripe_detach_payment_method() {
     local payment_method_id="$1"
 

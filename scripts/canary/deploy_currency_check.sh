@@ -19,6 +19,7 @@ DEPLOY_CURRENCY_NOW_ISO="${DEPLOY_CURRENCY_NOW_ISO:-$(date -u +%Y-%m-%dT%H:%M:%S
 DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-}"
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 
+# TODO: Document json_value.
 json_value() {
     local path="$1"
     local field="$2"
@@ -45,6 +46,7 @@ print(value)
 PY
 }
 
+# TODO: Document oldest_compare_commit_epoch.
 oldest_compare_commit_epoch() {
     local path="$1"
     python3 - "$path" <<'PY'
@@ -97,6 +99,7 @@ probe_version_mirror_sha() {
     json_value "$body_path" "mirror_sha" >/dev/null || return 1
 }
 
+# TODO: Document github_http_get.
 github_http_get() {
     local url="$1"
     local body_path="$2"
@@ -144,6 +147,7 @@ github_http_get() {
     done
 }
 
+# TODO: Document send_breach_alert.
 send_breach_alert() {
     local label="$1"
     local title="$2"
@@ -174,6 +178,7 @@ record_breach() {
     fi
 }
 
+# TODO: Document evaluate_environment.
 evaluate_environment() {
     local label="$1"
     local version_url="$2"
@@ -291,6 +296,7 @@ evaluate_environment() {
     rm -f "$version_body" "$head_body" "$compare_body"
 }
 
+# TODO: Document main.
 main() {
     local any_breach=0
     local delivery_failed=0

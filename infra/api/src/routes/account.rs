@@ -1,3 +1,4 @@
+//! Stub summary for account.rs.
 use axum::extract::State;
 use axum::http::header;
 use axum::http::StatusCode;
@@ -119,6 +120,7 @@ pub async fn get_profile(
         (status = 503, description = "Billing service unavailable", body = ErrorResponse),
     )
 )]
+/// TODO: Document get_upgrade_status.
 pub async fn get_upgrade_status(
     tenant: AuthenticatedTenant,
     State(state): State<AppState>,

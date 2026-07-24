@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/tests/integration/migration_routes_test/read/lifecycle/resume.rs.
 use super::super::super::*;
 use super::super::support::{
     get_json, post_job_action, seed_replace_resumable_retained_job_without_target,
@@ -6,6 +7,7 @@ use super::super::support::{
     setup_algolia_cloud_job_lifecycle_app, status_generation_checkpoint_count,
 };
 
+/// TODO: Document algolia_cloud_job_resume_accepts_failed_and_interrupted_then_replays_resuming.
 #[tokio::test]
 async fn algolia_cloud_job_resume_accepts_failed_and_interrupted_then_replays_resuming() {
     let db = connect_and_migrate_required("algolia_route_resume_accept_replay").await;
@@ -72,6 +74,7 @@ async fn algolia_cloud_job_resume_accepts_failed_and_interrupted_then_replays_re
     }
 }
 
+/// TODO: Document algolia_cloud_job_resume_rejects_deleted_customer_without_mutating_retained_job.
 #[tokio::test]
 async fn algolia_cloud_job_resume_rejects_deleted_customer_without_mutating_retained_job() {
     let db = connect_and_migrate_required("algolia_route_resume_deleted").await;
@@ -116,6 +119,7 @@ async fn algolia_cloud_job_resume_rejects_deleted_customer_without_mutating_reta
     assert_eq!(serialized_job_row(&db.pool, id).await, before);
 }
 
+/// TODO: Document algolia_cloud_job_resume_requires_fresh_non_empty_api_key_before_source_or_mutation.
 #[tokio::test]
 async fn algolia_cloud_job_resume_requires_fresh_non_empty_api_key_before_source_or_mutation() {
     let db = connect_and_migrate_required("algolia_route_resume_empty_key").await;
@@ -156,6 +160,7 @@ async fn algolia_cloud_job_resume_requires_fresh_non_empty_api_key_before_source
     );
 }
 
+/// TODO: Document algolia_cloud_job_resume_missing_and_foreign_return_identical_404_without_source.
 #[tokio::test]
 async fn algolia_cloud_job_resume_missing_and_foreign_return_identical_404_without_source() {
     let db = connect_and_migrate_required("algolia_route_resume_404").await;
@@ -201,6 +206,7 @@ async fn algolia_cloud_job_resume_missing_and_foreign_return_identical_404_witho
     );
 }
 
+/// TODO: Document algolia_cloud_job_resume_non_resumable_states_and_elapsed_deadline_return_409.
 #[tokio::test]
 async fn algolia_cloud_job_resume_non_resumable_states_and_elapsed_deadline_return_409() {
     let db = connect_and_migrate_required("algolia_route_resume_refused").await;
@@ -272,6 +278,7 @@ async fn algolia_cloud_job_resume_non_resumable_states_and_elapsed_deadline_retu
     );
 }
 
+/// TODO: Document algolia_cloud_job_resume_validates_server_owned_source_before_mutation.
 #[tokio::test]
 async fn algolia_cloud_job_resume_validates_server_owned_source_before_mutation() {
     let db = connect_and_migrate_required("algolia_route_resume_source").await;
@@ -320,6 +327,7 @@ async fn algolia_cloud_job_resume_validates_server_owned_source_before_mutation(
     assert!(!body.to_string().contains("fresh-submitted-key"));
 }
 
+/// TODO: Document algolia_cloud_job_resume_source_failures_preserve_internal_state_and_secret_boundaries.
 #[tokio::test]
 async fn algolia_cloud_job_resume_source_failures_preserve_internal_state_and_secret_boundaries() {
     let db = connect_and_migrate_required("algolia_route_resume_source_matrix").await;
@@ -408,6 +416,7 @@ fn algolia_cloud_job_resume_request_debug_redacts_api_key() {
     assert!(!output.contains("fresh-debug-secret"));
 }
 
+/// TODO: Document algolia_cloud_job_resume_source_inspection_tracing_redacts_api_key.
 #[test]
 fn algolia_cloud_job_resume_source_inspection_tracing_redacts_api_key() {
     let _guard = tracing_test_lock();
@@ -458,6 +467,7 @@ fn algolia_cloud_job_resume_source_inspection_tracing_redacts_api_key() {
     assert!(!output.contains("SERVERAPP123"));
 }
 
+/// TODO: Document algolia_cloud_job_lifecycle_responses_reject_client_state_and_hide_sentinels.
 #[tokio::test]
 async fn algolia_cloud_job_lifecycle_responses_reject_client_state_and_hide_sentinels() {
     let db = connect_and_migrate_required("algolia_route_lifecycle_sentinels").await;
@@ -562,6 +572,7 @@ async fn algolia_cloud_job_lifecycle_responses_reject_client_state_and_hide_sent
     );
 }
 
+/// TODO: Document algolia_cloud_job_resume_repository_backpressure_is_retryable_503_and_reads_cancel_survive.
 #[tokio::test]
 async fn algolia_cloud_job_resume_repository_backpressure_is_retryable_503_and_reads_cancel_survive(
 ) {
@@ -639,6 +650,7 @@ async fn algolia_cloud_job_resume_repository_backpressure_is_retryable_503_and_r
     assert_eq!(cancel_body["status"], "cancelling");
 }
 
+/// TODO: Document algolia_cloud_job_resume_exposure_disabled_returns_retryable_503_but_cancel_still_works.
 #[tokio::test]
 async fn algolia_cloud_job_resume_exposure_disabled_returns_retryable_503_but_cancel_still_works() {
     let db = connect_and_migrate_required("algolia_route_resume_exposure").await;

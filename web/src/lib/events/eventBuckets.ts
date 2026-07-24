@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for eventBuckets.ts.
+ */
 import type { DebugEvent } from '$lib/api/types';
 
 export type EventBucketRange = { from: number; until: number };
@@ -31,6 +34,9 @@ function pickBucketSizeMs(windowMs: number): number {
 	return ONE_HOUR_MS;
 }
 
+/**
+ * TODO: Document bucketByTimeAndType.
+ */
 export function bucketByTimeAndType(
 	events: DebugEvent[],
 	range: EventBucketRange

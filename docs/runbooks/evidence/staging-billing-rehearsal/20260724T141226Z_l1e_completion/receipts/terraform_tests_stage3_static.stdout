@@ -1,0 +1,139 @@
+PASS: compute/main.tf exists
+PASS: compute/variables.tf exists
+PASS: compute/providers.tf exists
+PASS: compute/outputs.tf exists
+PASS: Compute env variable restricts values to staging/prod
+PASS: Compute module declares ami_id input
+PASS: Compute module declares api_instance_type input
+PASS: Compute module declares private_subnet_ids input
+PASS: Compute module declares sg_api_id input
+PASS: Compute module declares instance_profile_name input
+PASS: EC2 instance resource exists
+PASS: AMI uses variable (no hardcoded AMI)
+PASS: Instance type uses variable
+PASS: Instance placed in first private subnet
+PASS: Security group references variable
+PASS: Public IP explicitly disabled
+PASS: metadata_options block present
+PASS: IMDSv2 enforced (http_tokens = required)
+PASS: IMDS endpoint enabled
+PASS: Instance metadata tags enabled
+PASS: root_block_device block present
+PASS: Root volume type is gp3
+PASS: Root volume size is 40GB
+PASS: Root volume is encrypted
+PASS: Root volume deletes on termination
+PASS: TLS private key resource exists
+PASS: SSH key uses ED25519 algorithm
+PASS: AWS key pair resource exists
+PASS: IAM instance profile wired on EC2 instance
+PASS: User data present on EC2 instance
+PASS: user_data_replace_on_change remains false
+PASS: API instance ignores exactly user_data drift in Terraform plans
+PASS: Compute bootstrap installs CloudWatch agent
+PASS: Compute bootstrap configures disk_used_percent collection
+PASS: Compute bootstrap starts CloudWatch agent via ctl
+PASS: Name tag present on instance
+PASS: Env tag present on instance
+PASS: Output api_instance_id exists
+PASS: Output api_private_ip exists
+PASS: Output ssh_key_pair_name exists
+PASS: IAM policy includes ssm:GetParametersByPath
+PASS: IAM policy includes ssm:PutParameter
+PASS: IAM policy includes ssm:DeleteParameter
+PASS: IAM policy does not grant account-wide SSM parameter metadata enumeration
+PASS: IAM policy includes ec2:RunInstances
+PASS: IAM policy includes ec2:DescribeInstances
+PASS: IAM policy includes ec2:StartInstances
+PASS: IAM policy includes ec2:StopInstances
+PASS: IAM policy includes ec2:TerminateInstances
+PASS: IAM policy includes ec2:CreateTags
+PASS: IAM policy includes iam:PassRole
+PASS: IAM policy includes s3:GetObject
+PASS: IAM policy includes s3:ListBucket
+PASS: IAM S3 policy references fjcloud-releases bucket
+PASS: IAM policy includes cloudwatch:PutMetricData
+PASS: IAM policy allows CWAgent namespace metric publish
+PASS: IAM policy includes logs:CreateLogGroup
+PASS: IAM policy includes logs:CreateLogStream
+PASS: IAM policy includes logs:PutLogEvents
+PASS: IAM policy includes logs:DescribeLogStreams
+PASS: CloudWatch metrics policy has exact namespace allow-list
+PASS: CloudWatch metrics policy rejects wildcard namespace grants
+PASS: Aggregation CloudWatch namespace has no sibling IAM policy owner
+PASS: IAM defines exactly one SES send-events read policy resource
+PASS: SES send-events read policy has canonical inline policy name
+PASS: SES send-events read policy attaches to fjcloud instance role
+PASS: SES send-events read policy keeps DescribeLogGroups unscoped
+PASS: SES send-events read policy scopes FilterLogEvents to staging send-events log group
+PASS: SES send-events read policy scopes GetLogEvents to staging send-events log streams
+PASS: SES send-events read policy has exactly one DescribeLogGroups grant
+PASS: SES send-events read policy has exactly one FilterLogEvents grant
+PASS: SES send-events read policy has exactly one GetLogEvents grant
+PASS: SES send-events read policy has exactly three allow statements
+PASS: SES send-events read policy has exactly three action grants
+PASS: SES send-events read policy does not use NotAction grants
+PASS: SES send-events read policy does not use wildcard Logs actions or broad fjcloud log-group scope
+PASS: SES send-events read policy does not use wildcard-family Logs read actions
+PASS: SES send-events read actions have no sibling IAM policy owner
+PASS: Compute variables do not introduce CloudWatch agent parallel owner
+PASS: Compute outputs do not introduce CloudWatch agent parallel owner
+PASS: Shared terraform does not introduce CloudWatch agent parallel owner
+PASS: Shared terraform outputs do not introduce CloudWatch agent parallel owner
+PASS: fjcloud-api.service exists
+PASS: fjcloud-aggregation-job.service exists
+PASS: fjcloud-aggregation-job.timer exists
+PASS: fjcloud-retention-job.service exists
+PASS: fjcloud-retention-job.timer exists
+PASS: API service Type=exec
+PASS: API service User=fjcloud
+PASS: API service ExecStart correct
+PASS: API service EnvironmentFile with dash prefix
+PASS: API service documents prod/production alert-webhook requirement
+PASS: API service names accepted production alert webhook variables
+PASS: API service Restart=on-failure
+PASS: API service RestartSec=5
+PASS: API service NoNewPrivileges=true
+PASS: API service ProtectSystem=strict
+PASS: API service ProtectHome=true
+PASS: API service PrivateTmp=true
+PASS: Aggregation service Type=oneshot
+PASS: Aggregation service User=fjcloud
+PASS: Aggregation service ExecStart correct
+PASS: Aggregation service EnvironmentFile with dash prefix
+PASS: Aggregation service NoNewPrivileges=true
+PASS: Aggregation service ProtectSystem=strict
+PASS: Aggregation service ProtectHome=true
+PASS: Aggregation service PrivateTmp=true
+PASS: Timer fires at 01:00 UTC daily
+PASS: Timer schedule explicitly uses UTC timezone
+PASS: Timer is persistent (catches missed runs)
+PASS: Retention service Type=oneshot
+PASS: Retention service User=fjcloud
+PASS: Retention service ExecStart correct
+PASS: Retention service EnvironmentFile with dash prefix
+PASS: Retention service pins API_URL to local control plane
+PASS: Retention service comments the dry-run default before overriding
+PASS: Retention service pins RETENTION_DRY_RUN=0 for live purge
+PASS: Retention service NoNewPrivileges=true
+PASS: Retention service ProtectSystem=strict
+PASS: Retention service ProtectHome=true
+PASS: Retention service PrivateTmp=true
+PASS: Retention timer fires daily with explicit UTC timezone
+PASS: Retention timer is persistent (catches missed runs)
+PASS: Metering agent condition path uses /etc/fjcloud/metering-env
+PASS: Metering agent EnvironmentFile uses /etc/fjcloud/metering-env
+PASS: Metering agent has NoNewPrivileges=true
+PASS: Metering agent has ProtectSystem=strict
+PASS: Metering agent has ProtectHome=true
+PASS: Metering agent has PrivateTmp=true
+PASS: ENVIRONMENT docs mention production alert-webhook startup contract
+PASS: Alerting docs mention fail-closed production webhook gate
+PASS: Alerting docs preserve non-production log fallback contract
+PASS: Compute module wired in shared main.tf
+PASS: Data module wired in shared main.tf
+PASS: api_instance_ip output uncommented in shared outputs
+PASS: No hardcoded AMI IDs in compute main.tf
+PASS: EC2 lifecycle does not ignore AMI changes
+
+Stage 3 static checks: 137/137 passed.

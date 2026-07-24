@@ -30,6 +30,7 @@ PY
     export INTEGRATION_INTERNAL_AUTH_TOKEN
 }
 
+# TODO: Document run_integration_tests.
 run_integration_tests() {
     init_integration_env_defaults
     ensure_integration_internal_auth_token

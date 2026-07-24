@@ -36,6 +36,7 @@ resolve_primary_checkout_root() {
   (cd "${git_common_dir}/.." && pwd)
 }
 
+# TODO: Document resolve_anthropic_api_key.
 resolve_anthropic_api_key() {
   local resolved="${ANTHROPIC_API_KEY:-}"
   local checkout_secret_file="${REPO_ROOT}/.secret/.env.secret"
@@ -98,6 +99,7 @@ print(f"{width} {height}")
 PY
 }
 
+# TODO: Document normalize_screenshot_for_model.
 normalize_screenshot_for_model() {
   local screenshot_path="$1"
   local artifact_filename="$2"

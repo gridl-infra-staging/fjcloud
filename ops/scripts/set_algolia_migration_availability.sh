@@ -54,6 +54,7 @@ print(shlex.quote(sys.argv[1]))
 PY
 }
 
+# TODO: Document parse_args.
 parse_args() {
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -93,6 +94,7 @@ parse_args() {
   done
 }
 
+# TODO: Document validate_args.
 validate_args() {
   [ -n "$ENVIRONMENT" ] || die "--env is required"
   [ -n "$ENABLED" ] || die "--enabled is required"
@@ -130,6 +132,7 @@ discover_instances() {
   printf '%s\n' "$output" | tr '\t' '\n' | sed '/^$/d;/^None$/d'
 }
 
+# TODO: Document send_remote_command.
 send_remote_command() {
   local instance_id="$1"
   local comment="$2"
@@ -149,6 +152,7 @@ send_remote_command() {
   printf '%s\n' "$command_id"
 }
 
+# TODO: Document poll_remote_command.
 poll_remote_command() {
   local instance_id="$1"
   local command_id="$2"
@@ -191,6 +195,7 @@ poll_remote_command() {
   return 1
 }
 
+# TODO: Document build_proof_script.
 build_proof_script() {
   cat <<EOF
 set -euo pipefail
@@ -214,6 +219,7 @@ printf 'VERSION_JSON=%s\n' "\$version_json"
 EOF
 }
 
+# TODO: Document validate_instance_proof.
 validate_instance_proof() {
   local instance_id="$1"
   local proof_output="$2"
@@ -261,6 +267,7 @@ fail_closed_stop_all() {
   done
 }
 
+# TODO: Document main.
 main() {
   parse_args "$@"
   validate_args

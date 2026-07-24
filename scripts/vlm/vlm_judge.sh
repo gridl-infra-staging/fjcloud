@@ -69,6 +69,7 @@ is_non_negative_decimal() {
   [[ "${value}" =~ ^[0-9]+([.][0-9]+)?$ ]]
 }
 
+# TODO: Document require_trusted_api_base_url.
 require_trusted_api_base_url() {
   local value="$1"
 
@@ -127,6 +128,7 @@ resolve_primary_checkout_root() {
   (cd "${git_common_dir}/.." && pwd)
 }
 
+# TODO: Document resolve_anthropic_api_key.
 resolve_anthropic_api_key() {
   local resolved="${ANTHROPIC_API_KEY:-}"
   local checkout_secret_file="${REPO_ROOT}/.secret/.env.secret"
@@ -180,6 +182,7 @@ calculate_estimated_request_cost_usd() {
   awk -v tokens="${input_tokens}" -v rate="${selected_input_rate}" 'BEGIN { printf "%.8f", (tokens * rate) / 1000000 }'
 }
 
+# TODO: Document append_cost_entry.
 append_cost_entry() {
   local model="$1"
   local input_tokens="$2"
@@ -211,6 +214,7 @@ append_cost_entry() {
     }' >> "${cost_log_path}"
 }
 
+# TODO: Document post_json_request.
 post_json_request() {
   local url="$1"
   local request_payload="$2"
@@ -237,6 +241,7 @@ post_json_request() {
   rm -f "${response_file}" "${payload_file}"
 }
 
+# TODO: Document post_messages_with_retry.
 post_messages_with_retry() {
   local url="$1"
   local request_payload="$2"

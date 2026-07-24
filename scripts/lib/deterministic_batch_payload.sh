@@ -47,6 +47,7 @@ print(json.dumps({"requests": requests}))
 PY
 }
 
+# TODO: Document deterministic_exact_query_term_for_object_id.
 deterministic_exact_query_term_for_object_id() {
     local seed="$1"
     local object_id="$2"

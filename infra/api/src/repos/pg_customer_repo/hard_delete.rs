@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/repos/pg_customer_repo/hard_delete.rs.
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
@@ -69,6 +70,7 @@ async fn lock_customer_status(
         .map_err(repo_error)
 }
 
+/// TODO: Document reject_open_invoices.
 async fn reject_open_invoices(
     tx: &mut Transaction<'_, Postgres>,
     id: Uuid,
@@ -89,6 +91,7 @@ async fn reject_open_invoices(
     ))
 }
 
+/// TODO: Document scrub_algolia_jobs.
 async fn scrub_algolia_jobs(
     tx: &mut Transaction<'_, Postgres>,
     customer_id: Uuid,
@@ -133,6 +136,7 @@ async fn scrub_algolia_jobs(
     rows.into_iter().map(parse_scrub_work).collect()
 }
 
+/// TODO: Document parse_scrub_work.
 fn parse_scrub_work(row: SealScrubWorkRow) -> Result<AlgoliaSealScrubWork, RepoError> {
     Ok(AlgoliaSealScrubWork {
         erasure_handle: row.erasure_handle,
@@ -166,6 +170,7 @@ fn parse_scrub_work(row: SealScrubWorkRow) -> Result<AlgoliaSealScrubWork, RepoE
     })
 }
 
+/// TODO: Document delete_customer_dependents.
 async fn delete_customer_dependents(
     tx: &mut Transaction<'_, Postgres>,
     id: Uuid,

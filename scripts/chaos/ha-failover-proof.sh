@@ -100,6 +100,7 @@ highest_alert_created_at() {
     '
 }
 
+# TODO: Document ensure_summary_json.
 ensure_summary_json() {
     jq -n \
         --arg status "$RUN_STATUS" \
@@ -140,6 +141,7 @@ ensure_summary_json() {
         }' > "$ARTIFACT_DIR/summary.json"
 }
 
+# TODO: Document ensure_summary_md.
 ensure_summary_md() {
     cat > "$ARTIFACT_DIR/summary.md" <<EOF_MD
 # HA Failover Proof
@@ -202,6 +204,7 @@ RECOVERY_DETECTED_FILTER='
         (((.title // "") | contains($region)) or ((.message // "") | contains($region)))
       )'
 
+# TODO: Document poll_alerts_until.
 poll_alerts_until() {
     local jq_filter="$1"
     local timeout_secs="$2"

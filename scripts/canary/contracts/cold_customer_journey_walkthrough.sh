@@ -65,6 +65,7 @@ print(json.dumps(sys.argv[1]))
 PY
 }
 
+# TODO: Document cold_customer_json_field.
 cold_customer_json_field() {
     local json_body="$1"
     local field_name="$2"
@@ -87,6 +88,7 @@ else:
 ' "$field_name" || true
 }
 
+# TODO: Document cold_customer_json_array_length.
 cold_customer_json_array_length() {
     local json_body="$1"
     local field_name="$2"
@@ -105,6 +107,7 @@ if isinstance(value, list):
 ' "$field_name" || true
 }
 
+# TODO: Document cold_customer_reset_invocation_mode.
 cold_customer_reset_invocation_mode() {
     COLD_CUSTOMER_ENV="staging"
     COLD_CUSTOMER_DRY_RUN=0
@@ -140,6 +143,7 @@ cold_customer_reset_run_state() {
     HTTP_RESPONSE_EXIT_STATUS=0
 }
 
+# TODO: Document cold_customer_parse_args.
 cold_customer_parse_args() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
@@ -185,6 +189,7 @@ cold_customer_parse_args() {
     fi
 }
 
+# TODO: Document cold_customer_prepare_environment.
 cold_customer_prepare_environment() {
     mkdir -p "$COLD_CUSTOMER_EVIDENCE_DIR"
     COLD_CUSTOMER_STEPS_FILE="$COLD_CUSTOMER_EVIDENCE_DIR/cli_steps.jsonl"
@@ -224,6 +229,7 @@ cold_customer_prepare_environment() {
     CANARY_ADMIN_CLEANED=0
 }
 
+# TODO: Document cold_customer_body_shape_keys_json.
 cold_customer_body_shape_keys_json() {
     local body="$1"
     printf '%s' "$body" | python3 -c '
@@ -242,6 +248,7 @@ else:
 '
 }
 
+# TODO: Document cold_customer_append_step_evidence.
 cold_customer_append_step_evidence() {
     local step="$1"
     local outcome="$2"
@@ -305,6 +312,7 @@ cold_customer_probe_sha() {
     git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || printf 'unknown\n'
 }
 
+# TODO: Document cold_customer_write_summary.
 cold_customer_write_summary() {
     local overall="$1"
     local failing_step="$2"
@@ -355,6 +363,7 @@ cold_customer_fail() {
     COLD_CUSTOMER_FAILURE_DETAIL="$2"
 }
 
+# TODO: Document cold_customer_run_evidenced_step.
 cold_customer_run_evidenced_step() {
     local step="$1"
     local command_name="$2"
@@ -418,6 +427,7 @@ cold_customer_confirm_verified_step() {
     COLD_CUSTOMER_VERIFIED=true
 }
 
+# TODO: Document cold_customer_create_index_step.
 cold_customer_create_index_step() {
     local payload expected_name actual_name
     CANARY_INDEX_NAME="cold-customer-${CANARY_NONCE}"
@@ -443,6 +453,7 @@ cold_customer_noop_assertion() {
     return 0
 }
 
+# TODO: Document cold_customer_batch_write_step.
 cold_customer_batch_write_step() {
     local payload accepted task_id
     payload="$(deterministic_batch_payload "$COLD_CUSTOMER_BATCH_SEED" 0 5)"
@@ -466,6 +477,7 @@ cold_customer_batch_write_step() {
     COLD_CUSTOMER_BATCH_ACCEPTED=5
 }
 
+# TODO: Document cold_customer_search_seeded_result.
 cold_customer_search_seeded_result() {
     printf '%s' "$1" | python3 -c '
 import json
@@ -495,6 +507,7 @@ cold_customer_sleep_before_search_retry() {
     fi
 }
 
+# TODO: Document cold_customer_search_index_step.
 cold_customer_search_index_step() {
     local payload search_result detail attempt
     payload="$(printf '{"query":%s}' "$(cold_customer_json_quote "$COLD_CUSTOMER_SEARCH_TERM")")"
@@ -555,6 +568,7 @@ cold_customer_delete_account_step() {
     CANARY_ACCOUNT_DELETED=1
 }
 
+# TODO: Document cold_customer_admin_cleanup_step.
 cold_customer_admin_cleanup_step() {
     if [ -z "${CANARY_CUSTOMER_ID:-}" ] || [ "${CANARY_ADMIN_CLEANED:-0}" -eq 1 ]; then
         return 0
@@ -593,6 +607,7 @@ cold_customer_emit_curl_response() {
     fi
 }
 
+# TODO: Document cold_customer_dry_run_curl.
 cold_customer_dry_run_curl() {
     local method="GET" url="" data="" write_format="" path seed_body
     while [ "$#" -gt 0 ]; do
@@ -638,6 +653,7 @@ cold_customer_install_dry_run_curl_stub() {
     COLD_CUSTOMER_DRY_RUN_STUBS_INSTALLED=1
 }
 
+# TODO: Document cold_customer_run_flow.
 cold_customer_run_flow() {
     COLD_CUSTOMER_BATCH_SEED="$(date +%s)"
     if [ "$COLD_CUSTOMER_DRY_RUN" -eq 1 ]; then
@@ -655,6 +671,7 @@ cold_customer_run_flow() {
     cold_customer_run_evidenced_step "search_index" cold_customer_search_index_step cold_customer_noop_assertion || return 1
 }
 
+# TODO: Document cold_customer_cleanup_after_flow.
 cold_customer_cleanup_after_flow() {
     local prior_step="$COLD_CUSTOMER_FAILURE_STEP"
     local prior_detail="$COLD_CUSTOMER_FAILURE_DETAIL"
@@ -677,6 +694,7 @@ cold_customer_cleanup_after_flow() {
     return "$cleanup_failed"
 }
 
+# TODO: Document cold_customer_main.
 cold_customer_main() {
     local flow_rc=0 cleanup_rc=0
 

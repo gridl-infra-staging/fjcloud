@@ -1,3 +1,4 @@
+//! Stub summary for advisory_lock.rs.
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -16,6 +17,7 @@ pub async fn auto_provision_lock_key(pool: &PgPool, region: &str) -> Result<i64,
     named_advisory_lock_key(pool, &format!("auto_provision_{region}"), "auto-provision").await
 }
 
+/// TODO: Document account_lifecycle_lock_key.
 pub async fn account_lifecycle_lock_key(
     pool: &PgPool,
     customer_id: Uuid,

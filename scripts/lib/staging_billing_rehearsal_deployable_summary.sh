@@ -17,6 +17,7 @@ read_key_value_field() {
     printf 'unknown\n'
 }
 
+# TODO: Document summary_deployable_currency_json.
 summary_deployable_currency_json() {
     local deployable_drift="$1"
     local doc_only_ahead="$2"
@@ -38,6 +39,7 @@ print(json.dumps({
 PY
 }
 
+# TODO: Document capture_summary_deployable_currency.
 capture_summary_deployable_currency() {
     local version_url body dev_main_sha currency_output deployable_drift doc_only_ahead
 

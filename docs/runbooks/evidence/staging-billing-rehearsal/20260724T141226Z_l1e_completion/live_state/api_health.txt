@@ -1,0 +1,6 @@
+=== staging https://api.staging.flapjack.foo/health ===
+http_status=200
+body_bytes=15
+=== prod https://api.flapjack.foo/health ===
+http_status=200
+body_bytes=15

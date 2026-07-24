@@ -7,6 +7,7 @@ import sys
 
 
 def parse_profile_block(rust_src: str, label: str) -> dict[str, int]:
+    """TODO: Document parse_profile_block."""
     pattern = rf"pub const {label}:\s*ResourceVector\s*=\s*ResourceVector\s*\{{(.*?)\}};"
     match = re.search(pattern, rust_src, re.DOTALL)
     if not match:
@@ -26,6 +27,7 @@ def parse_profile_block(rust_src: str, label: str) -> dict[str, int]:
 
 
 def main() -> int:
+    """TODO: Document main."""
     if len(sys.argv) != 2:
         print("usage: parse_capacity_profiles.py <capacity_profiles.rs>", file=sys.stderr)
         return 2

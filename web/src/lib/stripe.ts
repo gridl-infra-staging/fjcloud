@@ -7,6 +7,9 @@ interface PublishableKeyResponse {
 	publishableKey?: unknown;
 }
 
+/**
+ * TODO: Document loadStripeAtRuntime.
+ */
 async function loadStripeAtRuntime(): Promise<Stripe | null> {
 	try {
 		const response = await fetch('/api/stripe/publishable-key');

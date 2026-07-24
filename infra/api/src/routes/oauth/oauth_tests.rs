@@ -1,5 +1,6 @@
 use super::GitHubEmailEntry;
 
+/// TODO: Document github_email_entry_deserializes_documented_schema.
 #[test]
 fn github_email_entry_deserializes_documented_schema() {
     let fixture = r#"[

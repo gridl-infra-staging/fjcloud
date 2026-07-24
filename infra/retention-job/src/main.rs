@@ -1,7 +1,9 @@
+//! Stub summary for infra/retention-job/src/main.rs.
 use anyhow::Result;
 use retention_job::{config::Config, job};
 use tracing::info;
 
+/// TODO: Document main.
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()

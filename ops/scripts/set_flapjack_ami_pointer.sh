@@ -103,6 +103,7 @@ lock_owner_values_json() {
   printf '{":owner_token":{"S":%s}}\n' "$(json_string "$owner_token")"
 }
 
+# TODO: Document release_pointer_lock.
 release_pointer_lock() {
   local output
   [ "$LOCK_ACQUIRED" -eq 1 ] || return 0
@@ -128,6 +129,7 @@ cleanup_pointer_lock() {
   release_pointer_lock >/dev/null || true
 }
 
+# TODO: Document acquire_pointer_lock.
 acquire_pointer_lock() {
   local output
   LOCK_OWNER_TOKEN="$(generate_lock_owner_token)"
@@ -155,6 +157,7 @@ current_pointer() {
     --output text
 }
 
+# TODO: Document validate_ami_identity.
 validate_ami_identity() {
   local requested_ami_id="$1" account_id image_json
   account_id="$("$AWS_BIN" sts get-caller-identity --query Account --output text)"
@@ -250,6 +253,7 @@ $(inspection_script)
 EOF
 }
 
+# TODO: Document validate_instance_proof.
 validate_instance_proof() {
   local instance_id="$1" proof_output="$2" expected_pointer="$3"
   PROOF_OUTPUT="$proof_output" python3 - "$instance_id" "$expected_pointer" <<'PY'
@@ -277,6 +281,7 @@ prove_instances() {
   done
 }
 
+# TODO: Document write_pointer.
 write_pointer() {
   local value="$1" prior_value="$2" output readback
   WRITE_POINTER_STATE=""
@@ -305,6 +310,7 @@ write_pointer() {
   fi
 }
 
+# TODO: Document require_proved_pointer_write.
 require_proved_pointer_write() {
   local desired_value="$1" prior_value="$2" fail_closed_on_unproved="$3"
   write_pointer "$desired_value" "$prior_value"
@@ -364,6 +370,7 @@ load_instances() {
   [ "${#INSTANCE_IDS[@]}" -gt 0 ] || die "no running fjcloud-api-${ENVIRONMENT} instances found"
 }
 
+# TODO: Document main.
 main() {
   local current desired identity_ami_id preflight_expected
   parse_args "$@"

@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/routes/indexes/lifecycle.rs.
 use super::algolia_import_engine::ensure_algolia_import_engine_compatible;
 use super::shared_vm::{create_index_on_shared_vm, reserve_shared_vm_destination};
 use super::*;
@@ -43,6 +44,7 @@ impl From<ApiError> for IndexAdmissionError {
     }
 }
 
+/// TODO: Document admit_new_index_destination.
 pub(crate) async fn admit_new_index_destination(
     state: &AppState,
     customer_id: Uuid,
@@ -125,6 +127,7 @@ pub async fn create_algolia_import_job(
         .map_err(Into::into)
 }
 
+/// TODO: Document prepare_algolia_create_target.
 pub(crate) async fn prepare_algolia_create_target(
     state: &AppState,
     customer_id: Uuid,
@@ -443,6 +446,7 @@ struct SharedVmDeletePlan {
     target: Option<ResolvedFlapjackTarget>,
 }
 
+/// TODO: Document resolve_shared_vm_delete_plan.
 async fn resolve_shared_vm_delete_plan(
     state: &AppState,
     customer_id: Uuid,
@@ -482,6 +486,7 @@ fn is_compatible_shared_vm_delete_intent(tenant: &crate::models::tenant::Custome
         && tenant.service_type == "flapjack"
 }
 
+/// TODO: Document resolve_shared_vm_delete_target.
 async fn resolve_shared_vm_delete_target(
     state: &AppState,
     customer_id: Uuid,
@@ -520,6 +525,7 @@ async fn resolve_shared_vm_delete_target(
     }))
 }
 
+/// TODO: Document rollback_shared_vm_delete_intent.
 async fn rollback_shared_vm_delete_intent(
     state: &AppState,
     customer_id: Uuid,

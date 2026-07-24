@@ -1,0 +1,16 @@
+command=/opt/homebrew/bin/timeout 60 env EXPECTED_HEAD=96cb6de2c53f6c34fe6c92b9a4f65c6778e14d24 COMPLETION_DIR=docs/runbooks/evidence/staging-billing-rehearsal/20260724T141226Z_l1e_completion bash -c 'set -euo pipefail; test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"; test -z "$(git diff --name-only -- "$COMPLETION_DIR/TERMINAL_RECEIPT.md")"; test "$(grep -Ecx "^S1_BLOCKER=(discharged|still_present)$" "$COMPLETION_DIR/TERMINAL_RECEIPT.md")" = 1; test "$(grep -c "S1_BLOCKER=" "$COMPLETION_DIR/TERMINAL_RECEIPT.md")" = 1; awk -F": " "/^(Generated|Candidate HEAD|Stage 4 start SHA|Frozen dev\\/staging SHA|Completion bundle|terminal_decision|reason|smallest_unblock|query_outcome|total_rows|fresh_rows|latest_aggregated_at|freshness_classification|Stage 1 boundary|Stage 1 service_result|Stage 1 exec_main_status|Stage 1 metric_delta|Stage 1 IAM actions|Stage 1 IAM namespaces|Stage 2 alarm target|Stage 2 plan shape|Stage 2 apply invoked|Stage 3 metering_evidence_classification|Stage 3 live_mutation_guard_classification|Stage 3 rollup_stale_present|Stage 3 historical jq fetch-validation receipt|corrected_reconciliation_sha):/ {seen[\$1]=1; if (\$2 == \"\") bad=1} END {required=27; if (length(seen) != required || bad) exit 1}" "$COMPLETION_DIR/TERMINAL_RECEIPT.md"; grep -q "terminal_decision: still_present" "$COMPLETION_DIR/TERMINAL_RECEIPT.md"; grep -q "Stage 3 historical jq receipt.*FAIL" "$COMPLETION_DIR/TERMINAL_RECEIPT.md"; grep -q "^Candidate HEAD: b79adf169ac0330b748d1c48b65187ad9c03750b$" "$COMPLETION_DIR/TERMINAL_RECEIPT.md"'
+start_utc=2026-07-24T15:38:30Z
+end_utc=2026-07-24T15:38:30Z
+head_sha=96cb6de2c53f6c34fe6c92b9a4f65c6778e14d24
+clean_tree=false
+receipt_path_diff_empty=true
+validation_cache_recorded=true
+timeout_seconds=60
+timed_out=false
+exit_status=0
+required_non_empty_field_count=27
+verdict_line_match_count=1
+verdict_total_occurrence_count=1
+terminal_decision=still_present
+candidate_head=b79adf169ac0330b748d1c48b65187ad9c03750b
+result=PASS

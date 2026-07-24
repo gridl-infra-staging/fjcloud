@@ -53,6 +53,7 @@ Usage:
 USAGE
 }
 
+# TODO: Document parse_args_token.
 parse_args_token() {
     local token="$1"
     local next_value="${2:-}"
@@ -121,6 +122,7 @@ parse_args() {
     done
 }
 
+# TODO: Document validate_required_args.
 validate_required_args() {
     if [ "$SHOW_HELP" -eq 1 ]; then
         return 0
@@ -217,6 +219,7 @@ format_shell_command() {
     printf '%s\n' "$formatted"
 }
 
+# TODO: Document collect_redaction_values_from_env_file.
 collect_redaction_values_from_env_file() {
     local env_file="$1"
     local line parse_status key value
@@ -243,6 +246,7 @@ collect_redaction_values_from_env_file() {
     done < "$env_file"
 }
 
+# TODO: Document redact_text.
 redact_text() {
     local text="$1"
     local redacted_text
@@ -273,6 +277,7 @@ print(value, end="")
     printf '%s' "$redacted_text"
 }
 
+# TODO: Document redact_file_in_place.
 redact_file_in_place() {
     local path="$1"
     local redacted_payload
@@ -301,6 +306,7 @@ print(payload, end="")
     printf '%s' "$redacted_payload" > "$path"
 }
 
+# TODO: Document json_array_from_rows.
 json_array_from_rows() {
     local rows_jsonl="$1"
     ROWS_JSONL="$rows_jsonl" python3 - <<'PY'
@@ -322,6 +328,7 @@ print(json.dumps(rows))
 PY
 }
 
+# TODO: Document append_check_row.
 append_check_row() {
     local lane="$1"
     local name="$2"
@@ -392,6 +399,7 @@ json.loads(sys.argv[1])
 PY
 }
 
+# TODO: Document assemble_summary_json.
 assemble_summary_json() {
     local checks_json cred_checks_json blockers_json overall_verdict
     local run_id_json started_at_json env_json domain_json artifact_dir_json overall_verdict_json
@@ -432,6 +440,7 @@ capture_owner_logs() {
     fi
 }
 
+# TODO: Document run_runtime_smoke_check.
 run_runtime_smoke_check() {
     local logs_dir="$1"
     local runtime_stdout_log="$logs_dir/runtime_smoke.stdout.log"
@@ -512,6 +521,7 @@ append_blocked_billing_row() {
     append_external_blocker "$blocker" "caller" "$command"
 }
 
+# TODO: Document run_billing_rehearsal_check.
 run_billing_rehearsal_check() {
     local logs_dir="$1"
     local billing_stdout_log="$logs_dir/billing_rehearsal.stdout.log"
@@ -558,6 +568,7 @@ run_billing_rehearsal_check() {
     BILLING_REHEARSAL_EXIT_CODE="$exit_code"
 }
 
+# TODO: Document run_credentialed_billing_lane_if_requested.
 run_credentialed_billing_lane_if_requested() {
     local logs_dir="$1"
 
@@ -601,6 +612,7 @@ emit_summary_json() {
     printf '%s\n' "$summary_json"
 }
 
+# TODO: Document main.
 main() {
     parse_args "$@" || return 2
 

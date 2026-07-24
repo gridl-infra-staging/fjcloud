@@ -50,6 +50,7 @@ http_response_body() {
     printf '%s\n' "$1" | sed '$d'
 }
 
+# TODO: Document search_response_has_object_id.
 search_response_has_object_id() {
     local response_body="$1"
     local expected_object_id="$2"
@@ -78,6 +79,7 @@ raise SystemExit(
 PY
 }
 
+# TODO: Document verify_seeded_document_search.
 verify_seeded_document_search() {
     local index_name="$1"
     local index_path_component="$2"
@@ -105,6 +107,7 @@ verify_seeded_document_search() {
     die "Search verification failed for ${index_name} after ${attempts} attempts; last HTTP ${search_code}: ${search_body}"
 }
 
+# TODO: Document normalize_local_dev_flapjack_url.
 normalize_local_dev_flapjack_url() {
     local raw_url="$1"
 
@@ -156,6 +159,7 @@ print(f"{normalized_base}{suffix}")
 PY
 }
 
+# TODO: Document resolve_seed_flapjack_url.
 resolve_seed_flapjack_url() {
     local normalized_local_dev_url
 
@@ -284,6 +288,7 @@ admin_call() {
         "$@"
 }
 
+# TODO: Document verify_seed_user_email.
 verify_seed_user_email() {
     local seed_email="$1"
 
@@ -362,6 +367,7 @@ resolve_region_flapjack_url() {
     printf '%s\n' "$FLAPJACK_URL"
 }
 
+# TODO: Document seed_vm_inventory.
 seed_vm_inventory() {
     if ! require_local_database_access "VM inventory seed for default regions"; then
         return 0
@@ -455,6 +461,7 @@ SQL
     log "Verified VM inventory hostnames for ${#DEFAULT_SEED_REGIONS[@]} default regions"
 }
 
+# TODO: Document seed_user.
 seed_user() {
     local user_name="$1"
     local user_email="$2"
@@ -537,6 +544,7 @@ seed_user() {
     printf -v "$customer_id_output_var" '%s' "$customer_id"
 }
 
+# TODO: Document resolve_seed_user_context.
 resolve_seed_user_context() {
     local user_key="$1"
     local token_var_name="$2"
@@ -560,6 +568,7 @@ resolve_seed_user_context() {
     esac
 }
 
+# TODO: Document seed_shared_usage_daily_current_month.
 seed_shared_usage_daily_current_month() {
     local shared_customer_id="$1"
 
@@ -643,6 +652,7 @@ SQL
     log "Seeded current UTC month usage_daily rows for ${SEED_USER_EMAIL} across ${region_count} regions"
 }
 
+# TODO: Document verify_shared_estimate_after_usage_seed.
 verify_shared_estimate_after_usage_seed() {
     local estimate_month="$1"
     local estimate_response estimate_code estimate_body estimate_month_value subtotal_cents
@@ -672,6 +682,7 @@ verify_shared_estimate_after_usage_seed() {
     log "Verified /billing/estimate for ${SEED_USER_EMAIL} (${estimate_month})"
 }
 
+# TODO: Document build_index_payload.
 build_index_payload() {
     local index_name="$1"
     local index_region="$2"

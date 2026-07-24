@@ -29,6 +29,7 @@ is_allowed_hydrated_key() {
   esac
 }
 
+# TODO: Document validate_hydrated_export_line.
 validate_hydrated_export_line() {
   local line="$1"
   local payload key raw_value
@@ -60,6 +61,7 @@ validate_hydrated_export_line() {
   esac
 }
 
+# TODO: Document hydrate_env_from_ssm.
 hydrate_env_from_ssm() {
   local environment="${1:-staging}"
   case "$environment" in
@@ -94,6 +96,7 @@ hydrate_env_from_ssm() {
   return "$source_status"
 }
 
+# TODO: Document hydrate_staging_env_from_ssm.
 hydrate_staging_env_from_ssm() {
   hydrate_env_from_ssm staging
 }

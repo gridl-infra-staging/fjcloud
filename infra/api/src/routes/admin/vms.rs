@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/routes/admin/vms.rs.
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -108,6 +109,7 @@ fn unique_provider_vm_id(provider_ids: impl IntoIterator<Item = String>) -> Opti
         .flatten()
 }
 
+/// TODO: Document retirement_conflict_error.
 fn retirement_conflict_error(conflict: VmRetirementConflict) -> ApiError {
     match conflict {
         VmRetirementConflict::UnknownVm { vm_id } => {
@@ -125,6 +127,7 @@ fn retirement_conflict_error(conflict: VmRetirementConflict) -> ApiError {
     }
 }
 
+/// TODO: Document retirement_blockers_response.
 fn retirement_blockers_response(
     vm_id: Uuid,
     hostname: String,
@@ -153,6 +156,7 @@ fn retirement_blockers_response(
     }
 }
 
+/// TODO: Document decommission_response.
 fn decommission_response(
     vm_id: Uuid,
     hostname: String,
@@ -196,6 +200,7 @@ fn decommission_response(
     }
 }
 
+/// TODO: Document validate_shared_warm_floor_request.
 fn validate_shared_warm_floor_request(
     request: &SharedWarmFloorRequest,
     state: &AppState,
@@ -234,6 +239,7 @@ fn validate_shared_warm_floor_request(
     Ok(())
 }
 
+/// TODO: Document active_shared_warm_floor_vms.
 async fn active_shared_warm_floor_vms(
     state: &AppState,
     region: &str,
@@ -322,6 +328,7 @@ async fn provider_vm_id_from_fleet(
     Ok(unique_provider_vm_id(provider_vm_ids))
 }
 
+/// TODO: Document teardown_retired_vm_resources.
 async fn teardown_retired_vm_resources(
     state: &AppState,
     vm_id: Uuid,
@@ -443,6 +450,7 @@ pub async fn list_vms(
     Ok(Json(entries))
 }
 
+/// TODO: Document get_retirement_blockers.
 pub async fn get_retirement_blockers(
     _auth: AdminAuth,
     State(state): State<AppState>,
@@ -460,6 +468,7 @@ pub async fn get_retirement_blockers(
     )?))
 }
 
+/// TODO: Document decommission_vm.
 pub async fn decommission_vm(
     _auth: AdminAuth,
     State(state): State<AppState>,
@@ -479,6 +488,7 @@ pub async fn decommission_vm(
     decommission_response(vm_id, request.expected_hostname, result, teardown)
 }
 
+/// TODO: Document warm_floor_shared_vm.
 pub async fn warm_floor_shared_vm(
     _auth: AdminAuth,
     State(state): State<AppState>,

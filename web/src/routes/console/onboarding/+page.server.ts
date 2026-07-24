@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for +page.server.ts.
+ */
 import { fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { ApiRequestError } from '$lib/api/client';
@@ -5,11 +8,17 @@ import { createApiClient } from '$lib/server/api';
 import { mapDashboardSessionFailure } from '$lib/server/auth-action-errors';
 import { retryTransientDashboardApiRequest } from '$lib/server/transient-api-retry';
 
+/**
+ * TODO: Document load.
+ */
 export const load: PageServerLoad = async ({ parent }) => {
 	await parent();
 	return {};
 };
 
+/**
+ * TODO: Document handleCreateIndex.
+ */
 async function handleCreateIndex(request: Request, locals: App.Locals) {
 	const formData = await request.formData();
 	const name = formData.get('name') as string;

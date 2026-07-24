@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/routes/admin/indexes.rs.
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -252,6 +253,7 @@ pub async fn seed_index(
     ))
 }
 
+/// TODO: Document prepare_seed_remote_target.
 async fn prepare_seed_remote_target(
     state: &AppState,
     req: &SeedIndexRequest,
@@ -271,6 +273,7 @@ async fn prepare_seed_remote_target(
     }
 }
 
+/// TODO: Document publish_seed_intent.
 async fn publish_seed_intent(
     state: &AppState,
     intent: &crate::models::tenant::CustomerTenant,
@@ -299,6 +302,7 @@ async fn publish_seed_intent(
     Ok(published)
 }
 
+/// TODO: Document rollback_seed_intent.
 async fn rollback_seed_intent(
     state: &AppState,
     intent: &crate::models::tenant::CustomerTenant,

@@ -1,0 +1,9 @@
+command=bash -c 'set -euo pipefail; test "$(grep -Ecx "^S1_BLOCKER=(discharged|still_present)$" "$COMPLETION_DIR/TERMINAL_RECEIPT.md")" = 1; test "$(grep -c "S1_BLOCKER=" "$COMPLETION_DIR/TERMINAL_RECEIPT.md")" = 1; awk -F": " "/^(Generated|Candidate HEAD|Stage 4 start SHA|Frozen dev\\/staging SHA|Completion bundle|terminal_decision|reason|smallest_unblock|query_outcome|total_rows|fresh_rows|latest_aggregated_at|freshness_classification|Stage 1 boundary|Stage 1 service_result|Stage 1 exec_main_status|Stage 1 metric_delta|Stage 1 IAM actions|Stage 1 IAM namespaces|Stage 2 alarm target|Stage 2 plan shape|Stage 2 apply invoked|Stage 3 metering_evidence_classification|Stage 3 live_mutation_guard_classification|Stage 3 rollup_stale_present|Stage 3 historical jq fetch-validation receipt|corrected_reconciliation_sha):/ {seen[$1]=1; if ($2 == "") bad=1} END {required=27; if (length(seen) != required || bad) exit 1}" "$COMPLETION_DIR/TERMINAL_RECEIPT.md"; grep -q "terminal_decision: still_present" "$COMPLETION_DIR/TERMINAL_RECEIPT.md"; grep -q "Stage 3 historical jq receipt.*FAIL" "$COMPLETION_DIR/TERMINAL_RECEIPT.md"'
+start_utc=2026-07-24T14:33:30Z
+end_utc=2026-07-24T14:33:30Z
+head_sha=5c951e4b3188c8b81ac268c95c4a23ef58c332ac
+clean_tree=False
+cached=false
+timeout_seconds=120
+timed_out=false
+exit_status=1

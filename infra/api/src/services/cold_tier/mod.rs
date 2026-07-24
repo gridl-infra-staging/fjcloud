@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/cold_tier/mod.rs.
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -183,6 +184,7 @@ pub struct ColdTierDependencies {
     pub lifecycle_lease: Option<Arc<IndexLifecycleLease>>,
 }
 
+/// TODO: Document ColdTierService.
 pub struct ColdTierService {
     config: ColdTierConfig,
     tenant_repo: Arc<dyn TenantRepo + Send + Sync>,
@@ -427,6 +429,7 @@ impl ColdTierService {
 }
 
 impl ColdTierService {
+    /// TODO: Document ColdTierService.guarded_target_mutation.
     pub(super) async fn guarded_target_mutation<F, Fut, T>(
         &self,
         customer_id: Uuid,

@@ -55,6 +55,7 @@ assert_file_exists() {
     fi
 }
 
+# TODO: Document assert_file_line_count_at_most.
 assert_file_line_count_at_most() {
     local abs_path="$1" max_lines="$2" msg="$3"
 
@@ -116,6 +117,7 @@ PY
     fi
 }
 
+# TODO: Document assert_json_bool_field.
 assert_json_bool_field() {
     local payload="$1" field_name="$2" expected="$3" msg="$4"
     if python3 - "$payload" "$field_name" "$expected" <<'PY'

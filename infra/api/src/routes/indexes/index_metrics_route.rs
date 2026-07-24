@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/routes/indexes/index_metrics_route.rs.
 use std::collections::HashMap;
 
 use axum::extract::{Path, State};
@@ -41,6 +42,7 @@ fn safe_u64(value: f64) -> u64 {
     value.floor() as u64
 }
 
+/// TODO: Document customer_metrics_response_from_metrics.
 fn customer_metrics_response_from_metrics(
     index_name: &str,
     target_uid: &str,
@@ -65,6 +67,7 @@ fn customer_metrics_response_from_metrics(
     }
 }
 
+/// TODO: Document load_customer_index_metrics.
 pub(crate) async fn load_customer_index_metrics(
     state: &AppState,
     customer_id: Uuid,
@@ -206,6 +209,7 @@ mod tests {
         assert_eq!(safe_u64(write_ops), 42);
     }
 
+    /// TODO: Document customer_metrics_response_filters_target_uid_and_floors_invalid_values.
     #[test]
     fn customer_metrics_response_filters_target_uid_and_floors_invalid_values() {
         let metrics = parse_metrics(

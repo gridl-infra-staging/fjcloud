@@ -69,6 +69,7 @@ require_absolute_executable() {
     [ -x "$path" ] || die_with_reason "prerequisite_missing" "$label must be an absolute executable path"
 }
 
+# TODO: Document env_or_repo_value.
 env_or_repo_value() {
     local key="$1"
     local fallback="${2:-}"
@@ -109,6 +110,7 @@ redact_secret() {
     printf '<redacted:%s chars>\n' "${#secret_value}"
 }
 
+# TODO: Document run_integration_migrations.
 run_integration_migrations() {
     if [ "${INTEGRATION_DB_ACCESS_MODE:-}" = "host-psql" ]; then
         run_migrations "$INTEGRATION_RUNTIME_DB_URL" "$INFRA_DIR/migrations"
@@ -137,6 +139,7 @@ run_integration_migrations() {
 # shellcheck source=lib/health.sh
 source "$SCRIPT_DIR/lib/health.sh"
 
+# TODO: Document check_prerequisites.
 check_prerequisites() {
     local ok=true
     if init_integration_db_access; then
@@ -179,6 +182,7 @@ check_prerequisites() {
     fi
 }
 
+# TODO: Document prerequisite_missing_message.
 prerequisite_missing_message() {
     local cmd="$1"
     case "$cmd" in

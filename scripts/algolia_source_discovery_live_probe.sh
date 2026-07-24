@@ -37,6 +37,7 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || die "$1 is required"
 }
 
+# TODO: Document load_named_secret_env_file.
 load_named_secret_env_file() {
   local env_file="$1"
   local line line_number=0 parse_status
@@ -109,6 +110,7 @@ curl_http() {
   return 1
 }
 
+# TODO: Document json_field.
 json_field() {
   local payload="$1"
   local field="$2"
@@ -181,6 +183,7 @@ fjcloud_request() {
     "${FJCLOUD_API_URL%/}/migration/algolia/list-indexes"
 }
 
+# TODO: Document cleanup_probe_resources.
 cleanup_probe_resources() {
   local index index_position
   set +e
@@ -280,6 +283,7 @@ create_key() {
   printf '%s\n' "$key"
 }
 
+# TODO: Document write_discovery_payload.
 write_discovery_payload() {
   local path="$1"
   local api_key="$2"
@@ -307,6 +311,7 @@ assert_response_under_budget() {
   [ "$elapsed_ms" -lt 8000 ] || die "fjcloud discovery request exceeded 8s budget"
 }
 
+# TODO: Document preconsume_retry_key_until_exhausted.
 preconsume_retry_key_until_exhausted() {
   local attempt payload started_ns
 
@@ -325,6 +330,7 @@ preconsume_retry_key_until_exhausted() {
   die "retry exhaustion did not observe fjcloud HTTP 503 within 6 attempts"
 }
 
+# TODO: Document capture_expected_fixture_metadata.
 capture_expected_fixture_metadata() {
   local page="$1"
   local restricted_auth_config attempt
@@ -347,6 +353,7 @@ capture_expected_fixture_metadata() {
   printf '%s' "$HTTP_BODY" > "$EXPECTED_METADATA_FILE"
 }
 
+# TODO: Document assert_discovery_page.
 assert_discovery_page() {
   local actual_body="$1"
   local expected_index="$2"
@@ -383,6 +390,7 @@ print(sys.argv[5])
 PY
 }
 
+# TODO: Document exercise_fjcloud_discovery.
 exercise_fjcloud_discovery() {
   local payload started_ns first_cursor first_body second_body
 
@@ -434,6 +442,7 @@ exercise_fjcloud_discovery() {
   printf '%s' "$HTTP_BODY" | grep -q 'browse' || die "ACL guidance omitted browse"
 }
 
+# TODO: Document main.
 main() {
   require_command curl
   require_command python3

@@ -92,6 +92,7 @@ for host, _count in counts.most_common(5):
 print(json.dumps({"selected": selected, "unhealthy_host_counts": counts}, indent=2, default=lambda o: dict(o)))
 PY
 
+# TODO: Document run_host_probe.
 run_host_probe() {
     local target_json="$1"
     local role="$2"

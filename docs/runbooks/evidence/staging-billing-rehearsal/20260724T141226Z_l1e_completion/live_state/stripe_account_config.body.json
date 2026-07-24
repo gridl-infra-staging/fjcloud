@@ -1,0 +1,100 @@
+{
+  "id": "acct_1SyNWBGXI8zVz4UH",
+  "object": "account",
+  "business_profile": {
+    "annual_revenue": null,
+    "estimated_worker_count": null,
+    "mcc": "5734",
+    "minority_owned_business_designation": null,
+    "name": "Flapjack Cloud",
+    "support_address": {
+      "city": "Durham",
+      "country": "US",
+      "line1": "1513 Echo Road",
+      "line2": null,
+      "postal_code": "27707",
+      "state": "NC"
+    },
+    "support_email": "support@flapjack.foo",
+    "support_phone": "+14053069556",
+    "support_url": null,
+    "url": "https://cloud.flapjack.foo"
+  },
+  "business_type": "company",
+  "capabilities": {
+    "acss_debit_payments": "active",
+    "afterpay_clearpay_payments": "active",
+    "amazon_pay_payments": "active",
+    "bancontact_payments": "active",
+    "blik_payments": "active",
+    "card_payments": "active",
+    "cartes_bancaires_payments": "pending",
+    "cashapp_payments": "active",
+    "eps_payments": "active",
+    "klarna_payments": "active",
+    "link_payments": "active",
+    "mb_way_payments": "active",
+    "pix_payments": "active",
+    "transfers": "active",
+    "us_bank_account_ach_payments": "active"
+  },
+  "charges_enabled": true,
+  "company": {
+    "name": "THIRD FORK LABS LLC\nSTUART C ROBINSON SOLE MBR\n% STUART C ROBINSON SOLE MBR",
+    "structure": "single_member_llc"
+  },
+  "controller": {
+    "type": "account"
+  },
+  "country": "US",
+  "default_currency": "usd",
+  "details_submitted": true,
+  "email": "stuart.clifford@gmail.com",
+  "payouts_enabled": true,
+  "settings": {
+    "bacs_debit_payments": {
+      "display_name": null,
+      "service_user_number": null
+    },
+    "branding": {
+      "icon": null,
+      "logo": null,
+      "primary_color": null,
+      "secondary_color": null
+    },
+    "card_issuing": {
+      "tos_acceptance": {
+        "date": null,
+        "ip": null
+      }
+    },
+    "card_payments": {
+      "statement_descriptor_prefix": "FLAPJACK",
+      "statement_descriptor_prefix_kana": null,
+      "statement_descriptor_prefix_kanji": null
+    },
+    "dashboard": {
+      "display_name": "flapjack-cloud",
+      "timezone": "America/New_York"
+    },
+    "invoices": {
+      "default_account_tax_ids": null,
+      "hosted_payment_method_save": "offer"
+    },
+    "payments": {
+      "statement_descriptor": "FLAPJACK CLOUD",
+      "statement_descriptor_kana": null,
+      "statement_descriptor_kanji": null
+    },
+    "payouts": {
+      "debit_negative_balances": true,
+      "schedule": {
+        "delay_days": 2,
+        "interval": "manual"
+      },
+      "statement_descriptor": null
+    },
+    "sepa_debit_payments": {}
+  },
+  "type": "standard"
+}

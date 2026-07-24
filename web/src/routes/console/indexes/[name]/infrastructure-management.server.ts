@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for web/src/routes/console/indexes/[name]/infrastructure-management.server.ts.
+ */
 import { ApiRequestError, type ApiClient } from '$lib/api/client';
 import type { IndexInfrastructureResponse } from '$lib/api/types';
 
@@ -11,6 +14,9 @@ export type InfrastructurePayload = {
 	error: InfrastructureLoadError | null;
 };
 
+/**
+ * TODO: Document customerSafeInfrastructureError.
+ */
 function customerSafeInfrastructureError(error: ApiRequestError): InfrastructureLoadError {
 	if (error.status === 401 || error.status === 403) {
 		return {

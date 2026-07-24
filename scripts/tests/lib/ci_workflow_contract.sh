@@ -106,6 +106,7 @@ step_line_number() {
   '
 }
 
+# TODO: Document assert_step_order.
 assert_step_order() {
   local job_name="$1"
   local first_step="$2"

@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for +server.ts.
+ */
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { ApiRequestError } from '$lib/api/client';
@@ -18,6 +21,9 @@ function withRetryAfterHeaders(retryAfterSeconds: number | null): HeadersInit | 
 	return { 'Retry-After': headerValue };
 }
 
+/**
+ * TODO: Document POST.
+ */
 export const POST: RequestHandler = async ({ locals }) => {
 	const api = createApiClient(locals.user?.token);
 

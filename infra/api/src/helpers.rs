@@ -1,3 +1,4 @@
+//! Stub summary for helpers.rs.
 use crate::errors::ApiError;
 use crate::models::Customer;
 use crate::repos::advisory_lock::{account_lifecycle_lock_key, advisory_lock, AdvisoryLockGuard};
@@ -52,6 +53,7 @@ pub async fn require_active_customer(
     Ok(customer)
 }
 
+/// TODO: Document lock_account_lifecycle.
 pub async fn lock_account_lifecycle<'a>(
     state: &'a AppState,
     customer_id: Uuid,
@@ -176,6 +178,7 @@ mod tests {
         assert_eq!(parsed, 42_u64);
     }
 
+    /// TODO: Document parse_with_default_invalid_value_falls_back_without_logging_secret_value.
     #[test]
     fn parse_with_default_invalid_value_falls_back_without_logging_secret_value() {
         let secret_like_value = "sk_test_secret_value";

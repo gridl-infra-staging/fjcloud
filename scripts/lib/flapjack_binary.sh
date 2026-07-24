@@ -34,6 +34,7 @@ default_flapjack_dev_dir_candidates() {
         "${HOME:-}/repos/flapjack_dev"
 }
 
+# TODO: Document configured_flapjack_dev_dir_candidates.
 configured_flapjack_dev_dir_candidates() {
     if [ -n "${FLAPJACK_DEV_DIR:-}" ]; then
         printf '%s\n' "$FLAPJACK_DEV_DIR"
@@ -50,6 +51,7 @@ configured_flapjack_dev_dir_candidates() {
     default_flapjack_dev_dir_candidates
 }
 
+# TODO: Document resolve_default_flapjack_dev_dir.
 resolve_default_flapjack_dev_dir() {
     if [ -n "${FLAPJACK_DEV_DIR:-}" ]; then
         printf '%s\n' "$FLAPJACK_DEV_DIR"
@@ -67,6 +69,7 @@ resolve_default_flapjack_dev_dir() {
     printf '%s\n' "$REPO_ROOT/../flapjack_dev"
 }
 
+# TODO: Document find_flapjack_binary.
 find_flapjack_binary() {
     local flapjack_dev_dir="${1:-${FLAPJACK_DEV_DIR:-}}"
     [ -d "$flapjack_dev_dir" ] || return 1
@@ -103,6 +106,7 @@ flapjack_binary_sha256() {
     shasum -a 256 "$binary_path" | awk '{print $1}'
 }
 
+# TODO: Document flapjack_binary_identity_reason.
 flapjack_binary_identity_reason() {
     local binary_path="$1" manifest_path="$2"
     [ -x "$binary_path" ] || {
@@ -326,6 +330,7 @@ flapjack_receipt_value() {
     grep -E "^${key}=" "$receipt_path" | head -n 1 | cut -d= -f2-
 }
 
+# TODO: Document flapjack_binary_workspace_digest.
 flapjack_binary_workspace_digest() {
     local binary_path="$1"
     local build_info
@@ -378,6 +383,7 @@ flapjack_receipt_path_from_provenance() {
     esac
 }
 
+# TODO: Document flapjack_export_required_runtime_identity.
 flapjack_export_required_runtime_identity() {
     local binary_path="$1"
     [ -x "$binary_path" ] || return 1
@@ -408,6 +414,7 @@ flapjack_export_required_runtime_identity() {
     fi
 }
 
+# TODO: Document flapjack_source_receipt_is_current.
 flapjack_source_receipt_is_current() {
     local source_root="$1" source_digest="$2" dirty_bit="$3"
     local receipt_path binary_path
@@ -433,6 +440,7 @@ flapjack_source_receipt_is_current() {
     [ "$expected_build_id" = "$actual_build_id" ] || return 1
 }
 
+# TODO: Document write_flapjack_source_receipt.
 write_flapjack_source_receipt() {
     local source_root="$1" source_digest="$2" dirty_bit="$3" build_log="$4"
     local receipt_path receipt_dir receipt_tmp binary_path binary_sha built_at target_triple git_revision workspace_digest
@@ -477,6 +485,7 @@ build_flapjack_from_source() {
     (cd "$source_root" && cargo build -p "$FJCLOUD_FLAPJACK_BUILD_PACKAGE" >"$build_log" 2>&1)
 }
 
+# TODO: Document resolve_source_backed_flapjack_binary.
 resolve_source_backed_flapjack_binary() {
     local source_root="$1"
     local binary_path="$source_root/target/debug/flapjack"
@@ -539,6 +548,7 @@ flapjack_source_provenance_summary() {
     printf 'unknown\n'
 }
 
+# TODO: Document find_restart_ready_flapjack_binary.
 find_restart_ready_flapjack_binary() {
     local flapjack_dev_dir="${1:-${FLAPJACK_DEV_DIR:-}}"
     local resolved_binary=""

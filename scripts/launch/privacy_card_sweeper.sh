@@ -7,6 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/privacy_com_client.sh
 source "$SCRIPT_DIR/../lib/privacy_com_client.sh"
 
+# TODO: Document privacy_card_sweeper_parse_args.
 privacy_card_sweeper_parse_args() {
     PRIVACY_SWEEPER_DRY_RUN="false"
 
@@ -30,6 +31,7 @@ privacy_card_sweeper_client_error() {
     echo "${action}: ${message}" >&2
 }
 
+# TODO: Document privacy_card_sweeper_evaluate_page.
 privacy_card_sweeper_evaluate_page() {
     local json_body="$1"
     local min_age_seconds="$2"
@@ -107,6 +109,7 @@ print(json.dumps(values, separators=(",", ":")))
 PY
 }
 
+# TODO: Document privacy_card_sweeper_emit_summary.
 privacy_card_sweeper_emit_summary() {
     local dry_run="$1"
     local pages_scanned="$2"
@@ -133,6 +136,7 @@ print(json.dumps(summary, separators=(",", ":")))
 PY
 }
 
+# TODO: Document privacy_card_sweeper_main.
 privacy_card_sweeper_main() {
     privacy_card_sweeper_parse_args "$@"
 

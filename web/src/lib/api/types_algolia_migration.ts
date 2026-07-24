@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for web/src/lib/api/types_algolia_migration.ts.
+ */
 // Algolia migration API types extracted from types.ts to keep the barrel
 // file under the 800-line size cap.
 
@@ -139,6 +142,9 @@ export interface PublicAlgoliaImportSource {
 	name: string;
 }
 
+/**
+ * TODO: Document PublicAlgoliaImportError.
+ */
 export interface PublicAlgoliaImportError {
 	code:
 		| 'invalid_credentials'
@@ -176,6 +182,9 @@ export interface AlgoliaImportSummary {
 	rulesRejected: number;
 }
 
+/**
+ * TODO: Document PublicAlgoliaImportJob.
+ */
 export interface PublicAlgoliaImportJob {
 	id: string;
 	status: AlgoliaImportJobStatus;

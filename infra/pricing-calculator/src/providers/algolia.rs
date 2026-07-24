@@ -1,3 +1,4 @@
+//! Stub summary for algolia.rs.
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -296,6 +297,7 @@ mod tests {
         assert_eq!(result.line_items[1].amount_cents, 0);
     }
 
+    /// TODO: Document estimate_large_valid_workload_does_not_overflow.
     #[test]
     fn estimate_large_valid_workload_does_not_overflow() {
         let w = WorkloadProfile {

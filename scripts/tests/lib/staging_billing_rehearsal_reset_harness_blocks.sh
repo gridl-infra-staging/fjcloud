@@ -101,6 +101,7 @@ fi
 MOCK
 }
 
+# TODO: Document mock_stripe_reset_script_block.
 mock_stripe_reset_script_block() {
     cat <<'MOCK'
 if [ "${1:-}" = "invoices" ] && [ "${2:-}" = "list" ]; then

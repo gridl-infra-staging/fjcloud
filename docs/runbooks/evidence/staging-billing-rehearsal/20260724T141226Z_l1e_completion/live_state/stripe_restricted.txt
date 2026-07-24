@@ -1,0 +1,5 @@
+label=stripe_restricted
+env_var=STRIPE_SECRET_KEY_RESTRICTED
+key_prefix=rk_test_...
+probe_exit_code=0
+--- probe output ---

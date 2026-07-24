@@ -18,6 +18,7 @@ TEST_RUN_ID_SELECTOR=""
 NOW_EPOCH_OVERRIDE=""
 MAX_EXPIRED_AGE_SECONDS="$DEFAULT_MAX_EXPIRED_AGE_SECONDS"
 
+# TODO: Document usage.
 usage() {
   cat <<'USAGE'
 Usage: live_e2e_ttl_janitor.sh [options]
@@ -77,6 +78,7 @@ is_missing_tag_value() {
   [[ -z "$value" || "$value" == "None" || "$value" == "null" ]]
 }
 
+# TODO: Document parse_ttl_epoch.
 parse_ttl_epoch() {
   local raw_value="$1"
   python3 - "$raw_value" <<'PY'
@@ -114,6 +116,7 @@ resource_type_from_arn() {
   esac
 }
 
+# TODO: Document delete_resource.
 delete_resource() {
   local resource_arn="$1"
   local resource_type="$2"
@@ -132,6 +135,7 @@ delete_resource() {
   esac
 }
 
+# TODO: Document parse_args.
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -194,6 +198,7 @@ validate_execute_gate() {
   fi
 }
 
+# TODO: Document discover_tagged_resources.
 discover_tagged_resources() {
   local -a discovery_cmd
   discovery_cmd=(
@@ -220,6 +225,7 @@ discover_tagged_resources() {
   aws_cli "${discovery_cmd[@]}"
 }
 
+# TODO: Document main.
 main() {
   parse_args "$@"
   validate_selectors

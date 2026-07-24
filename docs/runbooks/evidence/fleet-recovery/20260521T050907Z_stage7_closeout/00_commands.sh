@@ -6,6 +6,7 @@ cd "$REPO_ROOT"
 
 EVID_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# TODO: Document run_with_timeout.
 run_with_timeout() {
   local timeout_seconds="$1"
   shift

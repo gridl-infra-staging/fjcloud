@@ -194,6 +194,7 @@ probe_github() {
 # RFC 6761 -- guaranteed never resolvable.
 SELF_TEST_BAD_URI="https://NEVER-REGISTERED-WITH-PROVIDER.example.invalid/oauth-probe-self-test"
 
+# TODO: Document run_self_test.
 run_self_test() {
   local kind="$1" client_id="$2" client_secret="$3"
   local saved_fail=$fail

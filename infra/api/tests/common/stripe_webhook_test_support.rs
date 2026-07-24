@@ -36,6 +36,7 @@ pub fn webhook_request_with_signature(body: &str, signature: &str) -> Request<Bo
         .unwrap()
 }
 
+/// TODO: Document dispute_event_payload.
 #[allow(clippy::too_many_arguments)]
 pub fn dispute_event_payload(
     event_id: &str,
@@ -72,6 +73,7 @@ pub fn dispute_event_payload(
     )
 }
 
+/// TODO: Document dispute_created_payload.
 pub fn dispute_created_payload(
     event_id: &str,
     dispute_id: &str,
@@ -92,6 +94,7 @@ pub fn dispute_created_payload(
     )
 }
 
+/// TODO: Document dispute_funds_withdrawn_payload.
 pub fn dispute_funds_withdrawn_payload(
     event_id: &str,
     dispute_id: &str,
@@ -112,6 +115,7 @@ pub fn dispute_funds_withdrawn_payload(
     )
 }
 
+/// TODO: Document dispute_funds_reinstated_payload.
 pub fn dispute_funds_reinstated_payload(
     event_id: &str,
     dispute_id: &str,
@@ -132,6 +136,7 @@ pub fn dispute_funds_reinstated_payload(
     )
 }
 
+/// TODO: Document dispute_closed_payload.
 pub fn dispute_closed_payload(
     event_id: &str,
     dispute_id: &str,
@@ -205,6 +210,7 @@ fn build_webhook_test_app(
     api::router::build_router(state)
 }
 
+/// TODO: Document local_stripe_webhook_app.
 pub fn local_stripe_webhook_app(
     customer_repo: Arc<MockCustomerRepo>,
     invoice_repo: Arc<MockInvoiceRepo>,

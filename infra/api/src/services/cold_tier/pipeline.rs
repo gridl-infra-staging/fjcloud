@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/cold_tier/pipeline.rs.
 use std::collections::HashMap;
 use std::time::Duration as StdDuration;
 
@@ -392,6 +393,7 @@ impl ColdTierService {
         retry_count >= self.config.max_snapshot_retries
     }
 
+    /// TODO: Document ColdTierService.rollback_tenant_snapshot_state.
     async fn rollback_tenant_snapshot_state(
         &self,
         candidate: &ColdTierCandidate,

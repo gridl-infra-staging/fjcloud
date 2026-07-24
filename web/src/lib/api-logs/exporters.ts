@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for exporters.ts.
+ */
 import type { StoredLogEntry } from './store';
 
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -6,6 +9,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * TODO: Document normalizeJsonValue.
+ */
 export function normalizeJsonValue(value: unknown): JsonValue {
 	if (Array.isArray(value)) {
 		return value.map((item) => normalizeJsonValue(item));

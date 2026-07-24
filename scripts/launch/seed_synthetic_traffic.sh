@@ -155,6 +155,7 @@ fi
 # Tenant field lookup — bash 3.2 compatible indirect expansion.
 # ---------------------------------------------------------------------------
 
+# TODO: Document tenant_field.
 tenant_field() {
   # tenant_field <A|B|C> <NAME|PLAN|TARGET_STORAGE_MB|WRITES_PER_MINUTE|SEARCHES_PER_MINUTE|EXPECTED_MIN_CENTS>
   local letter="$1" field="$2"
@@ -174,6 +175,7 @@ tenant_field() {
   printf '%s' "${!var-}"
 }
 
+# TODO: Document seed_synthetic_state_dir.
 seed_synthetic_state_dir() {
   local uid_value state_dir
   uid_value="${UID:-$(id -u)}"
@@ -249,6 +251,7 @@ mapping_field_or_empty() {
   parse_json_field "$field_name" < "$mapping_path" 2>/dev/null || true
 }
 
+# TODO: Document write_tenant_mapping_artifact.
 write_tenant_mapping_artifact() {
   local mapping_path="$1"
   local customer_id="$2"
@@ -309,6 +312,7 @@ flapjack_url_is_control_plane() {
   esac
 }
 
+# TODO: Document healthy_shared_vm_url_from_ssm.
 healthy_shared_vm_url_from_ssm() {
   local region environment candidate_hosts host health_status
   region="${AWS_DEFAULT_REGION:-us-east-1}"
@@ -341,6 +345,7 @@ EOF
   return 1
 }
 
+# TODO: Document direct_fallback_flapjack_url_for_tenant.
 direct_fallback_flapjack_url_for_tenant() {
   local tenant_letter="$1"
   local mapped_a_url=""
@@ -429,6 +434,7 @@ probe_owner_read_numeric_or_zero() {
   printf '%s' "$value"
 }
 
+# TODO: Document probe_owner_count_fail_fast_events_in_window.
 probe_owner_count_fail_fast_events_in_window() {
   local tenant_letter="$1" window_start_epoch="$2" window_end_epoch="$3"
   local write_events_log fail_fast_count
@@ -484,6 +490,7 @@ PY
   printf '%s' "$fail_fast_count"
 }
 
+# TODO: Document probe_owner_query_hit_count.
 probe_owner_query_hit_count() {
   local flapjack_url="$1" flapjack_uid="$2" query_term="$3"
   local node_api_key query_payload response status body hit_count
@@ -548,6 +555,7 @@ probe_owner_fail_fast_during_restart_window_count() {
   probe_owner_count_fail_fast_events_in_window "$tenant_letter" "$window_start_epoch" "$window_end_epoch"
 }
 
+# TODO: Document probe_owner_writes_attempted_during_restart_window_count.
 probe_owner_writes_attempted_during_restart_window_count() {
   local flapjack_url="$1" flapjack_uid="$2" window_start_epoch="$3" window_end_epoch="$4" tenant_letter="$5"
   local write_events_log attempted_count
@@ -595,6 +603,7 @@ PY
   printf '%s' "${attempted_count:-0}"
 }
 
+# TODO: Document probe_owner_query_exact_object_hit_count.
 probe_owner_query_exact_object_hit_count() {
   local flapjack_url="$1" flapjack_uid="$2" object_id="$3"
   local exact_query_term hit_count
@@ -620,6 +629,7 @@ probe_owner_query_exact_object_hit_count() {
   fi
 }
 
+# TODO: Document probe_owner_visible_in_search_after_count.
 probe_owner_visible_in_search_after_count() {
   local flapjack_url="$1" flapjack_uid="$2" window_start_epoch="$3" window_end_epoch="$4" tenant_letter="$5"
   local write_events_log visible_count doc_ids doc_id hit_count
@@ -664,6 +674,7 @@ EOF
   printf '%s' "$visible_count"
 }
 
+# TODO: Document probe_owner_cross_tenant_leak_count.
 probe_owner_cross_tenant_leak_count() {
   local flapjack_url="$1" flapjack_uid="$2" tenant_letter="$3"
   local source_offset_base source_doc_id leaks old_ifs peer_letter peer_mapping_path peer_flapjack_url peer_flapjack_uid peer_hits
@@ -703,6 +714,7 @@ probe_owner_cross_tenant_leak_count() {
   printf '%s' "$leaks"
 }
 
+# TODO: Document probe_owner_noisy_neighbor_violation_count.
 probe_owner_noisy_neighbor_violation_count() {
   local flapjack_url="$1" flapjack_uid="$2" tenant_letter="$3"
   local violations old_ifs peer_letter peer_mapping_path peer_flapjack_url peer_status
@@ -738,6 +750,7 @@ probe_owner_noisy_neighbor_violation_count() {
   printf '%s' "$violations"
 }
 
+# TODO: Document single_write_batch_payload.
 single_write_batch_payload() {
   local offset="$1"
   deterministic_batch_payload "$SEED_BATCH_SEED" "$offset" 1
@@ -773,6 +786,7 @@ time.sleep(0.05)
 PY
 }
 
+# TODO: Document run_direct_write_loop.
 run_direct_write_loop() {
   local flapjack_url="$1" flapjack_uid="$2" total_writes="$3" sleep_seconds="$4" count_path="$5"
   local sent=0 document_offset payload response status
@@ -816,6 +830,7 @@ run_direct_write_loop() {
   done
 }
 
+# TODO: Document run_direct_search_loop.
 run_direct_search_loop() {
   local flapjack_url="$1" flapjack_uid="$2" total_searches="$3" sleep_seconds="$4" count_path="$5"
   local sent=0 response status search_payload
@@ -858,6 +873,7 @@ run_direct_search_loop() {
 # Pre-flight environment checks
 # ---------------------------------------------------------------------------
 
+# TODO: Document preflight_env.
 preflight_env() {
   # FLAPJACK_API_KEY is intentionally NOT required: each shared VM uses a
   # distinct per-node admin key stored at SSM /fjcloud/{vm-hostname}/api-key,
@@ -940,6 +956,7 @@ print(parsed.hostname or "")
   die "SSM lookup failed for ${ssm_path} (region=${region}): ${ssm_lookup_error}; set FLAPJACK_API_KEY or grant ssm:GetParameter on the operator IAM"
 }
 
+# TODO: Document read_mapped_storage_mb.
 read_mapped_storage_mb() {
   local flapjack_url="$1" flapjack_uid="$2"
   local storage_response storage_status storage_body mapped_storage_mb
@@ -1000,6 +1017,7 @@ describe_tenant() {
   log "  expected floor:    $(tenant_field "$letter" EXPECTED_MIN_CENTS) cents/month"
 }
 
+# TODO: Document resolve_customer_id_by_name_or_email.
 resolve_customer_id_by_name_or_email() {
   local expected_name="$1" expected_email="$2"
   local list_response list_status list_body resolved_customer_id
@@ -1062,6 +1080,7 @@ PY
   printf '%s' "$resolved_customer_id"
 }
 
+# TODO: Document ensure_customer_and_tenant.
 ensure_customer_and_tenant() {
   local letter="$1" name mapping_path email
   local unique_email_retry_remaining="true"
@@ -1225,6 +1244,7 @@ ensure_customer_and_tenant() {
   log "  tenant mapping ready at ${mapping_path}"
 }
 
+# TODO: Document seed_documents_to_target_size.
 seed_documents_to_target_size() {
   local letter="$1" name target_mb mapping_path
   local customer_id tenant_id flapjack_uid flapjack_url
@@ -1317,6 +1337,7 @@ PY
   done
 }
 
+# TODO: Document drive_sustained_writes_and_searches.
 drive_sustained_writes_and_searches() {
   local letter="$1" writes searches name mapping_path
   local customer_id tenant_id flapjack_uid flapjack_url
@@ -1353,6 +1374,7 @@ drive_sustained_writes_and_searches() {
   : > "$write_count_path"
   : > "$search_count_path"
 
+  # TODO: Document cleanup_sustained_traffic_children.
   cleanup_sustained_traffic_children() {
     local pid
     for pid in "$write_pid" "$search_pid"; do
@@ -1429,6 +1451,7 @@ drive_sustained_writes_and_searches() {
   log "  sustained traffic complete for ${name}: writes_sent=${writes_sent} searches_sent=${searches_sent}"
 }
 
+# TODO: Document run_tenant.
 run_tenant() {
   local letter="$1"
   log ""

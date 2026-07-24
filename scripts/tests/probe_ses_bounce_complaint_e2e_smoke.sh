@@ -42,6 +42,7 @@ else:
 PY
 }
 
+# TODO: Document json_get_step_field.
 json_get_step_field() {
     local json="$1" step_name="$2" field="$3"
     python3 - "$json" "$step_name" "$field" <<'PY' 2>/dev/null || echo ""
@@ -63,6 +64,7 @@ else:
 PY
 }
 
+# TODO: Document mock_psql_body.
 mock_psql_body() {
     cat <<'MOCK'
 set -euo pipefail
@@ -130,6 +132,7 @@ echo ""
 MOCK
 }
 
+# TODO: Document mock_staging_db_body.
 mock_staging_db_body() {
     cat <<'MOCK'
 staging_db_run_sql() {
@@ -149,6 +152,7 @@ staging_db_run_sql() {
 MOCK
 }
 
+# TODO: Document mock_customer_broadcast_body.
 mock_customer_broadcast_body() {
     cat <<'MOCK'
 set -euo pipefail
@@ -261,6 +265,7 @@ SES_REGION=us-east-1
 EOF_ENV
 }
 
+# TODO: Document setup_hydration_probe_repo.
 setup_hydration_probe_repo() {
     local tmp_dir="$1"
     local probe_repo="$tmp_dir/probe_repo"
@@ -314,6 +319,7 @@ MOCK
     echo "$probe_repo/scripts/probe_ses_bounce_complaint_e2e.sh"
 }
 
+# TODO: Document run_probe.
 run_probe() {
     local tmp_dir="$1"
     local mode="$2"
@@ -358,6 +364,7 @@ test_probe_script_exists() {
     fi
 }
 
+# TODO: Document test_probe_script_avoids_predictable_assert_temp_paths.
 test_probe_script_avoids_predictable_assert_temp_paths() {
     if rg -n '/tmp/probe_broadcast_(first|second)_assert\.err' "$PROBE_SCRIPT" >/dev/null; then
         fail "probe script should not use predictable /tmp paths for broadcast response assertion stderr"
@@ -366,6 +373,7 @@ test_probe_script_avoids_predictable_assert_temp_paths() {
     fi
 }
 
+# TODO: Document test_missing_mode_and_env_file_fails_with_usage_json.
 test_missing_mode_and_env_file_fails_with_usage_json() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"
@@ -387,6 +395,7 @@ test_missing_mode_and_env_file_fails_with_usage_json() {
     assert_contains "$(json_get_step_field "$RUN_STDOUT" "preflight" "detail")" "Usage" "missing args detail should include usage guidance"
 }
 
+# TODO: Document test_invalid_mode_fails_before_external_calls.
 test_invalid_mode_fails_before_external_calls() {
     local tmp_dir env_file
     tmp_dir="$(mktemp -d)"
@@ -411,6 +420,7 @@ test_invalid_mode_fails_before_external_calls() {
     assert_eq "$psql_calls" "0" "invalid mode should not execute DB calls"
 }
 
+# TODO: Document test_missing_required_env_fails_preflight.
 test_missing_required_env_fails_preflight() {
     local tmp_dir env_file
     tmp_dir="$(mktemp -d)"
@@ -434,6 +444,7 @@ EOF_ENV
     assert_contains "$(json_get_step_field "$RUN_STDOUT" "preflight" "detail")" "SES_FROM_ADDRESS" "missing env detail should name SES_FROM_ADDRESS"
 }
 
+# TODO: Document test_missing_db_url_hydrates_and_reaches_sns_poll_contract.
 test_missing_db_url_hydrates_and_reaches_sns_poll_contract() {
     local tmp_dir env_file original_probe_script
     tmp_dir="$(mktemp -d)"
@@ -479,6 +490,7 @@ test_missing_db_url_hydrates_and_reaches_sns_poll_contract() {
     assert_eq "$(json_get_step_field "$RUN_STDOUT" "second_live_send" "passed")" "true" "SSM-hydrated DB URL contract should complete the second send"
 }
 
+# TODO: Document test_malicious_ssm_export_line_is_rejected_before_source.
 test_malicious_ssm_export_line_is_rejected_before_source() {
     local tmp_dir env_file original_probe_script
     tmp_dir="$(mktemp -d)"
@@ -516,6 +528,7 @@ test_malicious_ssm_export_line_is_rejected_before_source() {
     fi
 }
 
+# TODO: Document test_prod_ssm_db_param_hydrates_prod_env.
 test_prod_ssm_db_param_hydrates_prod_env() {
     local tmp_dir env_file original_probe_script
     tmp_dir="$(mktemp -d)"
@@ -545,6 +558,7 @@ test_prod_ssm_db_param_hydrates_prod_env() {
     assert_contains "$staging_db_log" "postgres://prod-stub" "prod SSM DB param should read through staging_db_run_sql"
 }
 
+# TODO: Document test_direct_db_url_with_ssm_param_uses_local_psql.
 test_direct_db_url_with_ssm_param_uses_local_psql() {
     local tmp_dir env_file
     tmp_dir="$(mktemp -d)"
@@ -571,6 +585,7 @@ test_direct_db_url_with_ssm_param_uses_local_psql() {
     assert_eq "$hydrate_target" "" "direct DB URL with ambient SSM param should not hydrate from SSM"
 }
 
+# TODO: Document test_noncanonical_ssm_param_without_direct_db_fails_preflight.
 test_noncanonical_ssm_param_without_direct_db_fails_preflight() {
     local tmp_dir env_file original_probe_script
     tmp_dir="$(mktemp -d)"
@@ -605,6 +620,7 @@ test_noncanonical_ssm_param_without_direct_db_fails_preflight() {
     assert_eq "$broadcast_log" "" "non-canonical SSM DB param should not send broadcasts"
 }
 
+# TODO: Document test_poll_timeout_emits_machine_readable_failure.
 test_poll_timeout_emits_machine_readable_failure() {
     local tmp_dir env_file
     tmp_dir="$(mktemp -d)"
@@ -629,6 +645,7 @@ test_poll_timeout_emits_machine_readable_failure() {
     assert_contains "$psql_log" "WHERE id = '11111111-1111-1111-1111-111111111111'" "poll timeout cleanup should target only the seeded probe customer id"
 }
 
+# TODO: Document test_first_response_contract_failure_still_cleans_probe_customer.
 test_first_response_contract_failure_still_cleans_probe_customer() {
     local tmp_dir env_file
     tmp_dir="$(mktemp -d)"
@@ -652,6 +669,7 @@ test_first_response_contract_failure_still_cleans_probe_customer() {
     assert_contains "$psql_log" "WHERE id = '11111111-1111-1111-1111-111111111111'" "response contract cleanup should target only the seeded probe customer id"
 }
 
+# TODO: Document test_second_response_contract_failure_still_cleans_probe_customer.
 test_second_response_contract_failure_still_cleans_probe_customer() {
     local tmp_dir env_file
     tmp_dir="$(mktemp -d)"
@@ -676,6 +694,7 @@ test_second_response_contract_failure_still_cleans_probe_customer() {
     assert_contains "$psql_log" "WHERE id = '11111111-1111-1111-1111-111111111111'" "second response cleanup should target only the seeded probe customer id"
 }
 
+# TODO: Document test_successful_probe_runs_two_broadcasts_and_emits_passing_json.
 test_successful_probe_runs_two_broadcasts_and_emits_passing_json() {
     local tmp_dir env_file
     tmp_dir="$(mktemp -d)"
@@ -712,6 +731,7 @@ test_successful_probe_runs_two_broadcasts_and_emits_passing_json() {
     assert_contains "$psql_log" "WHERE id = '11111111-1111-1111-1111-111111111111'" "cleanup should target only the seeded probe customer id"
 }
 
+# TODO: Document main.
 main() {
     echo "=== probe_ses_bounce_complaint_e2e smoke tests ==="
 

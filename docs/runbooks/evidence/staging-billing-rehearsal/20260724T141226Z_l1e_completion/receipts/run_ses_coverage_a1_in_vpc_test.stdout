@@ -1,0 +1,163 @@
+PASS: missing --sha should reject
+PASS: error should mention sha
+PASS: malformed --sha should reject
+PASS: error should mention sha
+PASS: short --sha should reject
+PASS: missing --artifact-dir should reject
+PASS: error should mention artifact-dir
+PASS: missing --credential-env-file should reject
+PASS: error should mention credential-env-file
+PASS: missing --billing-month should reject
+PASS: error should mention billing-month
+PASS: malformed --billing-month should reject
+PASS: error should mention billing-month
+PASS: absolute --artifact-dir should reject
+PASS: error should mention absolute path
+PASS: dotdot --artifact-dir should reject
+PASS: error should mention ..
+PASS: symlink component --artifact-dir should reject
+PASS: error should mention symlink
+PASS: pre-existing non-empty --artifact-dir should reject
+PASS: error should mention non-empty
+PASS: all-green scenario should exit 0
+PASS: run_status.json should exist
+PASS: run_manifest.json should exist
+PASS: status should be green
+PASS: status rc should be 0
+PASS: run_status has argv
+PASS: run_status has instance_id
+PASS: manifest n should be 6
+PASS: manifest source_sha should match
+PASS: manifest billing_month should match
+PASS: manifest has schema_version
+PASS: manifest has archive_digest
+PASS: manifest has bundle_path
+PASS: manifest has probes
+PASS: manifest has integrity_status
+PASS: manifest has owner_digests
+PASS: manifest should have exactly 6 probe rows
+PASS: all probes should pass in green scenario
+PASS: probe_results.tsv should exist
+PASS: all_green.txt should exist
+PASS: failure_classifications.json should exist
+PASS: GAP_SPEC.md should exist
+PASS: GAP_SPEC.md should be nonempty
+PASS: all_green.txt should be 1 for green scenario
+PASS: deployable_currency should be the exact frozen-SHA verdict
+PASS: green scenario should complete before inspecting currency
+PASS: verdict upload should preserve serialized JSON
+PASS: deploy_status should be acquired exactly once
+PASS: deploy_status argv should remain unchanged
+PASS: classifier should compare acquired dev_sha to frozen source sha
+PASS: classifier should not compare ambient main to frozen source sha
+PASS: deployable_currency should be the exact frozen-SHA verdict
+PASS: green scenario should complete before inspecting SSM commands
+PASS: hydrate should strip the git archive prefix before probe execution
+PASS: hydrate/materialize should place the verdict at the runtime path
+PASS: probes should execute from the hydrated repo root with injected currency and env-file
+PASS: green scenario should complete before inspecting SSM commands
+PASS: materialize_host_env should materialize and digest-check verdict before host.env
+PASS: materialize runs before first probe
+PASS: green scenario should complete before inspecting probe commands
+PASS: verify_email_clickthrough should get --env-file
+PASS: password_reset_clickthrough should get --env-file
+PASS: dunning_email_inbox should get --env-file and --month
+PASS: ses_bounce should get positional env-file after mode
+PASS: ses_complaint should get positional env-file after mode
+PASS: staging_dunning_delivery should get --env-file, --month, and --confirm-live-mutation
+PASS: all six probe commands should receive deployable-currency inputs
+PASS: injection should preserve verify-email flags
+PASS: green scenario should complete before inspecting SSM commands
+PASS: default transport bucket should be the existing staging releases bucket
+PASS: archive should upload under the source SHA prefix
+PASS: verdict should upload under the source SHA prefix
+PASS: complete_red scenario should exit 10
+PASS: status should be complete_red
+PASS: status rc should be 10
+PASS: all_green.txt should be 0 for red scenario
+PASS: failure_classifications should have entries for red scenario
+PASS: complete_red should emit GAP_SPEC.md
+PASS: complete_red GAP_SPEC.md should be nonempty
+PASS: failed probes should have per-probe classifications in manifest
+PASS: classification categories should be from the KAT-derived taxonomy
+PASS: deployable_currency should be the exact frozen-SHA verdict
+PASS: status_nonzero should exit setup_failed
+PASS: setup_failed should write run_status
+PASS: setup_failed should be recorded
+PASS: setup_failed should not leave a classifiable manifest
+PASS: setup failure should not upload any S3 object
+PASS: setup failure should only permit idempotent remote cleanup
+PASS: status_malformed should exit setup_failed
+PASS: setup_failed should write run_status
+PASS: setup_failed should be recorded
+PASS: setup_failed should not leave a classifiable manifest
+PASS: setup failure should not upload any S3 object
+PASS: setup failure should only permit idempotent remote cleanup
+PASS: status_missing_dev_sha should exit setup_failed
+PASS: setup_failed should write run_status
+PASS: setup_failed should be recorded
+PASS: setup_failed should not leave a classifiable manifest
+PASS: setup failure should not upload any S3 object
+PASS: setup failure should only permit idempotent remote cleanup
+PASS: status_uppercase_dev_sha should exit setup_failed
+PASS: setup_failed should write run_status
+PASS: setup_failed should be recorded
+PASS: setup_failed should not leave a classifiable manifest
+PASS: setup failure should not upload any S3 object
+PASS: setup failure should only permit idempotent remote cleanup
+PASS: status_delimiter_dev_sha should exit setup_failed
+PASS: setup_failed should write run_status
+PASS: setup_failed should be recorded
+PASS: setup_failed should not leave a classifiable manifest
+PASS: setup failure should not upload any S3 object
+PASS: setup failure should only permit idempotent remote cleanup
+PASS: status_ref_dev_sha should exit setup_failed
+PASS: setup_failed should write run_status
+PASS: setup_failed should be recorded
+PASS: setup_failed should not leave a classifiable manifest
+PASS: setup failure should not upload any S3 object
+PASS: setup failure should only permit idempotent remote cleanup
+PASS: commit-ish dev_sha should fail before currency classification
+PASS: currency_unclassifiable should exit setup_failed
+PASS: setup_failed should write run_status
+PASS: setup_failed should be recorded
+PASS: setup_failed should not leave a classifiable manifest
+PASS: setup failure should not upload any S3 object
+PASS: setup failure should only permit idempotent remote cleanup
+PASS: unclassifiable currency should exercise the acquired dev_sha range
+PASS: git archive failure should exit 20 (setup_failed)
+PASS: status should be setup_failed
+PASS: SSM failure should exit 21 (structural_failed)
+PASS: status should be structural_failed
+PASS: verdict upload failure should be structural_failed
+PASS: structural_failed should write run_status
+PASS: structural_failed should be recorded
+PASS: structural_failed should not leave a classifiable manifest
+PASS: verdict upload failure should be observed at the verdict object
+PASS: remote verdict materialization failure should be structural_failed
+PASS: structural_failed should write run_status
+PASS: structural_failed should be recorded
+PASS: structural_failed should not leave a classifiable manifest
+PASS: remote materialization failure should mention the verdict file
+PASS: remote verdict digest mismatch should be structural_failed
+PASS: structural_failed should write run_status
+PASS: structural_failed should be recorded
+PASS: structural_failed should not leave a classifiable manifest
+PASS: remote tamper check should bind the downloaded verdict digest
+PASS: S3 cleanup failure should exit 22 (cleanup_failed)
+PASS: status should be cleanup_failed
+PASS: cleanup should remove the whole source-SHA prefix
+PASS: cleanup should remove remote transport artifacts
+PASS: archive_fail: no manifest with classifiable results (correct)
+PASS: structural_failed: no manifest with classifiable results (correct)
+PASS: cleanup_fail: no manifest with classifiable results (correct)
+PASS: manifest probe_ids should match spec order
+PASS: each probe row should have required fields
+PASS: manifest should have integrity_library SHA-256 digest
+PASS: run_status has status
+PASS: run_status has rc
+PASS: run_status has argv
+PASS: run_status has instance_id
+PASS: status value should be in the spec set
+
+=== Results: 161 passed, 0 failed ===

@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for client-runtime.ts.
+ */
 import { buildBoundaryCopy, createSupportReference, resolveBoundaryScope } from './recovery-copy';
 
 const BROWSER_RUNTIME_STATUS = 500;
@@ -45,6 +48,9 @@ function extractReasonMessage(value: unknown): string | undefined {
 	return stringifyUnknown(value);
 }
 
+/**
+ * TODO: Document extractRawBrowserFailureMessage.
+ */
 function extractRawBrowserFailureMessage(input: unknown): string {
 	if (!isRecord(input)) return FALLBACK_RUNTIME_MESSAGE;
 
@@ -83,6 +89,9 @@ function buildBrowserRuntimeReport(
 	};
 }
 
+/**
+ * TODO: Document normalizeBrowserRuntimeFailure.
+ */
 export function normalizeBrowserRuntimeFailure(input: unknown): NormalizedBrowserFailure {
 	const supportReference = createSupportReference();
 	const scope = resolveBoundaryScope(browserRuntimePathname());
@@ -104,6 +113,9 @@ export function normalizeBrowserRuntimeFailure(input: unknown): NormalizedBrowse
 	};
 }
 
+/**
+ * TODO: Document reportBrowserRuntimeFailure.
+ */
 export function reportBrowserRuntimeFailure(failure: NormalizedBrowserFailure): void {
 	// Fire-and-forget redacted client reports with backend_correlation='absent':
 	// browser runtime crashes are not associated with backend request IDs.
@@ -127,6 +139,9 @@ export function reportBrowserRuntimeFailure(failure: NormalizedBrowserFailure): 
 	}
 }
 
+/**
+ * TODO: Document installBrowserRuntimeFailureListeners.
+ */
 export function installBrowserRuntimeFailureListeners(
 	onFailure: (failure: NormalizedBrowserFailure) => void
 ): () => void {

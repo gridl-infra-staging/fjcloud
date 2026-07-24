@@ -19,6 +19,7 @@ wait_for_health() {
     return 1
 }
 
+# TODO: Document check_port_available.
 check_port_available() {
     local port="$1"
     local name="$2"

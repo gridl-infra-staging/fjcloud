@@ -78,6 +78,7 @@ MOCK
 )"
 }
 
+# TODO: Document write_env_capture_command.
 write_env_capture_command() {
     local path="$1" label="$2" capture_path="$3"
     shift 3
@@ -124,6 +125,7 @@ write_side_effect_mocks() {
     write_mock_command "$TEST_WORKSPACE/scripts/launch/run_full_backend_validation.sh" "run_full_backend_validation"
 }
 
+# TODO: Document write_aws_sts_mock.
 write_aws_sts_mock() {
     {
         printf '%s\n' '#!/usr/bin/env bash'
@@ -253,6 +255,7 @@ STRIPE_WEBHOOK_SECRET=whsec_wrapper_contract
 ENVFILE
 }
 
+# TODO: Document write_paid_beta_full_pass_summary.
 write_paid_beta_full_pass_summary() {
     local path="$1"
     mkdir -p "$(dirname "$path")"
@@ -285,6 +288,7 @@ with open(sys.argv[1], "w", encoding="utf-8") as fh:
 PY
 }
 
+# TODO: Document write_paid_beta_summary_with_step.
 write_paid_beta_summary_with_step() {
     local path="$1" step_name="$2" status="$3" reason="$4"
     write_paid_beta_full_pass_summary "$path"
@@ -309,6 +313,7 @@ with open(path, "w", encoding="utf-8") as fh:
 PY
 }
 
+# TODO: Document assert_runner_emitted_green_tuple.
 assert_runner_emitted_green_tuple() {
     local section1_manifest="$1" sha="$2" billing_month="$3"
     local summary_path artifact_dir verdict_path receipt_path validation_path
@@ -344,6 +349,7 @@ assert_runner_emitted_green_tuple() {
     assert_eq "$RUN_EXIT_CODE" "0" "validate-existing should accept the unchanged runner manifest, summary, and receipt tuple"
 }
 
+# TODO: Document assert_runner_emitted_real_defect_tuple.
 assert_runner_emitted_real_defect_tuple() {
     local section1_manifest="$1" sha="$2" billing_month="$3"
     local summary_path artifact_dir verdict_path receipt_path
@@ -376,6 +382,7 @@ assert_runner_emitted_real_defect_tuple() {
     RUNNER_EMITTED_REAL_DEFECT_SUMMARY="$summary_path"
 }
 
+# TODO: Document assert_runner_manifest_provenance_drift_rejected.
 assert_runner_manifest_provenance_drift_rejected() {
     local receipt_path="$1" section1_manifest="$2" summary_path="$3" sha="$4" billing_month="$5"
     local drift_manifest="$TEST_WORKSPACE/section1_bundle/drifted_run_manifest.json"
@@ -401,6 +408,7 @@ PY
     assert_contains "$RUN_STDERR" "section1 manifest digest does not match run receipt" "drift rejection should name the manifest digest mismatch"
 }
 
+# TODO: Document write_section1_manifest.
 write_section1_manifest() {
     local path="$1" sha="$2" billing_month="$3"
     mkdir -p "$(dirname "$path")"
@@ -428,6 +436,7 @@ with open(path, "w", encoding="utf-8") as fh:
 PY
 }
 
+# TODO: Document write_section1_manifest_with_shape.
 write_section1_manifest_with_shape() {
     local path="$1" sha="$2" billing_month="$3" shape="$4"
     mkdir -p "$(dirname "$path")"
@@ -476,6 +485,7 @@ STUB
     chmod +x "$TEST_WORKSPACE/web/node_modules/.bin/vite"
 }
 
+# TODO: Document run_rc_loader_child.
 run_rc_loader_child() {
     local credential_file="$1"
     local stdout_file="$TEST_WORKSPACE/tmp/loader_stdout.txt"
@@ -539,6 +549,7 @@ assert_call_log_absent() {
     assert_eq "$calls" "" "$msg"
 }
 
+# TODO: Document _run_facade.
 _run_facade() {
     local wrapper_script="$TEST_WORKSPACE/scripts/launch/invoke_rc_with_env.sh"
     local stdout_file="$TEST_WORKSPACE/tmp/invoke_rc_stdout.txt"
@@ -570,6 +581,7 @@ combined_output() {
     printf '%s\n%s\n' "$RUN_STDOUT" "$RUN_STDERR"
 }
 
+# TODO: Document source_rc_coordinator_functions.
 source_rc_coordinator_functions() {
     local function_library="$TEST_WORKSPACE/scripts/launch/run_full_backend_validation_functions.sh"
     local previous_sourced="${__RUN_FULL_BACKEND_VALIDATION_SOURCED-}"

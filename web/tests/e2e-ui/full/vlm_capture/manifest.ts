@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for manifest.ts.
+ */
 import {
 	CAPTURE_TUPLES,
 	PRODUCIBLE_CAPTURE_COUNT,
@@ -36,6 +39,9 @@ const SCREEN_SPEC_BY_ROUTE_SLUG: Record<string, string> = {
 
 const UNPRODUCIBLE_SETUP = 'unproducible_requires_server_side_mocking';
 
+/**
+ * TODO: Document buildCaptureManifest.
+ */
 export function buildCaptureManifest(): CaptureManifest {
 	const entries: CaptureManifestEntry[] = CAPTURE_TUPLES.map((tuple) => {
 		const screenSpecPath = SCREEN_SPEC_BY_ROUTE_SLUG[tuple.routeSlug];

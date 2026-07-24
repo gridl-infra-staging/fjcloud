@@ -58,6 +58,7 @@ rc_is_valid_ami_id() {
     [[ "$ami_id" =~ ^ami-[0-9a-f]{8}([0-9a-f]{9})?$ ]]
 }
 
+# TODO: Document rc_validate_section1_manifest.
 rc_validate_section1_manifest() {
     local manifest_path="$1"
     local sha="$2"
@@ -79,6 +80,7 @@ rc_validate_section1_manifest() {
     RC_SECTION1_MANIFEST_VALIDATION_OUTPUT="$validation_output"
 }
 
+# TODO: Document rc_load_credential_env_file.
 rc_load_credential_env_file() {
     local credential_env_file="$1"
 
@@ -110,6 +112,7 @@ rc_bridge_restricted_stripe_secret_key() {
     fi
 }
 
+# TODO: Document rc_build_paid_beta_argv.
 rc_build_paid_beta_argv() {
     local sha="$1"
     local artifact_dir="$2"
@@ -138,6 +141,7 @@ rc_build_paid_beta_argv() {
     fi
 }
 
+# TODO: Document rc_write_run_receipt.
 rc_write_run_receipt() {
     local receipt_path="$1"
     local artifact_dir="$2"
@@ -193,6 +197,7 @@ with open(receipt_path, "w", encoding="utf-8") as fh:
 PY
 }
 
+# TODO: Document rc_validate_run_receipt.
 rc_validate_run_receipt() {
     local receipt_path="$1"
     local sha="$2"
@@ -277,6 +282,7 @@ PY
     return "$compare_exit"
 }
 
+# TODO: Document rc_write_validation_receipt.
 rc_write_validation_receipt() {
     local output_path="$1"
     local sha="$2"
@@ -312,6 +318,7 @@ with open(output_path, "w", encoding="utf-8") as fh:
 PY
 }
 
+# TODO: Document rc_write_verdict_for_summary.
 rc_write_verdict_for_summary() {
     local summary_path="$1"
     local verdict_path="$2"

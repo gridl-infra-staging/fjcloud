@@ -1,0 +1,9 @@
+command=FJCLOUD_SECRET_FILE=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret LIVE_STATE_OUTPUT_PATH="$COMPLETION_DIR/live_state/SUMMARY.md" bash scripts/probe_live_state.sh
+start_utc=2026-07-24T14:15:09Z
+end_utc=2026-07-24T14:17:55Z
+head_sha=5c951e4b3188c8b81ac268c95c4a23ef58c332ac
+clean_tree=False
+cached=false
+timeout_seconds=900
+timed_out=false
+exit_status=0

@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for EditorDialog.normalize.ts.
+ */
 import type {
 	EditorDialogArrayFieldSchema,
 	EditorDialogFieldSchema,
@@ -6,6 +9,9 @@ import type {
 	EditorDialogValues
 } from './EditorDialog.types';
 
+/**
+ * TODO: Document deepCloneValues.
+ */
 export function deepCloneValues(values: EditorDialogValues): EditorDialogValues {
 	const cloneNode = (value: unknown): unknown => {
 		if (Array.isArray(value)) {
@@ -24,6 +30,9 @@ export function deepCloneValues(values: EditorDialogValues): EditorDialogValues 
 	return cloneNode(values) as EditorDialogValues;
 }
 
+/**
+ * TODO: Document areValuesEqual.
+ */
 export function areValuesEqual(left: unknown, right: unknown): boolean {
 	if (left === right) {
 		return true;
@@ -73,6 +82,9 @@ export function normalizeNumberValue(rawValue: string): number | null {
 	return Number.isNaN(parsed) ? null : parsed;
 }
 
+/**
+ * TODO: Document defaultSimpleValue.
+ */
 export function defaultSimpleValue(field: EditorDialogSimpleFieldSchema): unknown {
 	switch (field.type) {
 		case 'multiselect':
@@ -98,6 +110,9 @@ export function defaultGroupRow(group: EditorDialogGroupFieldSchema): Record<str
 	return row;
 }
 
+/**
+ * TODO: Document normalizeSimpleFieldValue.
+ */
 export function normalizeSimpleFieldValue(
 	field: EditorDialogSimpleFieldSchema,
 	value: unknown
@@ -159,6 +174,9 @@ export function normalizeArrayRows(field: EditorDialogArrayFieldSchema, value: u
 	return value.map((rowValue) => normalizeSimpleFieldValue(simpleItem, rowValue));
 }
 
+/**
+ * TODO: Document normalizeInitialValues.
+ */
 export function normalizeInitialValues(
 	allFields: EditorDialogFieldSchema[],
 	rawInitialValue: EditorDialogValues

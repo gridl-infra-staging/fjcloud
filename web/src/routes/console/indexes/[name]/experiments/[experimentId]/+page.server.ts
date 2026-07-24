@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for +page.server.ts.
+ */
 import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import type { Experiment, ExperimentResults } from '$lib/api/types';
@@ -40,6 +43,9 @@ function rethrowExperimentFallbackFailure(loadError: unknown): never {
 	throw error(500, 'Failed to load experiment');
 }
 
+/**
+ * TODO: Document load.
+ */
 export const load: PageServerLoad = async ({ parent, params, locals, url }) => {
 	const parentDataCandidate = (await parent()) as Record<string, unknown>;
 	const parentData = (

@@ -1,3 +1,4 @@
+//! Stub summary for infra/metering-agent/src/host_metrics.rs.
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
 use std::fs;
@@ -43,6 +44,7 @@ struct DiskMetrics {
 
 const AGGREGATE_CPU_TOTAL_FIELDS: usize = 8;
 
+/// TODO: Document collect_host_metrics.
 pub(crate) fn collect_host_metrics(
     proc_root: &Path,
     disk_path: &Path,
@@ -115,6 +117,7 @@ fn kb_to_bytes(kb: i64) -> anyhow::Result<i64> {
         .ok_or_else(|| anyhow!("memory byte value overflowed i64"))
 }
 
+/// TODO: Document parse_net_dev.
 fn parse_net_dev(contents: &str) -> anyhow::Result<NetDevMetrics> {
     let mut metrics = NetDevMetrics {
         rx_bytes: 0,
@@ -169,6 +172,7 @@ fn checked_add_i64(left: i64, right: i64, interface: &str) -> anyhow::Result<i64
         .ok_or_else(|| anyhow!("net/dev byte counter overflow while adding {interface}"))
 }
 
+/// TODO: Document parse_cpu_stat.
 fn parse_cpu_stat(contents: &str) -> anyhow::Result<CpuSnapshot> {
     let line = contents
         .lines()
@@ -207,6 +211,7 @@ fn parse_cpu_stat(contents: &str) -> anyhow::Result<CpuSnapshot> {
     Ok(CpuSnapshot { busy, total })
 }
 
+/// TODO: Document cpu_pct_between.
 fn cpu_pct_between(before: &CpuSnapshot, after: &CpuSnapshot) -> anyhow::Result<f64> {
     let total_delta = after
         .total
@@ -234,6 +239,7 @@ fn collect_disk_metrics(disk_path: &Path) -> Option<DiskMetrics> {
     }
 }
 
+/// TODO: Document statvfs_disk_metrics.
 #[cfg(unix)]
 fn statvfs_disk_metrics(disk_path: &Path) -> anyhow::Result<DiskMetrics> {
     use std::ffi::CString;
@@ -257,6 +263,7 @@ fn statvfs_disk_metrics(_disk_path: &Path) -> anyhow::Result<DiskMetrics> {
     Err(anyhow!("statvfs disk metrics are only supported on Unix"))
 }
 
+/// TODO: Document disk_metrics_from_statvfs.
 fn disk_metrics_from_statvfs(
     blocks: impl Into<u128>,
     free_blocks: impl Into<u128>,
@@ -416,6 +423,7 @@ Inter-|   Receive                                                |  Transmit
         assert_eq!(metrics.used_bytes, 307_200);
     }
 
+    /// TODO: Document collect_host_metrics_reads_live_linux_proc_snapshot.
     #[cfg(target_os = "linux")]
     #[test]
     fn collect_host_metrics_reads_live_linux_proc_snapshot() {

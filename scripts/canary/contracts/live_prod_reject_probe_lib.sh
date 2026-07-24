@@ -12,6 +12,7 @@ live_prod_response_path() {
   mktemp "/tmp/live_prod_${artifact_stem}_XXXXXX"
 }
 
+# TODO: Document capture_live_prod_response.
 capture_live_prod_response() {
   local output_path="$1"
   local output_dir

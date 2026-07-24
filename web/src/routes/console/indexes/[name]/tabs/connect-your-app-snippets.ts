@@ -40,6 +40,9 @@ export function buildSnippetContext(endpoint: string, indexName: string): Snippe
 	};
 }
 
+/**
+ * TODO: Document buildFrameworkSnippets.
+ */
 export function buildFrameworkSnippets(ctx: SnippetContext): FrameworkSnippet[] {
 	const clientSetup = `import { liteClient as algoliasearch } from 'algoliasearch/lite';
 

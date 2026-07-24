@@ -15,6 +15,7 @@ print(os.path.realpath(sys.argv[1]))
 PY
 }
 
+# TODO: Document validate_repo_owned_output_dir.
 validate_repo_owned_output_dir() {
   local candidate="$1"
   local repo_root_real candidate_real
@@ -47,6 +48,7 @@ VERIFY_RUN_CONCLUSION=""
 VERIFY_JOB_CONCLUSIONS=""
 VERIFY_WALL_SECONDS="0"
 
+# TODO: Document print_usage.
 print_usage() {
   cat <<'USAGE'
 Usage:
@@ -77,6 +79,7 @@ default_evidence_dir() {
   printf '%s/docs/live-state/lane_evidence/lane_b_post_merge_gate_%s\n' "$REPO_ROOT" "$(utc_timestamp_compact)"
 }
 
+# TODO: Document resolve_staging_mirror_root_from_debbie_toml.
 resolve_staging_mirror_root_from_debbie_toml() {
   local debbie_toml="$REPO_ROOT/.debbie.toml"
   if [ ! -f "$debbie_toml" ]; then
@@ -111,6 +114,7 @@ read_synced_dev_sha_from_local_manifest() {
   jq -r '.dev_sha // empty' "$manifest_file" 2>/dev/null || true
 }
 
+# TODO: Document sleep_with_budget.
 sleep_with_budget() {
   local start_ms="$1"
   local timeout_seconds="$2"
@@ -150,6 +154,7 @@ ensure_summary_exclusive() {
   fi
 }
 
+# TODO: Document write_summary.
 write_summary() {
   local verdict="$1"
   local reason="$2"
@@ -214,6 +219,7 @@ run_conclusion_is_pending() {
   [ -z "$conclusion" ] || [ "$conclusion" = "null" ] || [ "$conclusion" = "in_progress" ]
 }
 
+# TODO: Document attempt_ci_verdict_for_current_mirror_head.
 attempt_ci_verdict_for_current_mirror_head() {
   local evidence_dir="$1"
   local start_ms="$2"
@@ -280,6 +286,7 @@ attempt_ci_verdict_for_current_mirror_head() {
   return 0
 }
 
+# TODO: Document run_gate.
 run_gate() {
   local start_ms
   start_ms="$(ms_now)"
@@ -343,6 +350,7 @@ run_gate() {
   done
 }
 
+# TODO: Document main.
 main() {
   local arg
   while [ "$#" -gt 0 ]; do

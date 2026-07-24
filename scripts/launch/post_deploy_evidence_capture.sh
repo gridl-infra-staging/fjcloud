@@ -46,6 +46,7 @@ Usage: post_deploy_evidence_capture.sh
 USAGE
 }
 
+# TODO: Document parse_args.
 parse_args() {
     local arg
     for arg in "$@"; do
@@ -90,6 +91,7 @@ parse_args() {
     done
 }
 
+# TODO: Document validate_required_args.
 validate_required_args() {
     if [ -z "$SHA" ]; then
         echo "missing required argument: --sha" >&2
@@ -149,6 +151,7 @@ create_run_id() {
     printf 'fjcloud_post_deploy_evidence_%s_%s\n' "$(date -u +%Y%m%dT%H%M%SZ)" "$$"
 }
 
+# TODO: Document create_run_dir.
 create_run_dir() {
     local run_id="$1"
     local run_dir="$ARTIFACT_ROOT/$run_id"
@@ -168,6 +171,7 @@ create_run_dir() {
     SUMMARY_PATH="$run_dir/summary.json"
 }
 
+# TODO: Document run_stripe_prefix_gate.
 run_stripe_prefix_gate() {
     local had_stripe_key=0 saved_stripe_key=""
     local had_gate=0 saved_gate=""
@@ -207,6 +211,7 @@ run_stripe_prefix_gate() {
     fi
 }
 
+# TODO: Document resolve_deploy_sha_for_reject_gate.
 resolve_deploy_sha_for_reject_gate() {
     if [ "$DRY_RUN" -eq 1 ]; then
         if [ -n "${MOCK_LAST_DEPLOY_SHA:-}" ]; then
@@ -240,6 +245,7 @@ run_stage_0_reject_known_bad_sha_gate() {
     done
 }
 
+# TODO: Document resolve_dns_domain.
 resolve_dns_domain() {
     if [ -n "${DNS_DOMAIN:-}" ]; then
         printf '%s\n' "$DNS_DOMAIN"
@@ -299,6 +305,7 @@ journal_warning_count_to_file_or_zero() {
     printf '0\n' > "$output_path"
 }
 
+# TODO: Document run_live_sequence.
 run_live_sequence() {
     local dns_domain="$1"
     local health_url
@@ -327,6 +334,7 @@ run_live_sequence() {
     write_summary_json "pass" "$dns_domain"
 }
 
+# TODO: Document main.
 main() {
     parse_args "$@"
     validate_required_args

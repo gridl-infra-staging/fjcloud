@@ -1,0 +1,46 @@
+head_sha=5170c7d278836b2c291c2897c81d30592895c5d3
+clean_tree=false
+validation_cache_recorded=true
+
+command=/opt/homebrew/bin/timeout 60 bash -n scripts/probe_live_state.sh
+start_utc=2026-07-24T15:32:38Z
+end_utc=2026-07-24T15:32:38Z
+timeout_seconds=60
+timed_out=false
+exit_status=0
+result=PASS
+
+command=/opt/homebrew/bin/timeout 60 env FJCLOUD_SECRET_FILE=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret LIVE_STATE_OUTPUT_PATH=/dev/null/fjcloud-live-state/SUMMARY.md bash scripts/probe_live_state.sh
+start_utc=2026-07-24T15:32:38Z
+end_utc=2026-07-24T15:32:38Z
+timeout_seconds=60
+timed_out=false
+exit_status=1
+expected_exit_status=1
+stderr=mkdir: /dev/null: Not a directory
+result=PASS
+
+command=/opt/homebrew/bin/timeout 60 env PROBE_TEST_CASE=unwritable_output_path bash scripts/test_probe_live_state.sh
+start_utc=2026-07-24T15:32:38Z
+end_utc=2026-07-24T15:32:38Z
+timeout_seconds=60
+timed_out=false
+exit_status=0
+assertions_passed=2
+assertions_failed=0
+result=PASS
+
+command=/opt/homebrew/bin/timeout 360 bash scripts/test_probe_live_state.sh
+start_utc=2026-07-24T15:32:52Z
+end_utc=2026-07-24T15:36:29Z
+timeout_seconds=360
+timed_out=false
+exit_status=0
+assertions_passed=377
+assertions_failed=0
+result=PASS
+
+diagnosed_superseded_command=FJCLOUD_SECRET_FILE=/dev/null LIVE_STATE_OUTPUT_PATH=/dev/null/fjcloud-live-state/SUMMARY.md bash scripts/probe_live_state.sh
+diagnosed_superseded_exit_status=2
+diagnosed_superseded_stderr=FAIL_NO_SECRETS: /dev/null not found
+diagnosis=/dev/null is not a regular secret file, so that attempt stopped at secret-source validation before reaching output initialization; the authorized-source reproduction above is the decisive guard evidence.

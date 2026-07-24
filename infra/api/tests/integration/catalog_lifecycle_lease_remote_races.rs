@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/tests/integration/catalog_lifecycle_lease_remote_races.rs.
 use super::*;
 
 fn take_reservation_race_result(
@@ -55,6 +56,7 @@ async fn create_index_on_shared_vm_reservation_races_after_intent_before_remote_
     .await;
 }
 
+/// TODO: Document create_index_on_shared_vm_reservation_races_after_intent_before_remote_work.
 #[tokio::test]
 async fn create_index_on_shared_vm_reservation_races_after_intent_before_remote_work() {
     let live_binding = CatalogLiveBinding::begin().await;
@@ -232,6 +234,7 @@ async fn create_index_on_shared_vm_reservation_races_after_intent_before_remote_
     }
 }
 
+/// TODO: Document create_index_on_shared_vm_resumes_compatible_provisioning_intent.
 #[tokio::test]
 async fn create_index_on_shared_vm_resumes_compatible_provisioning_intent() {
     let Some(db) = connect_and_migrate("catalog_route_create_resume_intent").await else {
@@ -310,6 +313,7 @@ async fn create_index_on_shared_vm_resumes_compatible_provisioning_intent() {
     assert_eq!(after_deployments, before.deployments);
 }
 
+/// TODO: Document create_index_on_shared_vm_remote_failure_rolls_back_owned_intent.
 #[tokio::test]
 async fn create_index_on_shared_vm_remote_failure_rolls_back_owned_intent() {
     let Some(db) = connect_and_migrate("catalog_route_create_remote_failure_rollback").await else {
@@ -403,6 +407,7 @@ async fn delete_index_reservation_races_after_intent_before_finalization_reserva
     .await;
 }
 
+/// TODO: Document insert_shared_provisioning_intent.
 async fn insert_shared_provisioning_intent(
     pool: &PgPool,
     customer_id: Uuid,
@@ -441,6 +446,7 @@ async fn insert_shared_provisioning_intent(
     deployment_id
 }
 
+/// TODO: Document delete_index_reservation_races_after_intent_before_finalization.
 #[tokio::test]
 async fn delete_index_reservation_races_after_intent_before_finalization() {
     let live_binding = CatalogLiveBinding::begin().await;
@@ -604,6 +610,7 @@ async fn delete_index_reservation_races_after_intent_before_finalization() {
     }
 }
 
+/// TODO: Document cold_tier_intent_blocks_replace_reservation_before_remote_export.
 #[tokio::test]
 async fn cold_tier_intent_blocks_replace_reservation_before_remote_export() {
     let live_binding = CatalogLiveBinding::begin().await;
@@ -669,6 +676,7 @@ async fn cold_tier_intent_blocks_replace_reservation_before_remote_export() {
     }
 }
 
+/// TODO: Document cold_tier_failure_rollback_preserves_service_type_drift.
 #[tokio::test]
 async fn cold_tier_failure_rollback_preserves_service_type_drift() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_cold_tier_rollback_drift").await else {
@@ -733,6 +741,7 @@ async fn cold_tier_failure_rollback_preserves_service_type_drift() {
 // harness.
 // ---------------------------------------------------------------------------
 
+/// TODO: Document region_failover_races_after_intent_before_remote_work.
 #[tokio::test]
 async fn region_failover_races_after_intent_before_remote_work() {
     let live_binding = CatalogLiveBinding::begin().await;
@@ -749,6 +758,7 @@ async fn region_failover_races_after_intent_before_remote_work_reservation_wins(
     assert_region_failover_rejects_active_reservation().await;
 }
 
+/// TODO: Document replica_create_remove_races_after_intent_before_remote_work.
 #[tokio::test]
 async fn replica_create_remove_races_after_intent_before_remote_work() {
     let live_binding = CatalogLiveBinding::begin().await;
@@ -767,6 +777,7 @@ async fn replica_create_remove_races_after_intent_before_remote_work_reservation
     assert_replica_service_create_replica_rejects_active_reservation().await;
 }
 
+/// TODO: Document replica_create_remove_races_after_intent_before_remote_work_remove.
 #[tokio::test]
 async fn replica_create_remove_races_after_intent_before_remote_work_remove() {
     assert_replica_remove_race_after_intent().await;
@@ -777,6 +788,7 @@ async fn replica_create_remove_races_after_intent_before_remote_work_reservation
     assert_replica_service_remove_replica_rejects_active_reservation().await;
 }
 
+/// TODO: Document restore_lifecycle_races_after_intent_before_remote_work.
 #[tokio::test]
 async fn restore_lifecycle_races_after_intent_before_remote_work() {
     let live_binding = CatalogLiveBinding::begin().await;
@@ -794,6 +806,7 @@ async fn restore_lifecycle_races_after_intent_before_remote_work_reservation_win
     assert_restore_service_initiate_restore_rejects_active_reservation().await;
 }
 
+/// TODO: Document restore_lifecycle_races_after_intent_before_remote_work_initiate.
 #[tokio::test]
 async fn restore_lifecycle_races_after_intent_before_remote_work_initiate() {
     assert_restore_initiate_race_after_intent().await;

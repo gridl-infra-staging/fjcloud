@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/tests/integration/catalog_lifecycle_leases.rs.
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -336,6 +337,7 @@ fn identity_drift_denominator() -> &'static [RestoreIdentityDrift] {
     &RESTORE_IDENTITY_DRIFT_DENOMINATOR
 }
 
+/// TODO: Document assert_closed_identity_drift_denominator.
 fn assert_closed_identity_drift_denominator() {
     let expected = BTreeSet::from([
         "deployment_id",
@@ -351,6 +353,7 @@ fn assert_closed_identity_drift_denominator() {
     );
 }
 
+/// TODO: Document identity_drift_denominator_validator_rejects_malformed_labels.
 #[test]
 fn identity_drift_denominator_validator_rejects_malformed_labels() {
     let expected = identity_drift_labels().into_iter().collect::<BTreeSet<_>>();
@@ -379,6 +382,7 @@ fn identity_drift_labels() -> Vec<&'static str> {
         .collect()
 }
 
+/// TODO: Document validate_identity_drift_labels.
 fn validate_identity_drift_labels(
     labels: Vec<&'static str>,
     expected: &BTreeSet<&'static str>,
@@ -397,6 +401,7 @@ fn validate_identity_drift_labels(
     }
 }
 
+/// TODO: Document assert_identity_drift_applied.
 fn assert_identity_drift_applied(
     before: &CatalogLifecycleTargetIdentity,
     after: &CatalogLifecycleTargetIdentity,
@@ -605,6 +610,7 @@ impl NodeSecretManager for RestoreIntentBoundarySecretManager {
         Ok(())
     }
 
+    /// TODO: Document RestoreIntentBoundarySecretManager.get_node_api_key.
     async fn get_node_api_key(
         &self,
         node_id: &str,
@@ -719,6 +725,7 @@ impl ObservingSeedSecretManager {
 
 #[async_trait]
 impl NodeSecretManager for ObservingSeedSecretManager {
+    /// TODO: Document ObservingSeedSecretManager.create_node_api_key.
     async fn create_node_api_key(
         &self,
         node_id: &str,
@@ -863,6 +870,7 @@ impl CountingColdTierNodeClient {
 
 #[async_trait]
 impl FlapjackNodeClient for CountingColdTierNodeClient {
+    /// TODO: Document CountingColdTierNodeClient.export_index.
     async fn export_index(
         &self,
         _flapjack_url: &str,
@@ -1028,6 +1036,7 @@ impl CountingMigrationHttpClient {
 
 #[async_trait]
 impl MigrationHttpClient for CountingMigrationHttpClient {
+    /// TODO: Document CountingMigrationHttpClient.send.
     async fn send(
         &self,
         request: MigrationHttpRequest,
@@ -1106,6 +1115,7 @@ fn oplog_metric(index_name: &str, seq: i64) -> String {
     format!(r#"flapjack_oplog_current_seq{{index="{index_name}"}} {seq}"#)
 }
 
+/// TODO: Document queue_successful_migration_http.
 fn queue_successful_migration_http(
     http_client: &CountingMigrationHttpClient,
     index_name: &str,
@@ -1238,6 +1248,7 @@ const F5P2_EXECUTABLE_SCENARIO_SOURCES: &[ExecutableScenarioSource<'static>] = &
     },
 ];
 
+/// TODO: Document catalog_lifecycle_inventory_matches_source_discovery.
 #[test]
 fn catalog_lifecycle_inventory_matches_source_discovery() {
     let inventory: CatalogLifecycleInventory = serde_json::from_str(CATALOG_LIFECYCLE_WRITERS_JSON)
@@ -1247,6 +1258,7 @@ fn catalog_lifecycle_inventory_matches_source_discovery() {
     assert_catalog_lifecycle_inventory_valid(&inventory, &observed);
 }
 
+/// TODO: Document catalog_lifecycle_inventory_shape_mutations_fail_closed.
 #[test]
 fn catalog_lifecycle_inventory_shape_mutations_fail_closed() {
     let inventory = canonical_catalog_lifecycle_inventory();
@@ -1352,6 +1364,7 @@ fn catalog_lifecycle_inventory_shape_mutations_fail_closed() {
     );
 }
 
+/// TODO: Document catalog_lifecycle_inventory_metadata_mutations_fail_closed.
 #[test]
 fn catalog_lifecycle_inventory_metadata_mutations_fail_closed() {
     let inventory = canonical_catalog_lifecycle_inventory();
@@ -2020,6 +2033,7 @@ fn catalog_lifecycle_acceptance_oracle_does_not_duplicate_writer_denominator() {
     }
 }
 
+/// TODO: Document soft_delete_privacy_transition_denominator_rejects_missing_duplicate_new_and_unexercised_writers.
 #[test]
 fn soft_delete_privacy_transition_denominator_rejects_missing_duplicate_new_and_unexercised_writers(
 ) {
@@ -2163,6 +2177,7 @@ fn soft_delete_privacy_transition_exercises_match_f5p1_inventory_once() {
     );
 }
 
+/// TODO: Document soft_delete_privacy_transition_denominator_rejects_unregistered_test_scenarios.
 #[test]
 fn soft_delete_privacy_transition_denominator_rejects_unregistered_test_scenarios() {
     let inventory = inventory_by_key();
@@ -2222,6 +2237,7 @@ fn soft_delete_privacy_transition_denominator_rejects_unregistered_test_scenario
     }
 }
 
+/// TODO: Document privacy_transition_partition_assigns_hard_delete_writers_to_f5p2_and_excludes_reactivate.
 #[test]
 fn privacy_transition_partition_assigns_hard_delete_writers_to_f5p2_and_excludes_reactivate() {
     let inventory = inventory_by_key();
@@ -2278,6 +2294,7 @@ fn privacy_transition_partition_assigns_hard_delete_writers_to_f5p2_and_excludes
     );
 }
 
+/// TODO: Document hard_delete_privacy_transition_exercises_match_f5p2_inventory_once.
 #[test]
 fn hard_delete_privacy_transition_exercises_match_f5p2_inventory_once() {
     let inventory = inventory_by_key();
@@ -2332,6 +2349,7 @@ fn hard_delete_privacy_transition_exercises_match_f5p2_inventory_once() {
     );
 }
 
+/// TODO: Document hard_delete_privacy_transition_denominator_rejects_malformed_registrations.
 #[test]
 fn hard_delete_privacy_transition_denominator_rejects_malformed_registrations() {
     let inventory = inventory_by_key();
@@ -2504,6 +2522,7 @@ fn hard_delete_privacy_transition_denominator_rejects_malformed_registrations() 
     }
 }
 
+/// TODO: Document route_owner_coverage_registrations_match_blocking_inventory_ids_once.
 #[test]
 fn route_owner_coverage_registrations_match_blocking_inventory_ids_once() {
     let inventory = inventory_by_key();
@@ -2517,6 +2536,7 @@ fn route_owner_coverage_registrations_match_blocking_inventory_ids_once() {
     );
 }
 
+/// TODO: Document service_owner_coverage_validator_rejects_bad_registrations.
 #[test]
 fn service_owner_coverage_validator_rejects_bad_registrations() {
     let inventory = inventory_by_key();
@@ -2622,6 +2642,7 @@ fn service_owner_coverage_validator_rejects_bad_registrations() {
     }
 }
 
+/// TODO: Document service_owner_coverage_registrations_match_blocking_inventory_ids_once.
 #[test]
 fn service_owner_coverage_registrations_match_blocking_inventory_ids_once() {
     let inventory = inventory_by_key();
@@ -2676,6 +2697,7 @@ fn validate_soft_delete_privacy_transition_exercises(
     )
 }
 
+/// TODO: Document validate_soft_delete_privacy_transition_exercises_with_scenarios.
 fn validate_soft_delete_privacy_transition_exercises_with_scenarios(
     registrations: &[CoverageRegistration],
     inventory: &BTreeMap<(String, String), CatalogLifecycleWriter>,
@@ -2703,6 +2725,7 @@ fn validate_soft_delete_privacy_transition_exercises_with_scenarios(
     )
 }
 
+/// TODO: Document validate_hard_delete_privacy_transition_exercises.
 fn validate_hard_delete_privacy_transition_exercises(
     registrations: &[CoverageRegistration],
     inventory: &BTreeMap<(String, String), CatalogLifecycleWriter>,
@@ -2802,6 +2825,7 @@ fn f5p1_soft_delete_privacy_inventory_ids(
         .collect()
 }
 
+/// TODO: Document validate_coverage_registrations.
 fn validate_coverage_registrations(
     registrations: &[CoverageRegistration],
     expected_ids: &BTreeSet<String>,
@@ -2818,6 +2842,7 @@ fn validate_coverage_registrations(
     )
 }
 
+/// TODO: Document validate_coverage_registrations_for_disposition.
 fn validate_coverage_registrations_for_disposition(
     registrations: &[CoverageRegistration],
     expected_ids: &BTreeSet<String>,
@@ -3018,6 +3043,7 @@ fn route_sprint_scope_contains(writer: &CatalogLifecycleWriter) -> bool {
     })
 }
 
+/// TODO: Document blocking_inventory_by_key.
 fn blocking_inventory_by_key() -> BTreeMap<(String, String), CatalogLifecycleWriter> {
     inventory_by_key()
         .into_iter()
@@ -3025,6 +3051,7 @@ fn blocking_inventory_by_key() -> BTreeMap<(String, String), CatalogLifecycleWri
         .collect()
 }
 
+/// TODO: Document inventory_by_key.
 fn inventory_by_key() -> BTreeMap<(String, String), CatalogLifecycleWriter> {
     let inventory: CatalogLifecycleInventory = serde_json::from_str(CATALOG_LIFECYCLE_WRITERS_JSON)
         .expect("catalog lifecycle writer inventory must be valid JSON");
@@ -3059,6 +3086,7 @@ struct FixtureShape {
     findings: BTreeSet<String>,
 }
 
+/// TODO: Document validate_fixture.
 fn validate_fixture(inventory: &CatalogLifecycleInventory) -> FixtureShape {
     let mut ids = BTreeSet::new();
     let mut dispositions = BTreeMap::new();
@@ -3162,6 +3190,7 @@ fn validate_fixture(inventory: &CatalogLifecycleInventory) -> FixtureShape {
     FixtureShape { ids, findings }
 }
 
+/// TODO: Document validate_catalog_lifecycle_inventory.
 fn validate_catalog_lifecycle_inventory(
     inventory: &CatalogLifecycleInventory,
     observed: &BTreeSet<WriterObservation>,
@@ -3290,6 +3319,7 @@ enum RawJsonNode {
 }
 
 impl<'de> Deserialize<'de> for RawJsonNode {
+    /// TODO: Document RawJsonNode.deserialize.
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -3655,6 +3685,7 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
+/// TODO: Document scoped_source_files.
 fn scoped_source_files(repo_root: &Path) -> Vec<PathBuf> {
     let mut paths = Vec::new();
     collect_rs_files(repo_root, "infra/api/src/routes/indexes", &mut paths);
@@ -3695,6 +3726,7 @@ fn collect_rs_files(repo_root: &Path, relative_dir: &str, paths: &mut Vec<PathBu
     }
 }
 
+/// TODO: Document observe_file.
 fn observe_file(repo_root: &Path, path: &Path) -> BTreeSet<WriterObservation> {
     let source = fs::read_to_string(path)
         .unwrap_or_else(|error| panic!("failed to read source file {}: {error}", path.display()));
@@ -3750,6 +3782,7 @@ fn function_name(line: &str) -> Option<&str> {
     (!name.is_empty()).then_some(name)
 }
 
+/// TODO: Document source_anchors.
 fn source_anchors(line: &str, pending_receiver: Option<&'static str>) -> Vec<&'static str> {
     if line.contains("UPDATE customer_tenants SET vm_id = NULL") {
         return vec!["pg_tenant_repo.clear_vm_id"];
@@ -3825,6 +3858,7 @@ fn receiver_source_anchor(
     }
 }
 
+/// TODO: Document next_pending_receiver.
 fn next_pending_receiver(
     line: &str,
     pending_receiver: Option<&'static str>,
@@ -3899,6 +3933,7 @@ async fn insert_replace_target(pool: &PgPool, customer_id: Uuid, target: &str) {
     insert_authenticated_target_row(pool, customer_id, target).await;
 }
 
+/// TODO: Document insert_authenticated_target_row.
 async fn insert_authenticated_target_row(pool: &PgPool, customer_id: Uuid, target: &str) -> Uuid {
     let vm_id = Uuid::new_v4();
     sqlx::query(
@@ -3945,6 +3980,7 @@ async fn insert_authenticated_target_row(pool: &PgPool, customer_id: Uuid, targe
     vm_id
 }
 
+/// TODO: Document insert_replica_service_target.
 async fn insert_replica_service_target(
     pool: &PgPool,
     customer_id: Uuid,
@@ -3984,6 +4020,7 @@ async fn insert_replica_service_target_without_customer(
     (primary_vm_id, replica_vm_id)
 }
 
+/// TODO: Document insert_region_failover_target.
 async fn insert_region_failover_target(
     pool: &PgPool,
     customer_id: Uuid,
@@ -4020,6 +4057,7 @@ async fn insert_region_failover_target_without_customer(
     (primary_vm_id, replica_vm_id, replica.id)
 }
 
+/// TODO: Document insert_restore_service_target.
 async fn insert_restore_service_target(pool: &PgPool, customer_id: Uuid, target: &str) {
     let source_vm_id = Uuid::new_v4();
     insert_vm(pool, source_vm_id).await;
@@ -4055,6 +4093,7 @@ async fn insert_restore_service_target(pool: &PgPool, customer_id: Uuid, target:
         .expect("clear cold target vm");
 }
 
+/// TODO: Document apply_restore_identity_drift.
 async fn apply_restore_identity_drift(
     pool: &PgPool,
     customer_id: Uuid,
@@ -4147,6 +4186,7 @@ async fn apply_restore_identity_drift(
     after
 }
 
+/// TODO: Document apply_migration_identity_drift.
 async fn apply_migration_identity_drift(
     pool: &PgPool,
     customer_id: Uuid,
@@ -4177,6 +4217,7 @@ async fn insert_vm(pool: &PgPool, vm_id: Uuid) {
     insert_vm_in_region(pool, vm_id, "us-east-1").await;
 }
 
+/// TODO: Document insert_vm_in_region.
 async fn insert_vm_in_region(pool: &PgPool, vm_id: Uuid, region: &str) {
     sqlx::query(
         "INSERT INTO vm_inventory
@@ -4206,6 +4247,7 @@ async fn insert_vm_in_region(pool: &PgPool, vm_id: Uuid, region: &str) {
     .expect("insert VM");
 }
 
+/// TODO: Document replica_rows.
 async fn replica_rows(pool: &PgPool, customer_id: Uuid, target: &str) -> Vec<ReplicaRowSnapshot> {
     sqlx::query_as::<
         _,
@@ -4247,6 +4289,7 @@ async fn replica_rows(pool: &PgPool, customer_id: Uuid, target: &str) -> Vec<Rep
     .collect()
 }
 
+/// TODO: Document import_operation_rows.
 async fn import_operation_rows(
     pool: &PgPool,
     customer_id: Uuid,
@@ -4297,6 +4340,7 @@ async fn import_operation_rows(
     .collect()
 }
 
+/// TODO: Document cold_snapshot_rows.
 async fn cold_snapshot_rows(
     pool: &PgPool,
     customer_id: Uuid,
@@ -4406,6 +4450,7 @@ fn restore_service(
     )
 }
 
+/// TODO: Document restore_service_with_dependencies.
 fn restore_service_with_dependencies(
     pool: &PgPool,
     node_client: Arc<dyn FlapjackNodeClient>,
@@ -4440,6 +4485,7 @@ fn restore_service_with_dependencies(
     (service, restore_job_repo)
 }
 
+/// TODO: Document cold_tier_service.
 fn cold_tier_service(pool: &PgPool, node_client: Arc<dyn FlapjackNodeClient>) -> ColdTierService {
     observable_cold_tier_service(pool, node_client).0
 }
@@ -4460,6 +4506,7 @@ fn observable_object_store() -> Arc<FailableObjectStore> {
     ))
 }
 
+/// TODO: Document cold_tier_service_with_object_store.
 fn cold_tier_service_with_object_store(
     pool: &PgPool,
     node_client: Arc<dyn FlapjackNodeClient>,
@@ -4528,6 +4575,7 @@ fn migration_service(
     migration_service_with_secrets(pool, http_client, mock_node_secret_manager())
 }
 
+/// TODO: Document migration_service_with_secrets.
 fn migration_service_with_secrets(
     pool: &PgPool,
     http_client: Arc<dyn MigrationHttpClient + Send + Sync>,
@@ -4576,6 +4624,7 @@ async fn insert_running_deployment(pool: &PgPool, customer_id: Uuid, deployment_
     .expect("insert deployment");
 }
 
+/// TODO: Document load_target_identity.
 async fn load_target_identity(
     pool: &PgPool,
     customer_id: Uuid,
@@ -4600,6 +4649,7 @@ async fn load_target_identity(
     }
 }
 
+/// TODO: Document update_replace_target_column.
 async fn update_replace_target_column(
     pool: &PgPool,
     customer_id: Uuid,
@@ -4678,6 +4728,7 @@ async fn update_replace_target_column(
         .expect("update replacement target fixture");
 }
 
+/// TODO: Document insert_active_migration.
 async fn insert_active_migration(pool: &PgPool, customer_id: Uuid, target: &str) -> Uuid {
     let mut captured_identity = load_target_identity(pool, customer_id, target).await;
     captured_identity.tier = "migrating".to_string();
@@ -4721,6 +4772,7 @@ async fn insert_active_migration(pool: &PgPool, customer_id: Uuid, target: &str)
     migration_id
 }
 
+/// TODO: Document force_resumable_credential_failure.
 async fn force_resumable_credential_failure(
     pool: &PgPool,
     job_id: Uuid,
@@ -4745,6 +4797,7 @@ async fn force_resumable_credential_failure(
     .expect("force resumable credential failure");
 }
 
+/// TODO: Document expire_worker_lease.
 async fn expire_worker_lease(pool: &PgPool, job_id: Uuid, case: &ReservationLifetimeCase) {
     force_reservation_lifetime_case(pool, job_id, case).await;
     sqlx::query(
@@ -4822,10 +4875,12 @@ fn assert_conflict_code(
     );
 }
 
+/// TODO: Document pool_in_schema.
 async fn pool_in_schema(schema: &str) -> PgPool {
     pool_in_schema_with_options(schema, None, 1).await
 }
 
+/// TODO: Document pool_in_schema_with_application_name.
 async fn pool_in_schema_with_application_name(
     schema: &str,
     application_name: Option<String>,
@@ -4837,6 +4892,7 @@ async fn pooled_repo_connections_in_schema(schema: &str) -> PgPool {
     pool_in_schema_with_options(schema, None, 5).await
 }
 
+/// TODO: Document pool_in_schema_with_options.
 async fn pool_in_schema_with_options(
     schema: &str,
     application_name: Option<String>,
@@ -4873,6 +4929,7 @@ async fn pool_in_schema_with_options(
     pool
 }
 
+/// TODO: Document begin_lifecycle_guard_with_retry.
 async fn begin_lifecycle_guard_with_retry(
     service: &IndexLifecycleLease,
     customer_id: Uuid,
@@ -4892,6 +4949,7 @@ async fn begin_lifecycle_guard_with_retry(
     last_result
 }
 
+/// TODO: Document route_test_app.
 fn route_test_app(
     pool: PgPool,
     customer_repo: Arc<crate::common::MockCustomerRepo>,
@@ -4905,6 +4963,7 @@ fn route_test_app(
     ))
 }
 
+/// TODO: Document route_test_app_with_node_secret_manager.
 fn route_test_app_with_node_secret_manager(
     pool: PgPool,
     customer_repo: Arc<crate::common::MockCustomerRepo>,
@@ -4919,6 +4978,7 @@ fn route_test_app_with_node_secret_manager(
     ))
 }
 
+/// TODO: Document route_test_state_with_node_secret_manager.
 fn route_test_state_with_node_secret_manager(
     pool: PgPool,
     customer_repo: Arc<crate::common::MockCustomerRepo>,
@@ -4961,6 +5021,7 @@ fn route_test_state_with_node_secret_manager(
     state
 }
 
+/// TODO: Document insert_route_test_vm.
 async fn insert_route_test_vm(pool: &PgPool, region: &str, flapjack_url: &str) -> Uuid {
     let vm_id = Uuid::new_v4();
     let vm = PgVmInventoryRepo::new(pool.clone())
@@ -4982,6 +5043,7 @@ async fn insert_route_test_vm(pool: &PgPool, region: &str, flapjack_url: &str) -
     vm.id
 }
 
+/// TODO: Document tenant_rows.
 async fn tenant_rows(pool: &PgPool, customer_id: Uuid) -> Vec<TenantRowSnapshot> {
     sqlx::query_as::<
         _,
@@ -5018,6 +5080,7 @@ async fn tenant_rows(pool: &PgPool, customer_id: Uuid) -> Vec<TenantRowSnapshot>
     .collect()
 }
 
+/// TODO: Document deployment_rows.
 async fn deployment_rows(pool: &PgPool, customer_id: Uuid) -> Vec<DeploymentRowSnapshot> {
     sqlx::query_as::<
         _,
@@ -5053,6 +5116,7 @@ async fn deployment_rows(pool: &PgPool, customer_id: Uuid) -> Vec<DeploymentRowS
     .collect()
 }
 
+/// TODO: Document route_row_snapshots_detect_business_field_mutations.
 #[tokio::test]
 async fn route_row_snapshots_detect_business_field_mutations() {
     let Some(db) = connect_and_migrate("catalog_route_complete_row_snapshots").await else {
@@ -5141,6 +5205,7 @@ fn delete_index_request(index_name: &str, jwt: &str) -> Request<Body> {
         .unwrap()
 }
 
+/// TODO: Document seed_index_request.
 fn seed_index_request(
     customer_id: Uuid,
     index_name: &str,
@@ -5173,6 +5238,7 @@ async fn assert_conflict_response(response: axum::response::Response, expected: 
     assert_eq!(json["error"], expected);
 }
 
+/// TODO: Document seed_create_route_reservation.
 async fn seed_create_route_reservation(
     pool: &PgPool,
     customer_id: Uuid,
@@ -5199,6 +5265,7 @@ async fn seed_create_route_reservation(
     }
 }
 
+/// TODO: Document seed_delete_route_reservation.
 async fn seed_delete_route_reservation(
     pool: &PgPool,
     customer_id: Uuid,
@@ -5226,6 +5293,7 @@ async fn seed_delete_route_reservation(
     }
 }
 
+/// TODO: Document assert_create_route_refuses_reservation.
 async fn assert_create_route_refuses_reservation(schema: &str, reservation: ActiveReservationKind) {
     let Some(db) = connect_and_migrate(schema).await else {
         return;
@@ -5277,6 +5345,7 @@ async fn assert_create_route_refuses_reservation(schema: &str, reservation: Acti
     );
 }
 
+/// TODO: Document assert_delete_route_refuses_reservation.
 async fn assert_delete_route_refuses_reservation(schema: &str, reservation: ActiveReservationKind) {
     let Some(db) = connect_and_migrate(schema).await else {
         return;
@@ -5356,6 +5425,7 @@ async fn seed_delete_route_target(pool: &PgPool, customer_id: Uuid, target: &str
     insert_authenticated_target_row(pool, customer_id, target).await
 }
 
+/// TODO: Document delete_index_publishes_deleting_and_invalidates_discovery_before_remote_delete.
 #[tokio::test]
 async fn delete_index_publishes_deleting_and_invalidates_discovery_before_remote_delete() {
     let Some(db) = connect_and_migrate("catalog_route_delete_publish_invalidate").await else {
@@ -5446,6 +5516,7 @@ async fn state_discovery_after_success(
     .await
 }
 
+/// TODO: Document delete_index_resumes_compatible_deleting_intent_without_duplicate_rows.
 #[tokio::test]
 async fn delete_index_resumes_compatible_deleting_intent_without_duplicate_rows() {
     let Some(db) = connect_and_migrate("catalog_route_delete_resume_deleting").await else {
@@ -5500,6 +5571,7 @@ async fn delete_index_resumes_compatible_deleting_intent_without_duplicate_rows(
     assert_eq!(after.operations, before.operations);
 }
 
+/// TODO: Document delete_index_remote_failure_rolls_back_deleting_intent.
 #[tokio::test]
 async fn delete_index_remote_failure_rolls_back_deleting_intent() {
     let Some(db) = connect_and_migrate("catalog_route_delete_remote_failure").await else {
@@ -5552,6 +5624,7 @@ async fn delete_index_remote_failure_rolls_back_deleting_intent() {
     assert_eq!(after.operations, before.operations);
 }
 
+/// TODO: Document create_index_on_shared_vm_rejects_active_import_reservation.
 #[tokio::test]
 async fn create_index_on_shared_vm_rejects_active_import_reservation() {
     assert_create_route_refuses_reservation(
@@ -5579,6 +5652,7 @@ async fn delete_index_rejects_active_import_reservation() {
     .await;
 }
 
+/// TODO: Document delete_index_rejects_active_replace_reservation.
 #[tokio::test]
 async fn delete_index_rejects_active_replace_reservation() {
     assert_delete_route_refuses_reservation(
@@ -5588,6 +5662,7 @@ async fn delete_index_rejects_active_replace_reservation() {
     .await;
 }
 
+/// TODO: Document seed_index_rejects_active_import_reservation.
 #[tokio::test]
 async fn seed_index_rejects_active_import_reservation() {
     assert_seed_index_rejects_active_import_reservation().await;
@@ -5623,6 +5698,7 @@ async fn assert_seed_index_rejects_active_import_reservation() {
     );
 }
 
+/// TODO: Document seed_index_publishes_provisioning_intent_before_remote_secret_work.
 #[tokio::test]
 async fn seed_index_publishes_provisioning_intent_before_remote_secret_work() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_admin_seed_intent_before_remote").await
@@ -5684,6 +5760,7 @@ async fn seed_index_publishes_provisioning_intent_before_remote_secret_work() {
     );
 }
 
+/// TODO: Document resolve_existing_seed_index_rejects_active_replace_reservation.
 #[tokio::test]
 async fn resolve_existing_seed_index_rejects_active_replace_reservation() {
     assert_resolve_existing_seed_index_rejects_active_replace_reservation().await;
@@ -5778,6 +5855,7 @@ async fn assert_service_window_blocks_admission(
     .await;
 }
 
+/// TODO: Document assert_service_window_blocks_admission_with_code.
 async fn assert_service_window_blocks_admission_with_code(
     pool: &PgPool,
     customer_id: Uuid,
@@ -5796,6 +5874,7 @@ async fn assert_service_window_blocks_admission_with_code(
     .await;
 }
 
+/// TODO: Document assert_service_window_blocks_admission_with_codes.
 async fn assert_service_window_blocks_admission_with_codes(
     pool: &PgPool,
     customer_id: Uuid,
@@ -5829,6 +5908,7 @@ async fn assert_service_window_blocks_admission_with_codes(
     );
 }
 
+/// TODO: Document assert_restore_intent_blocks_admission.
 async fn assert_restore_intent_blocks_admission(
     pool: &PgPool,
     customer_id: Uuid,
@@ -6021,6 +6101,7 @@ async fn set_vm_flapjack_url(pool: &PgPool, vm_id: Uuid, url: &str) {
         .expect("repoint vm flapjack url");
 }
 
+/// TODO: Document replica_service_create_replica_rejects_active_replace_reservation.
 #[tokio::test]
 async fn replica_service_create_replica_rejects_active_replace_reservation() {
     assert_replica_service_create_replica_rejects_active_reservation().await;
@@ -6147,6 +6228,7 @@ async fn assert_replica_create_race_after_intent() {
     );
 }
 
+/// TODO: Document replica_service_remove_replica_rejects_active_replace_reservation.
 #[tokio::test]
 async fn replica_service_remove_replica_rejects_active_replace_reservation() {
     assert_replica_service_remove_replica_rejects_active_reservation().await;
@@ -6310,6 +6392,7 @@ async fn assert_replica_remove_race_after_intent() {
     );
 }
 
+/// TODO: Document region_failover_rejects_active_replace_reservation.
 #[tokio::test]
 async fn region_failover_rejects_active_replace_reservation() {
     assert_region_failover_rejects_active_reservation().await;
@@ -6527,6 +6610,7 @@ async fn assert_region_failover_promotion_race_after_intent() {
     );
 }
 
+/// TODO: Document restore_service_initiate_restore_rejects_active_replace_reservation.
 #[tokio::test]
 async fn restore_service_initiate_restore_rejects_active_replace_reservation() {
     assert_restore_service_initiate_restore_rejects_active_reservation().await;
@@ -6541,6 +6625,7 @@ async fn assert_restore_service_initiate_restore_rejects_active_reservation() {
     }
 }
 
+/// TODO: Document assert_restore_initiation_rejects_active_reservation.
 async fn assert_restore_initiation_rejects_active_reservation(kind: ActiveReservationKind) {
     let schema = format!("catalog_lifecycle_restore_initiate_blocks_{}", kind.label());
     let Some(db) = connect_and_migrate(&schema).await else {
@@ -6752,6 +6837,7 @@ async fn restore_execute_restore_inner_rejects_identity_drift() {
     }
 }
 
+/// TODO: Document assert_restore_execute_rejects_identity_drift.
 async fn assert_restore_execute_rejects_identity_drift(drift: RestoreIdentityDrift) {
     let schema = format!("catalog_lifecycle_restore_execute_drift_{}", drift.label());
     let Some(db) = connect_and_migrate(&schema).await else {
@@ -6827,6 +6913,7 @@ async fn assert_restore_execute_rejects_identity_drift(drift: RestoreIdentityDri
     );
 }
 
+/// TODO: Document restore_handle_restore_failure_rejects_identity_drift.
 #[tokio::test]
 async fn restore_handle_restore_failure_rejects_identity_drift() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_restore_failure_drift").await else {
@@ -6867,6 +6954,7 @@ async fn restore_handle_restore_failure_rejects_identity_drift() {
     assert_eq!(job.error.as_deref(), Some("injected restore failure"));
 }
 
+/// TODO: Document cold_tier_snapshot_rejects_active_replace_reservation.
 #[tokio::test]
 async fn cold_tier_snapshot_rejects_active_replace_reservation() {
     assert_cold_tier_snapshot_rejects_active_replace_reservation().await;
@@ -7352,6 +7440,7 @@ async fn cold_tier_rollback_rejects_identity_drift_for_snapshot_state() {
     }
 }
 
+/// TODO: Document assert_cold_tier_rollback_skips_on_drift.
 async fn assert_cold_tier_rollback_skips_on_drift(
     pool: &PgPool,
     shape: ColdRollbackShape,
@@ -7513,6 +7602,7 @@ async fn cold_tier_rollback_blocks_admission_during_compensation() {
     );
 }
 
+/// TODO: Document migration_begin_rejects_active_replace_reservation.
 #[tokio::test]
 async fn migration_begin_rejects_active_replace_reservation() {
     assert_migration_begin_rejects_all_active_reservations().await;
@@ -7527,6 +7617,7 @@ async fn assert_migration_begin_rejects_all_active_reservations() {
     }
 }
 
+/// TODO: Document assert_migration_begin_rejects_active_reservation.
 async fn assert_migration_begin_rejects_active_reservation(kind: ActiveReservationKind) {
     let schema = format!("catalog_lifecycle_migration_begin_blocks_{}", kind.label());
     let Some(db) = connect_and_migrate(&schema).await else {
@@ -7590,6 +7681,7 @@ async fn assert_migration_begin_rejects_active_reservation(kind: ActiveReservati
     );
 }
 
+/// TODO: Document seed_migration_target_with_active_reservation.
 async fn seed_migration_target_with_active_reservation(
     pool: &PgPool,
     customer_id: Uuid,
@@ -7690,6 +7782,7 @@ struct MigrationIntentFinalState<'a> {
 // `catalog_lifecycle_lease_remote_races`; every `MigrationIntentPath` is
 // exercised there through `assert_migration_intent_window_blocks_admission`.
 
+/// TODO: Document assert_migration_intent_window_blocks_admission.
 async fn assert_migration_intent_window_blocks_admission(path: MigrationIntentPath) {
     let schema = format!("catalog_lifecycle_migration_intent_window_{}", path.label());
     let Some(db) = connect_and_migrate(&schema).await else {
@@ -7769,6 +7862,7 @@ async fn assert_migration_intent_window_blocks_admission(path: MigrationIntentPa
     .await;
 }
 
+/// TODO: Document expected_migration_intent_requests.
 fn expected_migration_intent_requests(
     path: MigrationIntentPath,
     index_uid: &str,
@@ -7839,6 +7933,7 @@ fn expected_migration_intent_requests(
     }
 }
 
+/// TODO: Document assert_migration_final_state.
 async fn assert_migration_final_state(
     path: MigrationIntentPath,
     state: MigrationIntentFinalState<'_>,
@@ -7901,6 +7996,7 @@ async fn assert_migration_final_state(
     );
 }
 
+/// TODO: Document migration_intent_pause_hook.
 async fn migration_intent_pause_hook(
     schema: &str,
     customer_id: Uuid,
@@ -7958,6 +8054,7 @@ async fn migration_intent_pause_hook(
     })
 }
 
+/// TODO: Document queue_migration_intent_window_http.
 fn queue_migration_intent_window_http(
     http_client: &CountingMigrationHttpClient,
     path: MigrationIntentPath,
@@ -7996,6 +8093,7 @@ fn queue_migration_intent_window_http(
     }
 }
 
+/// TODO: Document migration_rollback_rejects_active_replace_reservation_before_remote_work.
 #[tokio::test]
 async fn migration_rollback_rejects_active_replace_reservation_before_remote_work() {
     assert_migration_rollback_rejects_active_reservation_before_remote_work().await;
@@ -8010,6 +8108,7 @@ async fn assert_migration_rollback_rejects_active_reservation_before_remote_work
     }
 }
 
+/// TODO: Document assert_migration_rollback_rejects_active_reservation.
 async fn assert_migration_rollback_rejects_active_reservation(kind: ActiveReservationKind) {
     let schema = format!(
         "catalog_lifecycle_migration_rollback_blocks_{}",
@@ -8211,6 +8310,7 @@ async fn expired_worker_lease_blocks_migration_begin_rollback_family() {
     }
 }
 
+/// TODO: Document assert_expired_import_blocks_create_route.
 async fn assert_expired_import_blocks_create_route(pool: &PgPool, case: &ReservationLifetimeCase) {
     let customer_repo = mock_repo();
     let customer =
@@ -8243,6 +8343,7 @@ async fn assert_expired_import_blocks_create_route(pool: &PgPool, case: &Reserva
     assert_eq!(deployment_rows(pool, customer.id).await, before_deployments);
 }
 
+/// TODO: Document assert_expired_replace_blocks_delete_route.
 async fn assert_expired_replace_blocks_delete_route(pool: &PgPool, case: &ReservationLifetimeCase) {
     let customer_repo = mock_repo();
     let customer =
@@ -8269,6 +8370,7 @@ async fn assert_expired_replace_blocks_delete_route(pool: &PgPool, case: &Reserv
     assert_eq!(deployment_rows(pool, customer.id).await, before_deployments);
 }
 
+/// TODO: Document assert_expired_import_blocks_seed_route.
 async fn assert_expired_import_blocks_seed_route(pool: &PgPool, case: &ReservationLifetimeCase) {
     let customer_repo = mock_repo();
     let customer =
@@ -8292,6 +8394,7 @@ async fn assert_expired_import_blocks_seed_route(pool: &PgPool, case: &Reservati
     assert_eq!(deployment_rows(pool, customer.id).await, before_deployments);
 }
 
+/// TODO: Document assert_expired_replace_blocks_seed_resolve_route.
 async fn assert_expired_replace_blocks_seed_resolve_route(
     pool: &PgPool,
     case: &ReservationLifetimeCase,
@@ -8328,6 +8431,7 @@ async fn assert_expired_replace_blocks_seed_resolve_route(
     assert_eq!(deployment_rows(pool, customer.id).await, before_deployments);
 }
 
+/// TODO: Document assert_expired_replace_blocks_replica_create.
 async fn assert_expired_replace_blocks_replica_create(
     pool: &PgPool,
     case: &ReservationLifetimeCase,
@@ -8358,6 +8462,7 @@ async fn assert_expired_replace_blocks_replica_create(
     );
 }
 
+/// TODO: Document assert_expired_replace_blocks_replica_remove.
 async fn assert_expired_replace_blocks_replica_remove(
     pool: &PgPool,
     case: &ReservationLifetimeCase,
@@ -8400,6 +8505,7 @@ async fn assert_expired_replace_blocks_replica_remove(
     );
 }
 
+/// TODO: Document assert_expired_replace_blocks_failover.
 async fn assert_expired_replace_blocks_failover(pool: &PgPool, case: &ReservationLifetimeCase) {
     let customer = Uuid::new_v4();
     insert_region_failover_target(pool, customer, "products").await;
@@ -8432,6 +8538,7 @@ async fn assert_expired_replace_blocks_failover(pool: &PgPool, case: &Reservatio
     );
 }
 
+/// TODO: Document assert_expired_replace_blocks_restore.
 async fn assert_expired_replace_blocks_restore(pool: &PgPool, case: &ReservationLifetimeCase) {
     let customer = Uuid::new_v4();
     insert_replace_target(pool, customer, "products").await;
@@ -8485,6 +8592,7 @@ async fn assert_expired_replace_blocks_restore(pool: &PgPool, case: &Reservation
     );
 }
 
+/// TODO: Document assert_expired_replace_blocks_cold_tier.
 async fn assert_expired_replace_blocks_cold_tier(pool: &PgPool, case: &ReservationLifetimeCase) {
     let customer = Uuid::new_v4();
     insert_replace_target(pool, customer, "products").await;
@@ -8512,6 +8620,7 @@ async fn assert_expired_replace_blocks_cold_tier(pool: &PgPool, case: &Reservati
     );
 }
 
+/// TODO: Document assert_expired_replace_blocks_migration_begin.
 async fn assert_expired_replace_blocks_migration_begin(
     pool: &PgPool,
     case: &ReservationLifetimeCase,
@@ -8555,6 +8664,7 @@ async fn assert_expired_replace_blocks_migration_begin(
     assert_eq!(tenant_rows(pool, customer).await, before_tenants);
 }
 
+/// TODO: Document assert_expired_replace_blocks_migration_rollback.
 async fn assert_expired_replace_blocks_migration_rollback(
     pool: &PgPool,
     case: &ReservationLifetimeCase,
@@ -8606,6 +8716,7 @@ async fn assert_expired_replace_blocks_migration_rollback(
         .expect("cleanup active migration fixture after expired-claim assertion");
 }
 
+/// TODO: Document migration_rollback_rejects_tier_drift_after_remote_work.
 #[tokio::test]
 async fn migration_rollback_rejects_tier_drift_after_remote_work() {
     for drift in identity_drift_denominator().iter().copied() {
@@ -8613,6 +8724,7 @@ async fn migration_rollback_rejects_tier_drift_after_remote_work() {
     }
 }
 
+/// TODO: Document assert_migration_rollback_rejects_identity_drift.
 async fn assert_migration_rollback_rejects_identity_drift(drift: RestoreIdentityDrift) {
     let schema = format!(
         "catalog_lifecycle_migration_rollback_drift_{}",
@@ -8692,6 +8804,7 @@ async fn assert_migration_rollback_rejects_identity_drift(drift: RestoreIdentity
     );
 }
 
+/// TODO: Document migration_finalize_rejects_identity_drift_without_resuming_destination.
 #[tokio::test]
 async fn migration_finalize_rejects_identity_drift_without_resuming_destination() {
     for drift in identity_drift_denominator().iter().copied() {
@@ -8699,6 +8812,7 @@ async fn migration_finalize_rejects_identity_drift_without_resuming_destination(
     }
 }
 
+/// TODO: Document assert_migration_finalize_rejects_identity_drift.
 async fn assert_migration_finalize_rejects_identity_drift(drift: RestoreIdentityDrift) {
     let schema = format!(
         "catalog_lifecycle_migration_finalize_drift_{}",
@@ -8808,6 +8922,7 @@ async fn assert_migration_finalize_rejects_identity_drift(drift: RestoreIdentity
     );
 }
 
+/// TODO: Document migration_execute_failure_reset_rejects_identity_drift.
 #[tokio::test]
 async fn migration_execute_failure_reset_rejects_identity_drift() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_migration_reset_drift").await else {
@@ -8899,6 +9014,7 @@ async fn migration_execute_failure_reset_rejects_identity_drift() {
     );
 }
 
+/// TODO: Document migration_execute_failure_recovery_rejects_identity_drift_without_source_overwrite.
 #[tokio::test]
 async fn migration_execute_failure_recovery_rejects_identity_drift_without_source_overwrite() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_migration_recovery_drift").await else {
@@ -9055,6 +9171,7 @@ async fn migration_execute_failure_recovery_rejects_identity_drift_without_sourc
     assert_eq!(rows, vec![("failed".to_string(), Some(public_error))]);
 }
 
+/// TODO: Document catalog_lifecycle_lease_rejects_same_customer_same_target_contention.
 #[tokio::test]
 async fn catalog_lifecycle_lease_rejects_same_customer_same_target_contention() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_same_target").await else {
@@ -9082,6 +9199,7 @@ async fn catalog_lifecycle_lease_rejects_same_customer_same_target_contention() 
         .expect("commit first guard");
 }
 
+/// TODO: Document catalog_lifecycle_lease_allows_equal_logical_names_across_tenants.
 #[tokio::test]
 async fn catalog_lifecycle_lease_allows_equal_logical_names_across_tenants() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_cross_tenant").await else {
@@ -9115,6 +9233,7 @@ async fn catalog_lifecycle_lease_allows_equal_logical_names_across_tenants() {
         .expect("commit first guard");
 }
 
+/// TODO: Document catalog_lifecycle_lease_serializes_two_api_workers_racing.
 #[tokio::test]
 async fn catalog_lifecycle_lease_serializes_two_api_workers_racing() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_workers").await else {
@@ -9142,6 +9261,7 @@ async fn catalog_lifecycle_lease_serializes_two_api_workers_racing() {
         .expect("commit first guard");
 }
 
+/// TODO: Document catalog_lifecycle_lease_drop_rolls_back_and_releases_target.
 #[tokio::test]
 async fn catalog_lifecycle_lease_drop_rolls_back_and_releases_target() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_rollback").await else {
@@ -9167,6 +9287,7 @@ async fn catalog_lifecycle_lease_drop_rolls_back_and_releases_target() {
         .expect("commit second guard");
 }
 
+/// TODO: Document replacement_reservation_blocks_lifecycle_writer.
 #[tokio::test]
 async fn replacement_reservation_blocks_lifecycle_writer() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_replace_blocks").await else {
@@ -9187,6 +9308,7 @@ async fn replacement_reservation_blocks_lifecycle_writer() {
     );
 }
 
+/// TODO: Document lifecycle_writer_blocks_replacement_reservation.
 #[tokio::test]
 async fn lifecycle_writer_blocks_replacement_reservation() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_blocks_replace").await else {
@@ -9215,6 +9337,7 @@ async fn lifecycle_writer_blocks_replacement_reservation() {
         .expect("commit lifecycle guard");
 }
 
+/// TODO: Document import_reservation_blocks_lifecycle_writer.
 #[tokio::test]
 async fn import_reservation_blocks_lifecycle_writer() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_import_blocks").await else {
@@ -9235,6 +9358,7 @@ async fn import_reservation_blocks_lifecycle_writer() {
     );
 }
 
+/// TODO: Document guarded_mutation_rejects_active_import_without_running_callback.
 #[tokio::test]
 async fn guarded_mutation_rejects_active_import_without_running_callback() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_guarded_import_blocks").await else {
@@ -9269,6 +9393,7 @@ async fn guarded_mutation_rejects_active_import_without_running_callback() {
     );
 }
 
+/// TODO: Document guarded_mutation_rejects_identity_drift_without_running_callback.
 #[tokio::test]
 async fn guarded_mutation_rejects_identity_drift_without_running_callback() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_guarded_identity_drift").await else {
@@ -9309,6 +9434,7 @@ async fn guarded_mutation_rejects_identity_drift_without_running_callback() {
     );
 }
 
+/// TODO: Document guarded_mutation_allows_create_callback_to_publish_expected_absent_target.
 #[tokio::test]
 async fn guarded_mutation_allows_create_callback_to_publish_expected_absent_target() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_guarded_create_callback").await else {
@@ -9336,6 +9462,7 @@ async fn guarded_mutation_allows_create_callback_to_publish_expected_absent_targ
     );
 }
 
+/// TODO: Document guarded_mutation_cancellation_releases_advisory_key.
 #[tokio::test]
 async fn guarded_mutation_cancellation_releases_advisory_key() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_guarded_cancel_release").await else {
@@ -9395,6 +9522,7 @@ async fn guarded_mutation_cancellation_releases_advisory_key() {
     );
 }
 
+/// TODO: Document lifecycle_guard_connection_loss_releases_advisory_key.
 #[tokio::test]
 async fn lifecycle_guard_connection_loss_releases_advisory_key() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_guard_conn_loss").await else {
@@ -9447,6 +9575,7 @@ async fn lifecycle_guard_connection_loss_releases_advisory_key() {
     drop(guard);
 }
 
+/// TODO: Document tenant_repo_creates_non_discoverable_provisioning_intent_atomically.
 #[tokio::test]
 async fn tenant_repo_creates_non_discoverable_provisioning_intent_atomically() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_tenant_create_intent").await else {
@@ -9471,6 +9600,7 @@ async fn tenant_repo_creates_non_discoverable_provisioning_intent_atomically() {
     assert_eq!(intent.service_type, "flapjack");
 }
 
+/// TODO: Document tenant_repo_publish_placement_rejects_identity_drift_without_changes.
 #[tokio::test]
 async fn tenant_repo_publish_placement_rejects_identity_drift_without_changes() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_tenant_publish_drift").await else {
@@ -9511,6 +9641,7 @@ async fn tenant_repo_publish_placement_rejects_identity_drift_without_changes() 
     assert_eq!(after.vm_id, None);
 }
 
+/// TODO: Document tenant_repo_publishes_delete_intent_with_active_identity_cas.
 #[tokio::test]
 async fn tenant_repo_publishes_delete_intent_with_active_identity_cas() {
     let Some(db) = connect_and_migrate("tenant_repo_publish_delete_intent").await else {
@@ -9535,6 +9666,7 @@ async fn tenant_repo_publishes_delete_intent_with_active_identity_cas() {
     assert_eq!(deleting.service_type, "flapjack");
 }
 
+/// TODO: Document tenant_repo_delete_intent_rejects_identity_drift_without_changes.
 #[tokio::test]
 async fn tenant_repo_delete_intent_rejects_identity_drift_without_changes() {
     let Some(db) = connect_and_migrate("tenant_repo_publish_delete_drift").await else {
@@ -9561,6 +9693,7 @@ async fn tenant_repo_delete_intent_rejects_identity_drift_without_changes() {
     assert_eq!(after.vm_id, expected_identity.vm_id);
 }
 
+/// TODO: Document tenant_repo_removes_matching_lifecycle_intent.
 #[tokio::test]
 async fn tenant_repo_removes_matching_lifecycle_intent() {
     let Some(db) = connect_and_migrate("tenant_repo_remove_matching_intent").await else {
@@ -9588,6 +9721,7 @@ async fn tenant_repo_removes_matching_lifecycle_intent() {
     );
 }
 
+/// TODO: Document tenant_repo_preserves_drifted_lifecycle_intent.
 #[tokio::test]
 async fn tenant_repo_preserves_drifted_lifecycle_intent() {
     let Some(db) = connect_and_migrate("tenant_repo_preserve_drifted_intent").await else {
@@ -9619,6 +9753,7 @@ async fn tenant_repo_preserves_drifted_lifecycle_intent() {
     assert_eq!(tenant_rows(&db.pool, customer).await.len(), 1);
 }
 
+/// TODO: Document migration_allows_catalog_lifecycle_intent_tiers_only.
 #[tokio::test]
 async fn migration_allows_catalog_lifecycle_intent_tiers_only() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_intent_tiers").await else {
@@ -9657,6 +9792,7 @@ async fn migration_allows_catalog_lifecycle_intent_tiers_only() {
     );
 }
 
+/// TODO: Document lifecycle_writer_blocks_import_reservation.
 #[tokio::test]
 async fn lifecycle_writer_blocks_import_reservation() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_blocks_import").await else {
@@ -9684,6 +9820,7 @@ async fn lifecycle_writer_blocks_import_reservation() {
         .expect("commit lifecycle guard");
 }
 
+/// TODO: Document catalog_lifecycle_commit_rejects_changed_target_identity.
 #[tokio::test]
 async fn catalog_lifecycle_commit_rejects_changed_target_identity() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_identity_changed").await else {
@@ -9717,6 +9854,7 @@ async fn catalog_lifecycle_commit_rejects_changed_target_identity() {
     ));
 }
 
+/// TODO: Document catalog_lifecycle_create_commit_rejects_unexpected_target_appearance.
 #[tokio::test]
 async fn catalog_lifecycle_create_commit_rejects_unexpected_target_appearance() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_target_appears").await else {
@@ -9750,6 +9888,7 @@ fn writer_id(owner_path: &str, function_name: &str, source_anchor: &str) -> Stri
     )
 }
 
+/// TODO: Document slug.
 fn slug(value: &str) -> String {
     value
         .chars()

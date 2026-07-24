@@ -23,6 +23,7 @@ LAST_EXIT_CODE=0
 DATE_COUNTER_FILE=""
 RUNBOOK_PATH=""
 
+# TODO: Document setup.
 setup() {
   WORK_DIR="$(mktemp -d)"
   MOCK_BIN="$WORK_DIR/bin"
@@ -254,6 +255,7 @@ teardown() {
   rm -rf "$WORK_DIR"
 }
 
+# TODO: Document run_wrapper.
 run_wrapper() {
   local cli=()
   local env_overrides=()
@@ -297,6 +299,7 @@ run_wrapper() {
   LAST_EXIT_CODE=$exit_code
 }
 
+# TODO: Document run_selection_helper.
 run_selection_helper() {
   local instances_json="$1"
   local snapshots_json="$2"
@@ -328,6 +331,7 @@ run_selection_helper() {
   LAST_EXIT_CODE=$exit_code
 }
 
+# TODO: Document selection_output_field.
 selection_output_field() {
   local row="$1"
   local field_name="$2"
@@ -405,6 +409,7 @@ assert_log_not_contains() {
   fi
 }
 
+# TODO: Document assert_every_log_line_contains.
 assert_every_log_line_contains() {
   local file="$1"
   local pattern="$2"
@@ -451,6 +456,7 @@ print(format(mode, "03o"))
 PY
 }
 
+# TODO: Document assert_summary_has_required_fields.
 assert_summary_has_required_fields() {
   local summary_path="$1"
   local label="$2"
@@ -493,6 +499,7 @@ extract_runbook_sql_like_wrapper() {
   ' "$runbook_path"
 }
 
+# TODO: Document assert_verification_sql_matches_runbook.
 assert_verification_sql_matches_runbook() {
   local verification_sql_path="$1"
   local runbook_path="$2"

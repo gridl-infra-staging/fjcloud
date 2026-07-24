@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for transient-api-retry.ts.
+ */
 import { ApiRequestError } from '$lib/api/client';
 import { AdminClientError } from '$lib/admin-client';
 
@@ -16,6 +19,9 @@ export function isTransientDashboardApiError(error: unknown): boolean {
 	);
 }
 
+/**
+ * TODO: Document retryTransientDashboardApiRequest.
+ */
 export async function retryTransientDashboardApiRequest<T>(
 	operation: () => Promise<T>
 ): Promise<T> {
@@ -41,6 +47,9 @@ export function isTransientAdminApiError(error: unknown): boolean {
 	);
 }
 
+/**
+ * TODO: Document retryTransientAdminApiRequest.
+ */
 export async function retryTransientAdminApiRequest<T>(operation: () => Promise<T>): Promise<T> {
 	for (let attempt = 0; attempt < MAX_TRANSIENT_ATTEMPTS; attempt += 1) {
 		try {

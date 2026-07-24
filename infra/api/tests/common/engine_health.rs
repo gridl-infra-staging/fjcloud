@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+//! Stub summary for infra/api/tests/common/engine_health.rs.
 use std::collections::VecDeque;
 use std::future;
 use std::sync::atomic::{AtomicUsize, Ordering};

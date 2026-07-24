@@ -47,6 +47,7 @@ algolia_import_public_job_required_ids() {
         pressure_resume_retained_watermark
 }
 
+# TODO: Document validate_algolia_import_public_job_manifest.
 validate_algolia_import_public_job_manifest() {
     local manifest=$1
     local required_ids

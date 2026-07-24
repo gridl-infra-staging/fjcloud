@@ -1,3 +1,5 @@
+//! Stub summary for infra/api/tests/common/vm_inventory_reference_guard_fixtures.rs.
+
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -33,6 +35,7 @@ pub struct AlgoliaReservationState<'a> {
     pub engine_ack_state: &'a str,
 }
 
+/// TODO: Document insert_all_live_vm_references.
 pub async fn insert_all_live_vm_references(
     pool: &PgPool,
     target_vm_id: Uuid,
@@ -159,6 +162,7 @@ pub async fn insert_deployment(pool: &PgPool, customer_id: Uuid, node_id: &str) 
     .expect("insert deployment")
 }
 
+/// TODO: Document insert_tenant.
 pub async fn insert_tenant(
     pool: &PgPool,
     customer_id: Uuid,
@@ -179,6 +183,7 @@ pub async fn insert_tenant(
     .map(|_| ())
 }
 
+/// TODO: Document insert_tenant_without_vm.
 pub async fn insert_tenant_without_vm(
     pool: &PgPool,
     customer_id: Uuid,
@@ -197,6 +202,7 @@ pub async fn insert_tenant_without_vm(
     .expect("insert tenant without vm");
 }
 
+/// TODO: Document insert_index_migration.
 pub async fn insert_index_migration(
     pool: &PgPool,
     customer_id: Uuid,
@@ -220,6 +226,7 @@ pub async fn insert_index_migration(
     .map(|_| ())
 }
 
+/// TODO: Document insert_cold_snapshot.
 pub async fn insert_cold_snapshot(
     pool: &PgPool,
     customer_id: Uuid,
@@ -242,6 +249,7 @@ pub async fn insert_cold_snapshot(
     .await
 }
 
+/// TODO: Document insert_restore_job.
 pub async fn insert_restore_job(
     pool: &PgPool,
     customer_id: Uuid,
@@ -275,6 +283,7 @@ pub async fn insert_restore_job(
     .map(|_| ())
 }
 
+/// TODO: Document insert_index_replica.
 pub async fn insert_index_replica(
     pool: &PgPool,
     customer_id: Uuid,
@@ -298,6 +307,7 @@ pub async fn insert_index_replica(
     .map(|_| ())
 }
 
+/// TODO: Document insert_algolia_import_job.
 pub async fn insert_algolia_import_job(
     pool: &PgPool,
     customer_id: Uuid,

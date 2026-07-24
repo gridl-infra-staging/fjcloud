@@ -24,6 +24,7 @@ struct ResendReservationRow {
     reserved_resend_verification_sent_at: DateTime<Utc>,
 }
 
+/// TODO: Document set_email_verify_token.
 pub(super) async fn set_email_verify_token(
     pool: &PgPool,
     id: Uuid,
@@ -47,6 +48,7 @@ pub(super) async fn set_email_verify_token(
     Ok(result.rows_affected() > 0)
 }
 
+/// TODO: Document rotate_email_verification_token_with_resend_cooldown.
 pub(super) async fn rotate_email_verification_token_with_resend_cooldown(
     pool: &PgPool,
     id: Uuid,
@@ -151,6 +153,7 @@ pub(super) async fn rotate_email_verification_token_with_resend_cooldown(
     Ok(ResendVerificationOutcome::CustomerNotFound)
 }
 
+/// TODO: Document rollback_resend_verification_token_rotation.
 pub(super) async fn rollback_resend_verification_token_rotation(
     pool: &PgPool,
     id: Uuid,
@@ -182,6 +185,7 @@ pub(super) async fn rollback_resend_verification_token_rotation(
     Ok(rollback_result.rows_affected() > 0)
 }
 
+/// TODO: Document verify_email.
 pub(super) async fn verify_email(
     pool: &PgPool,
     token: &str,

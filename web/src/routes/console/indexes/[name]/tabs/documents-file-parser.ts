@@ -13,6 +13,9 @@ export function parseUploadFormat(file: File): UploadFormat | null {
 	return null;
 }
 
+/**
+ * TODO: Document parseJsonRecords.
+ */
 function parseJsonRecords(raw: string): Record<string, unknown>[] {
 	let parsed: unknown;
 	try {
@@ -40,6 +43,9 @@ function parseJsonRecords(raw: string): Record<string, unknown>[] {
 	throw new Error('JSON upload must be an object or an array of objects');
 }
 
+/**
+ * TODO: Document parseCsvRows.
+ */
 function parseCsvRows(raw: string): string[][] {
 	const rows: string[][] = [];
 	let currentRow: string[] = [];
@@ -103,6 +109,9 @@ function parseCsvRows(raw: string): string[][] {
 	return rows;
 }
 
+/**
+ * TODO: Document parseCsvRecords.
+ */
 function parseCsvRecords(raw: string): Record<string, unknown>[] {
 	const rows = parseCsvRows(raw);
 	if (rows.length < 2) {

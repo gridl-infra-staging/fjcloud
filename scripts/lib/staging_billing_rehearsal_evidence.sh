@@ -38,6 +38,7 @@ set_db_query_failure() {
     fi
     EVIDENCE_TERMINAL_FAILURE=1
 }
+# TODO: Document resolve_created_invoice_uuid_in_list.
 resolve_created_invoice_uuid_in_list() {
     local ids_json="$1"
     python3 - "$ids_json" <<'PY'
@@ -93,6 +94,7 @@ run_invoice_rows_query_once() {
     set_db_query_failure "invoice_rows" "Invoice row" "$query_status"
     return 1
 }
+# TODO: Document invoice_rows_eval_json.
 invoice_rows_eval_json() {
     python3 - "$REHEARSAL_QUERY_OUTPUT" "$CREATED_INVOICE_IDS_JSON" <<'PY' || true
 import json
@@ -162,6 +164,7 @@ print(json.dumps({
 }))
 PY
 }
+# TODO: Document set_invoice_rows_payload.
 set_invoice_rows_payload() {
     local eval_json="$1"
     local transition_invoice_ids_json
@@ -210,6 +213,7 @@ run_webhook_query_once() {
     set_db_query_failure "webhook" "Webhook" "$query_status"
     return 1
 }
+# TODO: Document webhook_eval_json.
 webhook_eval_json() {
     python3 - "$REHEARSAL_QUERY_OUTPUT" "$CREATED_INVOICE_IDS_JSON" <<'PY' || true
 import json
@@ -263,6 +267,7 @@ print(json.dumps({
 }))
 PY
 }
+# TODO: Document set_webhook_payload.
 set_webhook_payload() {
     local eval_json="$1"
     local rows_json transition_invoice_ids_json

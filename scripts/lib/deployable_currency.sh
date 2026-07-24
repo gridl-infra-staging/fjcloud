@@ -17,6 +17,7 @@ is_missing_currency_ref() {
   ! git -C "$repo" cat-file -e "${ref}^{commit}" 2>/dev/null
 }
 
+# TODO: Document is_deployable_currency_path.
 is_deployable_currency_path() {
   local path="$1"
 
@@ -63,6 +64,7 @@ is_doc_only_currency_path() {
   esac
 }
 
+# TODO: Document classify_deployable_currency.
 classify_deployable_currency() {
   local repo="$1"
   local deployed_sha="$2"
@@ -129,6 +131,7 @@ unknown_deployable_currency_probe_result() {
   printf 'unknown|unknown|unknown|%s\n' "$detail"
 }
 
+# TODO: Document serialize_deployable_currency_verdict_json.
 serialize_deployable_currency_verdict_json() {
   python3 - "$1" "$2" "$3" "$4" <<'PY'
 import json
@@ -161,6 +164,7 @@ print(json.dumps(payload, separators=(",", ":")))
 PY
 }
 
+# TODO: Document deployable_currency_verdict_fields_from_file.
 deployable_currency_verdict_fields_from_file() {
   local verdict_file="$1"
 
@@ -260,6 +264,7 @@ print(
 PY
 }
 
+# TODO: Document staging_deployable_currency_fields_from_status_json.
 staging_deployable_currency_fields_from_status_json() {
   python3 - "$1" <<'PY' || true
 import json
@@ -285,6 +290,7 @@ print("|".join(normalize(staging.get(field)) for field in fields))
 PY
 }
 
+# TODO: Document probe_staging_deployable_currency.
 probe_staging_deployable_currency() {
   local deploy_status_script="$1"
   local deploy_status_output="" deploy_status_exit=0

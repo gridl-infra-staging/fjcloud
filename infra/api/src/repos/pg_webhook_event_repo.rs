@@ -1,3 +1,4 @@
+//! Stub summary for pg_webhook_event_repo.rs.
 use async_trait::async_trait;
 use sqlx::PgPool;
 
@@ -95,6 +96,7 @@ impl WebhookEventRepo for PgWebhookEventRepo {
         Ok(row.flatten())
     }
 
+    /// TODO: Document PgWebhookEventRepo.count_stale_unprocessed.
     async fn count_stale_unprocessed(
         &self,
         older_than: std::time::Duration,

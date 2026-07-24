@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for dictionary-editor-state.ts.
+ */
 import type {
 	EditorDialogFieldSchema,
 	EditorDialogValues
@@ -14,6 +17,9 @@ export function coerceString(value: unknown): string {
 	return typeof value === 'string' ? value.trim() : '';
 }
 
+/**
+ * TODO: Document buildEditorSchema.
+ */
 export function buildEditorSchema(dictionaryName: DictionaryName): EditorDialogFieldSchema[] {
 	const languageField: EditorDialogFieldSchema = {
 		type: 'select',
@@ -86,6 +92,9 @@ export function buildEditorSchema(dictionaryName: DictionaryName): EditorDialogF
 	];
 }
 
+/**
+ * TODO: Document buildInitialEditorValue.
+ */
 export function buildInitialEditorValue(
 	activeDictionary: DictionaryName,
 	activeLanguage: string,

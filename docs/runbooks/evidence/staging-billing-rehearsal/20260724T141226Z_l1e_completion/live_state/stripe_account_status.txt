@@ -1,0 +1,6 @@
+charges_enabled=true
+payouts_enabled=true
+details_submitted=true
+currently_due_count=0
+past_due_count=0
+disabled_reason_present=false

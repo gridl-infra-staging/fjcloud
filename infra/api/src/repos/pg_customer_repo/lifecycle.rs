@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/repos/pg_customer_repo/lifecycle.rs.
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
@@ -44,6 +45,7 @@ async fn reload_created_customer(pool: &PgPool, email: &str) -> Result<Customer,
         .ok_or_else(|| RepoError::Other("created customer could not be reloaded".into()))
 }
 
+/// TODO: Document create.
 pub(super) async fn create(pool: &PgPool, name: &str, email: &str) -> Result<Customer, RepoError> {
     sqlx::query("INSERT INTO customers (name, email) VALUES ($1, $2)")
         .bind(name)
@@ -55,6 +57,7 @@ pub(super) async fn create(pool: &PgPool, name: &str, email: &str) -> Result<Cus
     reload_created_customer(pool, email).await
 }
 
+/// TODO: Document create_with_password.
 pub(super) async fn create_with_password(
     pool: &PgPool,
     name: &str,
@@ -72,6 +75,7 @@ pub(super) async fn create_with_password(
     reload_created_customer(pool, email).await
 }
 
+/// TODO: Document link_oauth_identity.
 pub(super) async fn link_oauth_identity(
     pool: &PgPool,
     customer_id: Uuid,
@@ -104,6 +108,7 @@ pub(super) async fn link_oauth_identity(
     Ok(())
 }
 
+/// TODO: Document update.
 pub(super) async fn update(
     pool: &PgPool,
     id: Uuid,
@@ -131,6 +136,7 @@ pub(super) async fn update(
     queries::find_by_id(pool, id).await
 }
 
+/// TODO: Document soft_delete.
 pub(super) async fn soft_delete(pool: &PgPool, id: Uuid) -> Result<bool, RepoError> {
     let mut tx = pool
         .begin()

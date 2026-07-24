@@ -1,3 +1,5 @@
+//! Stub summary for infra/api/tests/common/vm_inventory_reference_guard_races.rs.
+
 use std::time::Duration;
 
 use sqlx::{PgPool, Row};
@@ -10,6 +12,7 @@ use super::vm_inventory_reference_guard_fixtures::{
     insert_customer, insert_deployment, insert_tenant_without_vm, insert_vm,
 };
 
+/// TODO: Document assert_inventory_lock_wins_reference_publication.
 pub async fn assert_inventory_lock_wins_reference_publication(schema: &str, observer: &PgPool) {
     let pool = pool_in_schema(schema, 3).await;
     let fixture = seed_unassigned_tenant(&pool, "inventory_first").await;
@@ -78,6 +81,7 @@ pub async fn assert_inventory_lock_wins_reference_publication(schema: &str, obse
     assert_final_state(observer, &fixture, "decommissioned", None).await;
 }
 
+/// TODO: Document assert_reference_publication_wins_inventory_lock.
 pub async fn assert_reference_publication_wins_inventory_lock(schema: &str, observer: &PgPool) {
     let pool = pool_in_schema(schema, 3).await;
     let fixture = seed_unassigned_tenant(&pool, "reference_first").await;
@@ -173,6 +177,7 @@ pub(super) async fn seed_unassigned_tenant(pool: &PgPool, label: &str) -> Refere
     }
 }
 
+/// TODO: Document wait_until_blocked.
 pub(super) async fn wait_until_blocked(observer: &PgPool, backend_pid: i32) {
     timeout(Duration::from_secs(2), async {
         loop {
@@ -191,6 +196,7 @@ pub(super) async fn wait_until_blocked(observer: &PgPool, backend_pid: i32) {
     .expect("transaction must reach the intended lock wait");
 }
 
+/// TODO: Document assert_final_state.
 pub(super) async fn assert_final_state(
     pool: &PgPool,
     fixture: &ReferenceRaceFixture,

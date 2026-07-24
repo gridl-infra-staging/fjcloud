@@ -1,0 +1,3 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.34s
+     Running unittests src/lib.rs (infra/target/debug/deps/aggregation_job-e59a5baa93fe9855)
+     Running unittests src/main.rs (infra/target/debug/deps/fjcloud_aggregation_job-ab0d58d077421dbb)

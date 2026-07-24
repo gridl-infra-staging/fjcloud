@@ -41,6 +41,7 @@ ensure_evidence_dir() {
     ACTION_DOC="$EVIDENCE_DIR/OPERATOR_ACTION_REQUIRED.md"
 }
 
+# TODO: Document write_status_doc.
 write_status_doc() {
     local result="$1"
     local restricted_key_state="$2"
@@ -63,6 +64,7 @@ write_status_doc() {
 EOF
 }
 
+# TODO: Document write_operator_action_doc.
 write_operator_action_doc() {
     local missing_items=("$@")
     local missing_item
@@ -84,6 +86,7 @@ write_operator_action_doc() {
     } > "$ACTION_DOC"
 }
 
+# TODO: Document run_prerequisite_checks.
 run_prerequisite_checks() {
     local restricted_key_state="missing"
     local restricted_id_marker_state="missing"

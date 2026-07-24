@@ -32,6 +32,7 @@ fn normalized_month_key(year: i32, month: u32) -> Result<String, RepoError> {
         .ok_or_else(|| RepoError::Other("invalid ingest quota warning month".to_string()))
 }
 
+/// TODO: Document set_quota_warning_sent_at.
 pub(super) async fn set_quota_warning_sent_at(
     pool: &PgPool,
     id: Uuid,
@@ -50,6 +51,7 @@ pub(super) async fn set_quota_warning_sent_at(
     Ok(result.rows_affected() > 0)
 }
 
+/// TODO: Document claim_ingest_quota_warning_for_month.
 pub(super) async fn claim_ingest_quota_warning_for_month(
     pool: &PgPool,
     id: Uuid,
@@ -68,6 +70,7 @@ pub(super) async fn claim_ingest_quota_warning_for_month(
     Ok(result.rows_affected() > 0)
 }
 
+/// TODO: Document rollback_ingest_quota_warning_for_month.
 pub(super) async fn rollback_ingest_quota_warning_for_month(
     pool: &PgPool,
     id: Uuid,

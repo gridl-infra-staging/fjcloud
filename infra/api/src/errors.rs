@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/errors.rs.
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -28,6 +29,7 @@ pub struct MigrationErrorResponse {
     pub code: AlgoliaImportErrorCode,
 }
 
+/// TODO: Document ApiError.
 #[derive(Debug)]
 pub enum ApiError {
     NotFound(String),
@@ -145,6 +147,7 @@ impl From<RepoError> for ApiError {
 }
 
 impl From<ProvisioningError> for ApiError {
+    /// TODO: Document ApiError.from.
     fn from(err: ProvisioningError) -> Self {
         match err {
             ProvisioningError::CustomerNotFound => ApiError::NotFound("customer not found".into()),
@@ -252,6 +255,7 @@ mod tests {
         assert_eq!(body, json!({"error": "internal server error"}));
     }
 
+    /// TODO: Document ordinary_errors_do_not_gain_code_field.
     #[tokio::test]
     async fn ordinary_errors_do_not_gain_code_field() {
         let cases = [
@@ -291,6 +295,7 @@ mod tests {
         }
     }
 
+    /// TODO: Document migration_error_returns_required_canonical_code_and_human_error.
     #[tokio::test]
     async fn migration_error_returns_required_canonical_code_and_human_error() {
         let message = "invalid_algolia_credentials".to_string();
@@ -427,6 +432,7 @@ mod tests {
 
     // ─── TooManyRequests tests ───────────────────────────────────────────
 
+    /// TODO: Document too_many_requests_returns_429_with_retry_after_header.
     #[tokio::test]
     async fn too_many_requests_returns_429_with_retry_after_header() {
         let err = ApiError::TooManyRequests {
@@ -453,6 +459,7 @@ mod tests {
         assert_eq!(json, json!({"error": "account locked"}));
     }
 
+    /// TODO: Document too_many_requests_with_zero_retry_after.
     #[tokio::test]
     async fn too_many_requests_with_zero_retry_after() {
         let err = ApiError::TooManyRequests {

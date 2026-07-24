@@ -1,0 +1,14 @@
+=== api.flapjack.foo ===
+fjcloud-prod-alb-1846218892.us-east-1.elb.amazonaws.com.
+52.21.83.239
+3.228.79.202
+=== api.staging.flapjack.foo ===
+fjcloud-staging-alb-1511805790.us-east-1.elb.amazonaws.com.
+98.95.37.129
+3.211.98.44
+=== cloud.flapjack.foo ===
+104.21.7.70
+172.67.187.141
+=== cloud.staging.flapjack.foo ===
+104.21.7.70
+172.67.187.141

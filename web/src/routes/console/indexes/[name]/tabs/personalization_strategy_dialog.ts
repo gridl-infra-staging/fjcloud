@@ -144,6 +144,9 @@ function parseEventType(value: unknown, path: string): PersonalizationEventScori
 	return value as PersonalizationEventScoring['eventType'];
 }
 
+/**
+ * TODO: Document parseEventsScoring.
+ */
 function parseEventsScoring(value: unknown): PersonalizationEventScoring[] {
 	if (!Array.isArray(value)) {
 		throw new Error('eventsScoring must be an array');
@@ -164,6 +167,9 @@ function parseEventsScoring(value: unknown): PersonalizationEventScoring[] {
 	});
 }
 
+/**
+ * TODO: Document parseFacetsScoring.
+ */
 function parseFacetsScoring(value: unknown): PersonalizationFacetScoring[] {
 	if (!Array.isArray(value)) {
 		throw new Error('facetsScoring must be an array');
@@ -197,6 +203,9 @@ export function parsePersonalizationStrategy(value: unknown): PersonalizationStr
 	};
 }
 
+/**
+ * TODO: Document normalizePersonalizationStrategy.
+ */
 export function normalizePersonalizationStrategy(value: unknown): {
 	strategy: PersonalizationStrategy;
 	error: string;

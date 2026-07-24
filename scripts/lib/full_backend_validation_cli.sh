@@ -82,6 +82,7 @@ parse_cli_args() {
     return 0
 }
 
+# TODO: Document validate_cli_args.
 validate_cli_args() {
     if [ -n "$SHA_OVERRIDE" ] && ! is_valid_sha "$SHA_OVERRIDE"; then
         echo "ERROR: --sha must be a 40-character lowercase hexadecimal commit SHA" >&2
@@ -137,6 +138,7 @@ resolve_optional_sha() {
     printf '\n'
 }
 
+# TODO: Document prepare_mode_requirements.
 prepare_mode_requirements() {
     local start_ms="$1"
     if [ "$MODE" = "live" ]; then

@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/state.rs.
 use sqlx::postgres::PgPool;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -284,6 +285,7 @@ mod tests {
         PublicRegionInfrastructure,
     };
 
+    /// TODO: Document public_infrastructure_response.
     fn public_infrastructure_response() -> PublicInfrastructureResponse {
         PublicInfrastructureResponse {
             regions: vec![PublicRegionInfrastructure {
@@ -336,6 +338,7 @@ mod tests {
         assert!(cache.get().is_none());
     }
 
+    /// TODO: Document metrics_cache_insert_get_roundtrip.
     #[test]
     fn metrics_cache_insert_get_roundtrip() {
         let cache = MetricsCache::default();
@@ -358,6 +361,7 @@ mod tests {
         assert_eq!(got.write_operations_total, 10);
     }
 
+    /// TODO: Document metrics_cache_expire_for_test_removes_entry.
     #[test]
     fn metrics_cache_expire_for_test_removes_entry() {
         let cache = MetricsCache::default();
@@ -378,6 +382,7 @@ mod tests {
         assert!(cache.get(customer_id, "products").is_none());
     }
 
+    /// TODO: Document metrics_cache_isolates_distinct_keys.
     #[test]
     fn metrics_cache_isolates_distinct_keys() {
         let cache = MetricsCache::default();

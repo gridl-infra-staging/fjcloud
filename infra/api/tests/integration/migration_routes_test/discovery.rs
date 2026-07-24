@@ -1,5 +1,7 @@
+//! Stub summary for infra/api/tests/integration/migration_routes_test/discovery.rs.
 use super::*;
 
+/// TODO: Document algolia_availability_requires_auth.
 #[tokio::test]
 async fn algolia_availability_requires_auth() {
     let (app, _jwt) = setup_authenticated_app().await;
@@ -19,6 +21,7 @@ async fn algolia_availability_requires_auth() {
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
+/// TODO: Document algolia_availability_returns_typed_unavailable_payload.
 #[tokio::test]
 async fn algolia_availability_returns_typed_unavailable_payload() {
     let (app, jwt) = setup_authenticated_app().await;
@@ -52,6 +55,7 @@ async fn algolia_availability_returns_typed_unavailable_payload() {
     );
 }
 
+/// TODO: Document algolia_availability_stays_unavailable_when_flag_is_enabled.
 #[tokio::test]
 async fn algolia_availability_stays_unavailable_when_flag_is_enabled() {
     let (app, jwt) = setup_authenticated_app_with_algolia_flag(true).await;
@@ -99,6 +103,7 @@ async fn algolia_cloud_discovery_list_indexes_requires_auth() {
     assert!(service.requests().is_empty());
 }
 
+/// TODO: Document algolia_cloud_discovery_allows_zero_index_customer_without_deployment_lookup.
 #[tokio::test]
 async fn algolia_cloud_discovery_allows_zero_index_customer_without_deployment_lookup() {
     let service = FakeAlgoliaSourceLister::new([
@@ -134,6 +139,7 @@ async fn algolia_cloud_discovery_allows_zero_index_customer_without_deployment_l
     assert_eq!(requests[1].api_key, "volatile-key");
 }
 
+/// TODO: Document algolia_cloud_discovery_forwards_probe_page_size_override.
 #[tokio::test]
 async fn algolia_cloud_discovery_forwards_probe_page_size_override() {
     let service = FakeAlgoliaSourceLister::new([Ok(discovery_response(Some("opaque-next")))]);
@@ -156,6 +162,7 @@ async fn algolia_cloud_discovery_forwards_probe_page_size_override() {
     assert_eq!(requests[0].hits_per_page, Some(1));
 }
 
+/// TODO: Document algolia_cloud_discovery_requires_volatile_api_key_on_every_cursor_request.
 #[tokio::test]
 async fn algolia_cloud_discovery_requires_volatile_api_key_on_every_cursor_request() {
     let debug_request = format!(
@@ -215,6 +222,7 @@ fn assert_coded_discovery_error(
     );
 }
 
+/// TODO: Document algolia_cloud_discovery_empty_key_returns_typed_invalid_credentials.
 #[tokio::test]
 async fn algolia_cloud_discovery_empty_key_returns_typed_invalid_credentials() {
     let service = FakeAlgoliaSourceLister::new([Ok(discovery_response(None))]);
@@ -236,6 +244,7 @@ async fn algolia_cloud_discovery_empty_key_returns_typed_invalid_credentials() {
     assert!(service.requests().is_empty());
 }
 
+/// TODO: Document algolia_cloud_discovery_returns_display_only_metadata_semantics.
 #[tokio::test]
 async fn algolia_cloud_discovery_returns_display_only_metadata_semantics() {
     let service = FakeAlgoliaSourceLister::new([Ok(discovery_response(None))]);
@@ -266,6 +275,7 @@ async fn algolia_cloud_discovery_returns_display_only_metadata_semantics() {
     );
 }
 
+/// TODO: Document algolia_cloud_discovery_maps_service_errors_without_echoing_api_key.
 #[tokio::test]
 async fn algolia_cloud_discovery_maps_service_errors_without_echoing_api_key() {
     let cases = [
@@ -333,6 +343,7 @@ async fn algolia_cloud_discovery_maps_service_errors_without_echoing_api_key() {
     }
 }
 
+/// TODO: Document algolia_cloud_discovery_acl_error_explains_discovery_and_migration_permissions.
 #[tokio::test]
 async fn algolia_cloud_discovery_acl_error_explains_discovery_and_migration_permissions() {
     let service = FakeAlgoliaSourceLister::new([Err(AlgoliaSourceError::ListIndexesAclRequired)]);
@@ -357,6 +368,7 @@ async fn algolia_cloud_discovery_acl_error_explains_discovery_and_migration_perm
     assert!(!guidance.contains("do-not-echo-this-key"));
 }
 
+/// TODO: Document algolia_cloud_discovery_migrate_route_remains_unregistered.
 #[tokio::test]
 async fn algolia_cloud_discovery_migrate_route_remains_unregistered() {
     let (app, jwt) = setup_authenticated_app().await;
@@ -375,6 +387,7 @@ async fn algolia_cloud_discovery_migrate_route_remains_unregistered() {
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
+/// TODO: Document algolia_cloud_job_routes_are_mounted_but_admission_stays_disabled_before_activation.
 #[tokio::test]
 async fn algolia_cloud_job_routes_are_mounted_but_admission_stays_disabled_before_activation() {
     let (app, jwt) = setup_authenticated_app().await;

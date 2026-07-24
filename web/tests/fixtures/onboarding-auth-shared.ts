@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for onboarding-auth-shared.ts.
+ */
 import { test as setup, expect } from '@playwright/test';
 import { REMOTE_TARGET_OPT_IN_ENV, resolveFixtureEnv } from '../../playwright.config.contract';
 import { quoteSqlLiteral, runSqlWithPsqlFallback } from './postgres_psql_helper';
@@ -112,6 +115,9 @@ export async function verifyFreshSignupEmail(email: string): Promise<void> {
 	assertSingleVerifiedCustomer(output, email, 'psql');
 }
 
+/**
+ * TODO: Document registerFreshOnboardingAccount.
+ */
 export function registerFreshOnboardingAccount(setupName: string, storageStatePath: string): void {
 	setup(setupName, async ({ page }) => {
 		const timestamp = Date.now();

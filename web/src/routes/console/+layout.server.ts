@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for +layout.server.ts.
+ */
 import type { LayoutServerLoad } from './$types';
 import type { CustomerProfileResponse } from '$lib/api/types';
 import { createApiClient } from '$lib/server/api';
@@ -5,6 +8,9 @@ import { IMPERSONATION_COOKIE } from '$lib/config';
 import { sanitizeImpersonationReturnPath } from '$lib/server/impersonation';
 import { buildDashboardPlanContext } from './plan-context';
 
+/**
+ * TODO: Document load.
+ */
 export const load: LayoutServerLoad = async ({ locals, cookies }) => {
 	const api = createApiClient(locals.user?.token);
 

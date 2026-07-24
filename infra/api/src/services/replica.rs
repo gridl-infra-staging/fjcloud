@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/replica.rs.
 use std::sync::Arc;
 
 use uuid::Uuid;
@@ -62,6 +63,7 @@ pub struct ReplicaService {
 }
 
 impl ReplicaService {
+    /// TODO: Document ReplicaService.new.
     pub fn new(
         replica_repo: Arc<dyn IndexReplicaRepo>,
         tenant_repo: Arc<dyn TenantRepo + Send + Sync>,
@@ -330,6 +332,7 @@ impl ReplicaService {
         Ok(())
     }
 
+    /// TODO: Document ReplicaService.guarded_target_mutation.
     async fn guarded_target_mutation<F, Fut, T>(
         &self,
         customer_id: Uuid,

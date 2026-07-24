@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for recovery-copy.ts.
+ */
 import { SUPPORT_EMAIL } from '$lib/format';
 
 // BoundaryScope is an internal-taxonomy literal for error-boundary copy
@@ -149,6 +152,9 @@ function resolveFallbackDescription(status: number): string {
 	return REQUEST_FALLBACK_DESCRIPTION;
 }
 
+/**
+ * TODO: Document buildBoundaryCopy.
+ */
 export function buildBoundaryCopy(
 	{ status, errorMessage, scope }: BuildBoundaryCopyInput,
 	supportReference?: string

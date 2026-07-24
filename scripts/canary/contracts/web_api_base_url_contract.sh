@@ -56,6 +56,7 @@ expected_api_origin_for() {
 
 fail=0
 
+# TODO: Document probe_env.
 probe_env() {
   local env="$1"
   local web_origin expected_api signup_url html oauth_hrefs observed_origin

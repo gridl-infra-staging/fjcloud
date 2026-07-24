@@ -60,6 +60,9 @@ function persistToStorage(): void {
 	}
 }
 
+/**
+ * TODO: Document hydrateFromStorage.
+ */
 function hydrateFromStorage(): void {
 	if (!browser || hydrated) return;
 	hydrated = true;

@@ -24,6 +24,7 @@ local_db_access_die() {
     fi
 }
 
+# TODO: Document require_local_database_access.
 require_local_database_access() {
     local skip_context="$1"
 
@@ -47,6 +48,7 @@ require_local_database_access() {
     return 1
 }
 
+# TODO: Document run_local_psql.
 run_local_psql() {
     local db_user db_password db_name
 

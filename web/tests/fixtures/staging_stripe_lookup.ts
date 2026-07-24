@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for staging_stripe_lookup.ts.
+ */
 import { requireNonEmptyString } from './contract-guards';
 
 type StripeCustomerLookupResponse = {
@@ -13,6 +16,9 @@ type ReadStripeDefaultPaymentMethodParams = {
 	fetchImpl?: typeof fetch;
 };
 
+/**
+ * TODO: Document readStripeDefaultPaymentMethod.
+ */
 export async function readStripeDefaultPaymentMethod({
 	stripeCustomerId,
 	stripeSecretKey,

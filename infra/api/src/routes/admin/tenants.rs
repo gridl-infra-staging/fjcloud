@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/routes/admin/tenants.rs.
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -274,6 +275,7 @@ pub async fn list_tenants(
     Ok(Json(tenants))
 }
 
+/// TODO: Document get_tenant.
 pub async fn get_tenant(
     _auth: AdminAuth,
     State(state): State<AppState>,
@@ -402,6 +404,7 @@ pub async fn update_tenant(
     )))
 }
 
+/// TODO: Document delete_tenant.
 pub async fn delete_tenant(
     _auth: AdminAuth,
     State(state): State<AppState>,

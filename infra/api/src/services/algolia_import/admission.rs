@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/algolia_import/admission.rs.
 use std::collections::HashMap;
 
 use sqlx::PgPool;
@@ -26,6 +27,7 @@ use super::{
 };
 
 impl AlgoliaImportService {
+    /// TODO: Document AlgoliaImportService.classify_engine_compatibility.
     pub(crate) fn classify_engine_compatibility(
         reason: FlapjackRuntimeIdentityReason,
     ) -> Result<(), AlgoliaImportErrorCode> {
@@ -61,6 +63,7 @@ impl AlgoliaImportService {
             .await
     }
 
+    /// TODO: Document AlgoliaImportService.check_engine_admission_compatibility.
     pub(crate) async fn check_engine_admission_compatibility(
         &self,
         flapjack_url: &str,
@@ -194,6 +197,7 @@ impl AlgoliaImportService {
         }
     }
 
+    /// TODO: Document AlgoliaImportService.admit_job.
     async fn admit_job(
         request: &AlgoliaImportAdmissionRequest,
         job_repo: &(dyn AlgoliaImportJobRepo + Send + Sync),
@@ -228,6 +232,7 @@ impl AlgoliaImportService {
             .map_err(AlgoliaImportAdmissionError::Admission)
     }
 
+    /// TODO: Document AlgoliaImportService.resolve_engine_target.
     pub(crate) async fn resolve_engine_target(
         &self,
         job: &AlgoliaImportJob,
@@ -257,6 +262,7 @@ impl AlgoliaImportService {
         ))
     }
 
+    /// TODO: Document AlgoliaImportService.persist_admission_refusal.
     async fn persist_admission_refusal(
         &self,
         job_repo: &(dyn AlgoliaImportJobRepo + Send + Sync),
@@ -283,6 +289,7 @@ impl AlgoliaImportService {
         Ok(())
     }
 
+    /// TODO: Document AlgoliaImportService.alert_submit_retained.
     async fn alert_submit_retained(
         &self,
         alert_service: &(dyn AlertService + Send + Sync),
@@ -314,6 +321,7 @@ pub struct AlgoliaImportAdmissionRequest {
 }
 
 impl AlgoliaImportAdmissionRequest {
+    /// TODO: Document AlgoliaImportAdmissionRequest.new.
     pub fn new(
         target_binding: AlgoliaImportTargetBinding,
         create_target: Option<AlgoliaImportCreatePlacement>,
@@ -348,6 +356,7 @@ impl AlgoliaImportAdmissionRequest {
         }
     }
 
+    /// TODO: Document AlgoliaImportAdmissionRequest.dispatch_admission.
     fn dispatch_admission(
         &self,
         source: AlgoliaImportSource,

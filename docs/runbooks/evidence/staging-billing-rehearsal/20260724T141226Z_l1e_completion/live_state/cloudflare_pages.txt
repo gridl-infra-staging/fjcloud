@@ -1,0 +1,92 @@
+list_accounts_http_status=200
+account_id_resolved=99deba6554f68cb3544bd9ecfd08ff06
+- project=flapjack-cloud detail_http_status=200
+  deployment_branch=staging
+  deployment_id=9101b0ff-34a0-4a8c-95aa-7f0449878a0d
+  deployment_created_on=2026-07-24T12:07:16.399218Z
+  deployment_url=https://9101b0ff.flapjack-cloud.pages.dev
+  deployment_status=success
+  missing_fields=none
+  env=production var_count=7 names=['ADMIN_KEY', 'API_BASE_URL', 'ENVIRONMENT', 'JWT_SECRET', 'SERVICE_STATUS', 'SERVICE_STATUS_MESSAGE', 'SERVICE_STATUS_UPDATED']
+  env=preview var_count=7 names=['ADMIN_KEY', 'API_BASE_URL', 'ENVIRONMENT', 'JWT_SECRET', 'SERVICE_STATUS', 'SERVICE_STATUS_MESSAGE', 'SERVICE_STATUS_UPDATED']
+- project=ayb-demo-polls detail_http_status=200
+  deployment_branch=main
+  deployment_id=0051643f-a0a8-402a-8d2d-8aa0d1e90616
+  deployment_created_on=2026-07-24T09:46:35.790693Z
+  deployment_url=https://0051643f.ayb-demo-polls.pages.dev
+  deployment_status=success
+  missing_fields=none
+  env=production var_count=0 names=[]
+  env=preview var_count=0 names=[]
+- project=ayb-docs detail_http_status=200
+  deployment_branch=main
+  deployment_id=ee2406dc-1a60-4992-a26c-4839c6143d5b
+  deployment_created_on=2026-07-24T09:46:33.444378Z
+  deployment_url=https://ee2406dc.ayb-docs.pages.dev
+  deployment_status=success
+  missing_fields=none
+  env=production var_count=0 names=[]
+  env=preview var_count=0 names=[]
+- project=allyourbase-api-docs detail_http_status=200
+  deployment_branch=main
+  deployment_id=8170e55e-7aef-4a79-92aa-f16ebd6303fa
+  deployment_created_on=2026-07-24T09:46:10.957877Z
+  deployment_url=https://8170e55e.allyourbase-api-docs.pages.dev
+  deployment_status=success
+  missing_fields=none
+  env=production var_count=0 names=[]
+  env=preview var_count=0 names=[]
+- project=ayb-demo-instantsearch detail_http_status=200
+  deployment_branch=main
+  deployment_id=af7c6728-a61d-42e8-89f9-f87167b72582
+  deployment_created_on=2026-07-24T02:57:11.696392Z
+  deployment_url=https://af7c6728.ayb-demo-instantsearch.pages.dev
+  deployment_status=success
+  missing_fields=none
+  env=production var_count=0 names=[]
+  env=preview var_count=0 names=[]
+- project=ayb-demo-movies detail_http_status=200
+  deployment_branch=main
+  deployment_id=96baed8b-14b5-45f0-9a6a-31e9c5acc1a5
+  deployment_created_on=2026-07-24T02:54:12.543626Z
+  deployment_url=https://96baed8b.ayb-demo-movies.pages.dev
+  deployment_status=success
+  missing_fields=none
+  env=production var_count=0 names=[]
+  env=preview var_count=0 names=[]
+- project=ayb-demo-kanban detail_http_status=200
+  deployment_branch=main
+  deployment_id=1806305c-1a6f-4ab4-8d61-d1b2acb7e124
+  deployment_created_on=2026-07-24T02:54:10.701401Z
+  deployment_url=https://1806305c.ayb-demo-kanban.pages.dev
+  deployment_status=success
+  missing_fields=none
+  env=production var_count=0 names=[]
+  env=preview var_count=0 names=[]
+- project=ayb-demo-apex detail_http_status=200
+  deployment_branch=main
+  deployment_id=0036933e-bde5-4c03-8e28-2194a2ae428e
+  deployment_created_on=2026-07-20T23:17:54.164706Z
+  deployment_url=https://0036933e.ayb-demo-apex.pages.dev
+  deployment_status=success
+  missing_fields=none
+  env=production var_count=0 names=[]
+  env=preview var_count=0 names=[]
+- project=flapjack-demo detail_http_status=200
+  deployment_branch=main
+  deployment_id=4cc72af4-019d-4ea3-891c-2b85aa16879e
+  deployment_created_on=2026-07-06T19:22:25.326578Z
+  deployment_url=https://4cc72af4.flapjack-demo.pages.dev
+  deployment_status=success
+  missing_fields=none
+  env=production var_count=0 names=[]
+  env=preview var_count=0 names=[]
+- project=flapjack-website detail_http_status=200
+  deployment_branch=main
+  deployment_id=bd95b0a3-4301-4041-b99f-6fee06aaa592
+  deployment_created_on=2026-05-23T00:26:40.151198Z
+  deployment_url=https://bd95b0a3.flapjack-website.pages.dev
+  deployment_status=success
+  missing_fields=none
+  env=production var_count=0 names=[]
+  env=preview var_count=0 names=[]

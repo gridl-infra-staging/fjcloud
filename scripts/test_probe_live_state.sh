@@ -580,6 +580,23 @@ run_default_mode() {
         "default mode writes the manifest beside the requested summary"
 }
 
+run_unwritable_output_path_regression() {
+    local probe_output probe_rc
+
+    set +e
+    probe_output="$(
+        LIVE_STATE_OUTPUT_PATH="/dev/null/fjcloud-live-state/SUMMARY.md" \
+            bash "$PROBE_SCRIPT_DEFAULT" 2>&1
+    )"
+    probe_rc=$?
+    set -e
+
+    assert_eq "$probe_rc" "1" \
+        "probe fails when LIVE_STATE_OUTPUT_PATH cannot be initialized"
+    assert_contains "$probe_output" "/dev/null" \
+        "unwritable output-path failure identifies the rejected path"
+}
+
 run_all_degraded_exit_code_regression() {
     local output_path primary_secret_path fallback_secret_path stub_dir aws_log_path probe_rc
     create_temp_bundle_summary output_path
@@ -1883,6 +1900,9 @@ if [ -n "${PROBE_TEST_CASE:-}" ]; then
         alternate_output_bundle_isolation)
             run_alternate_output_bundle_isolation_regression
             ;;
+        unwritable_output_path)
+            run_unwritable_output_path_regression
+            ;;
         *)
             fail "unknown PROBE_TEST_CASE=$PROBE_TEST_CASE"
             ;;
@@ -1891,6 +1911,7 @@ elif [ -n "${LIVE_STATE_ARTIFACT:-}" ]; then
     run_fixture_mode
 else
     run_default_mode
+    run_unwritable_output_path_regression
     run_all_degraded_exit_code_regression
     run_cloudflare_fallback_empty_export_regression
     run_ssm_scope_regression

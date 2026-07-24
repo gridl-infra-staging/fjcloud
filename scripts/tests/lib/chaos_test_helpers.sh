@@ -82,6 +82,7 @@ MOCK
     chmod +x "$path"
 }
 
+# TODO: Document write_ha_curl_mock_header.
 write_ha_curl_mock_header() {
     local path="$1"
     local call_log="$2"
@@ -124,6 +125,7 @@ esac
 EOF
 }
 
+# TODO: Document append_minimal_ha_inventory_routes.
 append_minimal_ha_inventory_routes() {
     local path="$1"
     cat >> "$path" <<EOF
@@ -157,6 +159,7 @@ JSON
 EOF
 }
 
+# TODO: Document append_minimal_ha_alert_routes.
 append_minimal_ha_alert_routes() {
     local path="$1"
     local alert_state_dir="$2"
@@ -200,6 +203,7 @@ JSON
 EOF
 }
 
+# TODO: Document append_minimal_ha_vm_detail_routes.
 append_minimal_ha_vm_detail_routes() {
     local path="$1"
     cat >> "$path" <<'EOF'
@@ -219,6 +223,7 @@ JSON
 EOF
 }
 
+# TODO: Document append_lowest_lag_ha_inventory_routes.
 append_lowest_lag_ha_inventory_routes() {
     local path="$1"
     cat >> "$path" <<'EOF'
@@ -245,6 +250,7 @@ JSON
 EOF
 }
 
+# TODO: Document append_lowest_lag_ha_alert_routes.
 append_lowest_lag_ha_alert_routes() {
     local path="$1"
     local alert_state_dir="$2"
@@ -291,6 +297,7 @@ JSON
 EOF
 }
 
+# TODO: Document append_lowest_lag_ha_vm_detail_routes.
 append_lowest_lag_ha_vm_detail_routes() {
     local path="$1"
     cat >> "$path" <<'EOF'

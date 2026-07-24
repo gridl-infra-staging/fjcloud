@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for personalization-management.server.ts.
+ */
 import { fail } from '@sveltejs/kit';
 import { createApiClient } from '$lib/server/api';
 import { mapDashboardSessionFailure } from '$lib/server/auth-action-errors';
@@ -21,6 +24,9 @@ function failForPersonalizationAction<T extends Record<string, unknown>>(
 	return fail(400, payload);
 }
 
+/**
+ * TODO: Document savePersonalizationStrategyAction.
+ */
 export async function savePersonalizationStrategyAction({
 	request,
 	indexName,
@@ -66,6 +72,9 @@ export async function deletePersonalizationStrategyAction({
 	}
 }
 
+/**
+ * TODO: Document getPersonalizationProfileAction.
+ */
 export async function getPersonalizationProfileAction({
 	request,
 	indexName,
@@ -104,6 +113,9 @@ export async function getPersonalizationProfileAction({
 	}
 }
 
+/**
+ * TODO: Document deletePersonalizationProfileAction.
+ */
 export async function deletePersonalizationProfileAction({
 	request,
 	indexName,

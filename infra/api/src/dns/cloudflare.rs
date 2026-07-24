@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/dns/cloudflare.rs.
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::Client;
@@ -71,6 +72,7 @@ impl CloudflareDnsManager {
         format!("{}/zones/{}/dns_records", self.api_base, self.zone_id)
     }
 
+    /// TODO: Document CloudflareDnsManager.request_json.
     async fn request_json(
         &self,
         request: reqwest::RequestBuilder,
@@ -108,6 +110,7 @@ impl CloudflareDnsManager {
         )))
     }
 
+    /// TODO: Document CloudflareDnsManager.lookup_record_id.
     async fn lookup_record_id(&self, hostname: &str) -> Result<Option<String>, DnsError> {
         let fqdn = self.hostname(hostname);
         let body = self
@@ -131,6 +134,7 @@ impl CloudflareDnsManager {
 
 #[async_trait]
 impl DnsManager for CloudflareDnsManager {
+    /// TODO: Document CloudflareDnsManager.create_record.
     async fn create_record(&self, hostname: &str, ip: &str) -> Result<(), DnsError> {
         let fqdn = self.hostname(hostname);
         let payload = json!({
@@ -174,6 +178,7 @@ impl DnsManager for CloudflareDnsManager {
         Ok(())
     }
 
+    /// TODO: Document CloudflareDnsManager.list_a_records.
     async fn list_a_records(&self) -> Result<Vec<DnsARecord>, DnsError> {
         let mut page_number = 1;
         let mut records = Vec::new();
@@ -218,6 +223,7 @@ mod tests {
     use wiremock::matchers::{header, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
+    /// TODO: Document create_record_creates_new_a_record_when_missing.
     #[tokio::test]
     async fn create_record_creates_new_a_record_when_missing() {
         let server = MockServer::start().await;
@@ -258,6 +264,7 @@ mod tests {
             .expect("create should succeed");
     }
 
+    /// TODO: Document delete_record_is_idempotent_when_record_is_missing.
     #[tokio::test]
     async fn delete_record_is_idempotent_when_record_is_missing() {
         let server = MockServer::start().await;
@@ -287,6 +294,7 @@ mod tests {
             .expect("delete should be idempotent when record does not exist");
     }
 
+    /// TODO: Document orphan_report_cloudflare_listing_exhausts_all_a_record_pages.
     #[tokio::test]
     async fn orphan_report_cloudflare_listing_exhausts_all_a_record_pages() {
         let server = MockServer::start().await;

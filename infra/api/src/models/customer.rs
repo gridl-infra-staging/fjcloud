@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/models/customer.rs.
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -200,6 +201,7 @@ impl Customer {
 mod tests {
     use super::*;
 
+    /// TODO: Document build_test_customer.
     fn build_test_customer(billing_plan: &str, carryforward: Decimal) -> Customer {
         let now = Utc::now();
         Customer {
@@ -365,6 +367,7 @@ mod tests {
         );
     }
 
+    /// TODO: Document ingest_quota_warning_sent_for_month_checks_metric_specific_state.
     #[test]
     fn ingest_quota_warning_sent_for_month_checks_metric_specific_state() {
         let mut customer = build_test_customer("free", Decimal::ZERO);

@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for web/src/lib/components/migration/provider_eligibility.ts.
+ */
 import type { AlgoliaDestinationEligibilityResponse } from '$lib/api/types';
 import { eligibilityExpiresAtMillis } from './eligibility';
 
@@ -30,6 +33,9 @@ export function providerEligibilityResponse(
 	return 'phase' in value ? value : null;
 }
 
+/**
+ * TODO: Document activeProviderEligibility.
+ */
 export function activeProviderEligibility({
 	providerEligibility,
 	replaceEnabled,
@@ -76,6 +82,9 @@ export function describeProviderEligibility(
 	return 'Refresh provider eligibility before entering Algolia credentials';
 }
 
+/**
+ * TODO: Document providerEligibilityBinding.
+ */
 export function providerEligibilityBinding(
 	currentEligibility: AlgoliaDestinationEligibilityResponse | null
 ): string | null {

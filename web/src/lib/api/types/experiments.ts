@@ -112,6 +112,9 @@ export interface ExperimentConclusion {
 	endedAt?: string;
 }
 
+/**
+ * TODO: Document ExperimentResults.
+ */
 export interface ExperimentResults {
 	experimentID: string;
 	name: string;

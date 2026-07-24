@@ -117,6 +117,7 @@ effective = payload.get("effective_rate_card") if isinstance(payload, dict) else
 print("true" if isinstance(effective, dict) and effective.get("id") else "false")
 PY
 }
+# TODO: Document stage1_override_exists_from_selection_payload.
 stage1_override_exists_from_selection_payload() {
     local json_payload="$1"
     python3 - "$json_payload" <<'PY' || true
@@ -137,6 +138,7 @@ else:
     print("false")
 PY
 }
+# TODO: Document capture_billing_cross_check_inputs.
 capture_billing_cross_check_inputs() {
     local invoice_id="$1"
     local bundle_dir="$2"

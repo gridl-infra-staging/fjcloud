@@ -1,0 +1,2020 @@
+{
+  "result": [
+    {
+      "id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+      "name": "flapjack-cloud",
+      "subdomain": "flapjack-cloud.pages.dev",
+      "domains": [
+        "flapjack-cloud.pages.dev",
+        "cloud.flapjack.foo",
+        "cloud.staging.flapjack.foo"
+      ],
+      "build_config": {
+        "destination_dir": ".svelte-kit/cloudflare",
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "deployment_configs": {
+        "preview": {
+          "env_vars": {
+            "ADMIN_KEY": {
+              "type": "secret_text"
+            },
+            "API_BASE_URL": {
+              "type": "plain_text"
+            },
+            "ENVIRONMENT": {
+              "type": "plain_text"
+            },
+            "JWT_SECRET": {
+              "type": "secret_text"
+            },
+            "SERVICE_STATUS": {
+              "type": "plain_text"
+            },
+            "SERVICE_STATUS_MESSAGE": {
+              "type": "plain_text"
+            },
+            "SERVICE_STATUS_UPDATED": {
+              "type": "plain_text"
+            }
+          },
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-04-01",
+          "compatibility_flags": [
+            "nodejs_compat"
+          ],
+          "build_image_major_version": 3,
+          "usage_model": "standard",
+          "wrangler_config_hash": "5124dd2c94af6a8f9db2630620a2b4b439f9057f22d5fa1860898ed400247eb0"
+        },
+        "production": {
+          "env_vars": {
+            "ADMIN_KEY": {
+              "type": "secret_text"
+            },
+            "API_BASE_URL": {
+              "type": "plain_text"
+            },
+            "ENVIRONMENT": {
+              "type": "plain_text"
+            },
+            "JWT_SECRET": {
+              "type": "secret_text"
+            },
+            "SERVICE_STATUS": {
+              "type": "plain_text"
+            },
+            "SERVICE_STATUS_MESSAGE": {
+              "type": "plain_text"
+            },
+            "SERVICE_STATUS_UPDATED": {
+              "type": "plain_text"
+            }
+          },
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-04-01",
+          "compatibility_flags": [
+            "nodejs_compat"
+          ],
+          "build_image_major_version": 3,
+          "usage_model": "standard",
+          "wrangler_config_hash": "5124dd2c94af6a8f9db2630620a2b4b439f9057f22d5fa1860898ed400247eb0"
+        }
+      },
+      "latest_deployment": {
+        "id": "9101b0ff-34a0-4a8c-95aa-7f0449878a0d",
+        "short_id": "9101b0ff",
+        "project_id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+        "project_name": "flapjack-cloud",
+        "environment": "preview",
+        "url": "https://9101b0ff.flapjack-cloud.pages.dev",
+        "created_on": "2026-07-24T12:07:16.399218Z",
+        "modified_on": "2026-07-24T12:07:19.829739Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-24T12:07:19.829739Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "staging",
+            "commit_hash": "78f6ffc1bda3a46783a35164e744f7105d7c4d5d",
+            "commit_message": "chore: debbie post-sync mirror update",
+            "commit_dirty": true
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-07-24T12:07:16.399218Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-07-24T12:07:19.829739Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": ".svelte-kit/cloudflare",
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {
+          "ADMIN_KEY": {
+            "type": "secret_text"
+          },
+          "API_BASE_URL": {
+            "type": "plain_text"
+          },
+          "ENVIRONMENT": {
+            "type": "plain_text"
+          },
+          "JWT_SECRET": {
+            "type": "secret_text"
+          },
+          "SERVICE_STATUS": {
+            "type": "plain_text"
+          },
+          "SERVICE_STATUS_MESSAGE": {
+            "type": "plain_text"
+          },
+          "SERVICE_STATUS_UPDATED": {
+            "type": "plain_text"
+          }
+        },
+        "compatibility_date": "2026-04-01",
+        "compatibility_flags": [
+          "nodejs_compat"
+        ],
+        "build_image_major_version": 3,
+        "usage_model": "bundled",
+        "aliases": [
+          "https://staging.flapjack-cloud.pages.dev"
+        ],
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": true
+      },
+      "canonical_deployment": {
+        "id": "a18adc26-4245-4601-b530-40fc5d40a15e",
+        "short_id": "a18adc26",
+        "project_id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+        "project_name": "flapjack-cloud",
+        "environment": "production",
+        "url": "https://a18adc26.flapjack-cloud.pages.dev",
+        "created_on": "2026-07-24T12:07:07.799404Z",
+        "modified_on": "2026-07-24T12:07:11.032056Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-24T12:07:11.032056Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "78f6ffc1bda3a46783a35164e744f7105d7c4d5d",
+            "commit_message": "chore: debbie post-sync mirror update",
+            "commit_dirty": true
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-07-24T12:07:07.799404Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-07-24T12:07:11.032056Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": ".svelte-kit/cloudflare",
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {
+          "ADMIN_KEY": {
+            "type": "secret_text"
+          },
+          "API_BASE_URL": {
+            "type": "plain_text"
+          },
+          "ENVIRONMENT": {
+            "type": "plain_text"
+          },
+          "JWT_SECRET": {
+            "type": "secret_text"
+          },
+          "SERVICE_STATUS": {
+            "type": "plain_text"
+          },
+          "SERVICE_STATUS_MESSAGE": {
+            "type": "plain_text"
+          },
+          "SERVICE_STATUS_UPDATED": {
+            "type": "plain_text"
+          }
+        },
+        "compatibility_date": "2026-04-01",
+        "compatibility_flags": [
+          "nodejs_compat"
+        ],
+        "build_image_major_version": 3,
+        "usage_model": "bundled",
+        "aliases": [
+          "https://cloud.flapjack.foo",
+          "https://cloud.staging.flapjack.foo"
+        ],
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": true
+      },
+      "created_on": "2026-02-08T18:07:04.4658Z",
+      "production_branch": "main",
+      "production_script_name": "pages-worker--10856500-production",
+      "preview_script_name": "pages-worker--10856500-preview",
+      "uses_functions": true,
+      "framework": "",
+      "framework_version": ""
+    },
+    {
+      "id": "c885ce2e-20b9-4a92-9412-84f1d57da11c",
+      "name": "ayb-demo-polls",
+      "subdomain": "ayb-demo-polls.pages.dev",
+      "domains": [
+        "ayb-demo-polls.pages.dev",
+        "polls.demo.allyourbase.io"
+      ],
+      "build_config": {
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "deployment_configs": {
+        "preview": {
+          "env_vars": null,
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-05-23",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        },
+        "production": {
+          "env_vars": null,
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-05-23",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        }
+      },
+      "latest_deployment": {
+        "id": "0051643f-a0a8-402a-8d2d-8aa0d1e90616",
+        "short_id": "0051643f",
+        "project_id": "c885ce2e-20b9-4a92-9412-84f1d57da11c",
+        "project_name": "ayb-demo-polls",
+        "environment": "production",
+        "url": "https://0051643f.ayb-demo-polls.pages.dev",
+        "created_on": "2026-07-24T09:46:35.790693Z",
+        "modified_on": "2026-07-24T09:46:37.235882Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-24T09:46:37.235882Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "43cbf7e835885102f16846091442abb6268d2206",
+            "commit_message": "sync v0.0.20 beta candidate to staging",
+            "commit_dirty": true
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-07-24T09:46:35.790693Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-07-24T09:46:37.235882Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": null,
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-05-23",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": null,
+        "aliases": [
+          "https://polls.demo.allyourbase.io"
+        ],
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": false
+      },
+      "canonical_deployment": {
+        "id": "0051643f-a0a8-402a-8d2d-8aa0d1e90616",
+        "short_id": "0051643f",
+        "project_id": "c885ce2e-20b9-4a92-9412-84f1d57da11c",
+        "project_name": "ayb-demo-polls",
+        "environment": "production",
+        "url": "https://0051643f.ayb-demo-polls.pages.dev",
+        "created_on": "2026-07-24T09:46:35.790693Z",
+        "modified_on": "2026-07-24T09:46:37.235882Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-24T09:46:37.235882Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "43cbf7e835885102f16846091442abb6268d2206",
+            "commit_message": "sync v0.0.20 beta candidate to staging",
+            "commit_dirty": true
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-07-24T09:46:35.790693Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-07-24T09:46:37.235882Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": null,
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-05-23",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": null,
+        "aliases": [
+          "https://polls.demo.allyourbase.io"
+        ],
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": false
+      },
+      "created_on": "2026-05-23T06:31:58.211814Z",
+      "production_branch": "main",
+      "production_script_name": "pages-worker--14114327-production",
+      "preview_script_name": "pages-worker--14114327-preview",
+      "uses_functions": false,
+      "framework": "",
+      "framework_version": ""
+    },
+    {
+      "id": "7dc6f816-c1d4-41ce-930c-6827a4c1ed2f",
+      "name": "ayb-docs",
+      "subdomain": "ayb-docs.pages.dev",
+      "domains": [
+        "ayb-docs.pages.dev",
+        "allyourbase.io"
+      ],
+      "build_config": {
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "deployment_configs": {
+        "preview": {
+          "env_vars": null,
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-02-08",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        },
+        "production": {
+          "env_vars": null,
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-02-08",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        }
+      },
+      "latest_deployment": {
+        "id": "ee2406dc-1a60-4992-a26c-4839c6143d5b",
+        "short_id": "ee2406dc",
+        "project_id": "7dc6f816-c1d4-41ce-930c-6827a4c1ed2f",
+        "project_name": "ayb-docs",
+        "environment": "production",
+        "url": "https://ee2406dc.ayb-docs.pages.dev",
+        "created_on": "2026-07-24T09:46:33.444378Z",
+        "modified_on": "2026-07-24T09:46:34.560463Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-24T09:46:34.560463Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "43cbf7e835885102f16846091442abb6268d2206",
+            "commit_message": "sync v0.0.20 beta candidate to staging",
+            "commit_dirty": true
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-07-24T09:46:33.444378Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-07-24T09:46:34.560463Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": null,
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-02-08",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": null,
+        "aliases": [
+          "https://allyourbase.io"
+        ],
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": false
+      },
+      "canonical_deployment": {
+        "id": "ee2406dc-1a60-4992-a26c-4839c6143d5b",
+        "short_id": "ee2406dc",
+        "project_id": "7dc6f816-c1d4-41ce-930c-6827a4c1ed2f",
+        "project_name": "ayb-docs",
+        "environment": "production",
+        "url": "https://ee2406dc.ayb-docs.pages.dev",
+        "created_on": "2026-07-24T09:46:33.444378Z",
+        "modified_on": "2026-07-24T09:46:34.560463Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-24T09:46:34.560463Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "43cbf7e835885102f16846091442abb6268d2206",
+            "commit_message": "sync v0.0.20 beta candidate to staging",
+            "commit_dirty": true
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-07-24T09:46:33.444378Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-07-24T09:46:34.560463Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": null,
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-02-08",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": null,
+        "aliases": [
+          "https://allyourbase.io"
+        ],
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": false
+      },
+      "created_on": "2026-02-08T19:30:35.499742Z",
+      "production_branch": "main",
+      "production_script_name": "pages-worker--10857355-production",
+      "preview_script_name": "pages-worker--10857355-preview",
+      "uses_functions": false,
+      "framework": "",
+      "framework_version": ""
+    },
+    {
+      "id": "0ef8ecde-5a6a-4e21-af7b-1276c457d715",
+      "name": "allyourbase-api-docs",
+      "subdomain": "allyourbase-api-docs.pages.dev",
+      "domains": [
+        "allyourbase-api-docs.pages.dev"
+      ],
+      "build_config": {
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "deployment_configs": {
+        "preview": {
+          "env_vars": null,
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-02-18",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        },
+        "production": {
+          "env_vars": null,
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-02-18",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        }
+      },
+      "latest_deployment": {
+        "id": "8170e55e-7aef-4a79-92aa-f16ebd6303fa",
+        "short_id": "8170e55e",
+        "project_id": "0ef8ecde-5a6a-4e21-af7b-1276c457d715",
+        "project_name": "allyourbase-api-docs",
+        "environment": "production",
+        "url": "https://8170e55e.allyourbase-api-docs.pages.dev",
+        "created_on": "2026-07-24T09:46:10.957877Z",
+        "modified_on": "2026-07-24T09:46:12.079353Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-24T09:46:12.079353Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "43cbf7e835885102f16846091442abb6268d2206",
+            "commit_message": "sync v0.0.20 beta candidate to staging",
+            "commit_dirty": true
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-07-24T09:46:10.957877Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-07-24T09:46:12.079353Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": null,
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-02-18",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": null,
+        "aliases": null,
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": false
+      },
+      "canonical_deployment": {
+        "id": "8170e55e-7aef-4a79-92aa-f16ebd6303fa",
+        "short_id": "8170e55e",
+        "project_id": "0ef8ecde-5a6a-4e21-af7b-1276c457d715",
+        "project_name": "allyourbase-api-docs",
+        "environment": "production",
+        "url": "https://8170e55e.allyourbase-api-docs.pages.dev",
+        "created_on": "2026-07-24T09:46:10.957877Z",
+        "modified_on": "2026-07-24T09:46:12.079353Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-24T09:46:12.079353Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "43cbf7e835885102f16846091442abb6268d2206",
+            "commit_message": "sync v0.0.20 beta candidate to staging",
+            "commit_dirty": true
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-07-24T09:46:10.957877Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-07-24T09:46:12.079353Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": null,
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-02-18",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": null,
+        "aliases": null,
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": false
+      },
+      "created_on": "2026-02-18T15:25:19.985548Z",
+      "production_branch": "main",
+      "production_script_name": "pages-worker--11094118-production",
+      "preview_script_name": "pages-worker--11094118-preview",
+      "uses_functions": false,
+      "framework": "",
+      "framework_version": ""
+    },
+    {
+      "id": "6145c150-fe18-4b75-9447-4f82bd042158",
+      "name": "ayb-demo-instantsearch",
+      "subdomain": "ayb-demo-instantsearch.pages.dev",
+      "domains": [
+        "ayb-demo-instantsearch.pages.dev",
+        "instantsearch.demo.allyourbase.io"
+      ],
+      "build_config": {
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "deployment_configs": {
+        "preview": {
+          "env_vars": null,
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-06-11",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        },
+        "production": {
+          "env_vars": null,
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-06-11",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        }
+      },
+      "latest_deployment": {
+        "id": "af7c6728-a61d-42e8-89f9-f87167b72582",
+        "short_id": "af7c6728",
+        "project_id": "6145c150-fe18-4b75-9447-4f82bd042158",
+        "project_name": "ayb-demo-instantsearch",
+        "environment": "production",
+        "url": "https://af7c6728.ayb-demo-instantsearch.pages.dev",
+        "created_on": "2026-07-24T02:57:11.696392Z",
+        "modified_on": "2026-07-24T02:57:12.77117Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-24T02:57:12.77117Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "cb9a005b9719d6aa515d5e0e4cd69ad8fadeec13",
+            "commit_message": "Sync current development projection",
+            "commit_dirty": true
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-07-24T02:57:11.696392Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-07-24T02:57:12.77117Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": null,
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-06-11",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": null,
+        "aliases": [
+          "https://instantsearch.demo.allyourbase.io"
+        ],
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": false
+      },
+      "canonical_deployment": {
+        "id": "af7c6728-a61d-42e8-89f9-f87167b72582",
+        "short_id": "af7c6728",
+        "project_id": "6145c150-fe18-4b75-9447-4f82bd042158",
+        "project_name": "ayb-demo-instantsearch",
+        "environment": "production",
+        "url": "https://af7c6728.ayb-demo-instantsearch.pages.dev",
+        "created_on": "2026-07-24T02:57:11.696392Z",
+        "modified_on": "2026-07-24T02:57:12.77117Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-24T02:57:12.77117Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "cb9a005b9719d6aa515d5e0e4cd69ad8fadeec13",
+            "commit_message": "Sync current development projection",
+            "commit_dirty": true
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-07-24T02:57:11.696392Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-07-24T02:57:12.77117Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": null,
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-06-11",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": null,
+        "aliases": [
+          "https://instantsearch.demo.allyourbase.io"
+        ],
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": false
+      },
+      "created_on": "2026-06-11T19:42:34.339394Z",
+      "production_branch": "main",
+      "production_script_name": "pages-worker--14892393-production",
+      "preview_script_name": "pages-worker--14892393-preview",
+      "uses_functions": false,
+      "framework": "",
+      "framework_version": ""
+    },
+    {
+      "id": "7525da3b-aace-4bbf-b8a0-a5491a9bd715",
+      "name": "ayb-demo-movies",
+      "subdomain": "ayb-demo-movies.pages.dev",
+      "domains": [
+        "ayb-demo-movies.pages.dev",
+        "movies.demo.allyourbase.io"
+      ],
+      "build_config": {
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "deployment_configs": {
+        "preview": {
+          "env_vars": null,
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-05-23",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        },
+        "production": {
+          "env_vars": null,
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-05-23",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        }
+      },
+      "latest_deployment": {
+        "id": "96baed8b-14b5-45f0-9a6a-31e9c5acc1a5",
+        "short_id": "96baed8b",
+        "project_id": "7525da3b-aace-4bbf-b8a0-a5491a9bd715",
+        "project_name": "ayb-demo-movies",
+        "environment": "production",
+        "url": "https://96baed8b.ayb-demo-movies.pages.dev",
+        "created_on": "2026-07-24T02:54:12.543626Z",
+        "modified_on": "2026-07-24T02:54:13.638998Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-24T02:54:13.638998Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "cb9a005b9719d6aa515d5e0e4cd69ad8fadeec13",
+            "commit_message": "Sync current development projection",
+            "commit_dirty": true
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-07-24T02:54:12.543626Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-07-24T02:54:13.638998Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": null,
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-05-23",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": null,
+        "aliases": [
+          "https://movies.demo.allyourbase.io"
+        ],
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": false
+      },
+      "canonical_deployment": {
+        "id": "96baed8b-14b5-45f0-9a6a-31e9c5acc1a5",
+        "short_id": "96baed8b",
+        "project_id": "7525da3b-aace-4bbf-b8a0-a5491a9bd715",
+        "project_name": "ayb-demo-movies",
+        "environment": "production",
+        "url": "https://96baed8b.ayb-demo-movies.pages.dev",
+        "created_on": "2026-07-24T02:54:12.543626Z",
+        "modified_on": "2026-07-24T02:54:13.638998Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-24T02:54:13.638998Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "cb9a005b9719d6aa515d5e0e4cd69ad8fadeec13",
+            "commit_message": "Sync current development projection",
+            "commit_dirty": true
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-07-24T02:54:12.543626Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-07-24T02:54:13.638998Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": null,
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-05-23",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": null,
+        "aliases": [
+          "https://movies.demo.allyourbase.io"
+        ],
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": false
+      },
+      "created_on": "2026-05-23T06:32:00.595113Z",
+      "production_branch": "main",
+      "production_script_name": "pages-worker--14114330-production",
+      "preview_script_name": "pages-worker--14114330-preview",
+      "uses_functions": false,
+      "framework": "",
+      "framework_version": ""
+    },
+    {
+      "id": "3f33be98-54c3-4b1c-bd4f-b73bac579786",
+      "name": "ayb-demo-kanban",
+      "subdomain": "ayb-demo-kanban.pages.dev",
+      "domains": [
+        "ayb-demo-kanban.pages.dev",
+        "kanban.demo.allyourbase.io"
+      ],
+      "build_config": {
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "deployment_configs": {
+        "preview": {
+          "env_vars": null,
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-05-23",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        },
+        "production": {
+          "env_vars": null,
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-05-23",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        }
+      },
+      "latest_deployment": {
+        "id": "1806305c-1a6f-4ab4-8d61-d1b2acb7e124",
+        "short_id": "1806305c",
+        "project_id": "3f33be98-54c3-4b1c-bd4f-b73bac579786",
+        "project_name": "ayb-demo-kanban",
+        "environment": "production",
+        "url": "https://1806305c.ayb-demo-kanban.pages.dev",
+        "created_on": "2026-07-24T02:54:10.701401Z",
+        "modified_on": "2026-07-24T02:54:12.488597Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-24T02:54:12.488597Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "cb9a005b9719d6aa515d5e0e4cd69ad8fadeec13",
+            "commit_message": "Sync current development projection",
+            "commit_dirty": true
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-07-24T02:54:10.701401Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-07-24T02:54:12.488597Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": null,
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-05-23",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": null,
+        "aliases": [
+          "https://kanban.demo.allyourbase.io"
+        ],
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": false
+      },
+      "canonical_deployment": {
+        "id": "1806305c-1a6f-4ab4-8d61-d1b2acb7e124",
+        "short_id": "1806305c",
+        "project_id": "3f33be98-54c3-4b1c-bd4f-b73bac579786",
+        "project_name": "ayb-demo-kanban",
+        "environment": "production",
+        "url": "https://1806305c.ayb-demo-kanban.pages.dev",
+        "created_on": "2026-07-24T02:54:10.701401Z",
+        "modified_on": "2026-07-24T02:54:12.488597Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-24T02:54:12.488597Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "cb9a005b9719d6aa515d5e0e4cd69ad8fadeec13",
+            "commit_message": "Sync current development projection",
+            "commit_dirty": true
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-07-24T02:54:10.701401Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-07-24T02:54:12.488597Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": null,
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-05-23",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": null,
+        "aliases": [
+          "https://kanban.demo.allyourbase.io"
+        ],
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": false
+      },
+      "created_on": "2026-05-23T06:31:55.619011Z",
+      "production_branch": "main",
+      "production_script_name": "pages-worker--14114325-production",
+      "preview_script_name": "pages-worker--14114325-preview",
+      "uses_functions": false,
+      "framework": "",
+      "framework_version": ""
+    },
+    {
+      "id": "e9e91bcc-123e-40a6-99d3-6b977747e925",
+      "name": "ayb-demo-apex",
+      "subdomain": "ayb-demo-apex.pages.dev",
+      "domains": [
+        "ayb-demo-apex.pages.dev",
+        "demo.allyourbase.io"
+      ],
+      "build_config": {
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "deployment_configs": {
+        "preview": {
+          "env_vars": null,
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-05-23",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        },
+        "production": {
+          "env_vars": null,
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-05-23",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        }
+      },
+      "latest_deployment": {
+        "id": "0036933e-bde5-4c03-8e28-2194a2ae428e",
+        "short_id": "0036933e",
+        "project_id": "e9e91bcc-123e-40a6-99d3-6b977747e925",
+        "project_name": "ayb-demo-apex",
+        "environment": "production",
+        "url": "https://0036933e.ayb-demo-apex.pages.dev",
+        "created_on": "2026-07-20T23:17:54.164706Z",
+        "modified_on": "2026-07-20T23:17:55.323703Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-20T23:17:55.323703Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "c23cc959b360b9eca8cf63d4672b2409621486f3",
+            "commit_message": "Sync v0.0.19-beta release candidate to production",
+            "commit_dirty": true
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-07-20T23:17:54.164706Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-07-20T23:17:55.323703Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": null,
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-05-23",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": null,
+        "aliases": [
+          "https://demo.allyourbase.io"
+        ],
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": false
+      },
+      "canonical_deployment": {
+        "id": "0036933e-bde5-4c03-8e28-2194a2ae428e",
+        "short_id": "0036933e",
+        "project_id": "e9e91bcc-123e-40a6-99d3-6b977747e925",
+        "project_name": "ayb-demo-apex",
+        "environment": "production",
+        "url": "https://0036933e.ayb-demo-apex.pages.dev",
+        "created_on": "2026-07-20T23:17:54.164706Z",
+        "modified_on": "2026-07-20T23:17:55.323703Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-20T23:17:55.323703Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "c23cc959b360b9eca8cf63d4672b2409621486f3",
+            "commit_message": "Sync v0.0.19-beta release candidate to production",
+            "commit_dirty": true
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-07-20T23:17:54.164706Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-07-20T23:17:55.323703Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": null,
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-05-23",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": null,
+        "aliases": [
+          "https://demo.allyourbase.io"
+        ],
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": false
+      },
+      "created_on": "2026-05-23T06:32:03.548028Z",
+      "production_branch": "main",
+      "production_script_name": "pages-worker--14114331-production",
+      "preview_script_name": "pages-worker--14114331-preview",
+      "uses_functions": false,
+      "framework": "",
+      "framework_version": ""
+    },
+    {
+      "id": "380dec62-796c-4fe4-a9ab-fbc080b3e4c2",
+      "name": "flapjack-demo",
+      "subdomain": "flapjack-demo.pages.dev",
+      "domains": [
+        "flapjack-demo.pages.dev"
+      ],
+      "build_config": {
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "deployment_configs": {
+        "preview": {
+          "env_vars": null,
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-01-29",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        },
+        "production": {
+          "env_vars": null,
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-01-29",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        }
+      },
+      "latest_deployment": {
+        "id": "4cc72af4-019d-4ea3-891c-2b85aa16879e",
+        "short_id": "4cc72af4",
+        "project_id": "380dec62-796c-4fe4-a9ab-fbc080b3e4c2",
+        "project_name": "flapjack-demo",
+        "environment": "production",
+        "url": "https://4cc72af4.flapjack-demo.pages.dev",
+        "created_on": "2026-07-06T19:22:25.326578Z",
+        "modified_on": "2026-07-06T19:22:26.628252Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-06T19:22:26.628252Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "401b8215e0c970670d5c3d0cb51f8601e6f4dc1d",
+            "commit_message": "Sync API docs shell bundle",
+            "commit_dirty": true
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-07-06T19:22:25.326578Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-07-06T19:22:26.628252Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": null,
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-01-29",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": null,
+        "aliases": null,
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": false
+      },
+      "canonical_deployment": {
+        "id": "4cc72af4-019d-4ea3-891c-2b85aa16879e",
+        "short_id": "4cc72af4",
+        "project_id": "380dec62-796c-4fe4-a9ab-fbc080b3e4c2",
+        "project_name": "flapjack-demo",
+        "environment": "production",
+        "url": "https://4cc72af4.flapjack-demo.pages.dev",
+        "created_on": "2026-07-06T19:22:25.326578Z",
+        "modified_on": "2026-07-06T19:22:26.628252Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-06T19:22:26.628252Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "401b8215e0c970670d5c3d0cb51f8601e6f4dc1d",
+            "commit_message": "Sync API docs shell bundle",
+            "commit_dirty": true
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-07-06T19:22:25.326578Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-07-06T19:22:26.628252Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": null,
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-01-29",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": null,
+        "aliases": null,
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": false
+      },
+      "created_on": "2026-01-29T06:29:06.851945Z",
+      "production_branch": "main",
+      "production_script_name": "pages-worker--10638157-production",
+      "preview_script_name": "pages-worker--10638157-preview",
+      "uses_functions": false,
+      "framework": "",
+      "framework_version": ""
+    },
+    {
+      "id": "7fe8f18e-c0a5-4393-8c78-4f7d08a1db3b",
+      "name": "flapjack-website",
+      "subdomain": "flapjack-website.pages.dev",
+      "domains": [
+        "flapjack-website.pages.dev"
+      ],
+      "build_config": {
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "deployment_configs": {
+        "preview": {
+          "env_vars": null,
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-02-08",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        },
+        "production": {
+          "env_vars": null,
+          "fail_open": true,
+          "always_use_latest_compatibility_date": false,
+          "compatibility_date": "2026-02-08",
+          "compatibility_flags": [],
+          "build_image_major_version": 3,
+          "usage_model": "standard"
+        }
+      },
+      "latest_deployment": {
+        "id": "bd95b0a3-4301-4041-b99f-6fee06aaa592",
+        "short_id": "bd95b0a3",
+        "project_id": "7fe8f18e-c0a5-4393-8c78-4f7d08a1db3b",
+        "project_name": "flapjack-website",
+        "environment": "production",
+        "url": "https://bd95b0a3.flapjack-website.pages.dev",
+        "created_on": "2026-05-23T00:26:40.151198Z",
+        "modified_on": "2026-05-23T00:26:41.390399Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-05-23T00:26:41.390399Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "258db042c4e8eb4ad6ffde6ca48afc405da0f6a5",
+            "commit_message": "matt: stage 4 checklist",
+            "commit_dirty": false
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-05-23T00:26:40.151198Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-05-23T00:26:41.390399Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": null,
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-02-08",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": null,
+        "aliases": null,
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": false
+      },
+      "canonical_deployment": {
+        "id": "bd95b0a3-4301-4041-b99f-6fee06aaa592",
+        "short_id": "bd95b0a3",
+        "project_id": "7fe8f18e-c0a5-4393-8c78-4f7d08a1db3b",
+        "project_name": "flapjack-website",
+        "environment": "production",
+        "url": "https://bd95b0a3.flapjack-website.pages.dev",
+        "created_on": "2026-05-23T00:26:40.151198Z",
+        "modified_on": "2026-05-23T00:26:41.390399Z",
+        "latest_stage": {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-05-23T00:26:41.390399Z",
+          "status": "success"
+        },
+        "deployment_trigger": {
+          "type": "ad_hoc",
+          "metadata": {
+            "branch": "main",
+            "commit_hash": "258db042c4e8eb4ad6ffde6ca48afc405da0f6a5",
+            "commit_message": "matt: stage 4 checklist",
+            "commit_dirty": false
+          }
+        },
+        "stages": [
+          {
+            "name": "queued",
+            "started_on": "2026-05-23T00:26:40.151198Z",
+            "ended_on": null,
+            "status": "active"
+          },
+          {
+            "name": "initialize",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "clone_repo",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "build",
+            "started_on": null,
+            "ended_on": null,
+            "status": "idle"
+          },
+          {
+            "name": "deploy",
+            "started_on": null,
+            "ended_on": "2026-05-23T00:26:41.390399Z",
+            "status": "success"
+          }
+        ],
+        "build_config": {
+          "build_command": null,
+          "destination_dir": null,
+          "build_caching": null,
+          "root_dir": null,
+          "web_analytics_tag": null,
+          "web_analytics_token": null
+        },
+        "env_vars": {},
+        "compatibility_date": "2026-02-08",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": null,
+        "aliases": null,
+        "is_skipped": false,
+        "production_branch": "main",
+        "uses_functions": false
+      },
+      "created_on": "2026-02-08T21:47:37.646643Z",
+      "production_branch": "main",
+      "production_script_name": "pages-worker--10858803-production",
+      "preview_script_name": "pages-worker--10858803-preview",
+      "uses_functions": false,
+      "framework": "",
+      "framework_version": ""
+    }
+  ],
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result_info": {
+    "page": 1,
+    "per_page": 10,
+    "count": 10,
+    "total_count": 15,
+    "total_pages": 2
+  }
+}

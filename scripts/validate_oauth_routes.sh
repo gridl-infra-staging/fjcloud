@@ -25,6 +25,7 @@ resolve_api_base_url() {
     printf '%s\n' "${API_BASE_URL:-${API_URL:-http://127.0.0.1:3001}}"
 }
 
+# TODO: Document require_oauth_provider_config.
 require_oauth_provider_config() {
     local required_vars=(
         "GOOGLE_OAUTH_CLIENT_ID"
@@ -50,6 +51,7 @@ require_oauth_provider_config() {
     fi
 }
 
+# TODO: Document read_location_header.
 read_location_header() {
     local headers_file="$1"
     # BSD awk on macOS ignores gawk's IGNORECASE pragma, so match the header name
@@ -69,6 +71,7 @@ read_location_header() {
     ' "$headers_file"
 }
 
+# TODO: Document probe_start_route.
 probe_start_route() {
     local api_base_url="$1"
     local provider="$2"
@@ -95,6 +98,7 @@ probe_start_route() {
     rm -f "$headers_file" "$body_file"
 }
 
+# TODO: Document probe_exchange_missing_cookie.
 probe_exchange_missing_cookie() {
     local api_base_url="$1"
     local provider="$2"

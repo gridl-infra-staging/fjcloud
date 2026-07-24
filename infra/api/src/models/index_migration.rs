@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/models/index_migration.rs.
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -135,6 +136,7 @@ mod tests {
         }
     }
 
+    /// TODO: Document intent_target_identity_metadata_round_trips_and_preserves_existing_keys.
     #[test]
     fn intent_target_identity_metadata_round_trips_and_preserves_existing_keys() {
         let deployment_id = Uuid::from_u128(10);

@@ -1,0 +1,4 @@
+http_status=200
+- id=we_1TWqP5KH9mdklKeIzKuUptr7 url=https://api.staging.flapjack.foo/webhooks/stripe status=enabled events=5
+- id=we_1TTIctKH9mdklKeInvtJXD9c url=https://api.flapjack.foo/webhooks/stripe status=disabled events=3
+total: 2

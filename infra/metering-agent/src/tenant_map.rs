@@ -1,3 +1,4 @@
+//! Stub summary for infra/metering-agent/src/tenant_map.rs.
 use std::sync::Arc;
 #[cfg(test)]
 use std::time::{Duration, Instant};
@@ -19,6 +20,7 @@ pub struct TenantAttribution {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// TODO: Document TenantMapEntry.
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct TenantMapEntry {
     pub tenant_id: String,
@@ -211,6 +213,7 @@ mod tests {
         observed_key: Arc<std::sync::Mutex<Option<String>>>,
     }
 
+    /// TODO: Document spawn_tenant_map_server.
     async fn spawn_tenant_map_server(
         state: HeaderCaptureState,
     ) -> (String, tokio::task::JoinHandle<()>) {
@@ -334,6 +337,7 @@ mod tests {
         assert!(resolve_tenant_attribution(&map, "missing").is_none());
     }
 
+    /// TODO: Document resolve_tenant_attribution_preserves_tier.
     #[test]
     fn resolve_tenant_attribution_preserves_tier() {
         let map: TenantCustomerMap = Arc::new(DashMap::new());
@@ -352,6 +356,7 @@ mod tests {
         );
     }
 
+    /// TODO: Document resolve_tenant_attribution_alias_preserves_canonical_tenant_id.
     #[test]
     fn resolve_tenant_attribution_alias_preserves_canonical_tenant_id() {
         let map: TenantCustomerMap = Arc::new(DashMap::new());
@@ -451,6 +456,7 @@ mod tests {
         assert_eq!(map.get("dup").unwrap().customer_id, first);
     }
 
+    /// TODO: Document fetch_tenant_map_sends_internal_key_header.
     #[tokio::test]
     async fn fetch_tenant_map_sends_internal_key_header() {
         let observed_key = Arc::new(std::sync::Mutex::new(None));
@@ -567,6 +573,7 @@ mod tests {
         assert!(entry.flapjack_url.is_none());
     }
 
+    /// TODO: Document replace_cache_stores_flapjack_uid_alias.
     #[test]
     fn replace_cache_stores_flapjack_uid_alias() {
         let map: TenantCustomerMap = Arc::new(DashMap::new());

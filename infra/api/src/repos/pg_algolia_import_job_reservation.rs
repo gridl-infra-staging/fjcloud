@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/repos/pg_algolia_import_job_reservation.rs.
 use serde_json::Value;
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
@@ -29,6 +30,7 @@ impl PgAlgoliaImportJobRepo {
             .map_err(repo_error)
     }
 
+    /// TODO: Document PgAlgoliaImportJobRepo.build_reservation_plan.
     pub(super) async fn build_reservation_plan(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -128,6 +130,7 @@ impl PgAlgoliaImportJobRepo {
         Ok(reservation)
     }
 
+    /// TODO: Document PgAlgoliaImportJobRepo.insert_with_reservation.
     pub(super) async fn insert_with_reservation(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -168,6 +171,7 @@ impl PgAlgoliaImportJobRepo {
         .map(Into::into)
     }
 
+    /// TODO: Document PgAlgoliaImportJobRepo.active_reservations_for_update.
     async fn active_reservations_for_update(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -187,6 +191,7 @@ impl PgAlgoliaImportJobRepo {
         .map_err(repo_error)
     }
 
+    /// TODO: Document PgAlgoliaImportJobRepo.customer_quota_overrides_for_update.
     async fn customer_quota_overrides_for_update(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -217,6 +222,7 @@ impl PgAlgoliaImportJobRepo {
             .map_err(repo_error)
     }
 
+    /// TODO: Document PgAlgoliaImportJobRepo.current_customer_storage_bytes.
     async fn current_customer_storage_bytes(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -234,6 +240,7 @@ impl PgAlgoliaImportJobRepo {
         .map_err(repo_error)
     }
 
+    /// TODO: Document PgAlgoliaImportJobRepo.current_target_storage_bytes.
     async fn current_target_storage_bytes(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -261,6 +268,7 @@ impl PgAlgoliaImportJobRepo {
         }
     }
 
+    /// TODO: Document PgAlgoliaImportJobRepo.node_active_reservations_for_update.
     async fn node_active_reservations_for_update(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -280,6 +288,7 @@ impl PgAlgoliaImportJobRepo {
         .map_err(repo_error)
     }
 
+    /// TODO: Document PgAlgoliaImportJobRepo.node_disk_headroom_for_update.
     async fn node_disk_headroom_for_update(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -348,6 +357,7 @@ fn json_disk_bytes(value: &Value) -> i64 {
     positive_i64(value.get("disk_bytes")).unwrap_or(0)
 }
 
+/// TODO: Document active_reserved_totals.
 fn active_reserved_totals(rows: &[ActiveReservationRow]) -> ReservationPlan {
     rows.iter().fold(
         ReservationPlan {
@@ -369,6 +379,7 @@ fn backend_unavailable() -> AlgoliaImportJobAdmissionError {
     AlgoliaImportJobAdmissionError::Refused(AlgoliaImportErrorCode::BackendUnavailable)
 }
 
+/// TODO: Document enforce_active_import_limits.
 fn enforce_active_import_limits(
     active: &[ActiveReservationRow],
     job_limit: i64,
@@ -387,6 +398,7 @@ fn enforce_active_import_limits(
     Ok(())
 }
 
+/// TODO: Document enforce_active_node_import_limits.
 fn enforce_active_node_import_limits(
     active: &[ActiveReservationRow],
     job_limit: i64,
@@ -417,6 +429,7 @@ mod tests {
         }
     }
 
+    /// TODO: Document active_import_limit_rejections_use_backend_unavailable.
     #[test]
     fn active_import_limit_rejections_use_backend_unavailable() {
         let active = vec![active_row(1, 1_000, 2_000), active_row(1, 1_500, 2_500)];
@@ -437,6 +450,7 @@ mod tests {
         ));
     }
 
+    /// TODO: Document active_import_byte_limit_counts_existing_reservations_and_incoming_plan.
     #[test]
     fn active_import_byte_limit_counts_existing_reservations_and_incoming_plan() {
         let active = vec![active_row(1, 4_000, 0), active_row(1, 3_000, 0)];
@@ -457,6 +471,7 @@ mod tests {
         ));
     }
 
+    /// TODO: Document active_node_limit_rejections_use_backend_unavailable.
     #[test]
     fn active_node_limit_rejections_use_backend_unavailable() {
         let active = vec![active_row(0, 0, 2_000), active_row(0, 0, 3_000)];
@@ -477,6 +492,7 @@ mod tests {
         ));
     }
 
+    /// TODO: Document active_node_byte_limit_counts_existing_reservations_and_incoming_plan.
     #[test]
     fn active_node_byte_limit_counts_existing_reservations_and_incoming_plan() {
         let active = vec![active_row(0, 0, 4_000), active_row(0, 0, 3_000)];

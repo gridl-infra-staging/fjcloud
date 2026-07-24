@@ -50,6 +50,7 @@ assert_stdout_order() {
   fi
 }
 
+# TODO: Document soft_delete_generation_fence_has_public_success_contract.
 soft_delete_generation_fence_has_public_success_contract() {
   local payload="$1"
   local parse_rc
@@ -196,6 +197,7 @@ assert_inventory_mutation_fails() {
   assert_contains "$RUN_STDOUT" "$expected" "$msg names the failed denominator invariant"
 }
 
+# TODO: Document test_soft_delete_inventory_denominator_success_contract.
 test_soft_delete_inventory_denominator_success_contract() {
   setup_workspace
 
@@ -222,6 +224,7 @@ test_soft_delete_inventory_denominator_success_contract() {
     "soft-delete verdict is emitted after structured evidence"
 }
 
+# TODO: Document test_soft_delete_inventory_denominator_mutations_fail_closed.
 test_soft_delete_inventory_denominator_mutations_fail_closed() {
   for label in repo account admin; do
     assert_inventory_mutation_fails "remove:$label" "missing F5P1 soft-delete writers" \
@@ -249,6 +252,7 @@ test_soft_delete_inventory_denominator_mutations_fail_closed() {
     "non-canonical inventory path failure is explicit"
 }
 
+# TODO: Document test_soft_delete_observer_and_verdict_mutations_fail_closed.
 test_soft_delete_observer_and_verdict_mutations_fail_closed() {
   setup_workspace
   rm -f "$WORK_DIR/observed-callers.json"
@@ -383,6 +387,7 @@ assert_soft_delete_fence_mutation_fails() {
   assert_contains "$RUN_STDOUT" "$expected" "$msg names the failed invariant"
 }
 
+# TODO: Document test_soft_delete_generation_fence_transition_contract.
 test_soft_delete_generation_fence_transition_contract() {
   setup_workspace
 
@@ -433,6 +438,7 @@ PY
     "generation-fence transition evidence is emitted before the verdict"
 }
 
+# TODO: Document test_soft_delete_stale_operation_matrix_contract.
 test_soft_delete_stale_operation_matrix_contract() {
   setup_workspace
 
@@ -496,6 +502,7 @@ test_soft_delete_hidden_target_mutations_fail_closed() {
     "an accepted lease-guarded mutation on a deleted target should fail"
 }
 
+# TODO: Document test_soft_delete_generation_fence_mutations_fail_closed.
 test_soft_delete_generation_fence_mutations_fail_closed() {
   assert_soft_delete_fence_mutation_fails \
     "CATALOG_SERVICE_WINDOW_SOFT_DELETE_BAD_FIRST_STATUS" \
@@ -548,6 +555,7 @@ test_soft_delete_generation_fence_mutations_fail_closed() {
     "any change to retained evidence across the delete should fail"
 }
 
+# TODO: Document test_soft_delete_stale_operation_mutations_fail_closed.
 test_soft_delete_stale_operation_mutations_fail_closed() {
   local key upper expected
 

@@ -59,6 +59,7 @@ extract_config_string_value() {
   sed -n "s/^${key_name}[[:space:]]*=[[:space:]]*\"\\(.*\\)\"/\\1/p" "$GARAGE_CONF" | head -1
 }
 
+# TODO: Document extract_config_section_string_value.
 extract_config_section_string_value() {
   local section_name="$1"
   local key_name="$2"
@@ -77,6 +78,7 @@ extract_config_section_string_value() {
   ' "$GARAGE_CONF"
 }
 
+# TODO: Document endpoint_from_bind_addr.
 endpoint_from_bind_addr() {
   local bind_addr="$1"
   local host port
@@ -149,6 +151,7 @@ current_layout_has_node() {
   ' <<< "$layout_output"
 }
 
+# TODO: Document resolve_s3_key_output.
 resolve_s3_key_output() {
   local key_output
 
@@ -193,6 +196,7 @@ validate_preconditions() {
   fi
 }
 
+# TODO: Document load_contract_config.
 load_contract_config() {
   local admin_bind_addr s3_bind_addr
 
@@ -244,6 +248,7 @@ load_contract_config() {
   ADMIN_ADDR="$CONFIG_ADMIN_ENDPOINT"
 }
 
+# TODO: Document configure_cluster_layout.
 configure_cluster_layout() {
   local node_id layout_show current_layout_version next_version
 
@@ -274,6 +279,7 @@ configure_cluster_layout() {
   printf '%s' "$node_id"
 }
 
+# TODO: Document load_s3_credentials.
 load_s3_credentials() {
   local key_output
 
@@ -307,6 +313,7 @@ ensure_bucket_exists() {
   logger -t "$TAG" "Bucket ${BUCKET_NAME} created"
 }
 
+# TODO: Document write_env_file.
 write_env_file() {
   local access_key="$1"
   local secret_key="$2"
@@ -346,6 +353,7 @@ ENVEOF
   trap - RETURN
 }
 
+# TODO: Document print_summary.
 print_summary() {
   local node_id="$1"
 
@@ -364,6 +372,7 @@ print_summary() {
   echo ""
 }
 
+# TODO: Document main.
 main() {
   local node_id
 

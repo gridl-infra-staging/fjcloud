@@ -1,3 +1,4 @@
+//! Stub summary for infra/metering-agent/src/host_metrics_writer.rs.
 use crate::config::Config;
 use crate::host_metrics::{collect_host_metrics, HostMetricsSample};
 use anyhow::{anyhow, Context};
@@ -16,6 +17,7 @@ const WRITE_HOST_METRICS_SQL: &str = r#"
 "#;
 
 impl VmHostMetricsWriter<'_> {
+    /// TODO: Document VmHostMetricsWriter.write.
     async fn write(&self, vm_id: Uuid, sample: &HostMetricsSample) -> anyhow::Result<()> {
         sqlx::query(WRITE_HOST_METRICS_SQL)
             .bind(vm_id)
@@ -34,6 +36,7 @@ impl VmHostMetricsWriter<'_> {
     }
 }
 
+/// TODO: Document resolve_vm_id.
 pub(crate) async fn resolve_vm_id(pool: &sqlx::PgPool, cfg: &Config) -> anyhow::Result<Uuid> {
     let resolved = match cfg.vm_id {
         Some(vm_id) => {
@@ -106,6 +109,7 @@ mod tests {
         Drop,
     }
 
+    /// TODO: Document validated_schema_sql.
     fn validated_schema_sql(schema_name: &str, operation: SchemaOperation) -> ValidatedSql {
         assert!(
             !schema_name.is_empty()
@@ -123,6 +127,7 @@ mod tests {
         ValidatedSql(statement)
     }
 
+    /// TODO: Document isolated_schema_sql_quotes_validated_identifiers.
     #[test]
     fn isolated_schema_sql_quotes_validated_identifiers() {
         let schema_name = "host_metrics_0123456789abcdef";
@@ -170,6 +175,7 @@ mod tests {
     }
 
     impl TestDatabase {
+        /// TODO: Document TestDatabase.connect_and_migrate.
         async fn connect_and_migrate() -> Self {
             let database_url = std::env::var("DATABASE_URL")
                 .expect("DATABASE_URL must be set for the host metrics DB invariant test");
@@ -223,6 +229,7 @@ mod tests {
         }
     }
 
+    /// TODO: Document host_metrics_cycle_writes_vm_host_metrics_without_usage_records.
     #[tokio::test]
     async fn host_metrics_cycle_writes_vm_host_metrics_without_usage_records() {
         let database = TestDatabase::connect_and_migrate().await;
@@ -286,6 +293,7 @@ mod tests {
         .expect("host metrics test config should parse")
     }
 
+    /// TODO: Document fixed_sample.
     fn fixed_sample() -> HostMetricsSample {
         HostMetricsSample {
             collected_at: Utc
@@ -313,6 +321,7 @@ mod tests {
         }
     }
 
+    /// TODO: Document seed_billing_sentinel.
     async fn seed_billing_sentinel(pool: &sqlx::PgPool) {
         let customer_id = Uuid::new_v4();
         sqlx::query(
@@ -357,6 +366,7 @@ mod tests {
             .expect("count usage records")
     }
 
+    /// TODO: Document assert_persisted_samples.
     async fn assert_persisted_samples(
         pool: &sqlx::PgPool,
         explicit_vm_id: Uuid,

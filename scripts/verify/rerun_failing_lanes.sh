@@ -85,6 +85,7 @@ text_mentions_shared_auth_route() {
   return 1
 }
 
+# TODO: Document is_auth_budget_setup_failure_text.
 is_auth_budget_setup_failure_text() {
   local text="$1"
   [[ "$text" == *"Login response: status 429"* ]] && return 0
@@ -119,6 +120,7 @@ is_auth_budget_setup_failure() {
   is_auth_budget_setup_failure_text "$combined_text"
 }
 
+# TODO: Document is_auth_setup_failure_before_target_spec.
 is_auth_setup_failure_before_target_spec() {
   local reporter_path="$1"
 

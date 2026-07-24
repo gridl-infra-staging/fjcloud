@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for web/src/lib/audit.ts.
+ */
 const AUDIT_ACTION_LABELS: Record<string, string> = {
 	impersonation_token_created: 'Impersonation token created',
 	tenant_created: 'Customer created',
@@ -27,6 +30,9 @@ export function auditActionLabel(action: string): string {
 	return AUDIT_ACTION_LABELS[action] ?? humanizeAction(action);
 }
 
+/**
+ * TODO: Document auditMetadataDisplay.
+ */
 export function auditMetadataDisplay(metadata: unknown): string | null {
 	if (metadata === null || metadata === undefined) {
 		return null;

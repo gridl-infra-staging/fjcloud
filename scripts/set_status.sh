@@ -14,6 +14,7 @@ UPDATED=""
 PUBLISH=0
 PUBLISH_COMMAND=""
 
+# TODO: Document usage.
 usage() {
   cat >&2 <<'EOF'
 Usage:
@@ -114,6 +115,7 @@ else
   validate_updated_timestamp "$UPDATED"
 fi
 
+# TODO: Document rewrite_wrangler.
 rewrite_wrangler() {
   local wrangler_path="$1"
   local status_value="$2"
@@ -221,6 +223,7 @@ rewrite_wrangler() {
   mv "$tmp_path" "$wrangler_path"
 }
 
+# TODO: Document run_default_publish.
 run_default_publish() {
   local wrangler_path="$1"
   local branch="${FJCLOUD_STATUS_PUBLISH_BRANCH:-main}"

@@ -1,7 +1,9 @@
+//! Stub summary for api_key.rs.
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// TODO: Document ApiKeyRow.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ApiKeyRow {
     pub id: Uuid,

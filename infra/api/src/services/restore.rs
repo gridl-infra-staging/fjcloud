@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/restore.rs.
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -159,6 +160,7 @@ impl RestoreService {
         }
     }
 
+    /// TODO: Document RestoreService.new_without_lifecycle_guard_for_tests.
     #[allow(clippy::too_many_arguments)]
     pub fn new_without_lifecycle_guard_for_tests(
         config: RestoreConfig,
@@ -636,6 +638,7 @@ impl RestoreService {
         Ok(identity_from_tenant(&tenant))
     }
 
+    /// TODO: Document RestoreService.restore_failure_expected_identity.
     async fn restore_failure_expected_identity(
         &self,
         job: &crate::models::restore_job::RestoreJob,
@@ -655,6 +658,7 @@ impl RestoreService {
         })
     }
 
+    /// TODO: Document RestoreService.guarded_target_mutation.
     async fn guarded_target_mutation<F, Fut, T>(
         &self,
         customer_id: Uuid,

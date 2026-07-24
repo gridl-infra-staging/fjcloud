@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/algolia_source.rs.
 use async_trait::async_trait;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
@@ -135,6 +136,7 @@ impl ReqwestAlgoliaSourceClient {
 
 #[async_trait]
 impl AlgoliaSourceClient for ReqwestAlgoliaSourceClient {
+    /// TODO: Document ReqwestAlgoliaSourceClient.list_indexes.
     async fn list_indexes(
         &self,
         request: AlgoliaClientRequest,
@@ -225,6 +227,7 @@ pub struct AlgoliaSourceListResponse {
     pub next_cursor: Option<String>,
 }
 
+/// TODO: Document AlgoliaIndexMetadata.
 #[derive(Debug, Clone, Deserialize, Serialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AlgoliaIndexMetadata {
@@ -258,6 +261,7 @@ pub(crate) struct AlgoliaPage {
     nb_pages: u32,
 }
 
+/// TODO: Document AlgoliaSourceError.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
 pub enum AlgoliaSourceError {
     #[error("invalid Algolia application ID")]
@@ -359,6 +363,7 @@ impl AlgoliaSourceService {
             .map_err(|_| AlgoliaSourceError::TimedOut)?
     }
 
+    /// TODO: Document AlgoliaSourceService.list_indexes_with_budget.
     async fn list_indexes_with_budget(
         &self,
         request: AlgoliaSourceListRequest,
@@ -404,6 +409,7 @@ impl AlgoliaSourceService {
         result
     }
 
+    /// TODO: Document AlgoliaSourceService.inspect_source_with_budget.
     async fn inspect_source_with_budget(
         &self,
         request: AlgoliaSourceInspectRequest,
@@ -524,6 +530,7 @@ impl AlgoliaSourceService {
         Ok(())
     }
 
+    /// TODO: Document AlgoliaSourceService.decode_progress.
     fn decode_progress(
         &self,
         cursor: Option<&str>,
@@ -566,6 +573,7 @@ impl AlgoliaSourceService {
         Ok(payload)
     }
 
+    /// TODO: Document AlgoliaSourceService.build_response.
     fn build_response(
         &self,
         progress: CursorPayload,
@@ -718,6 +726,7 @@ fn algolia_index_action_url(
     Ok(url)
 }
 
+/// TODO: Document algolia_list_url.
 fn algolia_list_url(app_id: &str) -> Result<reqwest::Url, AlgoliaSourceError> {
     if app_id.is_empty()
         || app_id.len() > 64

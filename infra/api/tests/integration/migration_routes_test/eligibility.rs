@@ -1,5 +1,7 @@
+//! Stub summary for infra/api/tests/integration/migration_routes_test/eligibility.rs.
 use super::*;
 
+/// TODO: Document algolia_cloud_job_eligibility_provider_accepts_available_aws_create_regions.
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_provider_accepts_available_aws_create_regions() {
     let (app, jwt) = setup_algolia_cloud_job_test_app(true).await;
@@ -31,6 +33,7 @@ async fn algolia_cloud_job_eligibility_provider_accepts_available_aws_create_reg
     }
 }
 
+/// TODO: Document algolia_cloud_job_eligibility_provider_rejects_non_aws_create_targets.
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_provider_rejects_non_aws_create_targets() {
     let (app, jwt) = setup_algolia_cloud_job_test_app(true).await;
@@ -65,6 +68,7 @@ async fn algolia_cloud_job_eligibility_provider_rejects_non_aws_create_targets()
     }
 }
 
+/// TODO: Document algolia_cloud_job_eligibility_exposure_disabled_returns_retryable_backend_unavailable.
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_exposure_disabled_returns_retryable_backend_unavailable() {
     let (app, jwt) = setup_algolia_cloud_job_test_app(false).await;
@@ -96,6 +100,7 @@ async fn algolia_cloud_job_eligibility_exposure_disabled_returns_retryable_backe
     );
 }
 
+/// TODO: Document algolia_cloud_job_eligibility_schema_rejects_credentials_and_checkpoints.
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_schema_rejects_credentials_and_checkpoints() {
     let (app, jwt) = setup_algolia_cloud_job_test_app(true).await;
@@ -122,6 +127,7 @@ async fn algolia_cloud_job_eligibility_schema_rejects_credentials_and_checkpoint
     }
 }
 
+/// TODO: Document algolia_cloud_job_eligibility_target_finalizes_valid_provider_envelope.
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_target_finalizes_valid_provider_envelope() {
     let (app, jwt) = setup_algolia_cloud_job_test_app(true).await;
@@ -153,6 +159,7 @@ async fn algolia_cloud_job_eligibility_target_finalizes_valid_provider_envelope(
     assert_no_secret_eligibility_fields(&body);
 }
 
+/// TODO: Document algolia_cloud_job_eligibility_target_requires_an_envelope.
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_target_requires_an_envelope() {
     let (app, jwt) = setup_algolia_cloud_job_test_app(true).await;
@@ -178,6 +185,7 @@ async fn algolia_cloud_job_eligibility_target_requires_an_envelope() {
     );
 }
 
+/// TODO: Document algolia_cloud_job_eligibility_provider_rejects_supplied_envelope.
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_provider_rejects_supplied_envelope() {
     let (app, jwt) = setup_algolia_cloud_job_test_app(true).await;
@@ -205,6 +213,7 @@ async fn algolia_cloud_job_eligibility_provider_rejects_supplied_envelope() {
     );
 }
 
+/// TODO: Document algolia_cloud_job_eligibility_target_rejects_tampered_envelope.
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_target_rejects_tampered_envelope() {
     let (app, jwt) = setup_algolia_cloud_job_test_app(true).await;
@@ -237,6 +246,7 @@ async fn algolia_cloud_job_eligibility_target_rejects_tampered_envelope() {
     );
 }
 
+/// TODO: Document algolia_cloud_job_eligibility_target_rejects_replayed_target_envelope.
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_target_rejects_replayed_target_envelope() {
     let (app, jwt) = setup_algolia_cloud_job_test_app(true).await;
@@ -283,6 +293,7 @@ async fn algolia_cloud_job_eligibility_target_rejects_replayed_target_envelope()
     );
 }
 
+/// TODO: Document algolia_cloud_job_eligibility_target_rejects_cross_customer_envelope.
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_target_rejects_cross_customer_envelope() {
     let (app, alice_jwt, bob_jwt) = setup_two_customer_eligibility_app().await;
@@ -311,6 +322,7 @@ async fn algolia_cloud_job_eligibility_target_rejects_cross_customer_envelope() 
     );
 }
 
+/// TODO: Document algolia_cloud_job_eligibility_target_accepts_owned_healthy_replace_target.
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_target_accepts_owned_healthy_replace_target() {
     let Some(db) = connect_and_migrate("algolia_eligibility_replace_route_ok").await else {
@@ -347,6 +359,7 @@ async fn algolia_cloud_job_eligibility_target_accepts_owned_healthy_replace_targ
     assert_eq!(count_algolia_import_jobs(&db.pool).await, 0);
 }
 
+/// TODO: Document algolia_cloud_job_eligibility_target_rejects_missing_replace_target_without_source_call.
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_target_rejects_missing_replace_target_without_source_call() {
     let Some(db) = connect_and_migrate("algolia_eligibility_replace_route_missing").await else {
@@ -378,6 +391,7 @@ async fn algolia_cloud_job_eligibility_target_rejects_missing_replace_target_wit
     assert_eq!(count_algolia_import_jobs(&db.pool).await, 0);
 }
 
+/// TODO: Document algolia_cloud_job_eligibility_target_rejects_unhealthy_replace_target_as_backpressure.
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_target_rejects_unhealthy_replace_target_as_backpressure() {
     let Some(db) = connect_and_migrate("algolia_eligibility_replace_route_unhealthy").await else {

@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/public_topology.rs.
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::Value;
@@ -23,6 +24,7 @@ pub struct PublicVmView {
     pub utilization: Option<UtilizationBucket>,
 }
 
+/// TODO: Document utilization_bucket.
 pub fn utilization_bucket(
     capacity: &Value,
     current_load: &Value,
@@ -128,6 +130,7 @@ mod tests {
         })
     }
 
+    /// TODO: Document vm.
     fn vm(region: &str, provider: &str, load_ratio: f64) -> VmInventory {
         VmInventory {
             id: Uuid::parse_str("a81bc81b-dead-4e5d-abff-90865d1e13b1").unwrap(),
@@ -160,6 +163,7 @@ mod tests {
         utilization_bucket(&capacity, &current_load, Some(now()), now())
     }
 
+    /// TODO: Document to_public_topology_never_leaks_host_or_absolute_capacity.
     #[test]
     fn to_public_topology_never_leaks_host_or_absolute_capacity() {
         let first = vm("us-east-1", "aws", 0.25);
@@ -209,6 +213,7 @@ mod tests {
         }
     }
 
+    /// TODO: Document utilization_buckets_cover_boundaries_and_worst_dimension.
     #[test]
     fn utilization_buckets_cover_boundaries_and_worst_dimension() {
         let capacity = vector(100.0, 100, 100, 100.0, 100.0);
@@ -247,6 +252,7 @@ mod tests {
         }
     }
 
+    /// TODO: Document stale_load_returns_none.
     #[test]
     fn stale_load_returns_none() {
         let capacity = vector(100.0, 100, 100, 100.0, 100.0);
@@ -269,6 +275,7 @@ mod tests {
         assert_eq!(utilization_bucket(&capacity, &load, None, now()), None);
     }
 
+    /// TODO: Document invalid_telemetry_returns_none.
     #[test]
     fn invalid_telemetry_returns_none() {
         let valid_capacity = vector(100.0, 100, 100, 100.0, 100.0);

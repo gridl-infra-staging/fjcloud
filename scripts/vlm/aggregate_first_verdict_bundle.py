@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Stub summary for aggregate_first_verdict_bundle.py."""
 
 from __future__ import annotations
 
@@ -89,6 +90,7 @@ def load_cost_totals(path: Path) -> tuple[int, int, float]:
 
 
 def main() -> int:
+    """TODO: Document main."""
     args = parse_args()
     manifest_path = Path(args.manifest_path)
     judgments_dir = Path(args.judgments_dir)

@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/tests/common/admin_vm_retirement_test_support.rs.
 use std::sync::Arc;
 
 use api::dns::mock::MockDnsManager;
@@ -39,6 +40,7 @@ pub fn admin_vm_pg_test_app(pool: PgPool) -> Router {
     build_router(state)
 }
 
+/// TODO: Document admin_vm_pg_test_app_with_state_mocks.
 pub fn admin_vm_pg_test_app_with_state_mocks(pool: PgPool) -> AdminVmPgTestAppWithStateMocks {
     let deployment_repo = Arc::new(super::MockDeploymentRepo::new());
     let vm_provisioner = Arc::new(MockVmProvisioner::new());
@@ -62,6 +64,7 @@ pub fn admin_vm_pg_test_app_with_state_mocks(pool: PgPool) -> AdminVmPgTestAppWi
     }
 }
 
+/// TODO: Document expected_live_blockers_json.
 pub fn expected_live_blockers_json() -> serde_json::Value {
     let mut blockers = EXPECTED_VM_REFERENCE_COLUMNS
         .iter()
@@ -86,6 +89,7 @@ pub fn expected_live_blockers_json() -> serde_json::Value {
     json!(blockers)
 }
 
+/// TODO: Document insert_terminal_reference_modes.
 pub async fn insert_terminal_reference_modes(
     pool: &PgPool,
     vm_id: Uuid,
@@ -176,6 +180,7 @@ pub async fn inventory_status(pool: &PgPool, vm_id: Uuid) -> String {
         .expect("query vm_inventory status")
 }
 
+/// TODO: Document assert_admin_route_inventory_lock_wins_publication.
 pub async fn assert_admin_route_inventory_lock_wins_publication(
     schema: &str,
     observer: &PgPool,
@@ -220,6 +225,7 @@ pub async fn assert_admin_route_inventory_lock_wins_publication(
     assert_final_state(observer, &fixture, "decommissioned", None).await;
 }
 
+/// TODO: Document assert_admin_route_reference_publication_wins.
 pub async fn assert_admin_route_reference_publication_wins(
     schema: &str,
     observer: &PgPool,
@@ -278,6 +284,7 @@ async fn insert_terminal_replica_tenant(
     .await;
 }
 
+/// TODO: Document spawn_reference_publication.
 async fn spawn_reference_publication(
     pool: &PgPool,
     fixture: &super::vm_inventory_reference_guard_races::ReferenceRaceFixture,
@@ -301,6 +308,7 @@ async fn spawn_reference_publication(
     })
 }
 
+/// TODO: Document spawn_decommission_request.
 fn spawn_decommission_request(
     app: Router,
     vm_id: Uuid,

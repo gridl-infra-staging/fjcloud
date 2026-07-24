@@ -1,3 +1,4 @@
+//! Stub summary for public_site.rs.
 use axum::http::{header, HeaderMap, HeaderValue};
 use axum::response::{Html, IntoResponse};
 
@@ -39,6 +40,7 @@ where
     (headers, body)
 }
 
+/// TODO: Document landing_page_html.
 fn landing_page_html() -> String {
     format!(
         r##"<!doctype html>

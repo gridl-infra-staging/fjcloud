@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for config.ts.
+ */
 import type { RecommendationRequest, RecommendationsBatchRequest } from '$lib/api/types';
 import type {
 	EditorDialogFieldSchema,
@@ -59,6 +62,9 @@ type RecommendationFieldReaders = {
 	facetValue: () => string;
 };
 
+/**
+ * TODO: Document applyModelSpecificRequestFields.
+ */
 function applyModelSpecificRequestFields(
 	request: RecommendationRequest,
 	model: RecommendationModelId,
@@ -102,6 +108,9 @@ function requireTrimmedString(value: unknown, fieldName: string): string {
 	return trimmedValue;
 }
 
+/**
+ * TODO: Document recommendationConfigFromDialogValues.
+ */
 export function recommendationConfigFromDialogValues(
 	values: EditorDialogValues,
 	currentConfig: RecommendationConfig
@@ -120,6 +129,9 @@ export function recommendationConfigFromDialogValues(
 	};
 }
 
+/**
+ * TODO: Document recommendationRequestFromConfig.
+ */
 export function recommendationRequestFromConfig(
 	indexName: string,
 	config: RecommendationConfig
@@ -139,6 +151,9 @@ export function recommendationRequestFromConfig(
 	return request;
 }
 
+/**
+ * TODO: Document sanitizeRecommendationRequest.
+ */
 export function sanitizeRecommendationRequest(
 	indexName: string,
 	request: unknown
@@ -201,6 +216,9 @@ function showFacetFields(values: EditorDialogValues): boolean {
 	return dialogModelMetadata(values).requiresFacetName;
 }
 
+/**
+ * TODO: Document recommendationConfigEditorSchema.
+ */
 export function recommendationConfigEditorSchema(): EditorDialogFieldSchema[] {
 	return [
 		{

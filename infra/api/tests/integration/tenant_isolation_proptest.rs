@@ -1,4 +1,5 @@
 #![cfg(feature = "proptest-tests")]
+//! Stub summary for infra/api/tests/integration/tenant_isolation_proptest.rs.
 use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 
@@ -93,6 +94,7 @@ impl RouteCase {
         }
     }
 
+    /// TODO: Document RouteCase.settings_update.
     fn settings_update() -> Self {
         let json_body = json!({
             "searchableAttributes": ["title", "body"],
@@ -119,6 +121,7 @@ impl RouteCase {
         }
     }
 
+    /// TODO: Document RouteCase.search.
     fn search() -> Self {
         let json_body = json!({
             "query": "laptop",
@@ -155,6 +158,7 @@ impl RouteCase {
         self.expected_proxy_body.clone()
     }
 
+    /// TODO: Document RouteCase.allowed_response_body.
     fn allowed_response_body(&self) -> Value {
         match &self.expected_success_body {
             SuccessBodyExpectation::RuleObjectId(rule_id) => {
@@ -172,6 +176,7 @@ impl RouteCase {
         }
     }
 
+    /// TODO: Document RouteCase.assert_success_body.
     fn assert_success_body(&self, body: &Value, operation_label: &str) {
         match &self.expected_success_body {
             SuccessBodyExpectation::RuleObjectId(rule_id) => {
@@ -203,6 +208,7 @@ fn shared_owner_route_case_strategy() -> impl Strategy<Value = RouteCase> {
     ]
 }
 
+/// TODO: Document setup_tenant_isolation_harness.
 async fn setup_tenant_isolation_harness() -> TenantIsolationHarness {
     let customer_repo = mock_repo();
     let deployment_repo = mock_deployment_repo();
@@ -405,6 +411,7 @@ async fn run_case_operation(
     }
 }
 
+/// TODO: Document assert_tenant_isolation_property_body.
 async fn assert_tenant_isolation_property_body(
     harness: &TenantIsolationHarness,
     shared_owner_route_case: &RouteCase,
@@ -476,6 +483,7 @@ async fn assert_tenant_isolation_property_body(
     );
 }
 
+/// TODO: Document assert_proxy_target.
 fn assert_proxy_target(
     request: &FlapjackHttpRequest,
     route_case: &RouteCase,
@@ -545,6 +553,7 @@ fn panic_payload_to_string(payload: Box<dyn std::any::Any + Send>) -> String {
     format!("non-string panic payload type: {:?}", payload.type_id())
 }
 
+/// TODO: Document tenant_isolation_proptest_config_uses_direct_failure_persistence.
 #[test]
 fn tenant_isolation_proptest_config_uses_direct_failure_persistence() {
     let config = tenant_isolation_proptest_config();
@@ -566,6 +575,7 @@ fn tenant_isolation_proptest_config_uses_direct_failure_persistence() {
     );
 }
 
+/// TODO: Document tenant_isolation_proptest_regression_artifact_has_durable_proof_markers.
 #[test]
 fn tenant_isolation_proptest_regression_artifact_has_durable_proof_markers() {
     let regression_artifact = read_committed_regression_artifact();
@@ -610,6 +620,7 @@ fn expected_replayed_route_label(regression_artifact: &str) -> Option<String> {
     })
 }
 
+/// TODO: Document tenant_isolation_proptest_saved_case_replays_before_random_generation.
 #[test]
 fn tenant_isolation_proptest_saved_case_replays_before_random_generation() {
     let replay_invocations = Cell::new(0usize);
@@ -631,6 +642,7 @@ fn tenant_isolation_proptest_saved_case_replays_before_random_generation() {
     );
 }
 
+/// TODO: Document tenant_isolation_proptest_saved_case_replays_committed_route_label_first.
 #[test]
 fn tenant_isolation_proptest_saved_case_replays_committed_route_label_first() {
     let regression_artifact = read_committed_regression_artifact();
@@ -662,6 +674,7 @@ fn tenant_isolation_proptest_saved_case_replays_committed_route_label_first() {
     );
 }
 
+/// TODO: Document tenant_isolation_proptest_deliberate_leaky_variant_trips_failure_signature.
 #[test]
 fn tenant_isolation_proptest_deliberate_leaky_variant_trips_failure_signature() {
     let runtime = tokio::runtime::Builder::new_current_thread()

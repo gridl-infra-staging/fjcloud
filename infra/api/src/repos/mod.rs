@@ -112,6 +112,7 @@ pub use webhook_event_repo::WebhookEventRepo;
 mod tests {
     use std::path::Path;
 
+    /// TODO: Document pg_customer_repo_directory_owns_stage1_query_modules.
     #[test]
     fn pg_customer_repo_directory_owns_stage1_query_modules() {
         let repos_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/repos");
@@ -134,6 +135,7 @@ mod tests {
         );
     }
 
+    /// TODO: Document pg_customer_repo_directory_owns_stage2_mutation_modules.
     #[test]
     fn pg_customer_repo_directory_owns_stage2_mutation_modules() {
         let repos_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/repos");

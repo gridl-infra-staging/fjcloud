@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/models/algolia_import_job/provider.rs.
 use crate::provisioner::region_map::RegionConfig;
 
 use super::AlgoliaImportErrorCode;
@@ -35,6 +36,7 @@ pub struct AlgoliaReplaceTargetFacts {
 }
 
 impl AlgoliaReplaceTargetFacts {
+    /// TODO: Document AlgoliaReplaceTargetFacts.validate.
     pub fn validate(&self) -> Result<(), AlgoliaImportErrorCode> {
         if self.provider != "aws" {
             return Err(AlgoliaImportErrorCode::MigrationProviderUnsupported);

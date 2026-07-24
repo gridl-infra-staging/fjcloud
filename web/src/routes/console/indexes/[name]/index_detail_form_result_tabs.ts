@@ -12,6 +12,9 @@ export type IndexDetailFormResultTabInput = Record<string, unknown> & {
 	rulesClearError?: string;
 };
 
+/**
+ * TODO: Document formResultOwnerTab.
+ */
 export function formResultOwnerTab(
 	result: IndexDetailFormResultTabInput | null
 ): IndexDetailTabId | null {

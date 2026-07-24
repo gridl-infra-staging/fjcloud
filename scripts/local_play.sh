@@ -20,6 +20,7 @@ port_available() {
     ! command -v lsof >/dev/null 2>&1 || ! lsof -i :"$port" -sTCP:LISTEN -P >/dev/null 2>&1
 }
 
+# TODO: Document choose_available_port.
 choose_available_port() {
     local start_port="$1"
     local step="$2"
@@ -40,6 +41,7 @@ choose_available_port() {
     return 1
 }
 
+# TODO: Document prepare_demo_ports.
 prepare_demo_ports() {
     if [ -z "${LOCAL_DB_PORT:-}" ]; then
         LOCAL_DB_PORT="$(choose_available_port 5432 100 20)"

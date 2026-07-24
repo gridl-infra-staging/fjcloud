@@ -31,6 +31,7 @@ log() {
     echo "[outside-aws-health] $*"
 }
 
+# TODO: Document probe_target.
 probe_target() {
     local target_url="$1"
     local http_code

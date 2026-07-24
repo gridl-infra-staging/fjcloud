@@ -98,6 +98,7 @@ else
   PREV_SHA=""
 fi
 
+# TODO: Document initialize_frozen_legacy_safe_mirror.
 initialize_frozen_legacy_safe_mirror() {
   local frozen_sha
   frozen_sha=$(aws ssm get-parameter \

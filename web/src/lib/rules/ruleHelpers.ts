@@ -79,6 +79,9 @@ export function buildRuleRowStatus(rule: Rule): RuleRowStatus {
 	};
 }
 
+/**
+ * TODO: Document buildRuleConflictMap.
+ */
 export function buildRuleConflictMap(rules: Rule[]): Map<string, boolean> {
 	const scopeCounts = new Map<string, number>();
 	const ruleScopes = new Map<string, string | null>();
@@ -126,6 +129,9 @@ export function enabledFromRuleState(state: unknown): boolean {
 	return state !== 'draft';
 }
 
+/**
+ * TODO: Document parseDatetimeLocalParts.
+ */
 function parseDatetimeLocalParts(value: string): {
 	year: number;
 	monthIndex: number;
@@ -159,6 +165,9 @@ function parseDatetimeLocalParts(value: string): {
 	return { year, monthIndex, day, hours, minutes };
 }
 
+/**
+ * TODO: Document datetimeLocalToUtcSeconds.
+ */
 export function datetimeLocalToUtcSeconds(value: string): number | null {
 	const trimmed = value.trim();
 	if (!trimmed) return null;
@@ -191,6 +200,9 @@ function zeroPad(value: number): string {
 	return String(value).padStart(2, '0');
 }
 
+/**
+ * TODO: Document utcSecondsToDatetimeLocal.
+ */
 export function utcSecondsToDatetimeLocal(value: unknown): string {
 	if (typeof value !== 'number' || !Number.isFinite(value)) return '';
 	const localInstant = new Date(value * 1000);
@@ -215,6 +227,9 @@ function structuredValidity(input: RuleBuilderInput): RuleValidityRange[] | unde
 	return from !== null && until !== null ? [{ from, until }] : undefined;
 }
 
+/**
+ * TODO: Document buildRuleConsequenceFromStructuredInput.
+ */
 export function buildRuleConsequenceFromStructuredInput(
 	baseConsequence: Rule['consequence'],
 	input: RuleConsequenceBuilderInput
@@ -239,6 +254,9 @@ export function buildRuleConsequenceFromStructuredInput(
 	return consequence;
 }
 
+/**
+ * TODO: Document buildRuleFromStructuredInput.
+ */
 export function buildRuleFromStructuredInput(baseRule: Rule, input: RuleBuilderInput): Rule {
 	const normalizedBase = normalizeRule(baseRule);
 	const firstCondition = normalizedBase.conditions[0] ?? {};
@@ -286,6 +304,9 @@ export function ruleForPublish(rule: Rule): Rule {
 	};
 }
 
+/**
+ * TODO: Document createMerchandisingRule.
+ */
 export function createMerchandisingRule({
 	query,
 	description,
@@ -305,6 +326,9 @@ export function createMerchandisingRule({
 	};
 }
 
+/**
+ * TODO: Document buildRuleDescription.
+ */
 export function buildRuleDescription(rule: Rule): string {
 	const parts: string[] = [];
 	const condition = rule.conditions[0];
@@ -344,6 +368,9 @@ function cleanParams(params?: Record<string, unknown>): Record<string, unknown> 
 	return Object.keys(clean).length > 0 ? clean : undefined;
 }
 
+/**
+ * TODO: Document normalizeRuleForSerialization.
+ */
 export function normalizeRuleForSerialization(rule: Rule): Rule {
 	const normalizedRule = normalizeRule(rule);
 	const conditions = normalizedRule.conditions
@@ -394,6 +421,9 @@ export function normalizeRuleForSerialization(rule: Rule): Rule {
 	return result;
 }
 
+/**
+ * TODO: Document validateRule.
+ */
 export function validateRule(rule: Rule): string[] {
 	const errors: string[] = [];
 
@@ -462,6 +492,9 @@ export function validateRule(rule: Rule): string[] {
 	return errors;
 }
 
+/**
+ * TODO: Document prepareRuleEditorSave.
+ */
 export function prepareRuleEditorSave(rule: Rule): PrepareRuleEditorSaveResult {
 	const candidateRule = normalizeRuleForSerialization(rule);
 	const validationErrors = validateRule(candidateRule);
@@ -505,6 +538,9 @@ export function prepareRuleEditorSave(rule: Rule): PrepareRuleEditorSaveResult {
 	};
 }
 
+/**
+ * TODO: Document parseRuleEditorJson.
+ */
 export function parseRuleEditorJson(json: string): ParseRuleEditorJsonResult {
 	try {
 		const parsed = JSON.parse(json) as Partial<Rule>;

@@ -1,0 +1,197 @@
+{
+  "result": {
+    "id": "e9e91bcc-123e-40a6-99d3-6b977747e925",
+    "name": "ayb-demo-apex",
+    "subdomain": "ayb-demo-apex.pages.dev",
+    "domains": [
+      "ayb-demo-apex.pages.dev",
+      "demo.allyourbase.io"
+    ],
+    "build_config": {
+      "web_analytics_tag": null,
+      "web_analytics_token": null
+    },
+    "deployment_configs": {
+      "preview": {
+        "env_vars": null,
+        "fail_open": true,
+        "always_use_latest_compatibility_date": false,
+        "compatibility_date": "2026-05-23",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": "standard"
+      },
+      "production": {
+        "env_vars": null,
+        "fail_open": true,
+        "always_use_latest_compatibility_date": false,
+        "compatibility_date": "2026-05-23",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": "standard"
+      }
+    },
+    "latest_deployment": {
+      "id": "0036933e-bde5-4c03-8e28-2194a2ae428e",
+      "short_id": "0036933e",
+      "project_id": "e9e91bcc-123e-40a6-99d3-6b977747e925",
+      "project_name": "ayb-demo-apex",
+      "environment": "production",
+      "url": "https://0036933e.ayb-demo-apex.pages.dev",
+      "created_on": "2026-07-20T23:17:54.164706Z",
+      "modified_on": "2026-07-20T23:17:55.323703Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-07-20T23:17:55.323703Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "c23cc959b360b9eca8cf63d4672b2409621486f3",
+          "commit_message": "Sync v0.0.19-beta release candidate to production",
+          "commit_dirty": true
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-07-20T23:17:54.164706Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-20T23:17:55.323703Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": null,
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {},
+      "compatibility_date": "2026-05-23",
+      "compatibility_flags": [],
+      "build_image_major_version": 3,
+      "usage_model": null,
+      "aliases": [
+        "https://demo.allyourbase.io"
+      ],
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": false
+    },
+    "canonical_deployment": {
+      "id": "0036933e-bde5-4c03-8e28-2194a2ae428e",
+      "short_id": "0036933e",
+      "project_id": "e9e91bcc-123e-40a6-99d3-6b977747e925",
+      "project_name": "ayb-demo-apex",
+      "environment": "production",
+      "url": "https://0036933e.ayb-demo-apex.pages.dev",
+      "created_on": "2026-07-20T23:17:54.164706Z",
+      "modified_on": "2026-07-20T23:17:55.323703Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-07-20T23:17:55.323703Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "c23cc959b360b9eca8cf63d4672b2409621486f3",
+          "commit_message": "Sync v0.0.19-beta release candidate to production",
+          "commit_dirty": true
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-07-20T23:17:54.164706Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-20T23:17:55.323703Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": null,
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {},
+      "compatibility_date": "2026-05-23",
+      "compatibility_flags": [],
+      "build_image_major_version": 3,
+      "usage_model": null,
+      "aliases": [
+        "https://demo.allyourbase.io"
+      ],
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": false
+    },
+    "created_on": "2026-05-23T06:32:03.548028Z",
+    "production_branch": "main",
+    "production_script_name": "pages-worker--14114331-production",
+    "preview_script_name": "pages-worker--14114331-preview",
+    "uses_functions": false,
+    "framework": "",
+    "framework_version": ""
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}

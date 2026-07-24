@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+"""
+Stub summary for docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun/stage4_integrity.py.
+"""
 
 from __future__ import annotations
 
@@ -86,6 +89,7 @@ def load_tsv(bundle: Path) -> list[dict[str, str]]:
 
 
 def detect_from_log(probe_id: str, log_text: str) -> tuple[bool, dict[str, object]]:
+    """TODO: Document detect_from_log."""
     objects = parse_json_objects(log_text)
     final_json = objects[-1] if objects and isinstance(objects[-1], dict) else None
     terminus_line = None
@@ -120,6 +124,7 @@ def detect_from_log(probe_id: str, log_text: str) -> tuple[bool, dict[str, objec
 
 
 def main() -> int:
+    """TODO: Document main."""
     if len(sys.argv) != 2:
         fail("usage: stage4_integrity.py <bundle>")
     bundle = Path(sys.argv[1])

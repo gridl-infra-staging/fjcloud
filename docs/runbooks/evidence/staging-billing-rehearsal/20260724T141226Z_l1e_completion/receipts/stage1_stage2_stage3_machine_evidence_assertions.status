@@ -1,0 +1,9 @@
+command=stage1_stage2_stage3_machine_evidence_assertions
+start_utc=2026-07-24T14:18:33Z
+stage1_causal_jq_exit_status=0
+stage1_iam_jq_exit_status=0
+stage2_targeted_plan_text_assert_exit_status=0
+stage3_required_assertions_text_assert_exit_status=0
+stage3_historical_jq_receipt_search_exit_status=1
+stage3_historical_jq_receipt_present=false
+end_utc=2026-07-24T14:18:33Z

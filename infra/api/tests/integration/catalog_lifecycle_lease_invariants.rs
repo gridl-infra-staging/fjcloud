@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/tests/integration/catalog_lifecycle_lease_invariants.rs.
 use crate::common::algolia_import_reservation_lifetime::{
     assert_algolia_import_job_unchanged_except_worker_claim, force_reservation_lifetime_case,
     reservation_lifetime_denominator, ReservationExpectation,
@@ -5,6 +6,7 @@ use crate::common::algolia_import_reservation_lifetime::{
 
 use super::*;
 
+/// TODO: Document replacement_fact_validation_maps_public_refusal_reasons.
 #[test]
 fn replacement_fact_validation_maps_public_refusal_reasons() {
     let mut cases: Vec<(&str, AlgoliaReplaceTargetFacts, AlgoliaImportErrorCode)> = Vec::new();
@@ -84,6 +86,7 @@ fn replacement_fact_validation_maps_public_refusal_reasons() {
     );
 }
 
+/// TODO: Document authenticated_replacement_target_refusals_return_stable_public_reasons.
 #[tokio::test]
 async fn authenticated_replacement_target_refusals_return_stable_public_reasons() {
     let mut cases = vec![
@@ -155,6 +158,7 @@ async fn authenticated_replacement_target_refusals_return_stable_public_reasons(
     }
 }
 
+/// TODO: Document replacement_target_authentication_misses_return_destination_changed.
 #[tokio::test]
 async fn replacement_target_authentication_misses_return_destination_changed() {
     let Some(db) = connect_and_migrate("replace_auth_missing_target").await else {
@@ -182,6 +186,7 @@ async fn replacement_target_authentication_misses_return_destination_changed() {
     );
 }
 
+/// TODO: Document authenticated_replacement_target_rejects_active_migration.
 #[tokio::test]
 async fn authenticated_replacement_target_rejects_active_migration() {
     let Some(db) = connect_and_migrate("replace_auth_migration").await else {
@@ -202,6 +207,7 @@ async fn authenticated_replacement_target_rejects_active_migration() {
     );
 }
 
+/// TODO: Document authenticated_replacement_target_rejects_active_lease_before_quota_checks.
 #[tokio::test]
 async fn authenticated_replacement_target_rejects_active_lease_before_quota_checks() {
     let Some(db) = connect_and_migrate("replace_auth_active_lease_boundary").await else {
@@ -277,6 +283,7 @@ fn replace_job_with_source_size(
     )
 }
 
+/// TODO: Document elapsed_resume_deadline_transfers_worker_lease_without_releasing_target.
 #[tokio::test]
 async fn elapsed_resume_deadline_transfers_worker_lease_without_releasing_target() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_resume_deadline").await else {
@@ -381,6 +388,7 @@ async fn elapsed_resume_deadline_transfers_worker_lease_without_releasing_target
     );
 }
 
+/// TODO: Document resumable_credential_failure_keeps_target_excluded_through_resume_race.
 #[tokio::test]
 async fn resumable_credential_failure_keeps_target_excluded_through_resume_race() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_resume_race").await else {

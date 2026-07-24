@@ -1,3 +1,4 @@
+//! Stub summary for line_items.rs.
 use chrono::NaiveDate;
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
@@ -64,6 +65,7 @@ pub(super) fn bill_object_storage_egress_line_item(
     (amount_cents, metadata)
 }
 
+/// TODO: Document carryforward_only_egress_line_item.
 pub(super) fn carryforward_only_egress_line_item(
     storage: &StorageInputs,
     next_cycle_carryforward_cents: Decimal,
@@ -82,6 +84,7 @@ pub(super) fn carryforward_only_egress_line_item(
     }
 }
 
+/// TODO: Document new_invoice_line_item.
 pub(super) fn new_invoice_line_item(
     line_item: billing::invoice::LineItem,
     storage: &StorageInputs,
@@ -108,6 +111,7 @@ pub(super) fn new_invoice_line_item(
     }
 }
 
+/// TODO: Document append_carryforward_snapshot_if_needed.
 pub(super) fn append_carryforward_snapshot_if_needed(
     line_items: &mut Vec<NewLineItem>,
     storage: &StorageInputs,

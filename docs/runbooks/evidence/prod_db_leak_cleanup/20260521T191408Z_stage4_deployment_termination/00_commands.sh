@@ -194,6 +194,7 @@ admin_request() {
     ADMIN_REQ_CODE="$code"
 }
 
+# TODO: Document process_environment.
 process_environment() {
     local env_name="$1" api_url="$2" admin_key="$3" csv_path="$4"
     local customer_id

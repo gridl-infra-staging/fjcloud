@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/algolia_import/cancel_tests.rs.
 use std::sync::Mutex;
 
 use async_trait::async_trait;

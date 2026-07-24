@@ -39,6 +39,7 @@ TEST_CLOCK_ID=""
 TEST_CLOCK_READY_MAX_POLLS="${TEST_CLOCK_READY_MAX_POLLS:-30}"
 TEST_CLOCK_READY_POLL_INTERVAL_SECONDS="${TEST_CLOCK_READY_POLL_INTERVAL_SECONDS:-2}"
 
+# TODO: Document stripe_key_prefix_policy_allows_key.
 stripe_key_prefix_policy_allows_key() {
     local key="$1"
     local policy_mode="$2"
@@ -88,6 +89,7 @@ validate_live_cutover_key_auth() {
     return 0
 }
 
+# TODO: Document parse_args.
 parse_args() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
@@ -118,6 +120,7 @@ parse_args() {
     fi
 }
 
+# TODO: Document json_get_path.
 json_get_path() {
     local json_body="$1"
     local field_path="$2"
@@ -150,6 +153,7 @@ else:
 PY
 }
 
+# TODO: Document stripe_error_context.
 stripe_error_context() {
     local request_id="${STRIPE_REQUEST_ID:-}"
     local error_type error_code error_message request_log_url
@@ -265,6 +269,7 @@ cleanup_test_clock() {
     return 0
 }
 
+# TODO: Document wait_for_test_clock_ready.
 wait_for_test_clock_ready() {
     local clock_id="$1"
     local attempt status
@@ -300,6 +305,7 @@ wait_for_test_clock_ready() {
     return 1
 }
 
+# TODO: Document finish_test_clock_validation.
 finish_test_clock_validation() {
     local passed="$1"
 

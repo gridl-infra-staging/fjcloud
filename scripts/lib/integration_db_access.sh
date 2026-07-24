@@ -8,6 +8,7 @@ source "$INTEGRATION_DB_ACCESS_LIB_DIR/db_url.sh"
 # shellcheck source=lib/env.sh
 source "$INTEGRATION_DB_ACCESS_LIB_DIR/env.sh"
 
+# TODO: Document read_env_assignment.
 read_env_assignment() {
     local env_file="$1"
     local target_key="$2"
@@ -40,6 +41,7 @@ resolve_local_dev_database_url() {
     read_env_assignment "$INTEGRATION_DB_ACCESS_REPO_ROOT/.env.local" DATABASE_URL
 }
 
+# TODO: Document init_integration_db_access.
 init_integration_db_access() {
     INTEGRATION_DB_ACCESS_MODE=""
     INTEGRATION_DB_ACCESS_FAILURE_HINT=""
@@ -109,6 +111,7 @@ integration_db_prerequisite_message() {
     echo "psql not found and Docker Compose Postgres fallback is unavailable"
 }
 
+# TODO: Document run_integration_psql.
 run_integration_psql() {
     local db_name="$1"
     shift

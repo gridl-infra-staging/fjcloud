@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+//! Stub summary for infra/api/tests/common/source_assertions.rs.
 pub fn function_signature_line<'a>(source: &'a str, function_name: &str) -> Option<&'a str> {
     source.lines().find(|line| {
         line.contains("fn ")
@@ -9,6 +10,7 @@ pub fn function_signature_line<'a>(source: &'a str, function_name: &str) -> Opti
     })
 }
 
+/// TODO: Document function_body.
 pub fn function_body<'a>(source: &'a str, function_name: &str) -> Option<&'a str> {
     let fn_token = format!("fn {function_name}(");
     let start = source.find(&fn_token)?;

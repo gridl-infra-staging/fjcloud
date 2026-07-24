@@ -41,6 +41,7 @@ fi
 # Parameters NOT in this map are skipped (e.g., last_deploy_sha, db_password).
 # ---------------------------------------------------------------------------
 
+# TODO: Document map_ssm_suffix_to_env_var.
 map_ssm_suffix_to_env_var() {
   local suffix="$1"
   case "$suffix" in

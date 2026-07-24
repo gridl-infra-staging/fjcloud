@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/algolia_import/cancel.rs.
 use std::collections::HashMap;
 
 use sqlx::PgPool;
@@ -37,6 +38,7 @@ pub(crate) struct AlgoliaImportCancelContext<'a> {
 }
 
 impl AlgoliaImportService {
+    /// TODO: Document AlgoliaImportService.cancel_for_customer.
     pub(crate) async fn cancel_for_customer(
         &self,
         context: AlgoliaImportCancelContext<'_>,
@@ -91,6 +93,7 @@ impl AlgoliaImportService {
             .await
     }
 
+    /// TODO: Document AlgoliaImportService.consume_cancel_observation.
     pub(super) async fn consume_cancel_observation(
         &self,
         job_repo: &(dyn AlgoliaImportJobRepo + Send + Sync),
@@ -173,6 +176,7 @@ impl AlgoliaImportService {
         }
     }
 
+    /// TODO: Document AlgoliaImportService.retain_cancel_error.
     async fn retain_cancel_error(
         &self,
         job_repo: &(dyn AlgoliaImportJobRepo + Send + Sync),
@@ -197,6 +201,7 @@ impl AlgoliaImportService {
         Ok(outcome)
     }
 
+    /// TODO: Document AlgoliaImportService.alert_cancel_retained.
     async fn alert_cancel_retained(
         alert_service: &(dyn AlertService + Send + Sync),
         job: &AlgoliaImportJob,

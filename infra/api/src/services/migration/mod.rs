@@ -126,6 +126,7 @@ pub enum MigrationError {
     DestinationChanged,
 }
 
+/// TODO: Document MigrationService.
 pub struct MigrationService {
     tenant_repo: Arc<dyn TenantRepo + Send + Sync>,
     vm_inventory_repo: Arc<dyn VmInventoryRepo + Send + Sync>,
@@ -179,6 +180,7 @@ impl MigrationService {
         )
     }
 
+    /// TODO: Document MigrationService.new_with_lifecycle_lease.
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_lifecycle_lease(
         tenant_repo: Arc<dyn TenantRepo + Send + Sync>,
@@ -257,6 +259,7 @@ impl MigrationService {
         )
     }
 
+    /// TODO: Document MigrationService.with_http_client_config_and_lifecycle.
     #[allow(clippy::too_many_arguments)]
     pub fn with_http_client_config_and_lifecycle(
         tenant_repo: Arc<dyn TenantRepo + Send + Sync>,
@@ -313,6 +316,7 @@ impl MigrationService {
             .map(|outcome| outcome.migration_id)
     }
 
+    /// TODO: Document MigrationService.execute_with_observation.
     pub async fn execute_with_observation(
         &self,
         req: MigrationRequest,
@@ -497,6 +501,7 @@ impl MigrationService {
         }
     }
 
+    /// TODO: Document MigrationService.reset_tenant_tier_after_execute_failure.
     async fn reset_tenant_tier_after_execute_failure(
         &self,
         req: &MigrationRequest,
@@ -524,6 +529,7 @@ impl MigrationService {
         }
     }
 
+    /// TODO: Document MigrationService.begin_migration_intent.
     async fn begin_migration_intent(
         &self,
         req: &MigrationRequest,
@@ -566,6 +572,7 @@ impl MigrationService {
         }
     }
 
+    /// TODO: Document MigrationService.target_identity.
     async fn target_identity(
         &self,
         customer_id: Uuid,
@@ -590,6 +597,7 @@ impl MigrationService {
         })
     }
 
+    /// TODO: Document MigrationService.guarded_target_mutation.
     pub(super) async fn guarded_target_mutation<F, Fut, T>(
         &self,
         customer_id: Uuid,

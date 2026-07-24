@@ -39,6 +39,7 @@ set_convergence_failure() {
     set_attempt_failure "$EVIDENCE_LAST_CLASSIFICATION" "$detail"
 }
 
+# TODO: Document build_billing_run_payload.
 build_billing_run_payload() {
     local body_file invoice_ids_file
     body_file="$(mktemp)"
@@ -294,6 +295,7 @@ run_repeat_pass_check() {
     return 0
 }
 
+# TODO: Document run_live_mutation_attempt.
 run_live_mutation_attempt() {
     local repeat_status=0
 

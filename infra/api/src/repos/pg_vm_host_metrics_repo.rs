@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/repos/pg_vm_host_metrics_repo.rs.
 use async_trait::async_trait;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -17,6 +18,7 @@ impl PgVmHostMetricsRepo {
 
 #[async_trait]
 impl VmHostMetricsRepo for PgVmHostMetricsRepo {
+    /// TODO: Document PgVmHostMetricsRepo.insert.
     async fn insert(&self, metrics: &NewVmHostMetrics) -> Result<VmHostMetrics, RepoError> {
         sqlx::query_as::<_, VmHostMetrics>(
             "INSERT INTO vm_host_metrics

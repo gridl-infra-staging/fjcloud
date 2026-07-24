@@ -1,0 +1,237 @@
+{
+  "credential_state": "available",
+  "environments": [
+    {
+      "data_plane": {
+        "http_status": null,
+        "identity_outcome": "missing",
+        "matching_object_count": null,
+        "request_outcome": "indeterminate"
+      },
+      "name": "staging",
+      "pointers": [
+        {
+          "ami": {
+            "outcome": "missing",
+            "value": null
+          },
+          "aws_region": "eu-west-1",
+          "subnet": {
+            "outcome": "missing",
+            "value": null
+          }
+        },
+        {
+          "ami": {
+            "outcome": "ok",
+            "value": "ami-070b3dfb46c944d7e"
+          },
+          "aws_region": "us-east-1",
+          "subnet": {
+            "outcome": "ok",
+            "value": "subnet-03e3357684f12dcc8"
+          }
+        }
+      ],
+      "region_discovery": {
+        "aws_regions": [
+          {
+            "aws_region": "eu-west-1",
+            "id": "eu-west-1"
+          },
+          {
+            "aws_region": "us-east-1",
+            "id": "us-east-1"
+          }
+        ],
+        "outcome": "ok"
+      }
+    },
+    {
+      "data_plane": {
+        "http_status": null,
+        "identity_outcome": "failed",
+        "matching_object_count": null,
+        "request_outcome": "indeterminate"
+      },
+      "name": "prod",
+      "pointers": [
+        {
+          "ami": {
+            "outcome": "missing",
+            "value": null
+          },
+          "aws_region": "eu-west-1",
+          "subnet": {
+            "outcome": "missing",
+            "value": null
+          }
+        },
+        {
+          "ami": {
+            "outcome": "ok",
+            "value": "ami-01deed1a1e04b3276"
+          },
+          "aws_region": "us-east-1",
+          "subnet": {
+            "outcome": "ok",
+            "value": "subnet-0f20d0fd83a362024"
+          }
+        }
+      ],
+      "region_discovery": {
+        "aws_regions": [
+          {
+            "aws_region": "eu-west-1",
+            "id": "eu-west-1"
+          },
+          {
+            "aws_region": "us-east-1",
+            "id": "us-east-1"
+          }
+        ],
+        "outcome": "ok"
+      }
+    }
+  ],
+  "observed_at_epoch": 1784902525,
+  "regions": [
+    {
+      "aws_region": "eu-west-1",
+      "ec2": {
+        "instances": [],
+        "outcome": "ok"
+      },
+      "ssm": {
+        "instances": [],
+        "outcome": "ok"
+      }
+    },
+    {
+      "aws_region": "us-east-1",
+      "ec2": {
+        "instances": [
+          {
+            "image_id": "ami-078228dbe86117d85",
+            "instance_id": "i-0c74e2fe5fa24b116",
+            "state": "running",
+            "subnet_id": "subnet-03e3357684f12dcc8",
+            "tags": {
+              "Name": "fj-vm-shared-3bd2b971.flapjack.foo",
+              "customer_id": "00000000-0000-0000-0000-000000000000",
+              "managed-by": "fjcloud",
+              "node_id": "vm-shared-3bd2b971.flapjack.foo"
+            }
+          },
+          {
+            "image_id": "ami-078228dbe86117d85",
+            "instance_id": "i-00a3b28ba4c00433a",
+            "state": "running",
+            "subnet_id": "subnet-03e3357684f12dcc8",
+            "tags": {
+              "Name": "fj-vm-shared-f2b9c8a6.flapjack.foo",
+              "customer_id": "00000000-0000-0000-0000-000000000000",
+              "managed-by": "fjcloud",
+              "node_id": "vm-shared-f2b9c8a6.flapjack.foo"
+            }
+          },
+          {
+            "image_id": "ami-078228dbe86117d85",
+            "instance_id": "i-0b2188437baeeacdf",
+            "state": "running",
+            "subnet_id": "subnet-03e3357684f12dcc8",
+            "tags": {
+              "Name": "fj-vm-20aa6d79.flapjack.foo",
+              "customer_id": "666b38f9-f383-4acb-9cf9-1bbfc4904178",
+              "managed-by": "fjcloud",
+              "node_id": "node-149ffef7-c451-4d96-86e8-714aa3c33e27"
+            }
+          },
+          {
+            "image_id": "ami-078228dbe86117d85",
+            "instance_id": "i-019d556392acdada7",
+            "state": "running",
+            "subnet_id": "subnet-03e3357684f12dcc8",
+            "tags": {
+              "Name": "fj-vm-shared-480b5169.flapjack.foo",
+              "customer_id": "00000000-0000-0000-0000-000000000000",
+              "managed-by": "fjcloud",
+              "node_id": "vm-shared-480b5169.flapjack.foo"
+            }
+          },
+          {
+            "image_id": "ami-078228dbe86117d85",
+            "instance_id": "i-0f9b2a9bd8cbaeeec",
+            "state": "running",
+            "subnet_id": "subnet-03e3357684f12dcc8",
+            "tags": {
+              "Name": "fj-vm-shared-391f314f.flapjack.foo",
+              "customer_id": "00000000-0000-0000-0000-000000000000",
+              "managed-by": "fjcloud",
+              "node_id": "vm-shared-391f314f.flapjack.foo"
+            }
+          },
+          {
+            "image_id": "ami-01deed1a1e04b3276",
+            "instance_id": "i-072d4333322ffd0eb",
+            "state": "running",
+            "subnet_id": "subnet-0f20d0fd83a362024",
+            "tags": {
+              "Name": "fj-vm-shared-1ca0d103.flapjack.foo",
+              "customer_id": "00000000-0000-0000-0000-000000000000",
+              "managed-by": "fjcloud",
+              "node_id": "vm-shared-1ca0d103.flapjack.foo"
+            }
+          }
+        ],
+        "outcome": "ok"
+      },
+      "ssm": {
+        "instances": [
+          {
+            "instance_id": "i-0af0ff2e18725b6ba",
+            "last_ping_epoch": 1784902417,
+            "ping_status": "Online"
+          },
+          {
+            "instance_id": "i-0fbc6d6bbbc8bdc6d",
+            "last_ping_epoch": 1784902521,
+            "ping_status": "Online"
+          },
+          {
+            "instance_id": "i-0b2188437baeeacdf",
+            "last_ping_epoch": 1784902430,
+            "ping_status": "Online"
+          },
+          {
+            "instance_id": "i-0c74e2fe5fa24b116",
+            "last_ping_epoch": 1784902491,
+            "ping_status": "Online"
+          },
+          {
+            "instance_id": "i-072d4333322ffd0eb",
+            "last_ping_epoch": 1784902267,
+            "ping_status": "Online"
+          },
+          {
+            "instance_id": "i-00a3b28ba4c00433a",
+            "last_ping_epoch": 1784902404,
+            "ping_status": "Online"
+          },
+          {
+            "instance_id": "i-019d556392acdada7",
+            "last_ping_epoch": 1784902532,
+            "ping_status": "Online"
+          },
+          {
+            "instance_id": "i-0f9b2a9bd8cbaeeec",
+            "last_ping_epoch": 1784902470,
+            "ping_status": "Online"
+          }
+        ],
+        "outcome": "ok"
+      }
+    }
+  ],
+  "schema_version": 1
+}

@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for dictionary-helpers.ts.
+ */
 import type { DictionaryEntry, DictionaryName } from '$lib/api/types';
 
 export const DICTIONARY_NAMES: DictionaryName[] = ['stopwords', 'plurals', 'compounds'];
@@ -32,6 +35,9 @@ export function splitCommaSeparatedValues(input: string): string[] {
 		.filter((value) => value.length > 0);
 }
 
+/**
+ * TODO: Document buildEntryDescription.
+ */
 export function buildEntryDescription(
 	dictionaryName: DictionaryName,
 	entry: DictionaryEntry

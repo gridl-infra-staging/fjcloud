@@ -1,0 +1,37 @@
+=== /fjcloud/prod/jwt_secret ===
+{
+    "Version": 1,
+    "LastModifiedDate": "2026-05-13T23:42:39.166000-04:00"
+}
+=== /fjcloud/prod/stripe_secret_key ===
+{
+    "Version": 2,
+    "LastModifiedDate": "2026-05-13T23:57:08.300000-04:00"
+}
+=== /fjcloud/prod/stripe_webhook_secret ===
+{
+    "Version": 2,
+    "LastModifiedDate": "2026-05-19T17:06:27.440000-04:00"
+}
+=== /fjcloud/prod/google_oauth_client_secret ===
+{
+    "Version": 1,
+    "LastModifiedDate": "2026-05-20T13:21:19.266000-04:00"
+}
+=== /fjcloud/prod/github_oauth_client_secret ===
+{
+    "Version": 1,
+    "LastModifiedDate": "2026-05-20T13:21:20.329000-04:00"
+}
+=== /fjcloud/prod/app_base_url ===
+{
+    "Version": 1,
+    "LastModifiedDate": "2026-05-20T13:21:20.852000-04:00"
+}
+=== /fjcloud/prod/algolia_migration_enabled ===
+{
+    "Version": 2,
+    "LastModifiedDate": "2026-07-20T03:09:12.957000-04:00"
+}
+=== /fjcloud/prod/aws_ami_id ===
+aws_ami_id=ami-01deed1a1e04b3276

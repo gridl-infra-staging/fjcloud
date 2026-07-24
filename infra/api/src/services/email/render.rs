@@ -1,3 +1,4 @@
+//! Stub summary for render.rs.
 use super::{
     dunning_recovered_after_failure_email_html_with_base_url,
     dunning_recovered_after_failure_email_text_with_base_url,
@@ -31,6 +32,7 @@ impl RenderedEmail {
     }
 }
 
+/// TODO: Document resolve_broadcast_render.
 pub(super) fn resolve_broadcast_render(
     subject: &str,
     html_body: Option<&str>,

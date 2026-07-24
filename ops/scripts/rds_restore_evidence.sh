@@ -60,6 +60,7 @@ TARGET_STATUS=""
 
 CLEANUP_LIFECYCLE="manual cleanup required: delete the restored DB instance after verification and evidence capture"
 
+# TODO: Document usage.
 usage() {
   cat <<EOF
 Usage: rds_restore_evidence.sh <env> --artifact-dir <dir> [options]
@@ -86,6 +87,7 @@ require_option_value() {
   fi
 }
 
+# TODO: Document trim_env_value.
 trim_env_value() {
   local value="$1"
   local first_char=""
@@ -113,6 +115,7 @@ is_safe_aws_value() {
   return 0
 }
 
+# TODO: Document load_aws_env_file.
 load_aws_env_file() {
   local env_file="$1"
   local required="$2"
@@ -202,6 +205,7 @@ create_run_artifacts() {
   mkdir -m 700 "$RUN_DIR"
 }
 
+# TODO: Document write_discovery_artifact.
 write_discovery_artifact() {
   cat > "$RUN_DIR/discovery.json" <<EOF
 {
@@ -228,6 +232,7 @@ EOF
   normalize_json_file "$RUN_DIR/discovery.json"
 }
 
+# TODO: Document write_restore_request_artifact.
 write_restore_request_artifact() {
   cat > "$RUN_DIR/restore_request.json" <<EOF
 {
@@ -245,6 +250,7 @@ EOF
   normalize_json_file "$RUN_DIR/restore_request.json"
 }
 
+# TODO: Document write_summary_artifact.
 write_summary_artifact() {
   local reason_field="null"
   if [[ "$STATUS" == "blocked" || "$STATUS" == "fail" ]]; then
@@ -281,6 +287,7 @@ extract_verification_sql_from_runbook() {
   ' "$RUNBOOK_PATH"
 }
 
+# TODO: Document write_verification_artifacts.
 write_verification_artifacts() {
   local verification_sql=""
   local verification_notes=""
@@ -312,6 +319,7 @@ write_verification_artifacts() {
   } > "$RUN_DIR/verification.txt"
 }
 
+# TODO: Document parse_args.
 parse_args() {
   if [[ $# -lt 1 ]]; then
     usage
@@ -376,6 +384,7 @@ parse_args() {
   done
 }
 
+# TODO: Document validate_args.
 validate_args() {
   if [[ "$ENV" != "staging" && "$ENV" != "prod" ]]; then
     echo "ERROR: env must be 'staging' or 'prod' (got: ${ENV})"
@@ -415,6 +424,7 @@ set_default_source_db_instance() {
   fi
 }
 
+# TODO: Document collect_discovery_payloads.
 collect_discovery_payloads() {
   local action=""
   local payload=""
@@ -452,6 +462,7 @@ collect_discovery_payloads() {
   return 0
 }
 
+# TODO: Document select_restore_inputs_from_discovery.
 select_restore_inputs_from_discovery() {
   local timestamp_compact=""
   local discovery_line=""
@@ -501,6 +512,7 @@ discover_restore_inputs() {
   return 0
 }
 
+# TODO: Document poll_target_available.
 poll_target_available() {
   local timeout_seconds=1800
   local interval_seconds=15
@@ -579,6 +591,7 @@ PY
   done
 }
 
+# TODO: Document run_drill.
 run_drill() {
   local -a drill_args
   local drill_output=""
@@ -645,6 +658,7 @@ run_drill() {
   return 0
 }
 
+# TODO: Document main.
 main() {
   parse_args "$@"
   validate_args

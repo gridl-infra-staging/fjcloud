@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/repos/pg_invoice_repo.rs.
 use async_trait::async_trait;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -88,6 +89,7 @@ impl InvoiceRepo for PgInvoiceRepo {
         .map_err(|e| RepoError::Other(e.to_string()))
     }
 
+    /// TODO: Document PgInvoiceRepo.revenue_summary.
     async fn revenue_summary(&self) -> Result<Vec<AdminInvoiceSummaryRow>, RepoError> {
         sqlx::query_as::<_, AdminInvoiceSummaryRow>(
             "SELECT \

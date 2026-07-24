@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/routes/public_infrastructure.rs.
 use axum::extract::State;
 use axum::Json;
 use chrono::{DateTime, Utc};
@@ -61,6 +62,7 @@ pub struct PublicInfrastructureResponse {
         (status = 500, description = "Internal server error", body = crate::errors::ErrorResponse),
     )
 )]
+/// TODO: Document get_public_infrastructure.
 pub async fn get_public_infrastructure(
     State(state): State<AppState>,
 ) -> Result<Json<PublicInfrastructureResponse>, ApiError> {
@@ -80,6 +82,7 @@ pub async fn get_public_infrastructure(
     Ok(Json(response))
 }
 
+/// TODO: Document compute_public_infrastructure.
 pub async fn compute_public_infrastructure(
     vm_inventory_repo: &(dyn VmInventoryRepo + Send + Sync),
     tenant_repo: &(dyn TenantRepo + Send + Sync),
@@ -167,6 +170,7 @@ pub async fn compute_public_infrastructure(
     })
 }
 
+/// TODO: Document build_region_response.
 fn build_region_response(
     region: &str,
     entry: &RegionEntry,
@@ -203,6 +207,7 @@ fn region_health(vm_signals: &[RegionVmSignal]) -> PublicRegionHealth {
     }
 }
 
+/// TODO: Document worst_region_utilization.
 fn worst_region_utilization(
     vm_count: usize,
     buckets: &[Option<UtilizationBucket>],
@@ -220,6 +225,7 @@ fn worst_region_utilization(
         })
 }
 
+/// TODO: Document build_overall_response.
 fn build_overall_response(
     total_regions: usize,
     vm_signals: &[RegionVmSignal],
@@ -308,6 +314,7 @@ mod tests {
         build_region_response("us-east-1", &region_entry(), vms).health
     }
 
+    /// TODO: Document region_rollup_classifies_each_health_branch.
     #[test]
     fn region_rollup_classifies_each_health_branch() {
         assert_eq!(
@@ -345,6 +352,7 @@ mod tests {
         assert_eq!(empty.vm_count, 0);
     }
 
+    /// TODO: Document region_rollup_reduces_utilization_to_worst_bucket_after_k_anonymity.
     #[test]
     fn region_rollup_reduces_utilization_to_worst_bucket_after_k_anonymity() {
         assert_eq!(
@@ -383,6 +391,7 @@ mod tests {
         );
     }
 
+    /// TODO: Document overall_rollup_counts_unknown_and_unhealthy_in_denominator.
     #[test]
     fn overall_rollup_counts_unknown_and_unhealthy_in_denominator() {
         let regions = [
@@ -430,6 +439,7 @@ mod tests {
         );
     }
 
+    /// TODO: Document public_region_serializes_only_documented_keys.
     #[test]
     fn public_region_serializes_only_documented_keys() {
         let serialized = serde_json::to_value(build_region_response(

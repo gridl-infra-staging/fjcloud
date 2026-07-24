@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/tests/integration/catalog_lifecycle_lease_race_matrix.rs.
 use super::*;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -114,6 +115,7 @@ pub(super) fn assert_denominator_matches_blocking_inventory_once() {
     );
 }
 
+/// TODO: Document assert_expired_claim_matrix_covers_retained_states_once.
 pub(super) fn assert_expired_claim_matrix_covers_retained_states_once() {
     let inventory = inventory_by_key();
     let expected_ids = blocking_inventory_ids();
@@ -133,6 +135,7 @@ pub(super) fn assert_expired_claim_matrix_covers_retained_states_once() {
     );
 }
 
+/// TODO: Document race_matrix_denominator_validator_rejects_bad_metadata.
 #[test]
 fn race_matrix_denominator_validator_rejects_bad_metadata() {
     let inventory = inventory_by_key();
@@ -327,6 +330,7 @@ fn race_matrix_denominator_validator_rejects_bad_metadata() {
     );
 }
 
+/// TODO: Document expired_claim_matrix_validator_rejects_missing_duplicate_and_unclassified_cells.
 #[test]
 fn expired_claim_matrix_validator_rejects_missing_duplicate_and_unclassified_cells() {
     let inventory = inventory_by_key();
@@ -477,6 +481,7 @@ fn expired_claim_matrix_validator_rejects_missing_duplicate_and_unclassified_cel
     );
 }
 
+/// TODO: Document extra_race_matrix_registrations_use_canonical_scenario_metadata.
 #[test]
 fn extra_race_matrix_registrations_use_canonical_scenario_metadata() {
     for registration in extra_race_matrix_coverage_registrations() {
@@ -527,6 +532,7 @@ fn race_matrix_scenario(registration: CoverageRegistration) -> RaceMatrixScenari
     }
 }
 
+/// TODO: Document validate_race_matrix_scenarios.
 fn validate_race_matrix_scenarios(
     scenarios: &[RaceMatrixScenario],
     expected_ids: &BTreeSet<String>,
@@ -625,6 +631,7 @@ fn duplicate_expired_claim_selections(scenarios: &[RaceMatrixScenario]) -> BTree
     duplicate_family_selections(scenarios, |scenario| scenario.expired_claim_selection)
 }
 
+/// TODO: Document duplicate_family_selections.
 fn duplicate_family_selections(
     scenarios: &[RaceMatrixScenario],
     selection: fn(&RaceMatrixScenario) -> &'static str,
@@ -664,6 +671,7 @@ fn required_race_matrix_owner_families() -> BTreeSet<RaceMatrixOwnerFamily> {
     ])
 }
 
+/// TODO: Document race_matrix_owner_family.
 fn race_matrix_owner_family(registration: &CoverageRegistration) -> RaceMatrixOwnerFamily {
     if registration.owner_path.contains("/admin/indexes.rs") {
         return RaceMatrixOwnerFamily::AdminSeedCreate;
@@ -702,6 +710,7 @@ fn race_matrix_owner_family(registration: &CoverageRegistration) -> RaceMatrixOw
     }
 }
 
+/// TODO: Document race_matrix_ordering_coverage.
 fn race_matrix_ordering_coverage(owner_family: RaceMatrixOwnerFamily) -> &'static str {
     match owner_family {
         RaceMatrixOwnerFamily::ImportReservationFinalizationVersusDelete => {
@@ -736,6 +745,7 @@ fn race_matrix_focused_selection(owner_family: RaceMatrixOwnerFamily) -> &'stati
     }
 }
 
+/// TODO: Document race_matrix_expired_claim_selection.
 fn race_matrix_expired_claim_selection(owner_family: RaceMatrixOwnerFamily) -> &'static str {
     match owner_family {
         RaceMatrixOwnerFamily::ImportReservationFinalizationVersusDelete => {
@@ -761,6 +771,7 @@ fn retained_reservation_case_labels() -> BTreeSet<String> {
         .collect()
 }
 
+/// TODO: Document expired_claim_cells_from_scenarios.
 fn expired_claim_cells_from_scenarios(
     scenarios: &[RaceMatrixScenario],
     retained_labels: &BTreeSet<String>,
@@ -798,6 +809,7 @@ fn expired_claim_cell(owner_family: RaceMatrixOwnerFamily, retained_label: &str)
     format!("{owner_family:?}::{retained_label}")
 }
 
+/// TODO: Document validate_expired_claim_cells.
 fn validate_expired_claim_cells(
     cells: &[String],
     expected_cells: &BTreeSet<String>,

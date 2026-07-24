@@ -34,6 +34,7 @@ escape_critical_alert_values() {
     ESCAPED_ALERT_ENVIRONMENT="$(json_escape_string "$environment")"
 }
 
+# TODO: Document build_slack_critical_payload.
 build_slack_critical_payload() {
     local title="$1"
     local message="$2"
@@ -59,6 +60,7 @@ build_slack_critical_payload() {
 EOF
 }
 
+# TODO: Document build_discord_critical_payload.
 build_discord_critical_payload() {
     local title="$1"
     local message="$2"
@@ -85,6 +87,7 @@ build_discord_critical_payload() {
 EOF
 }
 
+# TODO: Document post_webhook_payload.
 post_webhook_payload() {
     local url="$1"
     local channel="$2"
@@ -126,6 +129,7 @@ post_webhook_payload() {
     return 1
 }
 
+# TODO: Document send_critical_alert.
 send_critical_alert() {
     local channel="$1"
     local webhook_url="$2"
@@ -152,6 +156,7 @@ send_critical_alert() {
     post_webhook_payload "$webhook_url" "$channel" "$payload"
 }
 
+# TODO: Document discord_readback_url.
 discord_readback_url() {
     local webhook_url="$1"
     if [[ "$webhook_url" =~ [\?\&]wait= ]]; then

@@ -47,6 +47,9 @@ export interface LineItemResponse {
 	region: string;
 }
 
+/**
+ * TODO: Document InvoiceDetailResponse.
+ */
 export interface InvoiceDetailResponse {
 	id: string;
 	customer_id: string;

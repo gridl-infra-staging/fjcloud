@@ -1,3 +1,4 @@
+//! Stub summary for dispute_repo.rs.
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -5,6 +6,7 @@ use uuid::Uuid;
 
 use crate::repos::error::RepoError;
 
+/// TODO: Document DisputeRow.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, sqlx::FromRow)]
 pub struct DisputeRow {
     pub id: Uuid,

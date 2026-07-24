@@ -56,6 +56,7 @@ POLL_SLEEP_SECONDS="${ORGANIC_ALERT_POLL_SLEEP_SECONDS:-2}"
 STRIPE_WEBHOOK_SECRET_SSM_PARAM="${STRIPE_WEBHOOK_SECRET_SSM_PARAM:-/fjcloud/staging/stripe_webhook_secret}"
 DISCORD_WEBHOOK_URL_SSM_PARAM="${DISCORD_WEBHOOK_URL_SSM_PARAM:-$DEFAULT_DISCORD_WEBHOOK_URL_SSM_PARAM}"
 
+# TODO: Document usage.
 usage() {
     cat <<'USAGE'
 Usage:
@@ -91,6 +92,7 @@ sql_escape_literal() {
     printf '%s' "$1" | sed "s/'/''/g"
 }
 
+# TODO: Document first_data_row.
 first_data_row() {
     printf '%s\n' "$1" | awk '
         /^[[:space:]]*$/ { next }
@@ -134,6 +136,7 @@ setup_bundle_logging() {
     exec > >(tee -a "$PROBE_STDOUT_LOG") 2> >(tee -a "$PROBE_STDERR_LOG" >&2)
 }
 
+# TODO: Document run_sql.
 run_sql() {
     local sql="$1"
     local output cleaned
@@ -158,6 +161,7 @@ run_sql() {
     return 1
 }
 
+# TODO: Document capture_failure_diagnostics.
 capture_failure_diagnostics() {
     local escaped_invoice
     escaped_invoice="$(sql_escape_literal "$PROBE_INVOICE_ID")"
@@ -195,6 +199,7 @@ runtime_fail() {
     exit 1
 }
 
+# TODO: Document write_summary.
 write_summary() {
     local final_result="$1"
     local final_exit_code="$2"
@@ -221,6 +226,7 @@ write_summary() {
 EOF
 }
 
+# TODO: Document cleanup.
 cleanup() {
     local original_exit_code=$?
     local final_exit_code="$original_exit_code"
@@ -270,6 +276,7 @@ cleanup() {
     exit "$final_exit_code"
 }
 
+# TODO: Document main.
 main() {
     if [ "${1:-}" = "--help" ]; then
         usage

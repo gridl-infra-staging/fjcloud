@@ -821,6 +821,29 @@ resource "aws_cloudwatch_metric_alarm" "customer_loop_canary_not_running" {
 }
 
 # ---------------------------------------------------------------------------
+# Usage-daily rollup liveness — pages after two consecutive missing days.
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_metric_alarm" "usage_daily_rollup_missing" {
+  alarm_name          = "fjcloud-${var.env}-usage-daily-rollup-missing"
+  alarm_description   = "Usage-daily aggregation reported fewer than one successful rollup in each of the last two daily periods"
+  comparison_operator = "LessThanThreshold"
+  metric_name         = "UsageDailyRollupSuccess"
+  namespace           = "fjcloud/aggregation-job"
+  statistic           = "Sum"
+  period              = 86400
+  evaluation_periods  = 2
+  threshold           = 1
+  treat_missing_data  = "breaching"
+  datapoints_to_alarm = 2
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    Env = var.env
+  }
+}
+
+# ---------------------------------------------------------------------------
 # AWS account cumulative-monthly charges > threshold (T0.4 — budget-exceeded page).
 #
 # What this catches: cumulative monthly spend has already crossed the

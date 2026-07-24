@@ -15,6 +15,7 @@ MOCK_DIR=""
 MOCK_ENV_FILE=""
 FAKE_SHA="a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
 
+# TODO: Document setup.
 setup() {
   MOCK_DIR=$(mktemp -d)
   MOCK_ENV_FILE=$(mktemp)

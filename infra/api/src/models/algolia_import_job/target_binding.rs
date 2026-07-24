@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/models/algolia_import_job/target_binding.rs.
 use uuid::Uuid;
 
 use super::{
@@ -31,6 +32,7 @@ impl AlgoliaImportTargetBinding {
         }
     }
 
+    /// TODO: Document AlgoliaImportTargetBinding.replace.
     pub fn replace(
         customer_id: Uuid,
         logical_target: impl Into<String>,
@@ -64,6 +66,7 @@ impl AlgoliaImportTargetBinding {
         &self.region
     }
 
+    /// TODO: Document AlgoliaImportTargetBinding.validate.
     fn validate(
         &self,
         customer_id: Uuid,
@@ -92,6 +95,7 @@ impl AlgoliaImportTargetBinding {
 }
 
 impl NewAlgoliaReplaceImportJob {
+    /// TODO: Document NewAlgoliaReplaceImportJob.from_target_binding.
     pub fn from_target_binding(
         target_binding: AlgoliaImportTargetBinding,
         source: AlgoliaImportSource,
@@ -111,6 +115,7 @@ impl NewAlgoliaReplaceImportJob {
 }
 
 impl NewAlgoliaImportJob {
+    /// TODO: Document NewAlgoliaImportJob.create_from_target_binding.
     pub fn create_from_target_binding(
         target_binding: AlgoliaImportTargetBinding,
         source: AlgoliaImportSource,

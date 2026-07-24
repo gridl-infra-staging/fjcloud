@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/repos/pg_customer_repo/billing.rs.
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sqlx::PgPool;
@@ -5,6 +6,7 @@ use uuid::Uuid;
 
 use crate::repos::error::RepoError;
 
+/// TODO: Document set_stripe_customer_id.
 pub(super) async fn set_stripe_customer_id(
     pool: &PgPool,
     id: Uuid,
@@ -23,6 +25,7 @@ pub(super) async fn set_stripe_customer_id(
     Ok(result.rows_affected() > 0)
 }
 
+/// TODO: Document set_subscription_cycle_anchor.
 pub(super) async fn set_subscription_cycle_anchor(
     pool: &PgPool,
     id: Uuid,
@@ -41,6 +44,7 @@ pub(super) async fn set_subscription_cycle_anchor(
     Ok(result.rows_affected() > 0)
 }
 
+/// TODO: Document try_upgrade_to_shared_atomic.
 pub(super) async fn try_upgrade_to_shared_atomic(
     pool: &PgPool,
     id: Uuid,
@@ -61,6 +65,7 @@ pub(super) async fn try_upgrade_to_shared_atomic(
     Ok(upgraded_customer_id.is_some())
 }
 
+/// TODO: Document rollback_upgrade_to_free_atomic.
 pub(super) async fn rollback_upgrade_to_free_atomic(
     pool: &PgPool,
     id: Uuid,
@@ -84,6 +89,7 @@ pub(super) async fn rollback_upgrade_to_free_atomic(
     Ok(rolled_back_customer_id.is_some())
 }
 
+/// TODO: Document set_billing_plan.
 pub(super) async fn set_billing_plan(
     pool: &PgPool,
     id: Uuid,
@@ -115,6 +121,7 @@ pub(super) async fn suspend(pool: &PgPool, id: Uuid) -> Result<bool, RepoError> 
     Ok(result.rows_affected() > 0)
 }
 
+/// TODO: Document reactivate.
 pub(super) async fn reactivate(pool: &PgPool, id: Uuid) -> Result<bool, RepoError> {
     let mut tx = pool
         .begin()
@@ -143,6 +150,7 @@ pub(super) async fn reactivate(pool: &PgPool, id: Uuid) -> Result<bool, RepoErro
     Ok(result.rows_affected() > 0)
 }
 
+/// TODO: Document set_object_storage_egress_carryforward_cents.
 pub(super) async fn set_object_storage_egress_carryforward_cents(
     pool: &PgPool,
     id: Uuid,

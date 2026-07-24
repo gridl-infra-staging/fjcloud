@@ -1,0 +1,192 @@
+{
+  "result": {
+    "id": "380dec62-796c-4fe4-a9ab-fbc080b3e4c2",
+    "name": "flapjack-demo",
+    "subdomain": "flapjack-demo.pages.dev",
+    "domains": [
+      "flapjack-demo.pages.dev"
+    ],
+    "build_config": {
+      "web_analytics_tag": null,
+      "web_analytics_token": null
+    },
+    "deployment_configs": {
+      "preview": {
+        "env_vars": null,
+        "fail_open": true,
+        "always_use_latest_compatibility_date": false,
+        "compatibility_date": "2026-01-29",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": "standard"
+      },
+      "production": {
+        "env_vars": null,
+        "fail_open": true,
+        "always_use_latest_compatibility_date": false,
+        "compatibility_date": "2026-01-29",
+        "compatibility_flags": [],
+        "build_image_major_version": 3,
+        "usage_model": "standard"
+      }
+    },
+    "latest_deployment": {
+      "id": "4cc72af4-019d-4ea3-891c-2b85aa16879e",
+      "short_id": "4cc72af4",
+      "project_id": "380dec62-796c-4fe4-a9ab-fbc080b3e4c2",
+      "project_name": "flapjack-demo",
+      "environment": "production",
+      "url": "https://4cc72af4.flapjack-demo.pages.dev",
+      "created_on": "2026-07-06T19:22:25.326578Z",
+      "modified_on": "2026-07-06T19:22:26.628252Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-07-06T19:22:26.628252Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "401b8215e0c970670d5c3d0cb51f8601e6f4dc1d",
+          "commit_message": "Sync API docs shell bundle",
+          "commit_dirty": true
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-07-06T19:22:25.326578Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-06T19:22:26.628252Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": null,
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {},
+      "compatibility_date": "2026-01-29",
+      "compatibility_flags": [],
+      "build_image_major_version": 3,
+      "usage_model": null,
+      "aliases": null,
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": false
+    },
+    "canonical_deployment": {
+      "id": "4cc72af4-019d-4ea3-891c-2b85aa16879e",
+      "short_id": "4cc72af4",
+      "project_id": "380dec62-796c-4fe4-a9ab-fbc080b3e4c2",
+      "project_name": "flapjack-demo",
+      "environment": "production",
+      "url": "https://4cc72af4.flapjack-demo.pages.dev",
+      "created_on": "2026-07-06T19:22:25.326578Z",
+      "modified_on": "2026-07-06T19:22:26.628252Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-07-06T19:22:26.628252Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "401b8215e0c970670d5c3d0cb51f8601e6f4dc1d",
+          "commit_message": "Sync API docs shell bundle",
+          "commit_dirty": true
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-07-06T19:22:25.326578Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-06T19:22:26.628252Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": null,
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {},
+      "compatibility_date": "2026-01-29",
+      "compatibility_flags": [],
+      "build_image_major_version": 3,
+      "usage_model": null,
+      "aliases": null,
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": false
+    },
+    "created_on": "2026-01-29T06:29:06.851945Z",
+    "production_branch": "main",
+    "production_script_name": "pages-worker--10638157-production",
+    "preview_script_name": "pages-worker--10638157-preview",
+    "uses_functions": false,
+    "framework": "",
+    "framework_version": ""
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}

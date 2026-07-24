@@ -29,6 +29,7 @@ lane7_evidence_pointer_file=".lane7_evidence_dir"
 stage1_evidence_root_dir=""
 stage1_discovery_summary_file=""
 
+# TODO: Document assert_resource_ownership.
 assert_resource_ownership() {
   local resource_type="$1"
   local owner_file="$2"
@@ -49,6 +50,7 @@ assert_resource_ownership() {
   pass "$description"
 }
 
+# TODO: Document assert_role_name_owned_in_iam_root.
 assert_role_name_owned_in_iam_root() {
   local role_name="$1"
   local description="$2"
@@ -70,6 +72,7 @@ assert_role_name_owned_in_iam_root() {
   pass "$description"
 }
 
+# TODO: Document assert_role_name_absent_in_tf.
 assert_role_name_absent_in_tf() {
   local role_name="$1"
   local description="$2"
@@ -84,6 +87,7 @@ assert_role_name_absent_in_tf() {
   pass "$description"
 }
 
+# TODO: Document load_stage1_evidence_paths.
 load_stage1_evidence_paths() {
   local raw_pointer
 

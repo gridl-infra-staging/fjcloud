@@ -52,6 +52,7 @@ HEALTH_RETRY_INTERVAL="${HEALTH_RETRY_INTERVAL:-2}"
 TG_MAX_RETRIES="${TG_MAX_RETRIES:-12}"
 TG_RETRY_INTERVAL="${TG_RETRY_INTERVAL:-10}"
 
+# TODO: Document usage.
 usage() {
   cat <<USAGE
 Usage: $(basename "$0") [--api-ami-id <ami-id> --flapjack-ami-id <ami-id>] [options]
@@ -322,6 +323,7 @@ preflight_fail() {
 
 # --- Shared runtime assertion failure helper ---
 
+# TODO: Document runtime_fail.
 runtime_fail() {
   local code="$1"
   local check_name="$2"
@@ -352,6 +354,7 @@ Test manually with: aws sts get-caller-identity"
   evidence_log "preflight:aws_creds" "PASS"
 }
 
+# TODO: Document assert_ami_exists.
 assert_ami_exists() {
   local ami_id="$1"
   local label="$2"
@@ -369,6 +372,7 @@ Then pass the relevant AMI IDs via --api-ami-id and --flapjack-ami-id."
   evidence_log "preflight:ami_exists" "PASS"
 }
 
+# TODO: Document assert_release_artifact_exists.
 assert_release_artifact_exists() {
   if [[ -z "$RELEASE_SHA" ]]; then
     return 0
@@ -390,6 +394,7 @@ assert_release_artifact_exists() {
   evidence_log "preflight:release_artifact" "PASS"
 }
 
+# TODO: Document cloudflare_api_get.
 cloudflare_api_get() {
   local path="$1"
   if [[ -n "$CLOUDFLARE_API_TOKEN" ]]; then
@@ -570,6 +575,7 @@ cloudflare_record_matches_pages() {
     >/dev/null
 }
 
+# TODO: Document assert_acm_cert_issued.
 assert_acm_cert_issued() {
   local cert_arn status
   cert_arn=$(aws acm list-certificates \
@@ -597,6 +603,7 @@ Domain: ${DOMAIN}"
   evidence_log "assert:acm_cert_issued" "PASS"
 }
 
+# TODO: Document assert_alb_https_listener.
 assert_alb_https_listener() {
   local alb_arn listener_count
   alb_arn=$(aws elbv2 describe-load-balancers \
@@ -624,6 +631,7 @@ Expected: HTTPS listener on port 443."
   evidence_log "assert:alb_https_listener" "PASS"
 }
 
+# TODO: Document assert_target_group_healthy.
 assert_target_group_healthy() {
   local tg_arn healthy_count attempt=0
   tg_arn=$(aws elbv2 describe-target-groups \
@@ -700,6 +708,7 @@ assert_cloudflare_public_records() {
   evidence_log "assert:cloudflare_public_records" "PASS"
 }
 
+# TODO: Document assert_ses_identity_verified.
 assert_ses_identity_verified() {
   local identity_state verification_status dkim_status
   identity_state=$(aws sesv2 get-email-identity \
@@ -754,6 +763,7 @@ run_deploy_with_health_sampling() {
   fi
 }
 
+# TODO: Document assert_health_endpoint.
 assert_health_endpoint() {
   local tag="${1:-health_fail}"
   local code="${2:-$EXIT_HEALTH_FAIL}"

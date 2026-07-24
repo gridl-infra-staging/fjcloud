@@ -1,4 +1,7 @@
 /**
+ * @module Stub summary for web/src/routes/api/search/[name]/+server.ts.
+ */
+/**
  * Same-origin adapter from the dashboard search widget's batch envelope to the
  * authenticated control-plane search route.
  */
@@ -31,6 +34,9 @@ function parseRequests(body: unknown): InstantSearchRequest[] | null {
 	return body.requests as InstantSearchRequest[];
 }
 
+/**
+ * TODO: Document POST.
+ */
 export const POST: RequestHandler = async ({ request, locals, params }) => {
 	const sessionToken = locals.user?.token;
 	if (!sessionToken) {

@@ -1,3 +1,4 @@
+//! Stub summary for email_suppression.rs.
 use async_trait::async_trait;
 use sqlx::PgPool;
 use std::collections::HashSet;
@@ -50,6 +51,7 @@ impl EmailSuppressionStore for PgEmailSuppressionStore {
         .map_err(|error| format!("email suppression lookup failed: {error}"))
     }
 
+    /// TODO: Document PgEmailSuppressionStore.upsert_suppressed_recipient.
     async fn upsert_suppressed_recipient(
         &self,
         recipient_email: &str,

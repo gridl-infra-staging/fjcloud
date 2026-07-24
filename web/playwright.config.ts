@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for playwright.config.ts.
+ */
 import { randomBytes } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -57,6 +60,9 @@ const repoEnv = {
 };
 const webEnv = loadLayeredDotenv(webEnvPaths);
 
+/**
+ * TODO: Document applyWorkspaceScopedApiDefaults.
+ */
 function applyWorkspaceScopedApiDefaults(processEnv: Record<string, string | undefined>): void {
 	const hasWebPort = Boolean(processEnv[PLAYWRIGHT_WEB_PORT_ENV]?.trim());
 	const hasApiBaseUrl = Boolean(processEnv.API_BASE_URL?.trim());

@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/algolia_import/error_classifier.rs.
 use crate::models::AlgoliaImportErrorCode;
 
 use super::{AlgoliaImportEngineError, AlgoliaImportService};
@@ -16,6 +17,7 @@ pub struct AlgoliaImportEngineErrorClassification {
 }
 
 impl AlgoliaImportService {
+    /// TODO: Document AlgoliaImportService.classify_engine_error.
     pub fn classify_engine_error(
         operation: AlgoliaImportEngineOperation,
         error: &AlgoliaImportEngineError,

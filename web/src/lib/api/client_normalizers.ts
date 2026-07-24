@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for web/src/lib/api/client_normalizers.ts.
+ */
 import type {
 	AlgoliaMigrationAvailabilityResponse,
 	AlgoliaMigrationAvailabilityWire,
@@ -32,6 +35,9 @@ function normalizeStorageLimitMb(freeTierLimits: LegacyFreeTierLimits): number {
 	throw new Error('Onboarding free-tier limits must include max_storage_mb or max_storage_gb');
 }
 
+/**
+ * TODO: Document normalizeOnboardingStatus.
+ */
 export function normalizeOnboardingStatus(payload: LegacyOnboardingStatus): OnboardingStatus {
 	if (!payload.free_tier_limits) {
 		return {

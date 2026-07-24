@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for postgres_psql_helper.ts.
+ */
 import { execFileSync, spawnSync } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -29,6 +32,9 @@ export function quoteSqlLiteral(value: string): string {
 	return `'${value.replace(/'/g, "''")}'`;
 }
 
+/**
+ * TODO: Document runSqlWithPsqlFallback.
+ */
 export function runSqlWithPsqlFallback(databaseUrl: string, sql: string, context: string): string {
 	const connection = parsePostgresConnection(databaseUrl);
 	const psqlArgs = ['-v', 'ON_ERROR_STOP=1', '-tA', '-c', sql];

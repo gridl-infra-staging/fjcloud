@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/routes/auth.rs.
 mod contracts;
 
 use axum::extract::State;
@@ -106,6 +107,7 @@ pub async fn register(
     ))
 }
 
+/// TODO: Document rollback_failed_registration.
 async fn rollback_failed_registration(
     state: &AppState,
     customer_id: uuid::Uuid,

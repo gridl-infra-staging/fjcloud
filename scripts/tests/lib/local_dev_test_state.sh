@@ -32,6 +32,7 @@ backup_repo_path() {
     printf '%s\n' "$backup_path"
 }
 
+# TODO: Document restore_repo_path.
 restore_repo_path() {
     local original_path="$1"
     local backup_path="${2:-}"

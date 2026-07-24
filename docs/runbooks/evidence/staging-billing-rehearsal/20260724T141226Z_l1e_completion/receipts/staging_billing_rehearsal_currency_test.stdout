@@ -1,0 +1,44 @@
+=== staging_billing_rehearsal.sh deployable-currency contract tests ===
+PASS: rehearsal should fail with blocker exit
+PASS: artifact dir should match deterministic rehearsal pattern
+PASS: summary.json should exist
+PASS: preflight step artifact should exist
+PASS: metering evidence step artifact should exist
+PASS: live-mutation guard step artifact should exist
+PASS: live-mutation attempt step artifact should exist
+PASS: blocker summary should remain machine-readable
+PASS: preflight artifact should be valid JSON
+PASS: preflight artifact should preserve name field
+PASS: preflight artifact should include non-empty detail
+PASS: metering_evidence artifact should be valid JSON
+PASS: metering_evidence artifact should preserve name field
+PASS: metering_evidence artifact should include non-empty detail
+PASS: live_mutation_guard artifact should be valid JSON
+PASS: live_mutation_guard artifact should preserve name field
+PASS: live_mutation_guard artifact should include non-empty detail
+PASS: live_mutation_attempt artifact should be valid JSON
+PASS: live_mutation_attempt artifact should preserve name field
+PASS: live_mutation_attempt artifact should include non-empty detail
+PASS: deployable drift should emit a distinct refusal classification
+PASS: drift refusal summary should record the proved deployed dev_sha
+PASS: drift refusal summary should record structured deployable_drift=true
+PASS: deployable drift should be classified through the existing preflight owner seam
+PASS: deployable drift should refuse before health probing
+PASS: deployable drift should refuse before metering evidence
+PASS: deployable drift should refuse before live billing mutation
+PASS: rehearsal should succeed when live mutation evidence converges
+PASS: artifact dir should match deterministic rehearsal pattern
+PASS: summary.json should exist
+PASS: preflight step artifact should exist
+PASS: metering evidence step artifact should exist
+PASS: live-mutation guard step artifact should exist
+PASS: live-mutation attempt step artifact should exist
+PASS: success summary should remain machine-readable
+PASS: health step artifact should exist after preflight passes
+PASS: health step artifact should be valid JSON
+PASS: health step artifact should preserve name field
+PASS: success summary should record the proved deployed dev_sha
+PASS: success summary should record structured deployable_drift=false
+PASS: success summary should record structured doc_only_ahead=false
+
+=== Results: 41 passed, 0 failed ===

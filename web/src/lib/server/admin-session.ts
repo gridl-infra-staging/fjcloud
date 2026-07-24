@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for admin-session.ts.
+ */
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
 export const ADMIN_SESSION_COOKIE = 'admin_session_id';
@@ -30,6 +33,9 @@ function signToken(expiryEpochSeconds: number, signingKey: string): string {
 	return `${payload}.${mac}`;
 }
 
+/**
+ * TODO: Document verifyToken.
+ */
 function verifyToken(
 	token: string,
 	signingKey: string
@@ -61,6 +67,9 @@ function verifyToken(
 	return { valid: true, expiresAt };
 }
 
+/**
+ * TODO: Document createAdminSession.
+ */
 export function createAdminSession(maxAgeSeconds: number, signingKey?: string): AdminSession {
 	const now = new Date();
 	const expiresAt = new Date(now.getTime() + maxAgeSeconds * 1000);
@@ -80,6 +89,9 @@ export function createAdminSession(maxAgeSeconds: number, signingKey?: string): 
 
 const sessions = new Map<string, AdminSession>();
 
+/**
+ * TODO: Document getAdminSession.
+ */
 export function getAdminSession(
 	sessionId: string | undefined,
 	signingKey?: string
@@ -137,6 +149,9 @@ export interface RateLimitResult {
 	retryAfterSeconds?: number;
 }
 
+/**
+ * TODO: Document checkAdminLoginRateLimit.
+ */
 export function checkAdminLoginRateLimit(ip: string): RateLimitResult {
 	const now = Date.now();
 	const record = loginAttempts.get(ip);

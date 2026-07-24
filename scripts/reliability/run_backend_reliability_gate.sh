@@ -166,6 +166,7 @@ run_live_rust_validation_tests() {
         _integration_cargo_test --test platform integration_metering_pipeline_test::
 }
 
+# TODO: Document run_check_or_skip.
 run_check_or_skip() {
     local name="$1"
     local check_cmd="$2"
@@ -219,6 +220,7 @@ run_live_group() {
     fi
 }
 
+# TODO: Document run_backend_reliability_gate.
 run_backend_reliability_gate() {
     local run_compile=true
     local run_reliability=true

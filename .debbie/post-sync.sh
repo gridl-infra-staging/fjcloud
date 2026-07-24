@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
+# TODO: Document run_scrai_strip.
 run_scrai_strip() {
   local target="${1:?}"
   local repo_root=""
@@ -49,6 +50,7 @@ regenerate_openapi_artifact() {
   )
 }
 
+# TODO: Document run_post_strip_sync_commit_push.
 run_post_strip_sync_commit_push() {
   local target_root="${1:?}"
   local dirty_state=""

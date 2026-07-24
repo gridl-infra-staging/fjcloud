@@ -58,6 +58,7 @@ assert_contains_literal() {
     tr '[:space:]' ' ' < "$file_path" | tr -s ' ' | grep -Fq "$expected_literal"
 }
 
+# TODO: Document assert_path_specific_legal_copy.
 assert_path_specific_legal_copy() {
     local path="$1"
     local out_html="$2"
@@ -105,6 +106,7 @@ assert_path_specific_legal_copy() {
     return 0
 }
 
+# TODO: Document main.
 main() {
     cd "$REPO_ROOT"
 

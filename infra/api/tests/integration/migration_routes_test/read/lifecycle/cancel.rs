@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/tests/integration/migration_routes_test/read/lifecycle/cancel.rs.
 use super::super::super::*;
 use super::super::support::{
     get_json, post_job_action, seed_engine_linked_cancel_job, seed_retained_job_with_internals,
@@ -5,6 +6,7 @@ use super::super::support::{
     setup_algolia_cloud_job_lifecycle_app,
 };
 
+/// TODO: Document algolia_cloud_job_cancel_queued_owned_job_returns_accepted_public_cancelling.
 #[tokio::test]
 async fn algolia_cloud_job_cancel_queued_owned_job_returns_accepted_public_cancelling() {
     let db = connect_and_migrate_required("algolia_route_cancel_queued").await;
@@ -34,6 +36,7 @@ async fn algolia_cloud_job_cancel_queued_owned_job_returns_accepted_public_cance
     assert_eq!(http.request_count(), 0);
 }
 
+/// TODO: Document algolia_cloud_job_cancel_persists_before_send_and_retries_same_engine_intent.
 #[tokio::test]
 async fn algolia_cloud_job_cancel_persists_before_send_and_retries_same_engine_intent() {
     let db = connect_and_migrate_required("algolia_route_cancel_dispatch_retry").await;
@@ -117,6 +120,7 @@ async fn algolia_cloud_job_cancel_persists_before_send_and_retries_same_engine_i
     );
 }
 
+/// TODO: Document algolia_cloud_job_cancel_retains_vm_and_backpressure_ambiguity.
 #[tokio::test]
 async fn algolia_cloud_job_cancel_retains_vm_and_backpressure_ambiguity() {
     let db = connect_and_migrate_required("algolia_route_cancel_ambiguity").await;
@@ -171,6 +175,7 @@ async fn algolia_cloud_job_cancel_retains_vm_and_backpressure_ambiguity() {
     }));
 }
 
+/// TODO: Document algolia_cloud_job_cancel_too_late_retains_nonterminal_reconciliation_state.
 #[tokio::test]
 async fn algolia_cloud_job_cancel_too_late_retains_nonterminal_reconciliation_state() {
     let db = connect_and_migrate_required("algolia_route_cancel_too_late").await;
@@ -218,6 +223,7 @@ async fn algolia_cloud_job_cancel_too_late_retains_nonterminal_reconciliation_st
     assert_eq!(alerts.alert_count(), 0);
 }
 
+/// TODO: Document algolia_cloud_job_cancel_win_finalizes_terminal_truth.
 #[tokio::test]
 async fn algolia_cloud_job_cancel_win_finalizes_terminal_truth() {
     let db = connect_and_migrate_required("algolia_route_cancel_wins").await;
@@ -281,6 +287,7 @@ async fn algolia_cloud_job_cancel_win_finalizes_terminal_truth() {
     assert_eq!(alerts.alert_count(), 0);
 }
 
+/// TODO: Document algolia_cloud_job_cancel_rejects_deleted_customer_without_mutating_retained_job.
 #[tokio::test]
 async fn algolia_cloud_job_cancel_rejects_deleted_customer_without_mutating_retained_job() {
     let db = connect_and_migrate_required("algolia_route_cancel_deleted").await;
@@ -392,6 +399,7 @@ async fn algolia_cloud_job_cancel_replays_cancelled_as_ok_without_engine_request
     assert!(!reserved_after_ack);
 }
 
+/// TODO: Document algolia_cloud_job_cancel_missing_and_foreign_return_identical_404.
 #[tokio::test]
 async fn algolia_cloud_job_cancel_missing_and_foreign_return_identical_404() {
     let db = connect_and_migrate_required("algolia_route_cancel_404").await;
@@ -432,6 +440,7 @@ async fn algolia_cloud_job_cancel_missing_and_foreign_return_identical_404() {
     assert_eq!(foreign_status, "queued");
 }
 
+/// TODO: Document algolia_cloud_job_cancel_non_cancellable_states_return_stable_409.
 #[tokio::test]
 async fn algolia_cloud_job_cancel_non_cancellable_states_return_stable_409() {
     let db = connect_and_migrate_required("algolia_route_cancel_refused").await;
@@ -471,6 +480,7 @@ async fn algolia_cloud_job_cancel_non_cancellable_states_return_stable_409() {
     assert_eq!(http.request_count(), 0);
 }
 
+/// TODO: Document algolia_cloud_job_cancel_rejects_api_key_body_before_mutation.
 #[tokio::test]
 async fn algolia_cloud_job_cancel_rejects_api_key_body_before_mutation() {
     let db = connect_and_migrate_required("algolia_route_cancel_body").await;
@@ -520,6 +530,7 @@ async fn algolia_cloud_job_cancel_rejects_api_key_body_before_mutation() {
     assert!(!get_body.to_string().contains(credential_canary));
 }
 
+/// TODO: Document algolia_cloud_job_cancel_rejects_unknown_fields_before_mutation.
 #[tokio::test]
 async fn algolia_cloud_job_cancel_rejects_unknown_fields_before_mutation() {
     let db = connect_and_migrate_required("algolia_route_cancel_unknown_body").await;

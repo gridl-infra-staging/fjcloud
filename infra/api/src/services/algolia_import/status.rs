@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/services/algolia_import/status.rs.
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -31,6 +32,7 @@ struct AsyncMigrationStatusWire {
 impl TryFrom<AsyncMigrationStatusWire> for AsyncMigrationStatusResponse {
     type Error = &'static str;
 
+    /// TODO: Document AsyncMigrationStatusResponse.try_from.
     fn try_from(wire: AsyncMigrationStatusWire) -> Result<Self, Self::Error> {
         if wire.updated_at < wire.created_at {
             return Err("migration status updated time precedes its created time");

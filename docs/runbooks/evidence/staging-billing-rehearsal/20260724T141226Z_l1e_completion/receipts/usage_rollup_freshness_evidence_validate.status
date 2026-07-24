@@ -1,0 +1,9 @@
+command=jq -e '.query_outcome == "ok" and (.total_rows|type == "number") and (.fresh_rows|type == "number") and (.latest_aggregated_at|type == "string" and test("Z$")) and .fresh_rows > 0' "$COMPLETION_DIR/live_state/usage_rollup_freshness_staging.json"
+start_utc=2026-07-24T14:14:01Z
+end_utc=2026-07-24T14:14:01Z
+head_sha=5c951e4b3188c8b81ac268c95c4a23ef58c332ac
+clean_tree=False
+cached=false
+timeout_seconds=120
+timed_out=false
+exit_status=2

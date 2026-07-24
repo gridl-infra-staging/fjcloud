@@ -2,6 +2,7 @@
 
 BACKEND_GATE_FAIL_STATUSES="fail,live_evidence_gap,external_secret_missing"
 
+# TODO: Document parse_delegated_billing_summary.
 parse_delegated_billing_summary() {
     local json_body="$1"
     DELEGATED_JSON_RESULT=""
@@ -38,6 +39,7 @@ PY
     DELEGATED_JSON_CLASSIFICATION="$parsed_classification"
 }
 
+# TODO: Document emit_result_json.
 emit_result_json() {
     local verdict="$1"
     local mode="$2"
@@ -120,6 +122,7 @@ print(json.dumps(obj, sort_keys=True))
 '
 }
 
+# TODO: Document backend_gate_reason_from_json.
 backend_gate_reason_from_json() {
     local payload="$1"
     FAIL_STATUSES="$BACKEND_GATE_FAIL_STATUSES" python3 -c '

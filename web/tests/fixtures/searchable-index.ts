@@ -1,4 +1,7 @@
 /**
+ * @module Stub summary for web/tests/fixtures/searchable-index.ts.
+ */
+/**
  * Searchable index seeding — provisions Flapjack-backed indexes for E2E tests.
  *
  * Admin-side index creation uses the API admin endpoint. Document ingestion
@@ -253,6 +256,9 @@ async function sleepForApiBatchIngestRetry(
 	await sleep(Math.max(retryAfterMs, retryDelayMs));
 }
 
+/**
+ * TODO: Document normalizeSeedIndexAccess.
+ */
 function normalizeSeedIndexAccess(params: {
 	adminKey?: string;
 	customerId: string;
@@ -282,6 +288,9 @@ async function adminApiCallForTenant(
 	return apiCallWithJsonBody(fetchImpl, apiUrl, method, path, { 'x-admin-key': adminKey }, body);
 }
 
+/**
+ * TODO: Document customerApiCallForToken.
+ */
 async function customerApiCallForToken(
 	apiUrl: string,
 	token: string,
@@ -317,6 +326,9 @@ function buildAddDocumentsBatch(documents: Array<Record<string, unknown>>): {
 	};
 }
 
+/**
+ * TODO: Document ingestDocumentsViaFlapjack.
+ */
 async function ingestDocumentsViaFlapjack({
 	flapjackUrl,
 	flapjackIndexName,
@@ -349,6 +361,9 @@ async function ingestDocumentsViaFlapjack({
 	}
 }
 
+/**
+ * TODO: Document ingestDocumentsViaApiBatch.
+ */
 async function ingestDocumentsViaApiBatch({
 	apiCall,
 	indexName,
@@ -390,6 +405,9 @@ async function ingestDocumentsViaApiBatch({
 	throw new Error(`${errorPrefix}: API batch ingest failed after retries: ${lastFailure}`);
 }
 
+/**
+ * TODO: Document waitForExpectedSearchHit.
+ */
 async function waitForExpectedSearchHit({
 	apiCall,
 	indexName,
@@ -437,6 +455,9 @@ async function waitForExpectedSearchHit({
 	throw new Error(`${errorPrefix}: documents not searchable after ${maxAttempts} attempts`);
 }
 
+/**
+ * TODO: Document resolveMetricsReadyOptions.
+ */
 function resolveMetricsReadyOptions(
 	metricsReady: SearchableIndexMetricsReadyOptions | undefined,
 	documents: Array<Record<string, unknown>>
@@ -481,6 +502,9 @@ async function responseBodyText(response: Response): Promise<string> {
 	}
 }
 
+/**
+ * TODO: Document waitForMetricsReady.
+ */
 async function waitForMetricsReady({
 	apiCall,
 	indexName,
@@ -536,6 +560,9 @@ async function waitForMetricsReady({
 	);
 }
 
+/**
+ * TODO: Document buildSearchableIndexSeedResult.
+ */
 async function buildSearchableIndexSeedResult({
 	apiCall,
 	indexName,
@@ -657,6 +684,9 @@ async function ingestDocumentsWithSearchFallback({
 	}
 }
 
+/**
+ * TODO: Document waitForSeededIndexByToken.
+ */
 async function waitForSeededIndexByToken(
 	apiUrl: string,
 	token: string,
@@ -690,6 +720,9 @@ async function waitForSeededIndexByToken(
 	throw new Error(`seedIndexForCustomer readiness check timed out for "${name}"`);
 }
 
+/**
+ * TODO: Document createIndexWithTransientRetries.
+ */
 async function createIndexWithTransientRetries(params: {
 	createOnce: () => Promise<Response>;
 	errorPrefix: string;
@@ -729,6 +762,9 @@ async function createIndexWithTransientRetries(params: {
 	throw new Error(`${errorPrefix} after transient create retries: ${lastFailure}`);
 }
 
+/**
+ * TODO: Document createIndexForCustomerWithRetries.
+ */
 async function createIndexForCustomerWithRetries({
 	apiUrl,
 	adminKey,
@@ -760,6 +796,9 @@ async function createIndexForCustomerWithRetries({
 	});
 }
 
+/**
+ * TODO: Document createIndexForCustomerViaTokenWithRetries.
+ */
 async function createIndexForCustomerViaTokenWithRetries({
 	apiUrl,
 	token,
@@ -784,6 +823,9 @@ async function createIndexForCustomerViaTokenWithRetries({
 	});
 }
 
+/**
+ * TODO: Document createIndexKeyWithRetries.
+ */
 async function createIndexKeyWithRetries(
 	apiCall: ApiCallFn,
 	name: string,
@@ -827,6 +869,9 @@ async function createIndexKeyWithRetries(
 	throw new Error(`seedSearchableIndex: key creation failed after retries: ${lastFailure}`);
 }
 
+/**
+ * TODO: Document seedIndexForCustomerViaAdmin.
+ */
 export async function seedIndexForCustomerViaAdmin({
 	apiUrl,
 	adminKey,
@@ -858,6 +903,9 @@ export async function seedIndexForCustomerViaAdmin({
 	await waitForSeededIndexByToken(apiUrl, normalizedAccess.token, normalizedAccess.name, fetchImpl);
 }
 
+/**
+ * TODO: Document seedSearchableIndexForCustomer.
+ */
 export async function seedSearchableIndexForCustomer({
 	apiUrl,
 	adminKey,
@@ -968,6 +1016,9 @@ export async function seedSearchableIndexForCustomer({
 	});
 }
 
+/**
+ * TODO: Document createSeedSearchableIndexFactory.
+ */
 export function createSeedSearchableIndexFactory({
 	testRegion,
 	apiCall,

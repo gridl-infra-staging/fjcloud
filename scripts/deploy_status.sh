@@ -124,6 +124,7 @@ commits_behind_main() {
   git -C "$REPO_ROOT" rev-list --count "${deployed_sha}..${DEV_MAIN_SHA}" 2>/dev/null || echo "unknown"
 }
 
+# TODO: Document read_deployable_currency_field.
 read_deployable_currency_field() {
   local classifier_output="$1"
   local key="$2"

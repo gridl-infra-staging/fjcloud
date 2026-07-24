@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for search_url_state.ts.
+ */
 export type SearchUrlState = {
 	query: string;
 	page: number;
@@ -36,6 +39,9 @@ export function parseSearchUrlState(params: URLSearchParams): SearchUrlState {
 	};
 }
 
+/**
+ * TODO: Document buildSearchUrlWithState.
+ */
 export function buildSearchUrlWithState(currentUrl: string, state: SearchUrlState): string {
 	const url = new URL(currentUrl);
 	const mergedParams = new URLSearchParams(url.search);

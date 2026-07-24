@@ -19,6 +19,7 @@ die() {
     exit 1
 }
 
+# TODO: Document resolve_port_from_addr.
 resolve_port_from_addr() {
     local raw_addr="$1"
     local env_name="$2"
@@ -43,6 +44,7 @@ resolve_listen_port() {
     resolve_port_from_addr "${LISTEN_ADDR:-0.0.0.0:${default_api_port}}" "LISTEN_ADDR"
 }
 
+# TODO: Document resolve_default_s3_port.
 resolve_default_s3_port() {
     local explicit_s3_port="${PLAYWRIGHT_S3_PORT:-}"
     local default_api_port="${PLAYWRIGHT_API_PORT:-3001}"

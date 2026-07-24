@@ -1,0 +1,43 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "we_1TWqP5KH9mdklKeIzKuUptr7",
+      "object": "webhook_endpoint",
+      "api_version": null,
+      "application": null,
+      "created": 1778731063,
+      "description": null,
+      "enabled_events": [
+        "invoice.payment_succeeded",
+        "invoice.payment_failed",
+        "customer.subscription.updated",
+        "checkout.session.completed",
+        "setup_intent.succeeded"
+      ],
+      "livemode": false,
+      "metadata": {},
+      "status": "enabled",
+      "url": "https://api.staging.flapjack.foo/webhooks/stripe"
+    },
+    {
+      "id": "we_1TTIctKH9mdklKeInvtJXD9c",
+      "object": "webhook_endpoint",
+      "api_version": null,
+      "application": null,
+      "created": 1777886239,
+      "description": null,
+      "enabled_events": [
+        "invoice.payment_succeeded",
+        "invoice.payment_failed",
+        "invoice.payment_action_required"
+      ],
+      "livemode": false,
+      "metadata": {},
+      "status": "disabled",
+      "url": "https://api.flapjack.foo/webhooks/stripe"
+    }
+  ],
+  "has_more": false,
+  "url": "/v1/webhook_endpoints"
+}

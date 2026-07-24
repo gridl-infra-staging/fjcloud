@@ -66,6 +66,7 @@ _run_cargo_test_for_crate() {
     esac
 }
 
+# TODO: Document _run_cargo_tests.
 _run_cargo_tests() {
     local crates=(api billing pricing-calculator metering-agent aggregation-job)
     local entries=""
@@ -120,6 +121,7 @@ _is_dependency_source_failure() {
     return 1
 }
 
+# TODO: Document _run_shell_suites.
 _run_shell_suites() {
     local entries=""
     local suite
@@ -194,6 +196,7 @@ _run_backend_gate_json() {
     run_backend_launch_gate --sha="$sha"
 }
 
+# TODO: Document _assemble_evidence_json.
 _assemble_evidence_json() {
     local sha="$1"
     local branch="$2"
@@ -358,6 +361,7 @@ _next_evidence_path() {
     done
 }
 
+# TODO: Document _append_index_line.
 _append_index_line() {
     local evidence_dir="$1"
     local evidence_path="$2"
@@ -388,6 +392,7 @@ print(f"{ts} sha={sha} verdict={verdict} rust={rust_passed}/{rust_failed} shell=
     printf '%s\n' "$summary" >> "$index_file"
 }
 
+# TODO: Document collect_evidence.
 collect_evidence() {
     COLLECT_SHA=""
     COLLECT_EVIDENCE_DIR="${COLLECT_EVIDENCE_DIR:-$REPO_ROOT/docs/launch/evidence}"

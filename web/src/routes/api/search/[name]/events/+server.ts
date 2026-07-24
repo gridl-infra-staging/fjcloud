@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for web/src/routes/api/search/[name]/events/+server.ts.
+ */
 /** Same-origin JWT adapter for one query-correlated search preview event. */
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
@@ -5,6 +8,9 @@ import { ApiRequestError } from '$lib/api/client';
 import type { PreviewEventRequest } from '$lib/api/types';
 import { createApiClient } from '$lib/server/api';
 
+/**
+ * TODO: Document parseEvent.
+ */
 function parseEvent(body: unknown): PreviewEventRequest | null {
 	if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
 	const value = body as Record<string, unknown>;
@@ -28,6 +34,9 @@ function parseEvent(body: unknown): PreviewEventRequest | null {
 	};
 }
 
+/**
+ * TODO: Document POST.
+ */
 export const POST: RequestHandler = async ({ request, locals, params }) => {
 	const sessionToken = locals.user?.token;
 	if (!sessionToken) return json({ error: 'unauthorized' }, { status: 401 });

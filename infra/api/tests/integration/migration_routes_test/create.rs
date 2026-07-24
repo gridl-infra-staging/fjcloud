@@ -1,5 +1,7 @@
+//! Stub summary for infra/api/tests/integration/migration_routes_test/create.rs.
 use super::*;
 
+/// TODO: Document algolia_cloud_job_create_accepts_create_request_and_idempotent_replay.
 #[tokio::test]
 async fn algolia_cloud_job_create_accepts_create_request_and_idempotent_replay() {
     let _env = FlapjackIdentityEnvGuard::compatible();
@@ -96,6 +98,7 @@ async fn algolia_cloud_job_create_accepts_create_request_and_idempotent_replay()
     assert_eq!(flapjack_http.take_sensitive_requests().len(), 1);
 }
 
+/// TODO: Document algolia_cloud_job_create_retains_ambiguous_job_when_socket_result_is_lost.
 #[tokio::test]
 async fn algolia_cloud_job_create_retains_ambiguous_job_when_socket_result_is_lost() {
     let _env = FlapjackIdentityEnvGuard::compatible();
@@ -240,6 +243,7 @@ async fn algolia_cloud_job_create_retains_ambiguous_job_when_linkage_fails_after
     );
 }
 
+/// TODO: Document algolia_cloud_job_create_hygiene_distinguishes_public_app_id_from_secret_api_key.
 #[tokio::test]
 async fn algolia_cloud_job_create_hygiene_distinguishes_public_app_id_from_secret_api_key() {
     let _env = FlapjackIdentityEnvGuard::compatible();
@@ -297,6 +301,7 @@ async fn algolia_cloud_job_create_hygiene_distinguishes_public_app_id_from_secre
     );
 }
 
+/// TODO: Document algolia_cloud_job_create_rejects_deleted_customer_create_replay_and_new_key_without_mutating_retained_job.
 #[tokio::test]
 async fn algolia_cloud_job_create_rejects_deleted_customer_create_replay_and_new_key_without_mutating_retained_job(
 ) {
@@ -380,6 +385,7 @@ async fn algolia_cloud_job_create_rejects_deleted_customer_create_replay_and_new
     assert_eq!(flapjack_http.take_sensitive_requests().len(), 1);
 }
 
+/// TODO: Document algolia_cloud_job_create_accepts_replace_request_and_idempotent_replay.
 #[tokio::test]
 async fn algolia_cloud_job_create_accepts_replace_request_and_idempotent_replay() {
     let _env = FlapjackIdentityEnvGuard::compatible();
@@ -461,6 +467,7 @@ async fn algolia_cloud_job_create_accepts_replace_request_and_idempotent_replay(
     assert_eq!(flapjack_http.take_sensitive_requests().len(), 1);
 }
 
+/// TODO: Document algolia_cloud_job_create_rechecks_persisted_vm_before_sensitive_submit.
 #[tokio::test]
 async fn algolia_cloud_job_create_rechecks_persisted_vm_before_sensitive_submit() {
     let _env = FlapjackIdentityEnvGuard::compatible();
@@ -545,6 +552,7 @@ async fn algolia_cloud_job_create_rechecks_persisted_vm_before_sensitive_submit(
     assert!(!exposed.contains("drift-secret-canary"));
 }
 
+/// TODO: Document algolia_cloud_job_create_retains_retryable_pressure_without_sensitive_submit.
 #[tokio::test]
 async fn algolia_cloud_job_create_retains_retryable_pressure_without_sensitive_submit() {
     let _env = FlapjackIdentityEnvGuard::compatible();
@@ -647,6 +655,7 @@ async fn algolia_cloud_job_create_retains_retryable_pressure_without_sensitive_s
     assert!(!exposed.contains("pressure-secret-canary"));
 }
 
+/// TODO: Document algolia_cloud_job_create_maps_pinned_capacity_refusal_to_retained_pressure.
 #[tokio::test]
 async fn algolia_cloud_job_create_maps_pinned_capacity_refusal_to_retained_pressure() {
     let _env = FlapjackIdentityEnvGuard::compatible();
@@ -722,6 +731,7 @@ async fn algolia_cloud_job_create_maps_pinned_capacity_refusal_to_retained_press
     assert!(!exposed.contains("internal engine capacity detail"));
 }
 
+/// TODO: Document algolia_cloud_job_create_rejects_deleted_customer_replace_replay_and_new_key_without_mutating_retained_job.
 #[tokio::test]
 async fn algolia_cloud_job_create_rejects_deleted_customer_replace_replay_and_new_key_without_mutating_retained_job(
 ) {
@@ -847,6 +857,7 @@ async fn assert_ambiguous_without_engine_id(pool: &PgPool, id: Uuid) {
     assert_eq!(persisted.1, None);
 }
 
+/// TODO: Document assert_no_submit_canary_retained.
 fn assert_no_submit_canary_retained(
     api_key_canary: &str,
     app_id_canary: &str,
@@ -889,6 +900,7 @@ fn assert_no_submit_canary_retained(
     }
 }
 
+/// TODO: Document algolia_cloud_job_create_rejects_missing_credentials_without_source_call.
 #[tokio::test]
 async fn algolia_cloud_job_create_rejects_missing_credentials_without_source_call() {
     let db = connect_and_migrate_required("algolia_cloud_job_missing_creds").await;
@@ -917,6 +929,7 @@ async fn algolia_cloud_job_create_rejects_missing_credentials_without_source_cal
     assert_eq!(count_algolia_import_jobs(&db.pool).await, 0);
 }
 
+/// TODO: Document algolia_cloud_job_create_rejects_missing_source_permission_without_persisting.
 #[tokio::test]
 async fn algolia_cloud_job_create_rejects_missing_source_permission_without_persisting() {
     let Some(db) = connect_and_migrate("algolia_cloud_job_missing_acl").await else {
@@ -976,6 +989,7 @@ async fn algolia_cloud_job_create_rejects_final_key_source_permission_without_pe
     assert_eq!(count_algolia_import_jobs(&db.pool).await, 0);
 }
 
+/// TODO: Document algolia_cloud_job_inspect_source_tracing_never_reveals_temporary_key.
 #[test]
 fn algolia_cloud_job_inspect_source_tracing_never_reveals_temporary_key() {
     let _guard = tracing_test_lock();
@@ -1032,6 +1046,7 @@ fn algolia_cloud_job_inspect_source_tracing_never_reveals_temporary_key() {
     assert!(!output.contains(source_name));
 }
 
+/// TODO: Document algolia_cloud_job_create_rejects_source_not_found_without_persisting.
 #[tokio::test]
 async fn algolia_cloud_job_create_rejects_source_not_found_without_persisting() {
     let db = connect_and_migrate_required("algolia_cloud_job_source_missing").await;
@@ -1058,6 +1073,7 @@ async fn algolia_cloud_job_create_rejects_source_not_found_without_persisting() 
     assert_eq!(count_algolia_import_jobs(&db.pool).await, 0);
 }
 
+/// TODO: Document algolia_cloud_job_create_unavailable_source_returns_retryable_503.
 #[tokio::test]
 async fn algolia_cloud_job_create_unavailable_source_returns_retryable_503() {
     let Some(db) = connect_and_migrate("algolia_cloud_job_source_down").await else {
@@ -1107,6 +1123,7 @@ async fn algolia_cloud_job_create_unavailable_source_returns_retryable_503() {
     assert_eq!(count_algolia_import_jobs(&db.pool).await, 0);
 }
 
+/// TODO: Document algolia_cloud_job_create_rejects_tampered_eligibility_before_source.
 #[tokio::test]
 async fn algolia_cloud_job_create_rejects_tampered_eligibility_before_source() {
     let Some(db) = connect_and_migrate("algolia_cloud_job_tampered_create").await else {
@@ -1139,6 +1156,7 @@ async fn algolia_cloud_job_create_rejects_tampered_eligibility_before_source() {
     assert_eq!(count_algolia_import_jobs(&db.pool).await, 0);
 }
 
+/// TODO: Document algolia_cloud_job_create_rejects_unknown_request_field.
 #[tokio::test]
 async fn algolia_cloud_job_create_rejects_unknown_request_field() {
     let Some(db) = connect_and_migrate("algolia_cloud_job_unknown_field").await else {
@@ -1169,6 +1187,7 @@ async fn algolia_cloud_job_create_rejects_unknown_request_field() {
     assert_eq!(count_algolia_import_jobs(&db.pool).await, 0);
 }
 
+/// TODO: Document algolia_cloud_job_create_replace_rejects_stale_generation_binding.
 #[tokio::test]
 async fn algolia_cloud_job_create_replace_rejects_stale_generation_binding() {
     let Some(db) = connect_and_migrate("algolia_cloud_job_stale_binding").await else {
@@ -1216,6 +1235,7 @@ async fn algolia_cloud_job_create_replace_rejects_stale_generation_binding() {
     assert_eq!(count_algolia_import_jobs(&db.pool).await, 0);
 }
 
+/// TODO: Document algolia_cloud_job_create_rejects_when_exposure_disabled.
 #[tokio::test]
 async fn algolia_cloud_job_create_rejects_when_exposure_disabled() {
     let Some(db) = connect_and_migrate("algolia_cloud_job_exposure_off").await else {

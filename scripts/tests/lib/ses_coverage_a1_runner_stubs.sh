@@ -92,6 +92,7 @@ STUB_TAIL
     chmod +x "$stub_path"
 }
 
+# TODO: Document write_git_stub.
 write_git_stub() {
     local stub_path="$1" repo_root="$2" mode="${3:-success}"
     cat > "$stub_path" <<GITSTUB
@@ -164,6 +165,7 @@ GITSTUB_TAIL
     chmod +x "$stub_path"
 }
 
+# TODO: Document write_aws_stub.
 write_aws_stub() {
     local stub_path="$1" mode="${2:-success}"
     cat > "$stub_path" <<AWSSTUB
@@ -219,6 +221,7 @@ AWS_DEFAULT_REGION=us-east-1
 ENVFILE
 }
 
+# TODO: Document write_deploy_status_fixture.
 write_deploy_status_fixture() {
     local stub_path="$1" mode="${2:-green}"
     cat > "$stub_path" <<STATUSSTUB

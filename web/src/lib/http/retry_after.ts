@@ -1,3 +1,9 @@
+/**
+ * @module Stub summary for retry_after.ts.
+ */
+/**
+ * TODO: Document parseRetryAfterSeconds.
+ */
 export function parseRetryAfterSeconds(value: unknown): number | null {
 	if (typeof value === 'number') {
 		return Number.isInteger(value) && value > 0 ? value : null;

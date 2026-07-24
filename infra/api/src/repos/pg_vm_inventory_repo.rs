@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/repos/pg_vm_inventory_repo.rs.
 use async_trait::async_trait;
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
@@ -151,6 +152,7 @@ impl VmInventoryRepo for PgVmInventoryRepo {
         Ok(())
     }
 
+    /// TODO: Document PgVmInventoryRepo.retirement_blockers.
     async fn retirement_blockers(
         &self,
         id: Uuid,
@@ -182,6 +184,7 @@ impl VmInventoryRepo for PgVmInventoryRepo {
         Ok(assessment)
     }
 
+    /// TODO: Document PgVmInventoryRepo.decommission_if_unreferenced.
     async fn decommission_if_unreferenced(
         &self,
         id: Uuid,

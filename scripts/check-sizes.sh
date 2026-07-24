@@ -93,6 +93,7 @@ assert_unique_override_paths() {
 
 assert_unique_override_paths
 
+# TODO: Document check_file_size.
 check_file_size() {
     local file="$1"
     local line_count limit relative_path override_entry override_path override_limit

@@ -124,6 +124,7 @@ def dedupe_text(text: str):
 
 
 def main() -> int:
+    """TODO: Document main."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("paths", nargs="+", help="DIRMAP.md files to process")
     parser.add_argument(

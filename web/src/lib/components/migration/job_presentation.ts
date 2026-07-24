@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for web/src/lib/components/migration/job_presentation.ts.
+ */
 import type {
 	AlgoliaImportJobStatus,
 	AlgoliaMigrationCapabilities,
@@ -182,6 +185,9 @@ export function describeAlgoliaImportError(error: PublicAlgoliaImportError | nul
 	return error === null ? null : ERROR_COPY[error.code];
 }
 
+/**
+ * TODO: Document algoliaImportSummaryRows.
+ */
 export function algoliaImportSummaryRows(job: PublicAlgoliaImportJob): AlgoliaImportSummaryRow[] {
 	const { summary } = job;
 	return [
@@ -212,6 +218,9 @@ export function algoliaImportSummaryRows(job: PublicAlgoliaImportJob): AlgoliaIm
 	];
 }
 
+/**
+ * TODO: Document describeAlgoliaImportPublicationDisposition.
+ */
 export function describeAlgoliaImportPublicationDisposition(
 	job: PublicAlgoliaImportJob
 ): AlgoliaImportDispositionPresentation {
@@ -238,6 +247,9 @@ export function describeAlgoliaImportPublicationDisposition(
 	}
 }
 
+/**
+ * TODO: Document describeAlgoliaImportAdmission.
+ */
 export function describeAlgoliaImportAdmission(
 	admission: AlgoliaImportAdmission = ADMITTED
 ): AlgoliaImportAdmissionPresentation {
@@ -262,6 +274,9 @@ export function describeAlgoliaImportAdmission(
 	};
 }
 
+/**
+ * TODO: Document describeAlgoliaImportJobActions.
+ */
 export function describeAlgoliaImportJobActions(
 	job: PublicAlgoliaImportJob,
 	admission: AlgoliaImportAdmission = ADMITTED,

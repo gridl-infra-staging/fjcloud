@@ -1,3 +1,6 @@
+/**
+ * @module Stub summary for recommendations-management.server.ts.
+ */
 import { fail } from '@sveltejs/kit';
 import { sanitizeRecommendationRequest } from '$lib/recommendations/config';
 import { createApiClient } from '$lib/server/api';
@@ -20,6 +23,9 @@ function failForRecommendationAction<T extends Record<string, unknown>>(
 	return fail(400, payload);
 }
 
+/**
+ * TODO: Document recommendAction.
+ */
 export async function recommendAction({ request, indexName, token }: RecommendationActionArgs) {
 	const data = await request.formData();
 	const rawRequest = (data.get('request') as string)?.trim();

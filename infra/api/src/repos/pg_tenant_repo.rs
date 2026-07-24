@@ -1,3 +1,4 @@
+//! Stub summary for infra/api/src/repos/pg_tenant_repo.rs.
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Postgres, Transaction};
@@ -126,6 +127,7 @@ impl TenantRepo for PgTenantRepo {
         })
     }
 
+    /// TODO: Document PgTenantRepo.create_lifecycle_intent.
     async fn create_lifecycle_intent(
         &self,
         customer_id: Uuid,
@@ -147,6 +149,7 @@ impl TenantRepo for PgTenantRepo {
         Ok(tenant)
     }
 
+    /// TODO: Document PgTenantRepo.publish_delete_lifecycle_intent.
     async fn publish_delete_lifecycle_intent(
         &self,
         customer_id: Uuid,
@@ -197,6 +200,7 @@ impl TenantRepo for PgTenantRepo {
         }
     }
 
+    /// TODO: Document PgTenantRepo.publish_lifecycle_placement.
     async fn publish_lifecycle_placement(
         &self,
         customer_id: Uuid,
@@ -223,6 +227,7 @@ impl TenantRepo for PgTenantRepo {
         Ok(tenant)
     }
 
+    /// TODO: Document PgTenantRepo.remove_lifecycle_intent.
     async fn remove_lifecycle_intent(
         &self,
         customer_id: Uuid,

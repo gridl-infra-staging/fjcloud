@@ -1,3 +1,5 @@
+//! Stub summary for infra/api/src/services/email/templates.rs.
+
 use super::{
     normalize_app_base_url, DEFAULT_APP_BASE_URL, INVOICE_READY_TEMPLATE_HTML,
     PASSWORD_RESET_TEMPLATE_HTML, QUOTA_WARNING_TEMPLATE_HTML, VERIFICATION_TEMPLATE_HTML,
@@ -198,6 +200,7 @@ mod tests {
         assert!(!html.contains(r#"<script>alert(1)</script>"#));
     }
 
+    /// TODO: Document invoice_ready_email_html_escapes_text_and_rejects_script_hrefs.
     #[test]
     fn invoice_ready_email_html_escapes_text_and_rejects_script_hrefs() {
         let html = invoice_ready_email_html(

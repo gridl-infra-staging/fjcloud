@@ -1502,6 +1502,16 @@ test_caller_runner_override_is_documented() {
     "production caller runner test override is documented"
 }
 
+test_empty_secret_placeholders_have_gitleaks_rationale() {
+  assert_contains "$(grep -E '^PROBE_ADMIN_KEY=""' "$TARGET_SCRIPT")" \
+    "gitleaks:allow -- adjacent empty variable names, no credential literal" \
+    "empty probe admin key placeholder has scoped gitleaks rationale"
+  assert_contains "$(grep -E '^TENANT_TOKEN=""' "$TARGET_SCRIPT")" \
+    "gitleaks:allow -- adjacent empty variable names, no credential literal" \
+    "empty tenant token placeholder has scoped gitleaks rationale"
+}
+
+test_empty_secret_placeholders_have_gitleaks_rationale
 test_success_emits_noninflated_catalog_and_lifecycle_evidence
 test_default_runner_produces_validated_source_built_evidence
 test_default_runner_rejects_released_live_job_during_scenario_execution

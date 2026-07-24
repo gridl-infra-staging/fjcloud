@@ -101,6 +101,13 @@ regexes = [
     # two lines and extract the literal `IDEMPOTENCY_KEY=` as its "secret".
     # Match only that empty extracted value; any populated key still scans.
     '''^IDEMPOTENCY_KEY=$''',
+    # The catalog live probe initializes adjacent sensitive shell variables to
+    # empty strings before generating disposable runtime credentials. The
+    # generic-api-key rule spans those empty assignments and extracts the next
+    # empty placeholder name as the "secret"; populated values do not match
+    # these exact regexes and still scan normally.
+    '''^INTEGRATION_DB_EFFECTIVE=$''',
+    '''^DISPOSABLE_KEY=$''',
     # AWS AMI IDs are public resource identifiers, not credentials. Terraform
     # examples and live-evidence wrappers use api_ami_id/flapjack_ami_id
     # variables heavily; gitleaks generic-api-key flags those values because

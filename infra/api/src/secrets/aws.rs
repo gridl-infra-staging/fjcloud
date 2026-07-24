@@ -59,10 +59,8 @@ impl SsmNodeSecretManager {
         let node_id = path
             .strip_suffix(PREVIOUS_NODE_KEY_SUFFIX)
             .or_else(|| path.strip_suffix(NODE_KEY_SUFFIX))?;
-        (!node_id.is_empty()
-            && !node_id.contains('/')
-            && !node_id.chars().any(char::is_control))
-        .then_some(node_id)
+        (!node_id.is_empty() && !node_id.contains('/') && !node_id.chars().any(char::is_control))
+            .then_some(node_id)
     }
 
     async fn delete_parameter_if_present(&self, param_name: &str) -> Result<(), NodeSecretError> {

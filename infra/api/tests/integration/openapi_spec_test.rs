@@ -276,14 +276,18 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
         "list-indexes hitsPerPage must remain an optional nullable integer override"
     );
     assert_eq!(
-        spec.pointer("/components/schemas/ListAlgoliaIndexesRequest/properties/hitsPerPage/minimum")
-            .and_then(|value| value.as_u64()),
+        spec.pointer(
+            "/components/schemas/ListAlgoliaIndexesRequest/properties/hitsPerPage/minimum"
+        )
+        .and_then(|value| value.as_u64()),
         Some(1),
         "list-indexes hitsPerPage must reject zero and negative values at the contract boundary"
     );
     assert_eq!(
-        spec.pointer("/components/schemas/ListAlgoliaIndexesRequest/properties/hitsPerPage/maximum")
-            .and_then(|value| value.as_u64()),
+        spec.pointer(
+            "/components/schemas/ListAlgoliaIndexesRequest/properties/hitsPerPage/maximum"
+        )
+        .and_then(|value| value.as_u64()),
         Some(100),
         "list-indexes hitsPerPage must cap authenticated discovery page fan-out"
     );

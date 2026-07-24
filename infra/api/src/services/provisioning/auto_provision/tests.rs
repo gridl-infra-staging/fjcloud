@@ -565,17 +565,17 @@ fn engine_data_plane_tls_enabled_fails_closed_for_invalid_or_blank_values() {
 use std::sync::Mutex;
 
 /// Serializes tests that mutate local-dev topology env vars (process-global).
-static LOCAL_DEV_ENV_LOCK: Mutex<()> = Mutex::new(());
+pub(super) static LOCAL_DEV_ENV_LOCK: Mutex<()> = Mutex::new(());
 
 /// RAII guard that sets an env var for the test and restores the previous
 /// value on drop. Same pattern used in provisioning.rs tests.
-struct EnvVarGuard {
+pub(super) struct EnvVarGuard {
     key: &'static str,
     previous: Option<String>,
 }
 
 impl EnvVarGuard {
-    fn set(key: &'static str, value: Option<&str>) -> Self {
+    pub(super) fn set(key: &'static str, value: Option<&str>) -> Self {
         let previous = std::env::var(key).ok();
         match value {
             Some(v) => unsafe { std::env::set_var(key, v) },
@@ -594,7 +594,7 @@ impl Drop for EnvVarGuard {
     }
 }
 
-fn clear_local_dev_topology_env() -> (EnvVarGuard, EnvVarGuard) {
+pub(super) fn clear_local_dev_topology_env() -> (EnvVarGuard, EnvVarGuard) {
     (
         EnvVarGuard::set("FLAPJACK_REGIONS", None),
         EnvVarGuard::set("FLAPJACK_SINGLE_INSTANCE", None),
@@ -602,24 +602,24 @@ fn clear_local_dev_topology_env() -> (EnvVarGuard, EnvVarGuard) {
 }
 
 /// Minimal in-memory VmInventoryRepo mock for unit tests.
-struct InMemoryVmRepo {
-    vms: Mutex<Vec<VmInventory>>,
+pub(super) struct InMemoryVmRepo {
+    pub(super) vms: Mutex<Vec<VmInventory>>,
 }
 
 impl InMemoryVmRepo {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             vms: Mutex::new(Vec::new()),
         }
     }
 
-    fn with_vm(vm: VmInventory) -> Self {
+    pub(super) fn with_vm(vm: VmInventory) -> Self {
         Self {
             vms: Mutex::new(vec![vm]),
         }
     }
 
-    fn make_vm(hostname: &str, region: &str) -> VmInventory {
+    pub(super) fn make_vm(hostname: &str, region: &str) -> VmInventory {
         VmInventory {
             id: Uuid::new_v4(),
             region: region.to_string(),
@@ -775,139 +775,4 @@ impl VmInventoryRepo for InMemoryVmRepo {
             .find(|v| v.hostname == hostname)
             .cloned())
     }
-}
-
-#[tokio::test]
-async fn try_local_dev_provision_reuses_existing_vm() {
-    let _lock = LOCAL_DEV_ENV_LOCK.lock().unwrap();
-    let (_regions_guard, _single_instance_guard) = clear_local_dev_topology_env();
-    let _guard = EnvVarGuard::set("LOCAL_DEV_FLAPJACK_URL", Some("http://127.0.0.1:6333"));
-    let existing = InMemoryVmRepo::make_vm("local-dev-us-east-1", "us-east-1");
-    let expected_id = existing.id;
-    let repo = InMemoryVmRepo::with_vm(existing);
-
-    let result = try_local_dev_provision(&repo, "us-east-1", "aws")
-        .await
-        .expect("should succeed");
-
-    let vm = result.expect("should return Some(vm)");
-    assert_eq!(vm.id, expected_id, "should reuse the existing VM");
-    assert_eq!(vm.hostname, "local-dev-us-east-1");
-}
-
-#[tokio::test]
-async fn try_local_dev_provision_creates_new_vm() {
-    let _lock = LOCAL_DEV_ENV_LOCK.lock().unwrap();
-    let (_regions_guard, _single_instance_guard) = clear_local_dev_topology_env();
-    let _guard = EnvVarGuard::set("LOCAL_DEV_FLAPJACK_URL", Some("http://127.0.0.1:6333"));
-    let repo = InMemoryVmRepo::new();
-
-    let result = try_local_dev_provision(&repo, "eu-west-1", "hetzner")
-        .await
-        .expect("should succeed");
-
-    let vm = result.expect("should return Some(vm)");
-    assert_eq!(vm.hostname, "local-dev-eu-west-1");
-    assert_eq!(vm.provider, "local");
-    assert_eq!(vm.flapjack_url, "http://127.0.0.1:6333");
-    // Verify the VM was persisted in the repo
-    assert_eq!(repo.vms.lock().unwrap().len(), 1);
-}
-
-#[tokio::test]
-async fn try_local_dev_provision_prefers_region_specific_url_from_flapjack_regions() {
-    let _lock = LOCAL_DEV_ENV_LOCK.lock().unwrap();
-    let _single_instance_guard = EnvVarGuard::set("FLAPJACK_SINGLE_INSTANCE", None);
-    let _local_guard = EnvVarGuard::set("LOCAL_DEV_FLAPJACK_URL", Some("http://127.0.0.1:6333"));
-    let _regions_guard = EnvVarGuard::set(
-        "FLAPJACK_REGIONS",
-        Some("us-east-1:7700 eu-west-1:7701 eu-central-1:7702"),
-    );
-    let repo = InMemoryVmRepo::new();
-
-    let result = try_local_dev_provision(&repo, "eu-west-1", "hetzner")
-        .await
-        .expect("should succeed");
-
-    let vm = result.expect("should return Some(vm)");
-    assert_eq!(vm.hostname, "local-dev-eu-west-1");
-    assert_eq!(
-        vm.flapjack_url, "http://127.0.0.1:7701",
-        "should use the target region port instead of the shared LOCAL_DEV_FLAPJACK_URL"
-    );
-}
-
-#[tokio::test]
-async fn try_local_dev_provision_ignores_region_specific_urls_when_single_instance_is_forced() {
-    let _lock = LOCAL_DEV_ENV_LOCK.lock().unwrap();
-    let _local_guard = EnvVarGuard::set("LOCAL_DEV_FLAPJACK_URL", Some("http://127.0.0.1:6333"));
-    let _regions_guard = EnvVarGuard::set(
-        "FLAPJACK_REGIONS",
-        Some("us-east-1:7700 eu-west-1:7701 eu-central-1:7702"),
-    );
-    let _single_instance_guard = EnvVarGuard::set("FLAPJACK_SINGLE_INSTANCE", Some("1"));
-    let repo = InMemoryVmRepo::new();
-
-    let result = try_local_dev_provision(&repo, "eu-west-1", "hetzner")
-        .await
-        .expect("should succeed");
-
-    let vm = result.expect("should return Some(vm)");
-    assert_eq!(vm.hostname, "local-dev-eu-west-1");
-    assert_eq!(
-        vm.flapjack_url, "http://127.0.0.1:6333",
-        "single-instance mode should keep using LOCAL_DEV_FLAPJACK_URL"
-    );
-}
-
-#[tokio::test]
-async fn try_local_dev_provision_returns_none_without_env_var() {
-    let _lock = LOCAL_DEV_ENV_LOCK.lock().unwrap();
-    let (_regions_guard, _single_instance_guard) = clear_local_dev_topology_env();
-    let _guard = EnvVarGuard::set("LOCAL_DEV_FLAPJACK_URL", None);
-    let repo = InMemoryVmRepo::new();
-
-    let result = try_local_dev_provision(&repo, "us-east-1", "aws")
-        .await
-        .expect("should succeed");
-
-    assert!(result.is_none(), "should return None when env var is unset");
-}
-
-#[tokio::test]
-async fn try_local_dev_provision_ignores_invalid_local_dev_url() {
-    let _lock = LOCAL_DEV_ENV_LOCK.lock().unwrap();
-    let (_regions_guard, _single_instance_guard) = clear_local_dev_topology_env();
-    let _guard = EnvVarGuard::set("LOCAL_DEV_FLAPJACK_URL", Some("https://example.com"));
-    let repo = InMemoryVmRepo::new();
-
-    let result = try_local_dev_provision(&repo, "us-east-1", "aws")
-        .await
-        .expect("invalid fallback URL should leave the real provisioner path in charge");
-
-    assert!(
-        result.is_none(),
-        "invalid fallback URL must not activate the local-dev bypass"
-    );
-}
-
-#[tokio::test]
-async fn try_local_dev_provision_errors_on_invalid_region_specific_port() {
-    let _lock = LOCAL_DEV_ENV_LOCK.lock().unwrap();
-    let _local_guard = EnvVarGuard::set("LOCAL_DEV_FLAPJACK_URL", Some("http://127.0.0.1:6333"));
-    let _regions_guard = EnvVarGuard::set(
-        "FLAPJACK_REGIONS",
-        Some("us-east-1:7700 eu-west-1:7701@evil.test"),
-    );
-    let _single_instance_guard = EnvVarGuard::set("FLAPJACK_SINGLE_INSTANCE", None);
-    let repo = InMemoryVmRepo::new();
-
-    let err = try_local_dev_provision(&repo, "eu-west-1", "hetzner")
-        .await
-        .expect_err("should reject non-numeric FLAPJACK_REGIONS ports");
-
-    assert!(
-        err.to_string().contains("FLAPJACK_REGIONS"),
-        "error should explain the invalid region-specific flapjack contract"
-    );
 }

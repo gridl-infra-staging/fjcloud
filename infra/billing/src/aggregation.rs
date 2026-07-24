@@ -135,6 +135,10 @@ mod tests {
         NaiveDate::from_ymd_opt(2026, 2, d).unwrap()
     }
 
+    fn date(year: i32, month: u32, day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(year, month, day).unwrap()
+    }
+
     /// Test helper: constructs a `DailyUsageRecord` in the `"us-east-1"` region with the given
     /// customer, date, search count, write count, and raw storage bytes. `documents_count_avg` is
     /// always zero — tests that need document counts should mutate the returned record.
@@ -214,6 +218,35 @@ mod tests {
     }
 
     #[test]
+    fn constant_2mb_storage_for_31_day_month_is_2_mb_months() {
+        use crate::types::BYTES_PER_MB;
+        let cid = Uuid::new_v4();
+        let two_mb = BYTES_PER_MB * 2;
+        let records: Vec<_> = (1..=31)
+            .map(|d| make_record(cid, date(2026, 1, d), 0, 0, two_mb))
+            .collect();
+
+        let summaries = summarize(&records, date(2026, 1, 1), date(2026, 1, 31), &no_ctx());
+
+        // 31 * 2_000_000 / 1_000_000 / 31 = 2.0
+        assert_eq!(summaries[0].storage_mb_months, dec!(2));
+    }
+
+    #[test]
+    fn constant_1mb_storage_for_leap_february_is_1_mb_month() {
+        use crate::types::BYTES_PER_MB;
+        let cid = Uuid::new_v4();
+        let records: Vec<_> = (1..=29)
+            .map(|d| make_record(cid, date(2024, 2, d), 0, 0, BYTES_PER_MB))
+            .collect();
+
+        let summaries = summarize(&records, date(2024, 2, 1), date(2024, 2, 29), &no_ctx());
+
+        // 29_000_000 / 1_000_000 / 29 = 1.0
+        assert_eq!(summaries[0].storage_mb_months, dec!(1));
+    }
+
+    #[test]
     fn storage_grows_over_period_gives_correct_average_mb() {
         use crate::types::BYTES_PER_MB;
         let cid = Uuid::new_v4();
@@ -227,6 +260,22 @@ mod tests {
         let summaries = summarize(&records, start, end, &no_ctx());
 
         // 14 days at 0 + 14 days at 2 MB = 28 MB total / 28 days = 1 MB-month
+        assert_eq!(summaries[0].storage_mb_months, dec!(1));
+    }
+
+    #[test]
+    fn sparse_2mb_storage_records_use_full_period_divisor() {
+        use crate::types::BYTES_PER_MB;
+        let cid = Uuid::new_v4();
+        let two_mb = BYTES_PER_MB * 2;
+        let records: Vec<_> = (15..=28)
+            .map(|d| make_record(cid, day(d), 0, 0, two_mb))
+            .collect();
+
+        let (start, end) = feb();
+        let summaries = summarize(&records, start, end, &no_ctx());
+
+        // 28_000_000 / 1_000_000 / 28 = 1.0
         assert_eq!(summaries[0].storage_mb_months, dec!(1));
     }
 

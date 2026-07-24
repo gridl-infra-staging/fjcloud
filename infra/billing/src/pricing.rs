@@ -187,6 +187,83 @@ mod tests {
         assert!(!calc.minimum_applied);
     }
 
+    #[test]
+    fn half_cent_hot_storage_rounds_to_nearest_even_cent() {
+        let rate = test_rate_card();
+
+        let calc = calculate_invoice(
+            &MonthlyUsageSummary {
+                storage_mb_months: dec!(0.1),
+                ..zero_usage(Uuid::new_v4())
+            },
+            &rate,
+        );
+        // 0.1 MB × 5¢ = 0.5¢ → 0¢.
+        assert_eq!(calc.line_items[0].amount_cents, 0);
+
+        let calc = calculate_invoice(
+            &MonthlyUsageSummary {
+                storage_mb_months: dec!(0.3),
+                ..zero_usage(Uuid::new_v4())
+            },
+            &rate,
+        );
+        // 0.3 MB × 5¢ = 1.5¢ → 2¢.
+        assert_eq!(calc.line_items[0].amount_cents, 2);
+
+        let calc = calculate_invoice(
+            &MonthlyUsageSummary {
+                storage_mb_months: dec!(0.5),
+                ..zero_usage(Uuid::new_v4())
+            },
+            &rate,
+        );
+        // 0.5 MB × 5¢ = 2.5¢ → 2¢.
+        assert_eq!(calc.line_items[0].amount_cents, 2);
+
+        let calc = calculate_invoice(
+            &MonthlyUsageSummary {
+                storage_mb_months: dec!(0.7),
+                ..zero_usage(Uuid::new_v4())
+            },
+            &rate,
+        );
+        // 0.7 MB × 5¢ = 3.5¢ → 4¢.
+        assert_eq!(calc.line_items[0].amount_cents, 4);
+    }
+
+    #[test]
+    fn subtotal_sums_independently_rounded_line_items() {
+        let rate = test_rate_card();
+        let usage = MonthlyUsageSummary {
+            storage_mb_months: dec!(0.5),
+            object_storage_egress_gb: dec!(0.5),
+            ..zero_usage(Uuid::new_v4())
+        };
+
+        let calc = calculate_invoice(&usage, &rate);
+
+        let hot = calc
+            .line_items
+            .iter()
+            .find(|li| li.unit == "mb_months")
+            .expect("hot storage line item missing");
+        let egress = calc
+            .line_items
+            .iter()
+            .find(|li| li.unit == "object_storage_egress_gb")
+            .expect("object storage egress line item missing");
+
+        // Hot: 0.5 × 5¢ = 2.5¢ → 2¢.
+        assert_eq!(hot.amount_cents, 2);
+        // Egress: 0.5 × 1¢ = 0.5¢ → 0¢.
+        assert_eq!(egress.amount_cents, 0);
+        // Subtotal: 2¢ + 0¢ = 2¢. Summing raw amounts first gives 3.0¢ → 3¢,
+        // so this pins that `calculate_invoice` sums independently rounded values
+        // from `line_item_from_dimension`.
+        assert_eq!(calc.subtotal_cents, 2);
+    }
+
     // -------------------------------------------------------------------------
     // Search/write requests produce no line items
     // -------------------------------------------------------------------------

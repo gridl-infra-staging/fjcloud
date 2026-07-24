@@ -59,16 +59,39 @@ PER_FILE_OVERRIDES=(
     # FIXME(migration-create-flow-split): extract wizard step components
     # and remove this override.
     "web/src/lib/components/migration/MigrationCreateFlow.svelte|760|temporary cap while create-flow wizard steps are extracted; split pending"
+    "infra/api/src/services/algolia_import/reconciliation_tests.rs|914|temporary cap for pre-existing reconciliation test owner overage; split pending"
 
-    # 2026-07-23: Stage 3 metering rollout repair must pass the deploy gate
-    # while INV-4 forbids editing infra/metering-agent/src/counter.rs in this
-    # lane. Keep the cap at the current 959-line size so new counter growth
-    # still fails until a dedicated counter split lane removes this exception.
+    # 2026-07-23: single owner for the metering counter cap. The pre-existing
+    # 958 entry and the Stage 3 metering-rollout 959 entry were merged into one:
+    # the lookup below breaks on the first match, so two entries for one path
+    # silently pinned the stale lower cap. 959 is the current size after the
+    # compile-forced `http_timeout` test-fixture field; new growth still fails.
     # FIXME(counter-owner-split): split counter behavior/tests into focused
     # modules and remove this override.
-    "infra/metering-agent/src/counter.rs|959|temporary cap for Stage 3 deploy gate while counter.rs edits are forbidden; split pending"
+    "infra/metering-agent/src/counter.rs|959|temporary cap for pre-existing metering counter overage; split pending"
 
 )
+
+# Reject duplicate override paths. The lookup below breaks on the first match,
+# so two entries for one path silently pin whichever cap sorts first and the
+# later, intended one never applies — a gate that reports green for the wrong
+# reason. Merges from two lanes that each added an override are how this
+# happens, so fail loudly at startup instead.
+assert_unique_override_paths() {
+    local override_entry duplicates
+    duplicates="$(
+        for override_entry in "${PER_FILE_OVERRIDES[@]}"; do
+            printf '%s\n' "${override_entry%%|*}"
+        done | sort | uniq -d
+    )"
+    if [[ -n "$duplicates" ]]; then
+        echo "FAIL: duplicate PER_FILE_OVERRIDES entries (one cap per path):" >&2
+        printf '  %s\n' $duplicates >&2
+        exit 1
+    fi
+}
+
+assert_unique_override_paths
 
 check_file_size() {
     local file="$1"

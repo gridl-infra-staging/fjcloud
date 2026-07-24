@@ -4,8 +4,6 @@ use crate::provisioner::CreateVmRequest;
 use crate::repos::VmInventoryRepo;
 use crate::services::health_monitor::{await_engine_health, EngineHealthWaitStatus};
 use reqwest::Url;
-use serde::ser::SerializeMap;
-use serde::{Serialize, Serializer};
 use tracing::{error, info};
 use uuid::Uuid;
 
@@ -18,88 +16,22 @@ const DEFAULT_SHARED_VM_TYPE_OCI: &str = "VM.Standard.A1.Flex";
 const DEFAULT_SHARED_VM_TYPE_FALLBACK: &str = "shared";
 const SHARED_VM_HOSTNAME_PREFIX: &str = "vm-shared-";
 
+mod teardown;
+pub use teardown::{
+    VmInstanceTeardownTarget, VmTeardownOutcome, VmTeardownPolicy, VmTeardownReport,
+};
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SharedVmProvisioningMode {
     AllowLocalDevBypass,
     RequireManagedVm,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum VmTeardownPolicy {
-    HaltTeardown,
-    ContinueBestEffort,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum VmTeardownOutcome {
-    Removed,
-    Failed { message: String },
-    Indeterminate { message: String },
-    NotApplicable,
-    Skipped { reason: String },
+pub struct DurableSharedVmDraft {
+    pub hostname: String,
+    pub node_id: String,
 }
-
-impl VmTeardownOutcome {
-    fn status(&self) -> &'static str {
-        match self {
-            Self::Removed => "removed",
-            Self::Failed { .. } => "failed",
-            Self::Indeterminate { .. } => "indeterminate",
-            Self::NotApplicable => "not_applicable",
-            Self::Skipped { .. } => "skipped",
-        }
-    }
-
-    fn clean(&self) -> bool {
-        matches!(self, Self::Removed | Self::NotApplicable)
-    }
-}
-
-impl Serialize for VmTeardownOutcome {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let field_count = match self {
-            Self::Failed { .. } | Self::Indeterminate { .. } | Self::Skipped { .. } => 3,
-            Self::Removed | Self::NotApplicable => 2,
-        };
-        let mut map = serializer.serialize_map(Some(field_count))?;
-        map.serialize_entry("status", self.status())?;
-        map.serialize_entry("clean", &self.clean())?;
-        match self {
-            Self::Failed { message } | Self::Indeterminate { message } => {
-                map.serialize_entry("message", message)?;
-            }
-            Self::Skipped { reason } => {
-                map.serialize_entry("reason", reason)?;
-            }
-            Self::Removed | Self::NotApplicable => {}
-        }
-        map.end()
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-pub struct VmTeardownReport {
-    pub instance: VmTeardownOutcome,
-    pub dns_record: VmTeardownOutcome,
-    pub node_api_key: VmTeardownOutcome,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum VmInstanceTeardownTarget {
-    ProviderVmId(Option<String>),
-    Indeterminate { message: String },
-}
-
-impl VmInstanceTeardownTarget {
-    pub fn provider_vm_id(provider_vm_id: Option<&str>) -> Self {
-        Self::ProviderVmId(provider_vm_id.map(str::to_string))
-    }
-}
-
-const INSTANCE_TEARDOWN_FAILED_REASON: &str = "instance_teardown_failed";
 
 struct SharedVmDraft {
     hostname: String,
@@ -122,85 +54,75 @@ impl ProvisioningService {
         provider: &str,
         mode: SharedVmProvisioningMode,
     ) -> Result<VmInventory, ProvisioningError> {
+        self.auto_provision_shared_vm_with_draft(vm_inventory_repo, region, provider, mode, None)
+            .await
+    }
+
+    pub async fn auto_provision_shared_vm_with_draft(
+        &self,
+        vm_inventory_repo: &(dyn VmInventoryRepo + Send + Sync),
+        region: &str,
+        provider: &str,
+        mode: SharedVmProvisioningMode,
+        durable_draft: Option<DurableSharedVmDraft>,
+    ) -> Result<VmInventory, ProvisioningError> {
         ensure_supported_vm_provider(provider)?;
 
-        if mode == SharedVmProvisioningMode::AllowLocalDevBypass {
+        if durable_draft.is_none() && mode == SharedVmProvisioningMode::AllowLocalDevBypass {
             if let Some(vm) = try_local_dev_provision(vm_inventory_repo, region, provider).await? {
                 return Ok(vm);
             }
         }
 
-        let draft = self.build_shared_vm_draft();
-
-        let api_key = self
-            .node_secret_manager
-            .create_node_api_key(&draft.node_id, region)
-            .await
-            .map_err(|e| ProvisioningError::SecretFailed(e.to_string()))?;
-
-        let vm_request = build_shared_vm_request(&draft, provider, region, &api_key);
-
-        let vm_instance = match self.vm_provisioner.create_vm(&vm_request).await {
-            Ok(vm) => vm,
-            Err(e) => {
-                self.teardown_vm_resources(
-                    None,
-                    VmInstanceTeardownTarget::provider_vm_id(None),
-                    &draft.node_id,
-                    region,
-                    VmTeardownPolicy::ContinueBestEffort,
-                )
-                .await;
-                return Err(ProvisioningError::ProvisionerFailed(e.to_string()));
-            }
+        let is_durable_recovery = durable_draft.is_some();
+        let draft = self.build_shared_vm_draft(durable_draft);
+        let _provisioning_guard = if is_durable_recovery {
+            Some(
+                vm_inventory_repo
+                    .lock_provisioning_hostname(&draft.hostname)
+                    .await
+                    .map_err(|error| ProvisioningError::RepoError(error.to_string()))?,
+            )
+        } else {
+            None
         };
-
-        let ip = match vm_instance.public_ip.as_deref() {
-            Some(ip) => ip,
-            None => {
-                self.teardown_vm_resources(
-                    None,
-                    VmInstanceTeardownTarget::provider_vm_id(Some(&vm_instance.provider_vm_id)),
-                    &draft.node_id,
-                    region,
-                    VmTeardownPolicy::ContinueBestEffort,
-                )
-                .await;
+        if let Some(vm) =
+            find_non_decommissioned_vm_by_hostname(vm_inventory_repo, &draft.hostname).await?
+        {
+            if is_durable_recovery && self.shared_vm_health_deadline_exhausted(&draft).await {
                 return Err(ProvisioningError::ProvisionerFailed(
-                    "VM created without public IP".into(),
+                    ENGINE_HEALTH_FAILURE_REASON.into(),
                 ));
             }
-        };
-
-        if let Err(e) = self.dns_manager.create_record(&draft.hostname, ip).await {
-            self.teardown_vm_resources(
-                Some(&draft.hostname),
-                VmInstanceTeardownTarget::provider_vm_id(Some(&vm_instance.provider_vm_id)),
-                &draft.node_id,
-                region,
-                VmTeardownPolicy::ContinueBestEffort,
-            )
-            .await;
-            return Err(ProvisioningError::DnsFailed(e.to_string()));
+            return Ok(vm);
+        }
+        if is_durable_recovery {
+            if let Some(vm) = self
+                .recover_managed_shared_vm(vm_inventory_repo, &draft, region, provider)
+                .await?
+            {
+                return Ok(vm);
+            }
         }
 
-        let registration = SharedVmRegistration {
-            draft: &draft,
-            provider_vm_id: &vm_instance.provider_vm_id,
-            region,
-            provider,
-        };
-        let vm_row = self
-            .register_shared_vm_inventory(vm_inventory_repo, &registration)
+        let (vm_row, provider_vm_id) = self
+            .create_and_register_managed_shared_vm(vm_inventory_repo, &draft, region, provider)
             .await?;
-
         if self.shared_vm_health_deadline_exhausted(&draft).await {
-            self.cleanup_unhealthy_shared_vm_registration(
-                vm_inventory_repo,
-                &vm_row,
-                &registration,
-            )
-            .await;
+            if !is_durable_recovery {
+                let registration = SharedVmRegistration {
+                    draft: &draft,
+                    provider_vm_id: &provider_vm_id,
+                    region,
+                    provider,
+                };
+                self.cleanup_unhealthy_shared_vm_registration(
+                    vm_inventory_repo,
+                    &vm_row,
+                    &registration,
+                )
+                .await;
+            }
             return Err(ProvisioningError::ProvisionerFailed(
                 ENGINE_HEALTH_FAILURE_REASON.into(),
             ));
@@ -215,6 +137,70 @@ impl ProvisioningService {
         );
 
         Ok(vm_row)
+    }
+
+    async fn create_and_register_managed_shared_vm(
+        &self,
+        vm_inventory_repo: &(dyn VmInventoryRepo + Send + Sync),
+        draft: &SharedVmDraft,
+        region: &str,
+        provider: &str,
+    ) -> Result<(VmInventory, String), ProvisioningError> {
+        let api_key = self
+            .node_secret_manager
+            .create_node_api_key(&draft.node_id, region)
+            .await
+            .map_err(|error| ProvisioningError::SecretFailed(error.to_string()))?;
+        let vm_request = build_shared_vm_request(draft, provider, region, &api_key);
+        let vm_instance = match self.vm_provisioner.create_vm(&vm_request).await {
+            Ok(vm) => vm,
+            Err(error) => {
+                self.teardown_vm_resources(
+                    None,
+                    VmInstanceTeardownTarget::provider_vm_id(None),
+                    &draft.node_id,
+                    region,
+                    VmTeardownPolicy::ContinueBestEffort,
+                )
+                .await;
+                return Err(ProvisioningError::ProvisionerFailed(error.to_string()));
+            }
+        };
+        let provider_vm_id = vm_instance.provider_vm_id;
+        let Some(ip) = vm_instance.public_ip.as_deref() else {
+            self.teardown_vm_resources(
+                None,
+                VmInstanceTeardownTarget::provider_vm_id(Some(&provider_vm_id)),
+                &draft.node_id,
+                region,
+                VmTeardownPolicy::ContinueBestEffort,
+            )
+            .await;
+            return Err(ProvisioningError::ProvisionerFailed(
+                "VM created without public IP".into(),
+            ));
+        };
+        if let Err(error) = self.dns_manager.create_record(&draft.hostname, ip).await {
+            self.teardown_vm_resources(
+                Some(&draft.hostname),
+                VmInstanceTeardownTarget::provider_vm_id(Some(&provider_vm_id)),
+                &draft.node_id,
+                region,
+                VmTeardownPolicy::ContinueBestEffort,
+            )
+            .await;
+            return Err(ProvisioningError::DnsFailed(error.to_string()));
+        }
+        let registration = SharedVmRegistration {
+            draft,
+            provider_vm_id: &provider_vm_id,
+            region,
+            provider,
+        };
+        let vm_row = self
+            .register_shared_vm_inventory(vm_inventory_repo, &registration)
+            .await?;
+        Ok((vm_row, provider_vm_id))
     }
 
     async fn register_shared_vm_inventory(
@@ -284,7 +270,15 @@ impl ProvisioningService {
         .await;
     }
 
-    fn build_shared_vm_draft(&self) -> SharedVmDraft {
+    fn build_shared_vm_draft(&self, durable_draft: Option<DurableSharedVmDraft>) -> SharedVmDraft {
+        if let Some(draft) = durable_draft {
+            return SharedVmDraft {
+                flapjack_url: format!("http://{}:7700", draft.hostname),
+                node_id: draft.node_id,
+                hostname: draft.hostname,
+            };
+        }
+
         let shared_vm_id = Uuid::new_v4();
         let short_id = &shared_vm_id.to_string()[..8];
         let hostname = format!("{SHARED_VM_HOSTNAME_PREFIX}{short_id}.{}", self.dns_domain);
@@ -297,100 +291,44 @@ impl ProvisioningService {
         }
     }
 
-    /// Canonical owner for external VM teardown. Callers still own their DB row
-    /// transitions; this seam owns only provider instance, DNS, and node-key cleanup.
-    pub async fn teardown_vm_resources(
+    async fn recover_managed_shared_vm(
         &self,
-        hostname: Option<&str>,
-        instance_target: VmInstanceTeardownTarget,
-        node_id: &str,
+        vm_inventory_repo: &(dyn VmInventoryRepo + Send + Sync),
+        draft: &SharedVmDraft,
         region: &str,
-        policy: VmTeardownPolicy,
-    ) -> VmTeardownReport {
-        // Destroy the instance first so a failed retirement path does not remove
-        // DNS/key evidence for a VM that may still be serving traffic.
-        let instance = self.teardown_vm_instance(instance_target).await;
-        if policy == VmTeardownPolicy::HaltTeardown
-            && matches!(
-                instance,
-                VmTeardownOutcome::Failed { .. } | VmTeardownOutcome::Indeterminate { .. }
-            )
-        {
-            return VmTeardownReport {
-                instance,
-                dns_record: skipped_after_instance_failure(),
-                node_api_key: skipped_after_instance_failure(),
-            };
-        }
-
-        VmTeardownReport {
-            instance,
-            dns_record: self.teardown_vm_dns_record(hostname).await,
-            node_api_key: self.teardown_vm_node_api_key(node_id, region).await,
-        }
-    }
-
-    async fn teardown_vm_instance(
-        &self,
-        instance_target: VmInstanceTeardownTarget,
-    ) -> VmTeardownOutcome {
-        let provider_vm_id = match instance_target {
-            VmInstanceTeardownTarget::ProviderVmId(Some(provider_vm_id)) => provider_vm_id,
-            VmInstanceTeardownTarget::ProviderVmId(None) => {
-                return VmTeardownOutcome::NotApplicable;
-            }
-            VmInstanceTeardownTarget::Indeterminate { message } => {
-                return VmTeardownOutcome::Indeterminate { message };
-            }
-        };
-
-        match self.vm_provisioner.destroy_vm(&provider_vm_id).await {
-            Ok(()) => VmTeardownOutcome::Removed,
-            Err(e) => {
-                error!("teardown: failed to destroy VM {provider_vm_id}: {e}");
-                VmTeardownOutcome::Failed {
-                    message: e.to_string(),
-                }
-            }
-        }
-    }
-
-    async fn teardown_vm_dns_record(&self, hostname: Option<&str>) -> VmTeardownOutcome {
-        let Some(hostname) = hostname else {
-            return VmTeardownOutcome::NotApplicable;
-        };
-
-        match self.dns_manager.delete_record(hostname).await {
-            Ok(()) => VmTeardownOutcome::Removed,
-            Err(e) => {
-                error!("teardown: failed to delete DNS record for {hostname}: {e}");
-                VmTeardownOutcome::Failed {
-                    message: e.to_string(),
-                }
-            }
-        }
-    }
-
-    async fn teardown_vm_node_api_key(&self, node_id: &str, region: &str) -> VmTeardownOutcome {
-        match self
-            .node_secret_manager
-            .delete_node_api_key(node_id, region)
+        provider: &str,
+    ) -> Result<Option<VmInventory>, ProvisioningError> {
+        let Some(instance) = self
+            .vm_provisioner
+            .find_managed_vm_by_hostname(provider, region, &draft.hostname)
             .await
-        {
-            Ok(()) => VmTeardownOutcome::Removed,
-            Err(e) => {
-                error!("teardown: failed to delete node API keys for {node_id}: {e}");
-                VmTeardownOutcome::Failed {
-                    message: e.to_string(),
-                }
-            }
-        }
-    }
-}
+            .map_err(|e| ProvisioningError::ProvisionerFailed(e.to_string()))?
+        else {
+            return Ok(None);
+        };
 
-fn skipped_after_instance_failure() -> VmTeardownOutcome {
-    VmTeardownOutcome::Skipped {
-        reason: INSTANCE_TEARDOWN_FAILED_REASON.to_string(),
+        let ip = instance.public_ip.as_deref().ok_or_else(|| {
+            ProvisioningError::ProvisionerFailed("VM created without public IP".into())
+        })?;
+        if let Err(e) = self.dns_manager.create_record(&draft.hostname, ip).await {
+            return Err(ProvisioningError::DnsFailed(e.to_string()));
+        }
+
+        let registration = SharedVmRegistration {
+            draft,
+            provider_vm_id: &instance.provider_vm_id,
+            region,
+            provider,
+        };
+        let vm_row = self
+            .register_shared_vm_inventory(vm_inventory_repo, &registration)
+            .await?;
+        if self.shared_vm_health_deadline_exhausted(draft).await {
+            return Err(ProvisioningError::ProvisionerFailed(
+                ENGINE_HEALTH_FAILURE_REASON.into(),
+            ));
+        }
+        Ok(Some(vm_row))
     }
 }
 
@@ -478,6 +416,15 @@ async fn find_vm_by_hostname(
         .find_by_hostname(hostname)
         .await
         .map_err(|e| ProvisioningError::RepoError(e.to_string()))
+}
+
+async fn find_non_decommissioned_vm_by_hostname(
+    vm_inventory_repo: &(dyn VmInventoryRepo + Send + Sync),
+    hostname: &str,
+) -> Result<Option<VmInventory>, ProvisioningError> {
+    Ok(find_vm_by_hostname(vm_inventory_repo, hostname)
+        .await?
+        .filter(|vm| vm.status != "decommissioned"))
 }
 
 /// Resolve the URL used by the local shared-VM bypass.

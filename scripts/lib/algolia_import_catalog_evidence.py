@@ -195,6 +195,11 @@ def validate_live_reservation_checks(
             for selection in lifecycle_selections
             for checkpoint in {"before", "after"}
         )
+    catalog_rows_by_caller = {
+        row["live_caller_key"]: row
+        for row in rows
+        if row["live_phase"] == CATALOG_PHASE
+    }
     observed: set[tuple[str, str, str]] = set()
     customer_id = None
     target_index = None
@@ -221,6 +226,12 @@ def validate_live_reservation_checks(
         target_index = check_target if target_index is None else target_index
         if check_customer != customer_id or check_target != target_index:
             fail("active_reservation_not_observed")
+        if (
+            checkpoint in {"before", "after"}
+            and caller_key in catalog_rows_by_caller
+            and selection != catalog_rows_by_caller[caller_key].get("live_scenario_key")
+        ):
+            fail("writer_invocation_identity_drift")
     if observed != expected:
         fail("active_reservation_not_observed")
 

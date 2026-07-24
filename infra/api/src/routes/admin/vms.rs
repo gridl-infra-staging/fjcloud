@@ -17,8 +17,7 @@ use crate::repos::{
     VmDecommissionResult, VmRetirementAssessment, VmRetirementBlocker, VmRetirementConflict,
 };
 use crate::services::provisioning::{
-    is_canonical_shared_vm_hostname_for_domain, SharedVmProvisioningMode, VmInstanceTeardownTarget,
-    VmTeardownPolicy, VmTeardownReport,
+    is_canonical_shared_vm_hostname_for_domain, SharedVmProvisioningMode, VmTeardownReport,
 };
 use crate::services::vm_health_rollup::{health_rollup_for_tenants, VmHealth};
 use crate::state::AppState;
@@ -323,40 +322,6 @@ async fn provider_vm_id_from_fleet(
     Ok(unique_provider_vm_id(provider_vm_ids))
 }
 
-async fn retirement_instance_target(
-    state: &AppState,
-    vm: &VmInventory,
-) -> Result<VmInstanceTeardownTarget, ApiError> {
-    let tenants = state.tenant_repo.list_by_vm(vm.id).await?;
-    // Resolution order follows the existing route helpers first because
-    // vm_inventory has no provider_vm_id column; deployments are the persisted
-    // owner of provider instance identity when a tenant or fleet record still
-    // references this VM.
-    if let Some(provider_vm_id) = provider_vm_id_from_tenants(state, vm, &tenants).await? {
-        return Ok(VmInstanceTeardownTarget::ProviderVmId(Some(provider_vm_id)));
-    }
-    if let Some(provider_vm_id) = provider_vm_id_from_fleet(state, vm).await? {
-        return Ok(VmInstanceTeardownTarget::ProviderVmId(Some(provider_vm_id)));
-    }
-
-    // Retirement fail-fasts DNS/key cleanup when instance lookup is failed or
-    // indeterminate so operators do not erase evidence for a VM that might
-    // still be serving traffic under its hostname and node credential.
-    match state
-        .vm_provisioner
-        .find_managed_vm_by_hostname(&vm.provider, &vm.region, &vm.hostname)
-        .await
-    {
-        Ok(Some(instance)) => Ok(VmInstanceTeardownTarget::ProviderVmId(Some(
-            instance.provider_vm_id,
-        ))),
-        Ok(None) => Ok(VmInstanceTeardownTarget::ProviderVmId(None)),
-        Err(error) => Ok(VmInstanceTeardownTarget::Indeterminate {
-            message: error.to_string(),
-        }),
-    }
-}
-
 async fn teardown_retired_vm_resources(
     state: &AppState,
     vm_id: Uuid,
@@ -366,17 +331,14 @@ async fn teardown_retired_vm_resources(
         .get(vm_id)
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("VM not found: {vm_id}")))?;
-    let instance_target = retirement_instance_target(state, &vm).await?;
-    Ok(state
+    let tenants = state.tenant_repo.list_by_vm(vm.id).await?;
+    state
         .provisioning_service
-        .teardown_vm_resources(
-            Some(&vm.hostname),
-            instance_target,
-            vm.node_secret_id(),
-            &vm.region,
-            VmTeardownPolicy::HaltTeardown,
-        )
-        .await)
+        .teardown_retired_vm_resources(&vm, &tenants)
+        .await
+        .map_err(|error| {
+            ApiError::ServiceUnavailable(format!("failed to resolve retired VM resources: {error}"))
+        })
 }
 
 /// `GET /admin/vms/{id}` — retrieve VM inventory detail with tenants and provider ID.
@@ -423,6 +385,22 @@ pub async fn get_vm_host_metrics(
         .ok_or_else(|| ApiError::NotFound("VM not found".into()))?;
 
     Ok(Json(state.vm_host_metrics_repo.latest_for_vm(vm_id).await?))
+}
+
+pub async fn get_vm_lifecycle_events(
+    _auth: AdminAuth,
+    State(state): State<AppState>,
+    Path(vm_id): Path<Uuid>,
+) -> Result<impl IntoResponse, ApiError> {
+    state
+        .vm_inventory_repo
+        .get(vm_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("VM not found".into()))?;
+
+    Ok(Json(
+        state.vm_lifecycle_event_repo.list_for_vm(vm_id).await?,
+    ))
 }
 
 // ---------------------------------------------------------------------------

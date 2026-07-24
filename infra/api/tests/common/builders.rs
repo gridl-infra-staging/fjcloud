@@ -42,11 +42,11 @@ use super::mocks::{
     mock_garage_admin_client, mock_index_migration_repo, mock_invoice_repo,
     mock_node_secret_manager, mock_rate_card_repo, mock_repo, mock_storage_bucket_repo,
     mock_storage_key_repo, mock_stripe_service, mock_tenant_repo, mock_usage_repo,
-    mock_vm_host_metrics_repo, mock_vm_inventory_repo, mock_vm_provisioner,
-    mock_webhook_event_repo, mock_webhook_http_client, MockApiKeyRepo, MockCustomerRepo,
-    MockDeploymentRepo, MockDisputeRepo, MockIndexMigrationRepo, MockInvoiceRepo, MockRateCardRepo,
-    MockStripeService, MockTenantRepo, MockUsageRepo, MockVmHostMetricsRepo, MockVmInventoryRepo,
-    MockWebhookEventRepo, MockWebhookHttpClient,
+    mock_vm_host_metrics_repo, mock_vm_inventory_repo, mock_vm_lifecycle_event_repo,
+    mock_vm_provisioner, mock_webhook_event_repo, mock_webhook_http_client, MockApiKeyRepo,
+    MockCustomerRepo, MockDeploymentRepo, MockDisputeRepo, MockIndexMigrationRepo, MockInvoiceRepo,
+    MockRateCardRepo, MockStripeService, MockTenantRepo, MockUsageRepo, MockVmHostMetricsRepo,
+    MockVmInventoryRepo, MockVmLifecycleEventRepo, MockWebhookEventRepo, MockWebhookHttpClient,
 };
 
 pub const TEST_JWT_SECRET: &str = "test-jwt-secret-min-32-chars-ok!";
@@ -246,6 +246,7 @@ pub struct TestStateBuilder {
     alert_service: Arc<MockAlertService>,
     vm_host_metrics_repo: Arc<MockVmHostMetricsRepo>,
     vm_inventory_repo: Arc<MockVmInventoryRepo>,
+    vm_lifecycle_event_repo: Arc<MockVmLifecycleEventRepo>,
     index_migration_repo: Arc<MockIndexMigrationRepo>,
     tenant_quota_service: Arc<TenantQuotaService>,
     free_tier_limits: FreeTierLimits,
@@ -317,6 +318,7 @@ impl TestStateBuilder {
             alert_service: mock_alert_service(),
             vm_host_metrics_repo: mock_vm_host_metrics_repo(),
             vm_inventory_repo: mock_vm_inventory_repo(),
+            vm_lifecycle_event_repo: mock_vm_lifecycle_event_repo(),
             index_migration_repo: mock_index_migration_repo(),
             tenant_quota_service: test_tenant_quota_service(),
             free_tier_limits: FreeTierLimits::default(),
@@ -456,6 +458,14 @@ impl TestStateBuilder {
         vm_host_metrics_repo: Arc<MockVmHostMetricsRepo>,
     ) -> Self {
         self.vm_host_metrics_repo = vm_host_metrics_repo;
+        self
+    }
+
+    pub fn with_vm_lifecycle_event_repo(
+        mut self,
+        vm_lifecycle_event_repo: Arc<MockVmLifecycleEventRepo>,
+    ) -> Self {
+        self.vm_lifecycle_event_repo = vm_lifecycle_event_repo;
         self
     }
 
@@ -650,6 +660,7 @@ impl TestStateBuilder {
             alert_service: self.alert_service,
             vm_host_metrics_repo: self.vm_host_metrics_repo,
             vm_inventory_repo: self.vm_inventory_repo,
+            vm_lifecycle_event_repo: self.vm_lifecycle_event_repo,
             vm_orphan_reconciler,
             index_migration_repo: self.index_migration_repo,
             discovery_service,

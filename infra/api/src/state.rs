@@ -25,6 +25,7 @@ use crate::repos::TenantRepo;
 use crate::repos::UsageRepo;
 use crate::repos::VmHostMetricsRepo;
 use crate::repos::VmInventoryRepo;
+use crate::repos::VmLifecycleEventRepo;
 use crate::repos::WebhookEventRepo;
 use crate::routes::public_infrastructure::PublicInfrastructureResponse;
 use crate::services::alerting::AlertService;
@@ -252,6 +253,7 @@ pub struct AppState {
     pub alert_service: Arc<dyn AlertService>,
     pub vm_host_metrics_repo: Arc<dyn VmHostMetricsRepo + Send + Sync>,
     pub vm_inventory_repo: Arc<dyn VmInventoryRepo + Send + Sync>,
+    pub vm_lifecycle_event_repo: Arc<dyn VmLifecycleEventRepo + Send + Sync>,
     pub vm_orphan_reconciler: Arc<VmOrphanReconciler>,
     pub index_migration_repo: Arc<dyn IndexMigrationRepo + Send + Sync>,
     pub discovery_service: Arc<DiscoveryService>,

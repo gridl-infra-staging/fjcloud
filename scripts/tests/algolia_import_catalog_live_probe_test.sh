@@ -390,6 +390,25 @@ elif scenario == "unlinked_ack_ledger":
         state["engine_job_id"] = "absent"
 elif scenario == "missing_live_reservation_checks":
     evidence["live_reservation_checks"].pop(0)
+elif scenario == "shared_family_overclaim":
+    non_replica_observations = [
+        observation
+        for observation in evidence["observations"]
+        if observation["outcome"] == "refused"
+        and "replica_create_remove" not in observation["scenario_key"]
+    ]
+    donor = non_replica_observations[0]
+    target = next(
+        observation
+        for observation in non_replica_observations[1:]
+        if observation["scenario_key"] != donor["scenario_key"]
+    )
+    for check in evidence["live_reservation_checks"]:
+        if (
+            check["selection"] == target["scenario_key"]
+            and check["caller_key"] == target["caller_key"]
+        ):
+            check["selection"] = donor["scenario_key"]
 elif scenario == "broad_lifecycle_smoke":
     evidence["lifecycle"]["checks"] = [
         {
@@ -440,6 +459,9 @@ elif scenario == "suspended_reactivation_refused":
 with open(output_path, "w", encoding="utf-8") as handle:
     json.dump(evidence, handle)
 PY
+if [ -n "${CALLER_RUNNER_EVIDENCE_COPY:-}" ]; then
+  cp "$output" "$CALLER_RUNNER_EVIDENCE_COPY"
+fi
 '
   write_fake_command "$WORK_DIR/bin/psql" '#!/usr/bin/env bash
 set -euo pipefail
@@ -1397,6 +1419,134 @@ assert_caller_evidence_failure() {
     "$scenario tears down the isolated stack"
 }
 
+test_caller_evidence_rejects_shared_family_overclaim() {
+  setup_workspace
+  local evidence_copy="$WORK_DIR/shared_family_overclaim_evidence.json"
+
+  CALLER_RUNNER_SCENARIO=shared_family_overclaim \
+    CALLER_RUNNER_EVIDENCE_COPY="$evidence_copy" \
+    run_probe --phases catalog
+
+  if python3 - "$DEFAULT_INVENTORY" "$evidence_copy" <<'PY'
+import json
+import sys
+from collections import Counter
+
+inventory_path, evidence_path = sys.argv[1:]
+with open(inventory_path, encoding="utf-8") as handle:
+    inventory = json.load(handle)
+with open(evidence_path, encoding="utf-8") as handle:
+    evidence = json.load(handle)
+
+writers = inventory["writers"]
+catalog_rows = [row for row in writers if row["live_phase"] == "catalog"]
+replica_rows = [
+    row
+    for row in catalog_rows
+    if "replica_create_remove" in row["live_scenario_key"]
+]
+non_replica_rows = [
+    row
+    for row in catalog_rows
+    if "replica_create_remove" not in row["live_scenario_key"]
+]
+if inventory["total_writer_count"] != 48 or len(writers) != 48:
+    raise SystemExit("fixture total writer denominator drifted")
+if len(catalog_rows) != 41 or len(replica_rows) != 6 or len(non_replica_rows) != 35:
+    raise SystemExit(
+        "catalog split drifted: "
+        f"catalog={len(catalog_rows)} replica={len(replica_rows)} "
+        f"non_replica={len(non_replica_rows)}"
+    )
+
+expected_by_id = {row["id"]: row for row in catalog_rows}
+observations = evidence["observations"]
+observed_ids = [observation.get("writer_id") for observation in observations]
+if Counter(observed_ids) != Counter(expected_by_id.keys()):
+    raise SystemExit("observed catalog writer IDs no longer match fixture rows")
+if sum(1 for observation in observations if observation.get("outcome") == "refused") != 41:
+    raise SystemExit("mutation no longer preserves the refused:41 aggregate")
+if "writer_invocations" in evidence:
+    raise SystemExit("mutation must stay anchored to production caller-runner evidence")
+
+non_replica_ids = {row["id"] for row in non_replica_rows}
+expected_by_caller = {row["live_caller_key"]: row for row in catalog_rows}
+checks = evidence.get("live_reservation_checks")
+if not isinstance(checks, list):
+    raise SystemExit("missing production-shaped reservation evidence")
+catalog_checks = [
+    check
+    for check in checks
+    if check.get("caller_key") in expected_by_caller
+]
+if len(catalog_checks) != len(catalog_rows) * 2:
+    raise SystemExit("catalog reservation denominator no longer has before/after rows")
+expected_check_counts = Counter(
+    (row["live_caller_key"], checkpoint)
+    for row in catalog_rows
+    for checkpoint in {"before", "after"}
+)
+observed_check_counts = Counter(
+    (check.get("caller_key"), check.get("checkpoint")) for check in catalog_checks
+)
+if observed_check_counts != expected_check_counts:
+    raise SystemExit("reservation checks no longer cover every catalog writer once")
+if any(
+    check.get("reservation_state") != "active"
+    or not isinstance(check.get("selection"), str)
+    or not isinstance(check.get("customer_id"), str)
+    or not isinstance(check.get("target_index"), str)
+    for check in catalog_checks
+):
+    raise SystemExit("reservation checks no longer match production evidence shape")
+
+identity_drifts = [
+    check
+    for check in catalog_checks
+    if expected_by_caller[check["caller_key"]]["id"] in non_replica_ids
+    and check.get("selection")
+    != expected_by_caller[check["caller_key"]]["live_scenario_key"]
+]
+if len(identity_drifts) != 2:
+    raise SystemExit(
+        "shared-family mutation must corrupt exactly one writer-scoped before/after identity"
+    )
+drifted_callers = {check["caller_key"] for check in identity_drifts}
+drifted_checkpoints = {check["checkpoint"] for check in identity_drifts}
+claimed_selections = {check["selection"] for check in identity_drifts}
+if len(drifted_callers) != 1 or drifted_checkpoints != {"before", "after"}:
+    raise SystemExit("drifted invocation no longer uses one writer caller before and after")
+if len(claimed_selections) != 1:
+    raise SystemExit("drifted invocation no longer reuses one family operation")
+drifted_caller = next(iter(drifted_callers))
+drifted_row = expected_by_caller[drifted_caller]
+claimed_selection = next(iter(claimed_selections))
+if claimed_selection == drifted_row["live_scenario_key"]:
+    raise SystemExit("drifted invocation no longer reuses another family operation")
+donor_rows = [
+    row
+    for row in non_replica_rows
+    if row["live_scenario_key"] == claimed_selection
+    and row["id"] != drifted_row["id"]
+]
+if not donor_rows:
+    raise SystemExit("drifted invocation no longer points at another non-replica writer family")
+PY
+  then
+    pass "shared-family overclaim fixture preserves writer rows while corrupting one production-shaped writer invocation"
+  else
+    fail "shared-family overclaim fixture preserves writer rows while corrupting one production-shaped writer invocation"
+  fi
+
+  assert_eq "$RUN_EXIT_CODE" "1" \
+    "shared family overclaim should fail even with refused:41 and canonical labels intact"
+  assert_contains "$RUN_STDOUT" \
+    "RESULT|status=ACTION_REQUIRED|reason=writer_invocation_identity_drift" \
+    "shared family overclaim emits the stable writer-invocation denominator reason"
+  assert_contains "$(cat "$WORK_DIR/down.log")" "pid_dir=" \
+    "shared family overclaim tears down the isolated stack"
+}
+
 test_runtime_failures_are_action_required_and_cleanup_runs() {
   setup_workspace
   CALLER_RUNNER_PATH="$WORK_DIR/missing_runner" run_probe --phases catalog
@@ -1524,6 +1674,7 @@ test_default_runner_rejects_unmapped_catalog_scenarios
 test_required_dependency_and_phase_failures_are_action_required
 test_fixture_mutations_fail_closed_before_stack_start
 test_noncanonical_fixture_paths_fail_closed_before_stack_start
+test_caller_evidence_rejects_shared_family_overclaim
 test_runtime_failures_are_action_required_and_cleanup_runs
 test_failure_diagnostics_and_async_cleanup_converge
 test_restricted_source_key_is_verified_before_dispatch

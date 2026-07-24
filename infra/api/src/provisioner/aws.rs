@@ -156,6 +156,20 @@ impl AwsVmProvisioner {
         )
     }
 
+    fn resolve_unique_managed_instance(
+        instances: Vec<&aws_sdk_ec2::types::Instance>,
+        hostname: &str,
+        region: &str,
+    ) -> Result<Option<VmInstance>, VmProvisionerError> {
+        match instances.as_slice() {
+            [] => Ok(None),
+            [instance] => Ok(Some(Self::instance_to_vm_instance(instance, region)?)),
+            _ => Err(VmProvisionerError::Api(format!(
+                "multiple managed EC2 instances matched hostname {hostname}"
+            ))),
+        }
+    }
+
     async fn wait_for_public_ip(
         &self,
         provider_vm_id: &str,
@@ -290,21 +304,8 @@ impl AwsVmProvisioner {
             .reservations()
             .iter()
             .flat_map(|reservation| reservation.instances())
-            .filter(|instance| {
-                instance
-                    .state()
-                    .and_then(|state| state.name())
-                    .map(|state| map_ec2_state(state.as_str()) != VmStatus::Terminated)
-                    .unwrap_or(true)
-            })
             .collect();
-        match instances.as_slice() {
-            [] => Ok(None),
-            [instance] => Ok(Some(Self::instance_to_vm_instance(instance, region)?)),
-            _ => Err(VmProvisionerError::Api(format!(
-                "multiple managed EC2 instances matched hostname {hostname}"
-            ))),
-        }
+        Self::resolve_unique_managed_instance(instances, hostname, region)
     }
 }
 
@@ -583,5 +584,20 @@ mod tests {
         assert_eq!(vm.private_ip.as_deref(), Some("10.0.0.25"));
         assert_eq!(vm.status, VmStatus::Running);
         assert_eq!(vm.region, "us-east-1");
+    }
+
+    #[test]
+    fn managed_lookup_preserves_terminated_instance_for_liveness() {
+        let instance = instance_fixture(InstanceStateName::Terminated, None);
+        let vm = AwsVmProvisioner::resolve_unique_managed_instance(
+            vec![&instance],
+            "vm-stage4.example.test",
+            "us-east-1",
+        )
+        .expect("one described managed instance should resolve")
+        .expect("terminated managed instance should remain observable");
+
+        assert_eq!(vm.provider_vm_id, "i-abc123");
+        assert_eq!(vm.status, VmStatus::Terminated);
     }
 }

@@ -159,3 +159,22 @@ async fn init_alert_service_allows_production_when_any_webhook_is_configured() {
 
     init_alert_service(&pool, &startup_env).expect("production webhook configuration must boot");
 }
+
+#[tokio::test]
+async fn background_handles_require_autorepair_registration_even_when_disabled() {
+    let missing = BackgroundHandles::new(Vec::new(), tokio::spawn(async {}));
+    let missing_error = match missing {
+        Ok(_) => panic!("startup must reject a handle set without autorepair"),
+        Err(error) => error,
+    };
+    assert!(missing_error
+        .to_string()
+        .contains("must always be registered"));
+
+    let handles = BackgroundHandles::new(
+        vec![(VM_AUTOREPAIR_TASK_NAME, tokio::spawn(async {}))],
+        tokio::spawn(async {}),
+    )
+    .expect("autorepair remains registered independently of its kill switch");
+    assert_eq!(handles.named_handles[0].0, VM_AUTOREPAIR_TASK_NAME);
+}

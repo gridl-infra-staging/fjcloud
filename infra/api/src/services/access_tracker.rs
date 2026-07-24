@@ -182,6 +182,15 @@ mod tests {
         ) -> Result<(), crate::repos::RepoError> {
             unimplemented!()
         }
+        async fn replace_vm_if_current(
+            &self,
+            _: Uuid,
+            _: &str,
+            _: Uuid,
+            _: Uuid,
+        ) -> Result<crate::models::tenant::CustomerTenant, crate::repos::RepoError> {
+            unimplemented!()
+        }
         async fn set_tier(&self, _: Uuid, _: &str, _: &str) -> Result<(), crate::repos::RepoError> {
             unimplemented!()
         }

@@ -1,0 +1,10 @@
+{
+  "verdict": "passed",
+  "hostname": "autorepair-l3-20260723t225801z-17962",
+  "instance_id": "i-09263caa56d5239d7",
+  "instance_final_state": "terminated",
+  "autorepair_enabled": false,
+  "inventory_rows": 1,
+  "tenant_placement_mutations": 0,
+  "autonomous_replacement_events": 0
+}

@@ -1,0 +1,10 @@
+PASS: isolated migrations applied
+PASS: initial vm_inventory count = 0
+PASS: running EC2 plus unreachable engine observed as EngineDown by Rust owner
+PASS: terminated EC2 observed as detected_dead
+PASS: replacement_refused guardrail = kill_switch_disabled
+PASS: no autonomous replacement or tenant placement mutation
+PASS: lane-created instance terminated
+PASS: local API stopped
+PASS: temporary local database dropped
+PASS: every lane-created EC2 instance terminated

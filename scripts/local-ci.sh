@@ -373,7 +373,8 @@ gate_status_doc_consistency() {
     # launch verdicts, ROADMAP.md owns open work, PROJECT_OVERVIEW.md owns
     # durable priority rationale, and retired mutable-owner docs stay absent.
     # Costs ~10ms; covered by scripts/tests/check_status_doc_consistency_test.sh.
-    bash "$REPO_ROOT/scripts/check_status_doc_consistency.sh"
+    bash "$REPO_ROOT/scripts/check_status_doc_consistency.sh" || return $?
+    bash "$REPO_ROOT/scripts/tests/vm_autorepair_docs_contract_test.sh" || return $?
 }
 
 gate_dirmap_merge_driver() {
@@ -592,12 +593,34 @@ gate_rust_lint() {
     bash "$REPO_ROOT/scripts/tests/aws_identity_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/test_inbox_helpers_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/probe_stage2_email_coverage_test.sh" || return $?
+    bash "$REPO_ROOT/scripts/tests/validate_vm_autorepair_detection_test.sh" || return $?
     cd "$REPO_ROOT/infra" || return $?
     cargo fmt --check || return $?
     cargo clippy --workspace -- -D warnings || return $?
 }
 
+assert_unique_migration_versions() {
+    # Two lanes developing in parallel each pick "the next" number and both
+    # land, e.g. two 063s (2026-07-23). sqlx keys _sqlx_migrations by version,
+    # so applying both aborts mid-run with an opaque duplicate-key error and
+    # every deploy fails on migrate. Name the collision instead.
+    local duplicates
+    duplicates="$(
+        ls "$REPO_ROOT/infra/migrations" 2>/dev/null \
+            | sed -nE 's/^([0-9]+)_.*\.sql$/\1/p' | sort | uniq -d
+    )"
+    if [[ -n "$duplicates" ]]; then
+        echo "FAIL: duplicate migration version(s) — renumber the newer file:" >&2
+        local version
+        for version in $duplicates; do
+            ls "$REPO_ROOT/infra/migrations" | grep -E "^${version}_" | sed 's/^/  /' >&2
+        done
+        return 1
+    fi
+}
+
 gate_migration_test() {
+    assert_unique_migration_versions || return 1
     # CI provisions postgres in a service container. Locally, require a
     # running postgres reachable via $DATABASE_URL or the docker compose
     # default. SKIP cleanly with remediation hint if a prereq is missing

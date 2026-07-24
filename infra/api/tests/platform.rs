@@ -237,12 +237,16 @@ mod tenant_repo_test;
 mod tenants_test;
 #[path = "integration/version_test.rs"]
 mod version_test;
+#[path = "integration/vm_autorepair_test.rs"]
+mod vm_autorepair_test;
 #[path = "integration/vm_health_rollup_test.rs"]
 mod vm_health_rollup_test;
 #[path = "integration/vm_host_metrics_repo_test.rs"]
 mod vm_host_metrics_repo_test;
 #[path = "integration/vm_inventory_test.rs"]
 mod vm_inventory_test;
+#[path = "integration/vm_lifecycle_events_repo_test.rs"]
+mod vm_lifecycle_events_repo_test;
 #[path = "integration/webhook_alert_test.rs"]
 mod webhook_alert_test;
 #[path = "integration/webhook_dunning_email_test.rs"]

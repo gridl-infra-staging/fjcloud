@@ -69,7 +69,7 @@ async fn async_algolia_migration_methods_use_authenticated_admin_transport() {
     let _: AsyncMigrationStatusResponse = service
         .cancel(
             EngineTarget::new("https://vm-a1.flapjack.foo", "node-1", "us-east-1"),
-            "engine-job-1",
+            "9f11d0a0-4443-44d4-b6c6-1ed71dbeb0fb",
         )
         .await
         .expect("cancel should decode");
@@ -77,7 +77,7 @@ async fn async_algolia_migration_methods_use_authenticated_admin_transport() {
     assert_eq!(requests[1].method, reqwest::Method::POST);
     assert_eq!(
         requests[1].url,
-        "https://vm-a1.flapjack.foo/1/migrations/algolia/engine-job-1/cancel"
+        "https://vm-a1.flapjack.foo/1/migrations/algolia/9f11d0a0-4443-44d4-b6c6-1ed71dbeb0fb/cancel"
     );
     assert_eq!(requests[1].api_key, api_key);
     assert_eq!(requests[1].json_body, None);

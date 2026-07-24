@@ -384,6 +384,40 @@ impl TenantRepo for PgTenantRepo {
         Ok(())
     }
 
+    async fn replace_vm_if_current(
+        &self,
+        customer_id: Uuid,
+        tenant_id: &str,
+        expected_source_vm_id: Uuid,
+        replacement_vm_id: Uuid,
+    ) -> Result<CustomerTenant, RepoError> {
+        let moved = sqlx::query_as::<_, CustomerTenant>(
+            "UPDATE customer_tenants
+             SET vm_id = $4
+             WHERE customer_id = $1
+               AND tenant_id = $2
+               AND vm_id = $3
+             RETURNING *",
+        )
+        .bind(customer_id)
+        .bind(tenant_id)
+        .bind(expected_source_vm_id)
+        .bind(replacement_vm_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| RepoError::Other(e.to_string()))?;
+        if let Some(tenant) = moved {
+            return Ok(tenant);
+        }
+
+        let current = self.find_raw(customer_id, tenant_id).await?;
+        match current {
+            Some(tenant) if tenant.vm_id == Some(replacement_vm_id) => Ok(tenant),
+            Some(_) => Err(RepoError::Conflict("source_vm_changed".to_string())),
+            None => Err(RepoError::NotFound),
+        }
+    }
+
     /// Updates the migration tier column. Returns `NotFound` if no row
     /// matches the (customer_id, tenant_id) pair.
     async fn set_tier(

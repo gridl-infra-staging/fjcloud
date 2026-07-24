@@ -25,6 +25,8 @@ mod admin_token_audit_test;
 mod admin_vm_host_metrics_test;
 #[path = "integration/admin_vm_kill_test.rs"]
 mod admin_vm_kill_test;
+#[path = "integration/admin_vm_lifecycle_events_test.rs"]
+mod admin_vm_lifecycle_events_test;
 #[path = "integration/admin_vm_orphans_test.rs"]
 mod admin_vm_orphans_test;
 #[path = "integration/admin_vms_test.rs"]

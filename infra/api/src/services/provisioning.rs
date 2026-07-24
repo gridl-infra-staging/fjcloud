@@ -17,8 +17,8 @@ mod auto_provision;
 pub(crate) use auto_provision::is_canonical_shared_vm_hostname_for_domain;
 pub(crate) use auto_provision::normalize_local_dev_flapjack_url;
 pub use auto_provision::{
-    SharedVmProvisioningMode, VmInstanceTeardownTarget, VmTeardownOutcome, VmTeardownPolicy,
-    VmTeardownReport,
+    DurableSharedVmDraft, SharedVmProvisioningMode, VmInstanceTeardownTarget, VmTeardownOutcome,
+    VmTeardownPolicy, VmTeardownReport,
 };
 
 /// Maximum number of non-terminated deployments per customer.

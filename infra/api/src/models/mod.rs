@@ -16,6 +16,7 @@ pub mod tenant;
 pub mod usage_daily;
 pub mod vm_host_metrics;
 pub mod vm_inventory;
+pub mod vm_lifecycle_event;
 
 pub use algolia_import_job::{
     AlgoliaImportDispatchIntentState, AlgoliaImportEngineAckState, AlgoliaImportErrorCode,
@@ -43,3 +44,4 @@ pub use tenant::{CustomerTenant, CustomerTenantSummary};
 pub use usage_daily::UsageDaily;
 pub use vm_host_metrics::{NewVmHostMetrics, VmHostMetrics};
 pub use vm_inventory::{NewVmInventory, VmInventory};
+pub use vm_lifecycle_event::{NewVmLifecycleEvent, VmLifecycleEvent, VmLifecycleEventType};

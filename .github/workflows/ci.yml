@@ -57,9 +57,42 @@ jobs:
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
+      # WHY (2026-07-23): a hung test in the `platform` target stalled this job
+      # nine consecutive times. Each run reached the job-level `timeout-minutes`
+      # and GitHub CANCELLED the job. A cancelled job discards its remaining
+      # steps, so no diagnostic ever ran, the hung tests were never named, and
+      # `deploy-staging` was skipped every time — nine 45-minute cycles for zero
+      # information.
+      #
+      # `timeout` makes the hang fail the STEP instead. The job survives, so the
+      # inventory dump below still runs. 900s is ~4x the historical test
+      # EXECUTION time (~4 min; compile is excluded by the --no-run step above),
+      # so it cannot fire on a merely slow suite;
+      # scripts/tests/ci_workflow_test.sh pins it strictly below the job bound
+      # and pins compile ahead of it, which is what keeps this mechanism alive.
+      # Compile separately and UNBOUNDED. `timeout` below must bound test
+      # EXECUTION only: a cold cache (infra/Cargo.lock churns a few times a
+      # week, and the AWS SDK deps are heavy) can spend many minutes compiling,
+      # which would trip an execution-sized bound and report a hang that never
+      # happened. Cold compiles stay backed by the 45-minute job timeout.
+      - name: Build rust tests
+        working-directory: infra
+        run: cargo test --workspace --no-run
       - name: Run rust tests
         working-directory: infra
-        run: cargo test --workspace
+        run: timeout 900 cargo test --workspace
+      # Diagnostic, not a gate. `cargo test` prints a test name only when it
+      # COMPLETES, so a hung test is invisible in the log — the only trace is a
+      # count that never reaches the total. Diffing this full inventory against
+      # the "... ok" lines in the step above names the hung tests exactly.
+      #
+      # Deliberately cargo-only: no job in this workflow invokes `psql`, so
+      # querying pg_stat_activity would add an unverified dependency on the
+      # runner image shipping a Postgres client. cargo is already installed.
+      - name: List full test inventory (names hung tests when the step above times out)
+        if: always()
+        working-directory: infra
+        run: cargo test --workspace -- --list
       # Tenant isolation proptest runs in nightly.yml's
       # `tenant-isolation-proptest` job. Moved out of the per-push deploy
       # gate 2026-05-02 because it is a defensive regression check (not a

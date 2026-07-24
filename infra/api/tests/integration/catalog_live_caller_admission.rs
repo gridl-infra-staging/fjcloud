@@ -110,6 +110,160 @@ fn classify_live_replica_caller(owner_path: &str, source_anchor: &str) -> LiveRe
     }
 }
 
+pub(super) async fn assert_live_non_replica_call(
+    binding: &CatalogLiveBinding,
+) -> crate::common::catalog_live_binding::LiveCallerRefusal {
+    let entrypoint = LiveNonReplicaEntryPoint::from_source(
+        binding.caller_owner_path(),
+        binding.caller_source_anchor(),
+    );
+    entrypoint.refuse(binding).await
+}
+
+fn assert_live_shared_vm_create_call(
+    binding: &CatalogLiveBinding,
+) -> crate::common::catalog_live_binding::LiveCallerRefusal {
+    let target = binding.target_index().to_string();
+    binding.assert_tenant_destination_conflict(
+        "POST",
+        "/indexes",
+        &json!({"name": target, "region": "us-east-1"}),
+    )
+}
+
+fn assert_live_delete_route_call(
+    binding: &CatalogLiveBinding,
+) -> crate::common::catalog_live_binding::LiveCallerRefusal {
+    let path = format!("/indexes/{}", binding.target_index());
+    binding.assert_tenant_destination_conflict("DELETE", &path, &json!({"confirm": true}))
+}
+
+async fn assert_live_admin_seed_call(
+    binding: &CatalogLiveBinding,
+) -> crate::common::catalog_live_binding::LiveCallerRefusal {
+    let path = format!("/admin/tenants/{}/indexes", binding.customer_id());
+    let target = binding.target_index().to_string();
+    binding
+        .assert_admin_destination_conflict(&path, &json!({"name": target, "region": "us-east-1"}))
+        .await
+}
+
+struct LiveNonReplicaEntryPoint {
+    owner_path: String,
+    source_anchor: String,
+    action: LiveNonReplicaAction,
+}
+
+impl LiveNonReplicaEntryPoint {
+    fn from_source(owner_path: &str, source_anchor: &str) -> Self {
+        let action = match (owner_path, source_anchor) {
+            ("infra/api/src/repos/pg_tenant_repo.rs", "pg_tenant_repo.create")
+            | ("infra/api/src/repos/pg_tenant_repo.rs", "pg_tenant_repo.set_vm_id")
+            | (
+                "infra/api/src/routes/indexes/shared_vm.rs",
+                "tenant_repo.create_lifecycle_intent",
+            )
+            | (
+                "infra/api/src/routes/indexes/shared_vm.rs",
+                "tenant_repo.publish_lifecycle_placement",
+            ) => LiveNonReplicaAction::SharedVmCreate,
+            ("infra/api/src/repos/pg_tenant_repo.rs", "pg_tenant_repo.delete")
+            | ("infra/api/src/repos/pg_tenant_repo.rs", "pg_tenant_repo.set_tier")
+            | ("infra/api/src/routes/indexes/lifecycle.rs", "flapjack_proxy.delete_index")
+            | (
+                "infra/api/src/routes/indexes/lifecycle.rs",
+                "tenant_repo.publish_lifecycle_placement",
+            ) => LiveNonReplicaAction::DeleteRoute,
+            ("infra/api/src/routes/admin/indexes.rs", "tenant_repo.create_lifecycle_intent")
+            | (
+                "infra/api/src/routes/admin/indexes.rs",
+                "tenant_repo.publish_lifecycle_placement",
+            )
+            | ("infra/api/src/routes/admin/indexes.rs", "tenant_repo.delete") => {
+                LiveNonReplicaAction::AdminSeed
+            }
+            ("infra/api/src/repos/pg_tenant_repo.rs", "pg_tenant_repo.clear_vm_id")
+            | ("infra/api/src/repos/pg_tenant_repo.rs", "pg_tenant_repo.set_cold_snapshot_id")
+            | ("infra/api/src/services/cold_tier/pipeline.rs", "tenant_repo.set_tier")
+            | (
+                "infra/api/src/services/cold_tier/pipeline.rs",
+                "tenant_repo.set_cold_snapshot_id",
+            )
+            | ("infra/api/src/services/cold_tier/pipeline.rs", "tenant_repo.set_vm_id")
+            | ("infra/api/src/services/cold_tier/pipeline.rs", "tenant_repo.clear_vm_id") => {
+                LiveNonReplicaAction::ColdTier
+            }
+            ("infra/api/src/services/migration/mod.rs", "tenant_repo.set_tier")
+            | ("infra/api/src/services/migration/protocol.rs", "tenant_repo.set_tier")
+            | ("infra/api/src/services/migration/protocol.rs", "tenant_repo.set_vm_id")
+            | (
+                "infra/api/src/services/migration/recovery.rs",
+                "tenant_repo.publish_lifecycle_placement",
+            ) => LiveNonReplicaAction::Migration,
+            ("infra/api/src/services/region_failover.rs", "tenant_repo.set_vm_id") => {
+                LiveNonReplicaAction::RegionFailover
+            }
+            ("infra/api/src/services/restore.rs", "tenant_repo.set_cold_snapshot_id")
+            | ("infra/api/src/services/restore.rs", "tenant_repo.set_tier")
+            | ("infra/api/src/services/restore.rs", "tenant_repo.set_vm_id") => {
+                LiveNonReplicaAction::Restore
+            }
+            _ => panic!("unsupported live non-replica source {owner_path}::{source_anchor}"),
+        };
+        Self {
+            owner_path: owner_path.to_string(),
+            source_anchor: source_anchor.to_string(),
+            action,
+        }
+    }
+
+    async fn refuse(
+        self,
+        binding: &CatalogLiveBinding,
+    ) -> crate::common::catalog_live_binding::LiveCallerRefusal {
+        let refusal = match self.action {
+            LiveNonReplicaAction::SharedVmCreate => assert_live_shared_vm_create_call(binding),
+            LiveNonReplicaAction::DeleteRoute => assert_live_delete_route_call(binding),
+            LiveNonReplicaAction::AdminSeed => assert_live_admin_seed_call(binding).await,
+            LiveNonReplicaAction::ColdTier => assert_live_cold_tier_call(binding).await,
+            LiveNonReplicaAction::Migration => assert_live_migration_call(binding).await,
+            LiveNonReplicaAction::Restore => assert_live_restore_call(binding).await,
+            LiveNonReplicaAction::RegionFailover => assert_live_region_failover_call(binding).await,
+        };
+        refusal.with_source(&self.owner_path, &self.source_anchor)
+    }
+
+    fn matches_fixture_source(
+        &self,
+        caller_key: &str,
+        owner_path: &str,
+        source_anchor: &str,
+    ) -> Result<(), String> {
+        if self.owner_path == owner_path && self.source_anchor == source_anchor {
+            return Ok(());
+        }
+        Err(format!(
+            "caller {caller_key} was relabelled from {}::{} to {owner_path}::{source_anchor}",
+            self.owner_path, self.source_anchor
+        ))
+    }
+
+    fn source_key(&self) -> String {
+        format!("{}::{}", self.owner_path, self.source_anchor)
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LiveNonReplicaAction {
+    SharedVmCreate,
+    DeleteRoute,
+    AdminSeed,
+    ColdTier,
+    Migration,
+    Restore,
+    RegionFailover,
+}
+
 pub(super) async fn assert_live_restore_call(
     binding: &CatalogLiveBinding,
 ) -> crate::common::catalog_live_binding::LiveCallerRefusal {
@@ -383,5 +537,128 @@ fn replica_writer_keys_select_their_exact_live_entrypoint() {
             "service_remove",
             "service_remove",
         ]
+    );
+}
+
+#[test]
+fn non_replica_writer_keys_select_their_exact_live_entrypoint() {
+    let inventory: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../scripts/tests/fixtures/catalog_lifecycle_writers.json"
+    ))
+    .expect("writer inventory must be valid JSON");
+    let non_replica_rows = inventory["writers"]
+        .as_array()
+        .expect("writer inventory must contain rows")
+        .iter()
+        .filter(|row| {
+            row["live_phase"] == "catalog"
+                && row["live_scenario_key"]
+                    .as_str()
+                    .is_some_and(|selection| !selection.contains("replica_create_remove_races"))
+        });
+
+    let mut observed = Vec::new();
+    for row in non_replica_rows {
+        let owner_path = row["owner_path"].as_str().unwrap();
+        let source_anchor = row["source_anchor"].as_str().unwrap();
+        observed
+            .push(LiveNonReplicaEntryPoint::from_source(owner_path, source_anchor).source_key());
+    }
+    let shared_vm_rows = inventory["writers"]
+        .as_array()
+        .expect("writer inventory must contain rows")
+        .iter()
+        .filter(|row| {
+            row["live_phase"] == "catalog"
+                && row["live_scenario_key"]
+                    == "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::create_index_on_shared_vm_reservation_races_after_intent_before_remote_work"
+        })
+        .collect::<Vec<_>>();
+    let first = shared_vm_rows[0];
+    let different_source = shared_vm_rows
+        .iter()
+        .find(|row| {
+            row["owner_path"] != first["owner_path"]
+                || row["source_anchor"] != first["source_anchor"]
+        })
+        .expect("shared VM inventory has multiple exact source rows");
+    assert!(
+        std::panic::catch_unwind(|| {
+            LiveNonReplicaEntryPoint::from_source(
+                different_source["owner_path"].as_str().unwrap(),
+                different_source["source_anchor"].as_str().unwrap(),
+            )
+            .matches_fixture_source(
+                first["live_caller_key"].as_str().unwrap(),
+                first["owner_path"].as_str().unwrap(),
+                first["source_anchor"].as_str().unwrap(),
+            )
+            .unwrap();
+        })
+        .is_err(),
+        "a non-replica caller key cannot be relabelled onto another source row in the same scenario"
+    );
+    let mut expected = inventory["writers"]
+        .as_array()
+        .expect("writer inventory must contain rows")
+        .iter()
+        .filter(|row| {
+            row["live_phase"] == "catalog"
+                && row["live_scenario_key"]
+                    .as_str()
+                    .is_some_and(|selection| !selection.contains("replica_create_remove_races"))
+        })
+        .map(|row| {
+            format!(
+                "{}::{}",
+                row["owner_path"].as_str().unwrap(),
+                row["source_anchor"].as_str().unwrap()
+            )
+        })
+        .collect::<Vec<_>>();
+    expected.sort_unstable();
+    observed.sort_unstable();
+
+    assert_eq!(observed, expected);
+}
+
+#[test]
+fn non_replica_same_family_relabel_does_not_match_executed_source() {
+    let inventory: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../scripts/tests/fixtures/catalog_lifecycle_writers.json"
+    ))
+    .expect("writer inventory must be valid JSON");
+    let same_family_rows = inventory["writers"]
+        .as_array()
+        .expect("writer inventory must contain rows")
+        .iter()
+        .filter(|row| {
+            row["live_phase"] == "catalog"
+                && row["live_scenario_key"]
+                    == "catalog_lifecycle_leases::catalog_lifecycle_lease_remote_races::create_index_on_shared_vm_reservation_races_after_intent_before_remote_work"
+        })
+        .collect::<Vec<_>>();
+    let executed_row = same_family_rows[0];
+    let relabelled_row = same_family_rows
+        .iter()
+        .find(|row| {
+            row["owner_path"] != executed_row["owner_path"]
+                || row["source_anchor"] != executed_row["source_anchor"]
+        })
+        .expect("shared-VM scenario must contain a second exact source row");
+    let executed_entrypoint = LiveNonReplicaEntryPoint::from_source(
+        executed_row["owner_path"].as_str().unwrap(),
+        executed_row["source_anchor"].as_str().unwrap(),
+    );
+
+    assert!(
+        executed_entrypoint
+            .matches_fixture_source(
+                relabelled_row["live_caller_key"].as_str().unwrap(),
+                relabelled_row["owner_path"].as_str().unwrap(),
+                relabelled_row["source_anchor"].as_str().unwrap(),
+            )
+            .is_err(),
+        "same-family caller relabelling must be rejected even when the scenario selection and refusal outcome still match"
     );
 }

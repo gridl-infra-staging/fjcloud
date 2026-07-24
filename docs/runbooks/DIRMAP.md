@@ -3,6 +3,7 @@
 
 | File | Summary |
 | --- | --- |
+| vm_autorepair.md | canonical operator runbook for VM autorepair detection, guardrails, lifecycle events, disabled rollout state, and incident disable verification. |
 
 | Directory | Summary |
 | --- | --- |

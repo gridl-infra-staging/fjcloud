@@ -113,6 +113,10 @@ pub fn admin_routes() -> Router<AppState> {
         )
         .route("/vms/:id/decommission", post(vms::decommission_vm))
         .route("/vms/:id/host-metrics", get(vms::get_vm_host_metrics))
+        .route(
+            "/vms/:id/lifecycle-events",
+            get(vms::get_vm_lifecycle_events),
+        )
         .route("/vms/:id", get(vms::get_vm_detail))
         .route("/vms/:id/kill", post(vms::kill_vm))
         .route("/replicas", get(replicas::list_replicas))

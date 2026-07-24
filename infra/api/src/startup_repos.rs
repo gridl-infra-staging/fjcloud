@@ -5,7 +5,8 @@
 use crate::repos::{
     PgApiKeyRepo, PgColdSnapshotRepo, PgCustomerRepo, PgDeploymentRepo, PgDisputeRepo,
     PgIndexMigrationRepo, PgInvoiceRepo, PgRateCardRepo, PgRestoreJobRepo, PgTenantRepo,
-    PgUsageRepo, PgVmHostMetricsRepo, PgVmInventoryRepo, PgWebhookEventRepo,
+    PgUsageRepo, PgVmHostMetricsRepo, PgVmInventoryRepo, PgVmLifecycleEventRepo,
+    PgWebhookEventRepo,
 };
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -23,6 +24,7 @@ pub struct PgRepos {
     pub webhook_event_repo: Arc<PgWebhookEventRepo>,
     pub vm_host_metrics_repo: Arc<PgVmHostMetricsRepo>,
     pub vm_inventory_repo: Arc<PgVmInventoryRepo>,
+    pub vm_lifecycle_event_repo: Arc<PgVmLifecycleEventRepo>,
     pub index_migration_repo: Arc<PgIndexMigrationRepo>,
     pub cold_snapshot_repo: Arc<PgColdSnapshotRepo>,
     pub restore_job_repo: Arc<PgRestoreJobRepo>,
@@ -42,6 +44,7 @@ pub fn init_pg_repos(pool: &PgPool) -> PgRepos {
         webhook_event_repo: Arc::new(PgWebhookEventRepo::new(pool.clone())),
         vm_host_metrics_repo: Arc::new(PgVmHostMetricsRepo::new(pool.clone())),
         vm_inventory_repo: Arc::new(PgVmInventoryRepo::new(pool.clone())),
+        vm_lifecycle_event_repo: Arc::new(PgVmLifecycleEventRepo::new(pool.clone())),
         index_migration_repo: Arc::new(PgIndexMigrationRepo::new(pool.clone())),
         cold_snapshot_repo: Arc::new(PgColdSnapshotRepo::new(pool.clone())),
         restore_job_repo: Arc::new(PgRestoreJobRepo::new(pool.clone())),

@@ -614,7 +614,8 @@ run_production_callers() {
             production_caller_failed|repeated_scenario_coverage|\
             repeated_writer_observation|soft_delete_boundary_missing|\
             source_selection_not_live_called|\
-            suspended_reactivation_control_failed)
+            suspended_reactivation_control_failed|\
+            writer_invocation_identity_drift)
                 finish_action_required "$validation_reason"
                 ;;
             *)
@@ -635,7 +636,8 @@ run_production_callers() {
             deleted_reactivation_accepted|early_reservation_release|\
             lifecycle_policy_drift|repeated_scenario_coverage|\
             repeated_writer_observation|soft_delete_boundary_missing|\
-            suspended_reactivation_control_failed)
+            suspended_reactivation_control_failed|\
+            writer_invocation_identity_drift)
                 finish_action_required "$validation_reason"
                 ;;
             *)

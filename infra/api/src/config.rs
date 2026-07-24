@@ -20,6 +20,7 @@ pub struct Config {
     pub github_oauth_client_secret: Option<String>,
     pub dunning_emails_disabled: bool,
     pub algolia_migration_enabled: bool,
+    pub vm_autorepair_enabled: bool,
 }
 
 #[derive(Debug, Error)]
@@ -100,6 +101,11 @@ impl Config {
             "FJCLOUD_ALGOLIA_MIGRATION_ENABLED",
             false,
         )?;
+        let vm_autorepair_enabled = parse_bool_with_default(
+            read("FJCLOUD_VM_AUTOREPAIR_ENABLED"),
+            "FJCLOUD_VM_AUTOREPAIR_ENABLED",
+            false,
+        )?;
 
         Ok(Config {
             database_url,
@@ -120,6 +126,7 @@ impl Config {
             github_oauth_client_secret,
             dunning_emails_disabled,
             algolia_migration_enabled,
+            vm_autorepair_enabled,
         })
     }
 }
@@ -164,7 +171,16 @@ fn parse_u32_with_default(value: Option<String>, default_value: u32) -> Result<u
     }
 }
 
-fn parse_bool_with_default(
+/// TODO: Document parse_bool_with_default.
+pub fn parse_vm_autorepair_enabled_from_env() -> Result<bool, ConfigError> {
+    parse_bool_with_default(
+        std::env::var("FJCLOUD_VM_AUTOREPAIR_ENABLED").ok(),
+        "FJCLOUD_VM_AUTOREPAIR_ENABLED",
+        false,
+    )
+}
+
+pub fn parse_bool_with_default(
     value: Option<String>,
     key: &str,
     default_value: bool,
@@ -224,6 +240,7 @@ mod tests {
         assert!(cfg.github_oauth_client_secret.is_none());
         assert!(!cfg.dunning_emails_disabled);
         assert!(!cfg.algolia_migration_enabled);
+        assert!(!cfg.vm_autorepair_enabled);
     }
 
     /// Verifies that Stripe and internal auth keys are optional in config,
@@ -246,6 +263,7 @@ mod tests {
         assert_eq!(cfg.internal_auth_token.as_deref(), Some("internal-key-123"));
         assert!(!cfg.dunning_emails_disabled);
         assert!(!cfg.algolia_migration_enabled);
+        assert!(!cfg.vm_autorepair_enabled);
     }
 
     #[test]

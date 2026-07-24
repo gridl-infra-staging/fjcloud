@@ -30,6 +30,7 @@ pub mod restore;
 pub mod scheduler;
 pub mod storage;
 pub mod tenant_quota;
+pub mod vm_autorepair;
 pub mod vm_health_rollup;
 pub mod vm_orphan_reconcile;
 pub mod webhook_http;

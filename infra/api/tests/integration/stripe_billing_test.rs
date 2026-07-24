@@ -66,6 +66,7 @@ fn config_without_live_stripe() -> Config {
         github_oauth_client_secret: None,
         dunning_emails_disabled: false,
         algolia_migration_enabled: false,
+        vm_autorepair_enabled: false,
     }
 }
 

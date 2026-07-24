@@ -3,6 +3,7 @@ use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::models::vm_inventory::{NewVmInventory, VmInventory};
+use crate::repos::advisory_lock::{advisory_lock, vm_provisioning_lock_key, AdvisoryLockGuard};
 use crate::repos::error::RepoError;
 use crate::repos::vm_inventory_repo::{
     validate_vm_retirement_candidate, VmDecommissionResult, VmInventoryRepo,
@@ -63,6 +64,14 @@ impl PgVmInventoryRepo {
 
 #[async_trait]
 impl VmInventoryRepo for PgVmInventoryRepo {
+    async fn lock_provisioning_hostname(
+        &self,
+        hostname: &str,
+    ) -> Result<AdvisoryLockGuard<'_>, RepoError> {
+        let key = vm_provisioning_lock_key(&self.pool, hostname).await?;
+        advisory_lock(&self.pool, key).await
+    }
+
     /// Lists VMs with `active` status, optionally filtered by region,
     /// ordered by creation time.
     async fn list_active(&self, region: Option<&str>) -> Result<Vec<VmInventory>, RepoError> {

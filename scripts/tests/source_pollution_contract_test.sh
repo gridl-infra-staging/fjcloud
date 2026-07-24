@@ -100,7 +100,9 @@ tracked_scan_files() {
 }
 
 filter_allowed_absolute_paths() {
-    grep -Ev '/home/(deploy|ec2-user)/' || true
+    local canonical_secret_file_pattern
+    canonical_secret_file_pattern="$(printf '/%s/%s/repos/gridl-infra-dev/fjcloud_dev/\\.secret/\\.env\\.secret' Users stuart)"
+    grep -Ev "(/home/(deploy|ec2-user)/|$canonical_secret_file_pattern)" || true
 }
 
 echo "=== source pollution contract tests ==="

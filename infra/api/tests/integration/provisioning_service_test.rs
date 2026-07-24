@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::Duration;
 
@@ -6,11 +7,12 @@ use api::models::vm_inventory::NewVmInventory;
 use api::provisioner::{mock::MockVmProvisioner, UnconfiguredVmProvisioner};
 use api::repos::{CustomerRepo, DeploymentRepo, VmInventoryRepo};
 use api::secrets::mock::MockNodeSecretManager;
-use api::services::health_monitor::{EngineHealthWaitPolicy, HealthCheckClient};
+use api::services::health_monitor::{EngineHealthWaitPolicy, HealthCheckClient, HealthCheckResult};
 use api::services::provisioning::{
-    ProvisioningError, ProvisioningService, SharedVmProvisioningMode, DEFAULT_DNS_DOMAIN,
-    MAX_DEPLOYMENTS_PER_CUSTOMER,
+    DurableSharedVmDraft, ProvisioningError, ProvisioningService, SharedVmProvisioningMode,
+    DEFAULT_DNS_DOMAIN, MAX_DEPLOYMENTS_PER_CUSTOMER,
 };
+use async_trait::async_trait;
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -32,6 +34,21 @@ type DefaultServiceWithVmInventoryHarness = (
     Arc<MockNodeSecretManager>,
     Arc<crate::common::MockVmInventoryRepo>,
 );
+
+struct ToggleHealthClient {
+    healthy: AtomicBool,
+}
+
+#[async_trait]
+impl HealthCheckClient for ToggleHealthClient {
+    async fn check(&self, _flapjack_url: Option<String>) -> HealthCheckResult {
+        if self.healthy.load(Ordering::SeqCst) {
+            HealthCheckResult::Healthy
+        } else {
+            HealthCheckResult::Unreachable("engine still booting".to_string())
+        }
+    }
+}
 
 fn process_env_lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -164,6 +181,14 @@ fn short_engine_health_wait_policy() -> EngineHealthWaitPolicy {
     EngineHealthWaitPolicy::new(
         Duration::from_millis(50),
         Duration::from_millis(10),
+        Duration::from_millis(1),
+    )
+}
+
+fn blocked_engine_health_wait_policy() -> EngineHealthWaitPolicy {
+    EngineHealthWaitPolicy::new(
+        Duration::from_secs(4),
+        Duration::from_secs(4),
         Duration::from_millis(1),
     )
 }
@@ -953,6 +978,281 @@ async fn auto_provision_shared_vm_engine_health_healthy_registers_before_wait() 
         1,
         "shared healthy path must still observe the injected engine before returning"
     );
+}
+
+#[tokio::test]
+#[allow(clippy::await_holding_lock)]
+async fn vm_autorepair_auto_provision_shared_vm_reuses_durable_draft_provider_instance() {
+    let _env_guard = engine_health_env_lock();
+    let _local_url = EnvVarGuard::unset("LOCAL_DEV_FLAPJACK_URL");
+    let _regions = EnvVarGuard::unset("FLAPJACK_REGIONS");
+    let planned_hostname = "vm-shared-recovery.flapjack.foo";
+
+    let (
+        svc,
+        _customer_repo,
+        _deployment_repo,
+        vm_provisioner,
+        dns_manager,
+        _ssm,
+        vm_inventory_repo,
+    ) = default_service_with_vm_inventory();
+    vm_provisioner.seed_vm_for_hostname(
+        planned_hostname,
+        "provider-created-before-crash",
+        api::provisioner::VmStatus::Running,
+        "us-east-1",
+    );
+
+    let vm = svc
+        .auto_provision_shared_vm_with_draft(
+            vm_inventory_repo.as_ref(),
+            "us-east-1",
+            "aws",
+            SharedVmProvisioningMode::RequireManagedVm,
+            Some(DurableSharedVmDraft {
+                hostname: planned_hostname.to_string(),
+                node_id: planned_hostname.to_string(),
+            }),
+        )
+        .await
+        .expect("durable draft should recover the already-created provider VM");
+
+    assert_eq!(vm.hostname, planned_hostname);
+    assert_eq!(
+        vm_provisioner.create_call_count(),
+        0,
+        "retry after provider create must not create a second VM"
+    );
+    assert_eq!(
+        vm_inventory_repo.create_call_count(),
+        1,
+        "provider recovery must persist exactly one inventory owner"
+    );
+    assert_eq!(
+        dns_manager.get_records().get(planned_hostname),
+        Some(&"203.0.113.1".to_string()),
+        "provider recovery must restore DNS for the planned hostname"
+    );
+}
+
+#[tokio::test]
+#[allow(clippy::await_holding_lock)]
+async fn vm_autorepair_concurrent_durable_draft_creates_provider_vm_once() {
+    let _env_guard = engine_health_env_lock();
+    let _local_url = EnvVarGuard::unset("LOCAL_DEV_FLAPJACK_URL");
+    let _regions = EnvVarGuard::unset("FLAPJACK_REGIONS");
+    let planned_hostname = "vm-shared-concurrent-recovery.flapjack.foo";
+    let (
+        svc,
+        _customer_repo,
+        _deployment_repo,
+        vm_provisioner,
+        _dns_manager,
+        _ssm,
+        vm_inventory_repo,
+    ) = default_service_with_vm_inventory_and_engine_health(
+        crate::common::engine_health::EngineHealthClient::healthy(),
+    );
+    let create_gate = vm_provisioner.pause_next_create();
+    let durable_draft = DurableSharedVmDraft {
+        hostname: planned_hostname.to_string(),
+        node_id: planned_hostname.to_string(),
+    };
+
+    let first_service = Arc::clone(&svc);
+    let first_inventory = Arc::clone(&vm_inventory_repo);
+    let first_draft = durable_draft.clone();
+    let first = tokio::spawn(async move {
+        first_service
+            .auto_provision_shared_vm_with_draft(
+                first_inventory.as_ref(),
+                "us-east-1",
+                "aws",
+                SharedVmProvisioningMode::RequireManagedVm,
+                Some(first_draft),
+            )
+            .await
+    });
+    tokio::time::timeout(
+        ENGINE_HEALTH_GATE_KAT_TIMEOUT,
+        create_gate.wait_until_started(),
+    )
+    .await
+    .expect("first durable create should reach the provider gate");
+
+    let second_service = Arc::clone(&svc);
+    let second_inventory = Arc::clone(&vm_inventory_repo);
+    let second = tokio::spawn(async move {
+        second_service
+            .auto_provision_shared_vm_with_draft(
+                second_inventory.as_ref(),
+                "us-east-1",
+                "aws",
+                SharedVmProvisioningMode::RequireManagedVm,
+                Some(durable_draft),
+            )
+            .await
+    });
+    for _ in 0..8 {
+        tokio::task::yield_now().await;
+    }
+
+    assert_eq!(
+        vm_provisioner.create_call_count(),
+        1,
+        "the durable hostname must serialize absence checks through provider create"
+    );
+    create_gate.release();
+    let first_vm = first
+        .await
+        .expect("first provisioning task should join")
+        .expect("first provisioning pass should succeed");
+    let second_vm = second
+        .await
+        .expect("second provisioning task should join")
+        .expect("second provisioning pass should reuse the first result");
+
+    assert_eq!(first_vm.id, second_vm.id);
+    assert_eq!(vm_provisioner.create_call_count(), 1);
+    assert_eq!(vm_inventory_repo.create_call_count(), 1);
+}
+
+#[tokio::test]
+#[allow(clippy::await_holding_lock)]
+async fn vm_autorepair_durable_inventory_retry_rechecks_engine_readiness() {
+    let _env_guard = engine_health_env_lock();
+    let _local_url = EnvVarGuard::unset("LOCAL_DEV_FLAPJACK_URL");
+    let _regions = EnvVarGuard::unset("FLAPJACK_REGIONS");
+    let planned_hostname = "vm-shared-inventory-recovery.flapjack.foo";
+    let engine_health = crate::common::engine_health::EngineHealthClient::healthy_after_release();
+    let (
+        svc,
+        _customer_repo,
+        _deployment_repo,
+        vm_provisioner,
+        _dns_manager,
+        _ssm,
+        vm_inventory_repo,
+    ) = default_service_with_vm_inventory_and_engine_health(Arc::clone(&engine_health));
+    let health_client: Arc<dyn HealthCheckClient> = engine_health.clone();
+    let svc =
+        svc.with_engine_health_client_for_test(health_client, blocked_engine_health_wait_policy());
+    let existing = vm_inventory_repo
+        .create(NewVmInventory {
+            region: "us-east-1".to_string(),
+            provider: "aws".to_string(),
+            hostname: planned_hostname.to_string(),
+            flapjack_url: format!("http://{planned_hostname}:7700"),
+            capacity: serde_json::json!({}),
+        })
+        .await
+        .expect("durable inventory owner should seed");
+
+    let service = Arc::clone(&svc);
+    let inventory = Arc::clone(&vm_inventory_repo);
+    let mut provision = tokio::spawn(async move {
+        service
+            .auto_provision_shared_vm_with_draft(
+                inventory.as_ref(),
+                "us-east-1",
+                "aws",
+                SharedVmProvisioningMode::RequireManagedVm,
+                Some(DurableSharedVmDraft {
+                    hostname: planned_hostname.to_string(),
+                    node_id: planned_hostname.to_string(),
+                }),
+            )
+            .await
+    });
+
+    wait_for_blocked_engine_health_attempt(
+        engine_health.as_ref(),
+        &mut provision,
+        "durable inventory retry engine-health gate",
+    )
+    .await;
+    engine_health.release_attempt();
+    let recovered =
+        join_blocked_engine_health_task(provision, "durable inventory retry engine-health gate")
+            .await
+            .expect("healthy durable inventory owner should resume");
+
+    assert_eq!(recovered.id, existing.id);
+    assert_eq!(vm_provisioner.create_call_count(), 0);
+    assert_eq!(vm_inventory_repo.create_call_count(), 1);
+    assert_eq!(engine_health.attempts(), 1);
+}
+
+#[tokio::test]
+#[allow(clippy::await_holding_lock)]
+async fn vm_autorepair_durable_create_timeout_retries_same_provider_vm() {
+    let _env_guard = engine_health_env_lock();
+    let _local_url = EnvVarGuard::unset("LOCAL_DEV_FLAPJACK_URL");
+    let _regions = EnvVarGuard::unset("FLAPJACK_REGIONS");
+    let planned_hostname = "vm-shared-boot-retry.flapjack.foo";
+    let engine_health = Arc::new(ToggleHealthClient {
+        healthy: AtomicBool::new(false),
+    });
+    let (
+        svc,
+        _customer_repo,
+        _deployment_repo,
+        vm_provisioner,
+        _dns_manager,
+        _ssm,
+        vm_inventory_repo,
+    ) = default_service_with_vm_inventory();
+    let health_client: Arc<dyn HealthCheckClient> = engine_health.clone();
+    let svc = svc.with_engine_health_client_for_test(
+        health_client,
+        EngineHealthWaitPolicy::new(
+            Duration::from_millis(10),
+            Duration::from_millis(2),
+            Duration::from_millis(1),
+        ),
+    );
+    let durable_draft = DurableSharedVmDraft {
+        hostname: planned_hostname.to_string(),
+        node_id: planned_hostname.to_string(),
+    };
+
+    let first_error = svc
+        .auto_provision_shared_vm_with_draft(
+            vm_inventory_repo.as_ref(),
+            "us-east-1",
+            "aws",
+            SharedVmProvisioningMode::RequireManagedVm,
+            Some(durable_draft.clone()),
+        )
+        .await
+        .expect_err("the first readiness window should expire");
+    assert!(
+        first_error
+            .to_string()
+            .contains("engine_health_check_failed"),
+        "unexpected first error: {first_error}"
+    );
+    assert_eq!(vm_provisioner.create_call_count(), 1);
+    assert_eq!(vm_provisioner.destroy_call_count(), 0);
+
+    engine_health.healthy.store(true, Ordering::SeqCst);
+    let recovered = svc
+        .auto_provision_shared_vm_with_draft(
+            vm_inventory_repo.as_ref(),
+            "us-east-1",
+            "aws",
+            SharedVmProvisioningMode::RequireManagedVm,
+            Some(durable_draft),
+        )
+        .await
+        .expect("retry should recheck the durable inventory owner");
+
+    assert_eq!(recovered.hostname, planned_hostname);
+    assert_eq!(recovered.status, "active");
+    assert_eq!(vm_provisioner.create_call_count(), 1);
+    assert_eq!(vm_provisioner.destroy_call_count(), 0);
+    assert_eq!(vm_inventory_repo.create_call_count(), 1);
 }
 
 #[tokio::test]

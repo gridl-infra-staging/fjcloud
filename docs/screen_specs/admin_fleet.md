@@ -44,6 +44,9 @@ At 390px wide, the page keeps the heading and auto-refresh control visible, stac
 - Auto-refresh checkbox toggles 5s invalidation.
 - Status and provider filters narrow rows.
 - VM capacity hostname links navigate to that VM's detail page.
+- The VM detail page owns the VM autorepair lifecycle timeline contract in
+  `docs/screen_specs/admin_vm_detail.md`; the fleet table should only provide
+  the existing per-VM entry point.
 - Local VM `Kill` sends the server action and refreshes fleet data.
 - Admin nav links expose fleet, customers, migrations, replicas, billing, and alerts.
 

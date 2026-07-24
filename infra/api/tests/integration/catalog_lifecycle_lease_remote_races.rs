@@ -227,12 +227,7 @@ async fn create_index_on_shared_vm_reservation_races_after_intent_before_remote_
     )
     .await;
     if let Some(binding) = live_binding {
-        let target = binding.target_index().to_string();
-        let refusal = binding.assert_tenant_destination_conflict(
-            "POST",
-            "/indexes",
-            &json!({"name": target, "region": "us-east-1"}),
-        );
+        let refusal = catalog_live_caller_admission::assert_live_non_replica_call(&binding).await;
         binding.finish_after_refused_caller(refusal).await;
     }
 }
@@ -604,9 +599,7 @@ async fn delete_index_reservation_races_after_intent_before_finalization() {
     )
     .await;
     if let Some(binding) = live_binding {
-        let path = format!("/indexes/{}", binding.target_index());
-        let refusal =
-            binding.assert_tenant_destination_conflict("DELETE", &path, &json!({"confirm": true}));
+        let refusal = catalog_live_caller_admission::assert_live_non_replica_call(&binding).await;
         binding.finish_after_refused_caller(refusal).await;
     }
 }
@@ -671,7 +664,7 @@ async fn cold_tier_intent_blocks_replace_reservation_before_remote_export() {
     assert_cold_tier_snapshot_rejects_active_import_reservation().await;
     assert_cold_tier_snapshot_rejects_active_replace_reservation().await;
     if let Some(binding) = live_binding {
-        let refusal = catalog_live_caller_admission::assert_live_cold_tier_call(&binding).await;
+        let refusal = catalog_live_caller_admission::assert_live_non_replica_call(&binding).await;
         binding.finish_after_refused_caller(refusal).await;
     }
 }
@@ -746,8 +739,7 @@ async fn region_failover_races_after_intent_before_remote_work() {
     assert_region_failover_promotion_race_after_intent().await;
     assert_region_failover_rejects_active_reservation().await;
     if let Some(binding) = live_binding {
-        let refusal =
-            catalog_live_caller_admission::assert_live_region_failover_call(&binding).await;
+        let refusal = catalog_live_caller_admission::assert_live_non_replica_call(&binding).await;
         binding.finish_after_refused_caller(refusal).await;
     }
 }
@@ -792,7 +784,7 @@ async fn restore_lifecycle_races_after_intent_before_remote_work() {
     assert_restore_initiate_race_after_intent().await;
     assert_restore_service_initiate_restore_rejects_active_reservation().await;
     if let Some(binding) = live_binding {
-        let refusal = catalog_live_caller_admission::assert_live_restore_call(&binding).await;
+        let refusal = catalog_live_caller_admission::assert_live_non_replica_call(&binding).await;
         binding.finish_after_refused_caller(refusal).await;
     }
 }
@@ -824,7 +816,7 @@ async fn migration_lifecycle_races_after_intent_before_remote_work() {
     assert_migration_begin_rejects_all_active_reservations().await;
     assert_migration_rollback_rejects_active_reservation_before_remote_work().await;
     if let Some(binding) = live_binding {
-        let refusal = catalog_live_caller_admission::assert_live_migration_call(&binding).await;
+        let refusal = catalog_live_caller_admission::assert_live_non_replica_call(&binding).await;
         binding.finish_after_refused_caller(refusal).await;
     }
 }
@@ -1030,14 +1022,7 @@ async fn admin_seed_create_races_after_intent_before_remote_secret_work() {
     assert_seed_index_rejects_active_import_reservation().await;
     assert_resolve_existing_seed_index_rejects_active_replace_reservation().await;
     if let Some(binding) = live_binding {
-        let path = format!("/admin/tenants/{}/indexes", binding.customer_id());
-        let target = binding.target_index().to_string();
-        let refusal = binding
-            .assert_admin_destination_conflict(
-                &path,
-                &json!({"name": target, "region": "us-east-1"}),
-            )
-            .await;
+        let refusal = catalog_live_caller_admission::assert_live_non_replica_call(&binding).await;
         binding.finish_after_refused_caller(refusal).await;
     }
 }

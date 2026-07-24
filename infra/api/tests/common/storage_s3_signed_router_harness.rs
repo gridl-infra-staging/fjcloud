@@ -61,6 +61,7 @@ pub(crate) fn s3_test_config(rps: u32) -> Config {
         github_oauth_client_secret: None,
         dunning_emails_disabled: false,
         algolia_migration_enabled: false,
+        vm_autorepair_enabled: false,
     }
 }
 

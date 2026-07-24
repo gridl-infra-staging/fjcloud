@@ -13,37 +13,54 @@ pub enum AdvisoryLockGuard<'a> {
 }
 
 pub async fn auto_provision_lock_key(pool: &PgPool, region: &str) -> Result<i64, RepoError> {
-    match sqlx::query_scalar::<_, i64>("SELECT hashtext('auto_provision_' || $1)::bigint")
-        .bind(region)
-        .fetch_one(pool)
-        .await
-    {
-        Ok(key) => Ok(key),
-        Err(err) if is_connection_error(&err) => Ok(in_process_lock_key(region)),
-        Err(err) => Err(RepoError::Other(format!(
-            "failed to compute advisory lock key: {err}"
-        ))),
-    }
+    named_advisory_lock_key(pool, &format!("auto_provision_{region}"), "auto-provision").await
 }
 
 pub async fn account_lifecycle_lock_key(
     pool: &PgPool,
     customer_id: Uuid,
 ) -> Result<i64, RepoError> {
-    let customer_id = customer_id.to_string();
-    match sqlx::query_scalar::<_, i64>("SELECT hashtext('account_lifecycle_' || $1)::bigint")
-        .bind(&customer_id)
+    named_advisory_lock_key(
+        pool,
+        &format!("account_lifecycle_{customer_id}"),
+        "account lifecycle",
+    )
+    .await
+}
+
+async fn named_advisory_lock_key(
+    pool: &PgPool,
+    lock_name: &str,
+    purpose: &str,
+) -> Result<i64, RepoError> {
+    match sqlx::query_scalar::<_, i64>("SELECT hashtext($1)::bigint")
+        .bind(lock_name)
         .fetch_one(pool)
         .await
     {
         Ok(key) => Ok(key),
-        Err(err) if is_connection_error(&err) => Ok(in_process_named_lock_key(&format!(
-            "account_lifecycle_{customer_id}"
-        ))),
+        Err(err) if is_connection_error(&err) => Ok(in_process_named_lock_key(lock_name)),
         Err(err) => Err(RepoError::Other(format!(
-            "failed to compute account lifecycle advisory lock key: {err}"
+            "failed to compute {purpose} advisory lock key: {err}"
         ))),
     }
+}
+
+pub async fn vm_provisioning_lock_key(pool: &PgPool, hostname: &str) -> Result<i64, RepoError> {
+    named_advisory_lock_key(
+        pool,
+        &format!("vm_provisioning_{hostname}"),
+        "VM provisioning",
+    )
+    .await
+}
+
+pub async fn vm_autorepair_admission_lock_key(pool: &PgPool) -> Result<i64, RepoError> {
+    named_advisory_lock_key(pool, "vm_autorepair_admission", "VM autorepair admission").await
+}
+
+pub async fn vm_replacement_lock_key(pool: &PgPool, vm_id: Uuid) -> Result<i64, RepoError> {
+    named_advisory_lock_key(pool, &format!("vm_replacement_{vm_id}"), "VM replacement").await
 }
 
 /// Acquires a PostgreSQL advisory lock scoped to a transaction, with automatic
@@ -91,6 +108,12 @@ pub(crate) async fn acquire_in_process_named_lock(lock_name: &str) -> OwnedMutex
     in_process_lock_slot(key).lock_owned().await
 }
 
+pub async fn in_process_advisory_lock(lock_name: &str) -> AdvisoryLockGuard<'static> {
+    AdvisoryLockGuard::InProcess {
+        _guard: acquire_in_process_named_lock(lock_name).await,
+    }
+}
+
 pub(crate) fn is_connection_error(err: &sqlx::Error) -> bool {
     matches!(
         err,
@@ -99,10 +122,6 @@ pub(crate) fn is_connection_error(err: &sqlx::Error) -> bool {
             | sqlx::Error::PoolClosed
             | sqlx::Error::WorkerCrashed
     )
-}
-
-fn in_process_lock_key(region: &str) -> i64 {
-    in_process_named_lock_key(&format!("auto_provision_{region}"))
 }
 
 fn in_process_named_lock_key(lock_name: &str) -> i64 {
@@ -129,37 +148,37 @@ mod tests {
 
     #[test]
     fn in_process_lock_key_deterministic() {
-        let a = in_process_lock_key("us-east-1");
-        let b = in_process_lock_key("us-east-1");
+        let a = in_process_named_lock_key("auto_provision_us-east-1");
+        let b = in_process_named_lock_key("auto_provision_us-east-1");
         assert_eq!(a, b, "same region must produce same key");
     }
 
     #[test]
     fn in_process_lock_key_different_regions_differ() {
-        let a = in_process_lock_key("us-east-1");
-        let b = in_process_lock_key("eu-west-1");
+        let a = in_process_named_lock_key("auto_provision_us-east-1");
+        let b = in_process_named_lock_key("auto_provision_eu-west-1");
         assert_ne!(a, b, "different regions must produce different keys");
     }
 
     #[test]
     fn in_process_lock_key_empty_region() {
         // Empty region still gets the "auto_provision_" prefix hashed
-        let key = in_process_lock_key("");
-        let key2 = in_process_lock_key("");
+        let key = in_process_named_lock_key("auto_provision_");
+        let key2 = in_process_named_lock_key("auto_provision_");
         assert_eq!(key, key2);
     }
 
     #[test]
     fn in_process_lock_key_is_fnv1a() {
         // Verify FNV-1a algorithm with known input
-        let key = in_process_lock_key("x");
+        let key = in_process_named_lock_key("auto_provision_x");
         // FNV-1a of "auto_provision_x" — the result must be non-zero and stable
         assert_ne!(key, 0);
     }
 
     #[test]
     fn in_process_lock_slot_returns_same_arc_for_same_key() {
-        let key = in_process_lock_key("test-region-slot");
+        let key = in_process_named_lock_key("auto_provision_test-region-slot");
         let slot_a = in_process_lock_slot(key);
         let slot_b = in_process_lock_slot(key);
         assert!(
@@ -170,8 +189,8 @@ mod tests {
 
     #[test]
     fn in_process_lock_slot_different_keys_different_arcs() {
-        let key_a = in_process_lock_key("slot-region-a");
-        let key_b = in_process_lock_key("slot-region-b");
+        let key_a = in_process_named_lock_key("auto_provision_slot-region-a");
+        let key_b = in_process_named_lock_key("auto_provision_slot-region-b");
         let slot_a = in_process_lock_slot(key_a);
         let slot_b = in_process_lock_slot(key_b);
         assert!(

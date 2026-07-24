@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use uuid::Uuid;
 
 use crate::models::vm_inventory::{NewVmInventory, VmInventory};
+use crate::repos::advisory_lock::{in_process_advisory_lock, AdvisoryLockGuard};
 use crate::repos::error::RepoError;
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, sqlx::FromRow)]
@@ -89,6 +90,17 @@ pub fn validate_vm_retirement_candidate(
 /// decommissioned), and region-filtered active-VM queries.
 #[async_trait]
 pub trait VmInventoryRepo {
+    /// Serialize recovery and provider creation for one durable hostname.
+    ///
+    /// Production implementations must coordinate across API processes. The
+    /// default keeps non-Postgres test repositories faithful to that contract.
+    async fn lock_provisioning_hostname(
+        &self,
+        hostname: &str,
+    ) -> Result<AdvisoryLockGuard<'_>, RepoError> {
+        Ok(in_process_advisory_lock(&format!("vm_provisioning_{hostname}")).await)
+    }
+
     /// All VMs with status=active, optionally filtered by region.
     async fn list_active(&self, region: Option<&str>) -> Result<Vec<VmInventory>, RepoError>;
 

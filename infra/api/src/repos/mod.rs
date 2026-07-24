@@ -31,6 +31,7 @@ pub mod pg_tenant_repo;
 pub mod pg_usage_repo;
 pub mod pg_vm_host_metrics_repo;
 pub mod pg_vm_inventory_repo;
+pub mod pg_vm_lifecycle_event_repo;
 pub mod pg_webhook_event_repo;
 pub mod rate_card_repo;
 pub mod restore_job_repo;
@@ -40,6 +41,7 @@ pub mod tenant_repo;
 pub mod usage_repo;
 pub mod vm_host_metrics_repo;
 pub mod vm_inventory_repo;
+pub mod vm_lifecycle_event_repo;
 pub mod webhook_event_repo;
 
 pub use algolia_import_job_repo::{
@@ -90,6 +92,7 @@ pub use pg_tenant_repo::PgTenantRepo;
 pub use pg_usage_repo::PgUsageRepo;
 pub use pg_vm_host_metrics_repo::PgVmHostMetricsRepo;
 pub use pg_vm_inventory_repo::PgVmInventoryRepo;
+pub use pg_vm_lifecycle_event_repo::PgVmLifecycleEventRepo;
 pub use pg_webhook_event_repo::PgWebhookEventRepo;
 pub use rate_card_repo::RateCardRepo;
 pub use restore_job_repo::RestoreJobRepo;
@@ -102,6 +105,7 @@ pub use vm_inventory_repo::{
     VmDecommissionResult, VmInventoryRepo, VmRetirementAssessment, VmRetirementBlocker,
     VmRetirementConflict,
 };
+pub use vm_lifecycle_event_repo::VmLifecycleEventRepo;
 pub use webhook_event_repo::WebhookEventRepo;
 
 #[cfg(test)]

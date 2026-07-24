@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
+use tokio::sync::Notify;
 use uuid::Uuid;
 
 use super::{CreateVmRequest, VmInstance, VmProvisioner, VmProvisionerError, VmStatus};
@@ -14,8 +15,25 @@ pub struct MockVmProvisioner {
     create_status: Mutex<VmStatus>,
     create_calls: AtomicUsize,
     destroy_calls: AtomicUsize,
+    create_gate: Mutex<Option<Arc<MockVmCreateGate>>>,
     pub should_fail: Arc<AtomicBool>,
     pub omit_public_ip: Arc<AtomicBool>,
+}
+
+pub struct MockVmCreateGate {
+    armed: AtomicBool,
+    started: Notify,
+    release: Notify,
+}
+
+impl MockVmCreateGate {
+    pub async fn wait_until_started(&self) {
+        self.started.notified().await;
+    }
+
+    pub fn release(&self) {
+        self.release.notify_one();
+    }
 }
 
 impl MockVmProvisioner {
@@ -27,6 +45,7 @@ impl MockVmProvisioner {
             create_status: Mutex::new(VmStatus::Pending),
             create_calls: AtomicUsize::new(0),
             destroy_calls: AtomicUsize::new(0),
+            create_gate: Mutex::new(None),
             should_fail: Arc::new(AtomicBool::new(false)),
             omit_public_ip: Arc::new(AtomicBool::new(false)),
         }
@@ -51,6 +70,16 @@ impl MockVmProvisioner {
 
     pub fn set_create_status(&self, status: VmStatus) {
         *self.create_status.lock().unwrap() = status;
+    }
+
+    pub fn pause_next_create(&self) -> Arc<MockVmCreateGate> {
+        let gate = Arc::new(MockVmCreateGate {
+            armed: AtomicBool::new(true),
+            started: Notify::new(),
+            release: Notify::new(),
+        });
+        *self.create_gate.lock().unwrap() = Some(Arc::clone(&gate));
+        gate
     }
 
     /// Returns the number of VMs currently tracked (for test assertions).
@@ -112,6 +141,14 @@ impl VmProvisioner for MockVmProvisioner {
     async fn create_vm(&self, config: &CreateVmRequest) -> Result<VmInstance, VmProvisionerError> {
         self.create_calls.fetch_add(1, Ordering::SeqCst);
         self.check_failure()?;
+
+        let create_gate = self.create_gate.lock().unwrap().clone();
+        if let Some(gate) = create_gate {
+            if gate.armed.swap(false, Ordering::SeqCst) {
+                gate.started.notify_one();
+                gate.release.notified().await;
+            }
+        }
 
         *self.last_create_request.lock().unwrap() = Some(config.clone());
 
@@ -250,7 +287,7 @@ impl VmProvisioner for MockVmProvisioner {
         let Some(vm) = self.vms.lock().unwrap().get(&provider_vm_id).cloned() else {
             return Ok(None);
         };
-        if vm.region == region && vm.status != VmStatus::Terminated {
+        if vm.region == region {
             Ok(Some(vm))
         } else {
             Ok(None)

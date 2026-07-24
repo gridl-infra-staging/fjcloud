@@ -3,6 +3,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
+use std::net::IpAddr;
 use std::path::PathBuf;
 use std::process::Command;
 use uuid::Uuid;
@@ -28,7 +29,22 @@ pub struct CatalogLiveBinding {
 }
 
 pub struct LiveCallerRefusal {
-    _private: (),
+    source: Option<LiveCallerSource>,
+}
+
+struct LiveCallerSource {
+    owner_path: String,
+    source_anchor: String,
+}
+
+impl LiveCallerRefusal {
+    pub fn with_source(mut self, owner_path: &str, source_anchor: &str) -> Self {
+        self.source = Some(LiveCallerSource {
+            owner_path: owner_path.to_string(),
+            source_anchor: source_anchor.to_string(),
+        });
+        self
+    }
 }
 
 impl CatalogLiveBinding {
@@ -100,7 +116,7 @@ impl CatalogLiveBinding {
             refused,
             "{caller_description} did not refuse the live import target with destination_conflict"
         );
-        LiveCallerRefusal { _private: () }
+        LiveCallerRefusal { source: None }
     }
 
     pub fn assert_tenant_destination_conflict(
@@ -138,7 +154,7 @@ impl CatalogLiveBinding {
             "tenant-scoped live catalog caller failed"
         );
         assert_destination_conflict_response(&output.stdout, "tenant-scoped live catalog caller");
-        LiveCallerRefusal { _private: () }
+        LiveCallerRefusal { source: None }
     }
 
     pub async fn assert_admin_destination_conflict(
@@ -168,17 +184,28 @@ impl CatalogLiveBinding {
             Some("destination_conflict"),
             "admin-scoped live catalog caller returned the wrong refusal"
         );
-        LiveCallerRefusal { _private: () }
+        LiveCallerRefusal { source: None }
     }
 
     pub async fn finish_after_refused_caller(self, _refusal: LiveCallerRefusal) {
+        let mapping = self
+            .caller_mapping
+            .as_ref()
+            .expect("catalog live caller key is required for caller evidence");
+        if let Some(source) = &_refusal.source {
+            assert_eq!(
+                source.owner_path, mapping.owner_path,
+                "catalog live caller evidence owner_path must come from the executed source"
+            );
+            assert_eq!(
+                source.source_anchor, mapping.source_anchor,
+                "catalog live caller evidence source_anchor must come from the executed source"
+            );
+        }
         self.verify_active_and_emit_binding().await;
         println!(
             "CATALOG_LIVE_CALLER|caller_key={}|selection={}|job_id={}|customer_id={}|target_index={}|outcome=refused",
-            self.caller_mapping
-                .as_ref()
-                .map(|mapping| mapping.live_caller_key.as_str())
-                .expect("catalog live caller key is required for caller evidence"),
+            mapping.live_caller_key,
             self.selection,
             self.context.job_id,
             self.context.customer_id,
@@ -262,11 +289,6 @@ impl LiveContext {
             require_evidence_component(caller_key, "caller key");
         }
         assert!(
-            (api_url.starts_with("http://") || api_url.starts_with("https://"))
-                && !api_url.contains(['\r', '\n']),
-            "{LIVE_API_URL_ENV} must be an HTTP(S) URL"
-        );
-        assert!(
             auth_config.is_file(),
             "{LIVE_AUTH_CONFIG_ENV} must name the runner-owned curl config"
         );
@@ -276,12 +298,31 @@ impl LiveContext {
             customer_id: Uuid::parse_str(&customer_id)
                 .expect("live catalog customer id must be a UUID"),
             target_index,
-            api_url: api_url.trim_end_matches('/').to_string(),
+            api_url: require_loopback_http_url(&api_url),
             auth_config,
             admin_key,
             caller_key,
         })
     }
+}
+
+fn require_loopback_http_url(api_url: &str) -> String {
+    let parsed = reqwest::Url::parse(api_url).expect("live catalog API URL must parse");
+    assert!(
+        matches!(parsed.scheme(), "http" | "https"),
+        "{LIVE_API_URL_ENV} must be an HTTP(S) URL"
+    );
+    let is_loopback = parsed.host_str().is_some_and(|host| {
+        host.eq_ignore_ascii_case("localhost")
+            || host
+                .parse::<IpAddr>()
+                .is_ok_and(|address| address.is_loopback())
+    });
+    assert!(
+        is_loopback,
+        "{LIVE_API_URL_ENV} must stay on loopback so live probe credentials never leave the local stack"
+    );
+    parsed.as_str().trim_end_matches('/').to_string()
 }
 
 fn assert_destination_conflict_response(response: &[u8], caller_description: &str) {
@@ -394,7 +435,9 @@ fn require_evidence_component(value: &str, label: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{require_evidence_component, require_live_caller_mapping};
+    use super::{
+        require_evidence_component, require_live_caller_mapping, require_loopback_http_url,
+    };
 
     #[test]
     fn evidence_components_reject_record_delimiters_and_newlines() {
@@ -413,6 +456,28 @@ mod tests {
             "selection",
         );
         require_evidence_component("fjcloud_import_catalog_probe_123_target", "target");
+    }
+
+    #[test]
+    fn live_api_url_must_resolve_to_loopback_host() {
+        assert_eq!(
+            require_loopback_http_url("http://127.0.0.1:3099/"),
+            "http://127.0.0.1:3099"
+        );
+        assert_eq!(
+            require_loopback_http_url("https://localhost:3099"),
+            "https://localhost:3099"
+        );
+        for invalid in [
+            "ftp://127.0.0.1:3099",
+            "https://example.com/live-probe",
+            "http://192.0.2.10:3099",
+        ] {
+            assert!(
+                std::panic::catch_unwind(|| require_loopback_http_url(invalid)).is_err(),
+                "{invalid:?} must not be accepted for live probe credentials"
+            );
+        }
     }
 
     #[test]

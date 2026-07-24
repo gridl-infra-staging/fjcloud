@@ -77,6 +77,81 @@ job_block() {
   ' "$WORKFLOW_FILE"
 }
 
+# Assert a job's step-level `timeout <seconds> ...` wrapper fires strictly
+# before its job-level `timeout-minutes:` bound.
+#
+# This ordering is the whole point of the wrapper. If the step bound ever meets
+# or exceeds the job bound, GitHub cancels the job first, cancellation discards
+# the remaining steps, and the always()-guarded diagnostic silently stops
+# running — restoring the blind 45-minute failure this contract exists to
+# prevent, with no visible signal that it regressed.
+assert_step_bound_below_job_bound() {
+  local job_name="$1"
+  local msg="$2"
+  local block step_seconds job_minutes
+
+  block="$(job_block "$job_name")"
+
+  # Pull <n> out of `run: timeout <n> cargo test ...`. No awk `exit` here: under
+  # `set -o pipefail` an exit mid-stream SIGPIPEs job_block's writer and kills
+  # the script with 141 on the CI runner. Same hazard already documented in
+  # scripts/tests/lib/ci_workflow_contract.sh — consume all input, use a flag.
+  step_seconds="$(printf '%s\n' "$block" | awk '
+    !found && /timeout[[:space:]]+[0-9]+[[:space:]]+cargo test/ {
+      for (i = 1; i < NF; i++) {
+        if ($i == "timeout" && $(i + 1) ~ /^[0-9]+$/) { print $(i + 1); found = 1; break }
+      }
+    }')"
+
+  # Job-level bound is isolated by its 4-space indent, which distinguishes it
+  # from any step-level `timeout-minutes:` nested deeper in the block.
+  job_minutes="$(printf '%s\n' "$block" | awk '
+    !found && /^[[:space:]]{4}timeout-minutes:[[:space:]]*[0-9]+[[:space:]]*$/ {
+      print $2
+      found = 1
+    }')"
+
+  if [[ -z "$step_seconds" || -z "$job_minutes" ]]; then
+    fail "$msg (could not parse bounds in $job_name: step='$step_seconds' job='$job_minutes')"
+    return
+  fi
+
+  if (( step_seconds < job_minutes * 60 )); then
+    pass "$msg (step ${step_seconds}s < job $((job_minutes * 60))s)"
+  else
+    fail "$msg (step ${step_seconds}s >= job $((job_minutes * 60))s in $job_name)"
+  fi
+}
+
+# Assert one line appears before another inside a job block.
+#
+# Used to pin compilation ahead of the bounded run step. If that order ever
+# flips, `timeout` starts covering a cold compile again and a slow build gets
+# reported as a hang — the false positive the --no-run split exists to prevent.
+#
+# awk with a `!f` flag rather than `grep -n | head -1`: under `set -o pipefail`
+# an early `head` exit SIGPIPEs its writer and kills the script with 141. Same
+# hazard documented in scripts/tests/lib/ci_workflow_contract.sh.
+assert_job_line_order() {
+  local job_name="$1" first_pat="$2" second_pat="$3" msg="$4"
+  local block first_line second_line
+
+  block="$(job_block "$job_name")"
+  first_line="$(printf '%s\n' "$block" | awk -v pat="$first_pat" '!f && $0 ~ pat { print NR; f = 1 }')"
+  second_line="$(printf '%s\n' "$block" | awk -v pat="$second_pat" '!f && $0 ~ pat { print NR; f = 1 }')"
+
+  if [[ -z "$first_line" || -z "$second_line" ]]; then
+    fail "$msg (missing line in $job_name: first='$first_pat' second='$second_pat')"
+    return
+  fi
+
+  if (( first_line < second_line )); then
+    pass "$msg (line $first_line before $second_line)"
+  else
+    fail "$msg (wrong order in $job_name: $first_line not before $second_line)"
+  fi
+}
+
 assert_job_contains_regex() {
   local job_name="$1"
   local pattern="$2"
@@ -406,8 +481,34 @@ assert_not_contains_regex 'The `playwright` job remains advisory' "workflow does
 assert_job_contains_regex "rust-test" 'uses:\s+actions/checkout@' "rust-test has checkout step"
 assert_job_contains_regex "rust-test" 'run:\s+bash scripts/reliability/seed-test-profiles.sh' "rust-test seeds reliability profile artifacts"
 assert_job_contains_regex "rust-test" 'uses:\s+dtolnay/rust-toolchain@' "rust-test has rust toolchain setup"
-assert_job_contains_regex "rust-test" 'run:\s+cargo test --workspace' "rust-test has cargo test command"
+assert_job_contains_regex "rust-test" 'run:\s+timeout [0-9]+ cargo test --workspace' "rust-test bounds the cargo test command so a hang fails the step, not the job"
+# Compile is a separate, UNBOUNDED step so the bound above covers test
+# execution only. infra/Cargo.lock churns a few times a week, so cache misses
+# are routine; without this split a cold compile would eat the execution budget
+# and report a hang that never happened.
+assert_job_contains_regex "rust-test" 'run:\s+cargo test --workspace --no-run' "rust-test compiles in a separate unbounded step so the bound covers execution only"
+assert_job_line_order "rust-test" 'cargo test --workspace --no-run' 'timeout [0-9]+ cargo test' "rust-test compiles before the bounded run step"
 assert_job_contains_regex "rust-test" 'timeout-minutes:\s+45' "rust-test has bounded timeout"
+# Bounded-failure contract (added 2026-07-23 after nine consecutive staging CI
+# runs died at the 45-minute job timeout with `deploy-staging` skipped).
+#
+# The failure mode: a hung test produces no output, the job-level
+# `timeout-minutes` fires, and GitHub CANCELS the job. Cancellation discards
+# every remaining step, so no diagnostic could run and the hung test was never
+# named — nine 45-minute cycles produced zero actionable information.
+#
+# The fix has two halves and BOTH are load-bearing:
+#   1. `timeout <n> cargo test` bounds the command, so a hang fails the STEP
+#      while the job stays alive.
+#   2. An `if: always()` step then still runs and dumps the full test
+#      inventory. Diffing that inventory against the tests that reported "ok"
+#      in the same log names the hung tests exactly.
+# `-- --list` is used rather than a database query on purpose: no job in this
+# workflow invokes `psql`, so assuming the runner image ships a Postgres client
+# would be an unverified dependency. cargo is already installed here.
+assert_job_contains_regex "rust-test" 'if:\s+always\(\)' "rust-test has an always-run diagnostic step that survives a failed test step"
+assert_job_contains_regex "rust-test" 'cargo test --workspace -- --list' "rust-test dumps the full test inventory so hung tests can be named by diff"
+assert_step_bound_below_job_bound "rust-test" "rust-test step timeout fires before the job timeout"
 assert_job_contains_regex "rust-test" 'DATABASE_URL:\s+postgres://fjcloud:password@127\.0\.0\.1:5432/fjcloud_test' "rust-test exposes PostgreSQL service URL to integration tests"
 # tenant_isolation_proptest moved to nightly.yml on 2026-05-02 — kept out
 # of the per-push deploy gate to shave ~3-5 min off every CI cycle. See

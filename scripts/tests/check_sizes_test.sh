@@ -220,6 +220,41 @@ test_metering_counter_override_is_ratcheted_and_guarded() {
     rm -rf "$tmpdir"
 }
 
+test_duplicate_override_paths_are_rejected() {
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+
+    local copied_script="$tmpdir/scripts/check-sizes.sh"
+    local fixture_root="$tmpdir/repo"
+    mkdir -p "$(dirname "$copied_script")" "$fixture_root/infra/metering-agent/src"
+    cp "$CHECK_SCRIPT" "$copied_script"
+    chmod +x "$copied_script"
+
+    # A second entry for a path already overridden must fail loudly: the lookup
+    # breaks on the first match, so a duplicate silently pins the wrong cap.
+    python3 - "$copied_script" "$COUNTER_PATH" <<'PY'
+import sys
+script, counter_path = sys.argv[1], sys.argv[2]
+with open(script, encoding="utf-8") as handle:
+    text = handle.read()
+marker = f'    "{counter_path}|'
+index = text.index(marker)
+end = text.index("\n", index) + 1
+injected = f'    "{counter_path}|123|injected duplicate"\n'
+with open(script, "w", encoding="utf-8") as handle:
+    handle.write(text[:end] + injected + text[end:])
+PY
+
+    local output="" exit_code=0
+    output="$("$copied_script" "$fixture_root" 2>&1)" || exit_code=$?
+
+    assert_ne "$exit_code" "0" "duplicate override path is rejected"
+    assert_contains "$output" "duplicate PER_FILE_OVERRIDES" \
+        "duplicate override failure names the offending list"
+
+    rm -rf "$tmpdir"
+}
+
 test_lifecycle_override_is_retired() {
     local tmpdir
     tmpdir="$(mktemp -d)"
@@ -266,6 +301,7 @@ test_script_accepts_limits_and_passes_at_boundaries
 test_script_fails_for_oversized_files_and_ignores_excluded_paths
 test_index_detail_override_is_ratcheted_and_guarded
 test_metering_counter_override_is_ratcheted_and_guarded
+test_duplicate_override_paths_are_rejected
 test_lifecycle_override_is_retired
 test_retired_now_doc_is_not_part_of_size_gate
 

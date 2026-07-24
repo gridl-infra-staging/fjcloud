@@ -91,6 +91,19 @@ pub trait TenantRepo {
         vm_id: Uuid,
     ) -> Result<(), RepoError>;
 
+    /// Move a tenant from an expected source VM to a replacement VM.
+    ///
+    /// Retries are idempotent when the tenant is already on the replacement.
+    /// A tenant on any other VM is a conflict so autorepair cannot overwrite
+    /// concurrent migration or lifecycle placement.
+    async fn replace_vm_if_current(
+        &self,
+        customer_id: Uuid,
+        tenant_id: &str,
+        expected_source_vm_id: Uuid,
+        replacement_vm_id: Uuid,
+    ) -> Result<CustomerTenant, RepoError>;
+
     /// Set the migration tier for an index (active/migrating/pinned).
     async fn set_tier(
         &self,

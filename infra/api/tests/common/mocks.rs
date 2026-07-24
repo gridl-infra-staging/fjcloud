@@ -7,7 +7,8 @@ use api::models::vm_inventory::{NewVmInventory, VmInventory};
 use api::models::{
     Customer, CustomerRateOverrideRow, CustomerTenant, CustomerTenantSummary, Deployment,
     IngestQuotaWarningMetric, IngestQuotaWarningsSentState, InvoiceLineItemRow, InvoiceRow,
-    NewVmHostMetrics, RateCardRow, UsageDaily, VmHostMetrics,
+    NewVmHostMetrics, NewVmLifecycleEvent, RateCardRow, UsageDaily, VmHostMetrics,
+    VmLifecycleEvent,
 };
 use api::provisioner::mock::MockVmProvisioner;
 use api::repos::api_key_repo::{ApiKeyManagedKeyParams, ApiKeyRepo};
@@ -19,13 +20,18 @@ use api::repos::usage_repo::{rolling_window_for_days, UsageSummary};
 use api::repos::vm_inventory_repo::{
     validate_vm_retirement_candidate, VmInventoryRepo, VmRetirementCandidateStatus,
 };
+use api::repos::vm_lifecycle_event_repo::{
+    active_replacement_admission, admission_from_event, latest_unfinished_replacements,
+    replacement_provisioning_event, summarize_guardrail_history, AutorepairGuardrailHistory,
+    AutorepairGuardrailQuery, ReplacementAdmission, ReplacementAdmissionDraft,
+};
 use api::repos::webhook_event_repo::{WebhookEventRepo, WebhookEventRow};
 use api::repos::{
     CatalogLifecycleTargetIdentity, CustomerRepo, DeploymentRepo, InMemoryColdSnapshotRepo,
     InMemoryIndexReplicaRepo, RateCardRepo, RepoError, ResendPasswordResetOutcome,
     ResendPasswordResetReservation, ResendVerificationOutcome, ResendVerificationReservation,
-    UsageRepo, VmDecommissionResult, VmHostMetricsRepo, VmRetirementAssessment,
-    VmRetirementConflict, RESEND_VERIFICATION_COOLDOWN_SECONDS,
+    UsageRepo, VmDecommissionResult, VmHostMetricsRepo, VmLifecycleEventRepo,
+    VmRetirementAssessment, VmRetirementConflict, RESEND_VERIFICATION_COOLDOWN_SECONDS,
 };
 use api::secrets::mock::MockNodeSecretManager;
 use api::services::alerting::MockAlertService;
@@ -3717,6 +3723,165 @@ pub fn mock_vm_host_metrics_repo() -> Arc<MockVmHostMetricsRepo> {
 }
 
 // ---------------------------------------------------------------------------
+// MockVmLifecycleEventRepo
+// ---------------------------------------------------------------------------
+
+pub struct MockVmLifecycleEventRepo {
+    events: Mutex<Vec<VmLifecycleEvent>>,
+    should_fail: AtomicBool,
+    admission_gate: Mutex<Option<Arc<MockVmLifecycleAdmissionGate>>>,
+}
+
+pub struct MockVmLifecycleAdmissionGate {
+    armed: AtomicBool,
+    started: Notify,
+    release: Notify,
+}
+
+impl MockVmLifecycleAdmissionGate {
+    pub async fn wait_until_started(&self) {
+        self.started.notified().await;
+    }
+
+    pub fn release(&self) {
+        self.release.notify_one();
+    }
+}
+
+impl MockVmLifecycleEventRepo {
+    pub fn new() -> Self {
+        Self {
+            events: Mutex::new(Vec::new()),
+            should_fail: AtomicBool::new(false),
+            admission_gate: Mutex::new(None),
+        }
+    }
+
+    pub fn set_should_fail(&self, should_fail: bool) {
+        self.should_fail.store(should_fail, Ordering::SeqCst);
+    }
+
+    pub fn pause_next_admission(&self) -> Arc<MockVmLifecycleAdmissionGate> {
+        let gate = Arc::new(MockVmLifecycleAdmissionGate {
+            armed: AtomicBool::new(true),
+            started: Notify::new(),
+            release: Notify::new(),
+        });
+        *self.admission_gate.lock().unwrap() = Some(Arc::clone(&gate));
+        gate
+    }
+}
+
+#[async_trait]
+impl VmLifecycleEventRepo for MockVmLifecycleEventRepo {
+    async fn append(&self, event: NewVmLifecycleEvent) -> Result<VmLifecycleEvent, RepoError> {
+        if self.should_fail.load(Ordering::SeqCst) {
+            return Err(RepoError::Other(
+                "mock vm lifecycle event failure".to_string(),
+            ));
+        }
+        let row = VmLifecycleEvent {
+            id: Uuid::new_v4(),
+            vm_id: event.vm_id,
+            event_type: event.event_type,
+            detail: event.detail,
+            created_at: Utc::now(),
+        };
+        self.events.lock().unwrap().push(row.clone());
+        Ok(row)
+    }
+
+    async fn list_for_vm(&self, vm_id: Uuid) -> Result<Vec<VmLifecycleEvent>, RepoError> {
+        if self.should_fail.load(Ordering::SeqCst) {
+            return Err(RepoError::Other(
+                "mock vm lifecycle event failure".to_string(),
+            ));
+        }
+        let mut events = self
+            .events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|event| event.vm_id == vm_id)
+            .cloned()
+            .collect::<Vec<_>>();
+        events.sort_by_key(|event| (event.created_at, event.id));
+        Ok(events)
+    }
+
+    async fn latest_for_vm(&self, vm_id: Uuid) -> Result<Option<VmLifecycleEvent>, RepoError> {
+        Ok(self.list_for_vm(vm_id).await?.into_iter().last())
+    }
+
+    async fn admit_replacement(
+        &self,
+        draft: ReplacementAdmissionDraft,
+    ) -> Result<ReplacementAdmission, RepoError> {
+        if self.should_fail.load(Ordering::SeqCst) {
+            return Err(RepoError::Other(
+                "mock vm lifecycle event failure".to_string(),
+            ));
+        }
+        let admission_gate = self.admission_gate.lock().unwrap().clone();
+        if let Some(gate) = admission_gate {
+            if gate.armed.swap(false, Ordering::SeqCst) {
+                gate.started.notify_one();
+                gate.release.notified().await;
+            }
+        }
+
+        let mut events = self.events.lock().unwrap();
+        let mut vm_events = events
+            .iter()
+            .filter(|event| event.vm_id == draft.dead_vm_id)
+            .cloned()
+            .collect::<Vec<_>>();
+        vm_events.sort_by_key(|event| (event.created_at, event.id));
+        if let Some(admission) = active_replacement_admission(&vm_events)? {
+            return Ok(admission);
+        }
+
+        let new_event = replacement_provisioning_event(&draft);
+        let row = VmLifecycleEvent {
+            id: Uuid::new_v4(),
+            vm_id: new_event.vm_id,
+            event_type: new_event.event_type,
+            detail: new_event.detail,
+            created_at: Utc::now(),
+        };
+        events.push(row.clone());
+        admission_from_event(&row, true)
+    }
+
+    async fn guardrail_history(
+        &self,
+        query: AutorepairGuardrailQuery,
+    ) -> Result<AutorepairGuardrailHistory, RepoError> {
+        if self.should_fail.load(Ordering::SeqCst) {
+            return Err(RepoError::Other(
+                "mock vm lifecycle event failure".to_string(),
+            ));
+        }
+        let events = self.events.lock().unwrap().clone();
+        summarize_guardrail_history(&events, &query)
+    }
+
+    async fn unfinished_replacements(&self) -> Result<Vec<VmLifecycleEvent>, RepoError> {
+        if self.should_fail.load(Ordering::SeqCst) {
+            return Err(RepoError::Other(
+                "mock vm lifecycle event failure".to_string(),
+            ));
+        }
+        let events = self.events.lock().unwrap().clone();
+        latest_unfinished_replacements(&events)
+    }
+}
+
+pub fn mock_vm_lifecycle_event_repo() -> Arc<MockVmLifecycleEventRepo> {
+    Arc::new(MockVmLifecycleEventRepo::new())
+}
+
+// ---------------------------------------------------------------------------
 // MockVmInventoryRepo
 // ---------------------------------------------------------------------------
 
@@ -3727,6 +3892,7 @@ pub struct MockVmInventoryRepo {
     create_calls: Mutex<usize>,
     status_mutation_calls: AtomicUsize,
     pub should_fail: Arc<AtomicBool>,
+    fail_next_decommission: AtomicBool,
 }
 
 impl MockVmInventoryRepo {
@@ -3738,7 +3904,12 @@ impl MockVmInventoryRepo {
             create_calls: Mutex::new(0),
             status_mutation_calls: AtomicUsize::new(0),
             should_fail: Arc::new(AtomicBool::new(false)),
+            fail_next_decommission: AtomicBool::new(false),
         }
+    }
+
+    pub fn fail_next_decommission(&self) {
+        self.fail_next_decommission.store(true, Ordering::SeqCst);
     }
 
     pub fn get_call_count(&self) -> usize {
@@ -3917,6 +4088,11 @@ impl VmInventoryRepo for MockVmInventoryRepo {
         expected_hostname: &str,
     ) -> Result<VmDecommissionResult, RepoError> {
         self.status_mutation_calls.fetch_add(1, Ordering::SeqCst);
+        if self.fail_next_decommission.swap(false, Ordering::SeqCst) {
+            return Err(RepoError::Other(
+                "injected decommission failure".to_string(),
+            ));
+        }
         self.check_failure()?;
         let mut vms = self.vms.lock().unwrap();
         let vm = vms.iter_mut().find(|vm| vm.id == id);
@@ -4501,6 +4677,36 @@ impl TenantRepo for MockTenantRepo {
         } else {
             Err(RepoError::NotFound)
         }
+    }
+
+    async fn replace_vm_if_current(
+        &self,
+        customer_id: Uuid,
+        tenant_id: &str,
+        expected_source_vm_id: Uuid,
+        replacement_vm_id: Uuid,
+    ) -> Result<CustomerTenant, RepoError> {
+        if self.fail_next_set_vm_id.swap(false, Ordering::SeqCst) {
+            return Err(RepoError::Other("injected set_vm_id failure".to_string()));
+        }
+
+        let mut tenants = self.tenants.lock().unwrap();
+        let Some(tenant) = tenants
+            .iter_mut()
+            .find(|t| t.customer_id == customer_id && t.tenant_id == tenant_id)
+        else {
+            return Err(RepoError::NotFound);
+        };
+
+        if tenant.vm_id == Some(replacement_vm_id) {
+            return Ok(tenant.clone());
+        }
+        if tenant.vm_id != Some(expected_source_vm_id) {
+            return Err(RepoError::Conflict("source_vm_changed".to_string()));
+        }
+
+        tenant.vm_id = Some(replacement_vm_id);
+        Ok(tenant.clone())
     }
 
     /// Implements `TenantRepo::set_tier`. Updates the storage tier (e.g.,

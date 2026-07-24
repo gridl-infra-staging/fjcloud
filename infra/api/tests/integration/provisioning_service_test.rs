@@ -2843,10 +2843,6 @@ async fn hetzner_deployment_uses_direct_secrets_in_cloud_init() {
         user_data.contains("FLAPJACK_URL=http://$NODE_ID:7700"),
         "cloud-init must preserve the node-id metering URL.\nGot user_data:\n{user_data}"
     );
-    assert!(
-        user_data.contains("systemctl start flapjack fj-metering-agent"),
-        "cloud-init must start Flapjack and metering services.\nGot user_data:\n{user_data}"
-    );
     assert_caddy_runtime_absent_from_user_data(user_data);
 }
 

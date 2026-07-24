@@ -785,9 +785,10 @@ async fn algolia_cloud_job_inspect_source_request_and_result_never_reveal_key() 
     let debug_request = format!("{request:?}");
     assert!(debug_request.contains("app_id: \"[REDACTED]\""));
     assert!(debug_request.contains("api_key: \"[REDACTED]\""));
-    assert!(debug_request.contains("source_name: \"products\""));
+    assert!(debug_request.contains("source_name: \"[REDACTED]\""));
     assert!(!debug_request.contains(secret));
     assert!(!debug_request.contains("TESTAPP123"));
+    assert!(!debug_request.contains("products"));
 
     let server_item = sized_item("products", 42, 2048, 4096);
     let source = service(FakeClient::with_responses([

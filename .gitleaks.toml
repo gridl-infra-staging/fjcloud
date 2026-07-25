@@ -45,6 +45,12 @@ paths = [
     '''scripts/validate-stripe\.sh$''',
     '''scripts/reliability/fixtures/security/.*''',
     '''web/src/lib/auth/(guard|jwt)\.test\.ts$''',
+    # Mocked Playwright migration-console fixtures use explicit, non-secret
+    # Algolia credential canaries to prove that request payloads carry the
+    # expected values without rendering them into the browser DOM. Keep this
+    # limited to the fixture module; production and full-browser paths remain
+    # scanned.
+    '''web/tests/e2e-ui/mocked/migration_console_flow_fixture\.ts$''',
     # Per-evidence-bundle Stripe-key fingerprint files. They contain a
     # SHA256 hex digest of the test-mode key, not the key itself. The
     # hash is one-way, so leaking it does not expose any secret. The

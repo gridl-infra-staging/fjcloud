@@ -4,8 +4,8 @@ proxy_booleans_begin
 proxy_booleans_end
 --- dns_email.us-east-1.amazonaws.com_begin ---
 18.204.163.48   STREAM email.us-east-1.amazonaws.com
-18.204.163.48   DGRAM  
-18.204.163.48   RAW    
+18.204.163.48   DGRAM
+18.204.163.48   RAW
 exit_status=0
 --- dns_email.us-east-1.amazonaws.com_end ---
 --- route4_email.us-east-1.amazonaws.com_begin ---
@@ -18,29 +18,29 @@ exit_status=64
 --- route6_email.us-east-1.amazonaws.com_end ---
 --- dns_monitoring.us-east-1.amazonaws.com_begin ---
 44.223.121.8    STREAM monitoring.us-east-1.amazonaws.com
-44.223.121.8    DGRAM  
-44.223.121.8    RAW    
-44.213.98.126   STREAM 
-44.213.98.126   DGRAM  
-44.213.98.126   RAW    
-44.213.98.124   STREAM 
-44.213.98.124   DGRAM  
-44.213.98.124   RAW    
-44.213.98.220   STREAM 
-44.213.98.220   DGRAM  
-44.213.98.220   RAW    
-44.213.98.78    STREAM 
-44.213.98.78    DGRAM  
-44.213.98.78    RAW    
-44.223.121.70   STREAM 
-44.223.121.70   DGRAM  
-44.223.121.70   RAW    
-44.213.98.13    STREAM 
-44.213.98.13    DGRAM  
-44.213.98.13    RAW    
-44.213.98.40    STREAM 
-44.213.98.40    DGRAM  
-44.213.98.40    RAW    
+44.223.121.8    DGRAM
+44.223.121.8    RAW
+44.213.98.126   STREAM
+44.213.98.126   DGRAM
+44.213.98.126   RAW
+44.213.98.124   STREAM
+44.213.98.124   DGRAM
+44.213.98.124   RAW
+44.213.98.220   STREAM
+44.213.98.220   DGRAM
+44.213.98.220   RAW
+44.213.98.78    STREAM
+44.213.98.78    DGRAM
+44.213.98.78    RAW
+44.223.121.70   STREAM
+44.223.121.70   DGRAM
+44.223.121.70   RAW
+44.213.98.13    STREAM
+44.213.98.13    DGRAM
+44.213.98.13    RAW
+44.213.98.40    STREAM
+44.213.98.40    DGRAM
+44.213.98.40    RAW
 exit_status=0
 --- dns_monitoring.us-east-1.amazonaws.com_end ---
 --- route4_monitoring.us-east-1.amazonaws.com_begin ---
@@ -53,8 +53,8 @@ exit_status=64
 --- route6_monitoring.us-east-1.amazonaws.com_end ---
 --- dns_sts.us-east-1.amazonaws.com_begin ---
 44.213.78.45    STREAM sts.us-east-1.amazonaws.com
-44.213.78.45    DGRAM  
-44.213.78.45    RAW    
+44.213.78.45    DGRAM
+44.213.78.45    RAW
 exit_status=0
 --- dns_sts.us-east-1.amazonaws.com_end ---
 --- route4_sts.us-east-1.amazonaws.com_begin ---
@@ -67,20 +67,20 @@ exit_status=64
 --- route6_sts.us-east-1.amazonaws.com_end ---
 --- dns_discord.com_begin ---
 162.159.128.233 STREAM discord.com
-162.159.128.233 DGRAM  
-162.159.128.233 RAW    
-162.159.135.232 STREAM 
-162.159.135.232 DGRAM  
-162.159.135.232 RAW    
-162.159.138.232 STREAM 
-162.159.138.232 DGRAM  
-162.159.138.232 RAW    
-162.159.137.232 STREAM 
-162.159.137.232 DGRAM  
-162.159.137.232 RAW    
-162.159.136.232 STREAM 
-162.159.136.232 DGRAM  
-162.159.136.232 RAW    
+162.159.128.233 DGRAM
+162.159.128.233 RAW
+162.159.135.232 STREAM
+162.159.135.232 DGRAM
+162.159.135.232 RAW
+162.159.138.232 STREAM
+162.159.138.232 DGRAM
+162.159.138.232 RAW
+162.159.137.232 STREAM
+162.159.137.232 DGRAM
+162.159.137.232 RAW
+162.159.136.232 STREAM
+162.159.136.232 DGRAM
+162.159.136.232 RAW
 exit_status=0
 --- dns_discord.com_end ---
 --- route4_discord.com_begin ---
@@ -93,8 +93,8 @@ exit_status=64
 --- route6_discord.com_end ---
 --- dns_github.com_begin ---
 140.82.112.4    STREAM github.com
-140.82.112.4    DGRAM  
-140.82.112.4    RAW    
+140.82.112.4    DGRAM
+140.82.112.4    RAW
 exit_status=0
 --- dns_github.com_end ---
 --- route4_github.com_begin ---

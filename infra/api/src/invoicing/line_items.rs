@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::models::customer::BillingPlan;
 use crate::repos::invoice_repo::NewLineItem;
+use billing::pricing::PricingError;
 
 use super::{ObjectStorageEgressMetadata, StorageInputs};
 
@@ -49,19 +50,19 @@ pub(super) fn bill_object_storage_egress_line_item(
     line_item: &billing::invoice::LineItem,
     storage: &StorageInputs,
     next_cycle_carryforward_cents: &mut Decimal,
-) -> (i64, Option<serde_json::Value>) {
+) -> Result<(i64, Option<serde_json::Value>), PricingError> {
     let raw_egress_cents = line_item.quantity * line_item.unit_price_cents;
     let total_egress_cents = raw_egress_cents + *next_cycle_carryforward_cents;
     let whole_egress_cents = total_egress_cents.floor();
     *next_cycle_carryforward_cents = total_egress_cents - whole_egress_cents;
     let amount_cents = whole_egress_cents
         .to_i64()
-        .expect("billing amount overflow: object storage egress whole cents exceed i64::MAX");
+        .ok_or(PricingError::AmountOverflow)?;
     let metadata = Some(object_storage_egress_metadata_value(
         storage,
         *next_cycle_carryforward_cents,
     ));
-    (amount_cents, metadata)
+    Ok((amount_cents, metadata))
 }
 
 pub(super) fn carryforward_only_egress_line_item(
@@ -86,18 +87,18 @@ pub(super) fn new_invoice_line_item(
     line_item: billing::invoice::LineItem,
     storage: &StorageInputs,
     next_cycle_egress_carryforward_cents: &mut Decimal,
-) -> NewLineItem {
+) -> Result<NewLineItem, PricingError> {
     let (amount_cents, metadata) = if line_item.unit == OBJECT_STORAGE_EGRESS_UNIT {
         bill_object_storage_egress_line_item(
             &line_item,
             storage,
             next_cycle_egress_carryforward_cents,
-        )
+        )?
     } else {
         (line_item.amount_cents, None)
     };
 
-    NewLineItem {
+    Ok(NewLineItem {
         description: line_item.description,
         quantity: line_item.quantity,
         unit: line_item.unit,
@@ -105,7 +106,7 @@ pub(super) fn new_invoice_line_item(
         amount_cents,
         region: line_item.region,
         metadata,
-    }
+    })
 }
 
 pub(super) fn append_carryforward_snapshot_if_needed(
@@ -141,5 +142,81 @@ pub(super) fn invoice_total_with_minimum(
         (minimum_cents, true)
     } else {
         (subtotal_cents, false)
+    }
+}
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_decimal_macros::dec;
+
+    fn line_item(unit_price_cents: Decimal) -> billing::invoice::LineItem {
+        billing::invoice::LineItem {
+            description: "Object storage egress".to_string(),
+            quantity: dec!(1),
+            unit: OBJECT_STORAGE_EGRESS_UNIT.to_string(),
+            unit_price_cents,
+            amount_cents: 0,
+            region: "us-east-1".to_string(),
+        }
+    }
+
+    #[test]
+    fn egress_whole_cents_at_i64_max_returns_exact_value() {
+        let storage = StorageInputs::default();
+        let mut carryforward = Decimal::ZERO;
+
+        let (amount_cents, metadata) = bill_object_storage_egress_line_item(
+            &line_item(Decimal::from(i64::MAX)),
+            &storage,
+            &mut carryforward,
+        )
+        .unwrap();
+
+        assert_eq!(amount_cents, i64::MAX);
+        assert_eq!(carryforward, Decimal::ZERO);
+        assert!(metadata.is_some());
+    }
+
+    #[test]
+    fn egress_whole_cents_at_i64_max_with_fractional_carryforward_floors_correctly() {
+        let storage = StorageInputs::default();
+        let mut carryforward = dec!(0.5);
+
+        let (amount_cents, metadata) = bill_object_storage_egress_line_item(
+            &line_item(Decimal::from(i64::MAX)),
+            &storage,
+            &mut carryforward,
+        )
+        .unwrap();
+
+        assert_eq!(amount_cents, i64::MAX);
+        assert_eq!(carryforward, dec!(0.5));
+        assert!(metadata.is_some());
+    }
+
+    #[test]
+    fn egress_whole_cents_one_past_i64_max_returns_overflow_error_without_panic() {
+        let storage = StorageInputs::default();
+        let mut carryforward = Decimal::ZERO;
+        let unit_price_cents = Decimal::from(i64::MAX) + Decimal::ONE;
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            bill_object_storage_egress_line_item(
+                &line_item(unit_price_cents),
+                &storage,
+                &mut carryforward,
+            )
+        }));
+
+        assert!(
+            result.is_ok(),
+            "object storage egress billing must not panic above i64::MAX"
+        );
+        assert_eq!(result.unwrap(), Err(PricingError::AmountOverflow));
     }
 }

@@ -62,6 +62,7 @@ fn line_item_amount(
     unit: &str,
 ) -> i64 {
     calculate_invoice(summary, rate)
+        .unwrap()
         .line_items
         .into_iter()
         .find(|line_item| line_item.unit == unit)
@@ -75,7 +76,7 @@ fn total_line_item_amount(
 ) -> i64 {
     summaries
         .iter()
-        .flat_map(|summary| calculate_invoice(summary, rate).line_items)
+        .flat_map(|summary| calculate_invoice(summary, rate).unwrap().line_items)
         .map(|line_item| line_item.amount_cents)
         .sum()
 }

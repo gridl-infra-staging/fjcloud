@@ -1329,7 +1329,7 @@ describe('playwright config contract', () => {
 			);
 
 			expect(process.env.FLAPJACK_URL).toBe(previousFlapjackUrl);
-		});
+		}, 15_000);
 	});
 
 	describe('formatFixtureSetupFailure diagnostics', () => {

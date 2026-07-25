@@ -5,6 +5,8 @@ const _: &str = env!("FJCLOUD_MIGRATIONS_FINGERPRINT");
 
 mod common;
 
+#[path = "integration/aggregation_known_answer_test.rs"]
+mod aggregation_known_answer_test;
 #[path = "integration/billing_endpoints_test.rs"]
 mod billing_endpoints_test;
 #[path = "integration/billing_estimate_test.rs"]

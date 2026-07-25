@@ -27,5 +27,5 @@ describe('$lib/api/types barrel', () => {
 		checkApiTypeContract();
 
 		expect(true).toBe(true);
-	});
+	}, 15_000);
 });

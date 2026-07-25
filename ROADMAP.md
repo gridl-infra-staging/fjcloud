@@ -42,6 +42,11 @@ Current launch interpretation is intentionally compact here. Use these owners fo
   interpretation and artifact pointers.
 - [docs/runbooks/paid_beta_rc_signoff.md](docs/runbooks/paid_beta_rc_signoff.md) — RC
   taxonomy and readiness-artifact contract.
+- [docs/launch/beta_launch_remaining_work.md](docs/launch/beta_launch_remaining_work.md) —
+  plain-language overview of what's left before paying beta (orientation only; LAUNCH.md +
+  the launch matrix remain the authority).
+- [docs/runbooks/live_environment_ops_approach.md](docs/runbooks/live_environment_ops_approach.md) —
+  how to do staging/prod work without the repeated stall-and-strand headaches.
 - [`implemented/`](implemented/) — closed waves, historical merge
   detail, and done-only prose moved out of this live ledger.
 

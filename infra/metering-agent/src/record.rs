@@ -174,17 +174,20 @@ pub(crate) async fn write_usage_record(
 // ============================================================================
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use chrono::TimeZone;
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     // ---- FailableUsageRecordWriter test double ----
 
     pub(crate) struct FailableUsageRecordWriter {
         pub should_fail: Arc<AtomicBool>,
         pub write_count: Arc<AtomicU64>,
+        pub attempt_count: Arc<AtomicU64>,
+        pub successful_records: Arc<Mutex<Vec<UsageRecord>>>,
+        fail_from_call: Arc<AtomicU64>,
     }
 
     impl FailableUsageRecordWriter {
@@ -192,16 +195,32 @@ mod tests {
             Self {
                 should_fail: Arc::new(AtomicBool::new(should_fail)),
                 write_count: Arc::new(AtomicU64::new(0)),
+                attempt_count: Arc::new(AtomicU64::new(0)),
+                successful_records: Arc::new(Mutex::new(Vec::new())),
+                fail_from_call: Arc::new(AtomicU64::new(0)),
             }
+        }
+
+        pub(crate) fn set_fail_from_call(&self, call: Option<u64>) {
+            self.fail_from_call
+                .store(call.unwrap_or(0), Ordering::SeqCst);
         }
     }
 
     #[async_trait]
     impl UsageRecordWriter for FailableUsageRecordWriter {
-        async fn write(&self, _rec: &UsageRecord) -> anyhow::Result<()> {
-            if self.should_fail.load(Ordering::SeqCst) {
+        async fn write(&self, rec: &UsageRecord) -> anyhow::Result<()> {
+            let attempted_call = self.attempt_count.fetch_add(1, Ordering::SeqCst) + 1;
+            let fail_from_call = self.fail_from_call.load(Ordering::SeqCst);
+            if self.should_fail.load(Ordering::SeqCst)
+                || (fail_from_call != 0 && attempted_call >= fail_from_call)
+            {
                 anyhow::bail!("simulated DB disconnect");
             }
+            self.successful_records
+                .lock()
+                .expect("successful records mutex should lock")
+                .push(rec.clone());
             self.write_count.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }
@@ -448,6 +467,46 @@ mod tests {
         let result = writer.write(&rec).await;
         assert!(result.is_ok(), "write should succeed after recovery");
         assert_eq!(writer.write_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn failable_writer_fails_from_configured_attempt_and_captures_only_successes() {
+        let writer = FailableUsageRecordWriter::new(false);
+        let rec = sample_record();
+        writer.set_fail_from_call(Some(3));
+
+        assert!(writer.write(&rec).await.is_ok());
+        assert!(writer.write(&rec).await.is_ok());
+        assert!(writer.write(&rec).await.is_err());
+        assert!(writer.write(&rec).await.is_err());
+
+        assert_eq!(writer.attempt_count.load(Ordering::SeqCst), 4);
+        assert_eq!(writer.write_count.load(Ordering::SeqCst), 2);
+        // Clone out of the guard so no `MutexGuard` is held across the
+        // `writer.write(&rec).await` below (clippy `await_holding_lock` does
+        // not honor an explicit `drop`).
+        let successful_records = writer
+            .successful_records
+            .lock()
+            .expect("successful records mutex should lock")
+            .clone();
+        assert_eq!(successful_records.len(), 2);
+        assert!(successful_records
+            .iter()
+            .all(|captured| captured.idempotency_key == rec.idempotency_key));
+
+        writer.set_fail_from_call(None);
+        assert!(writer.write(&rec).await.is_ok());
+        assert_eq!(writer.attempt_count.load(Ordering::SeqCst), 5);
+        assert_eq!(writer.write_count.load(Ordering::SeqCst), 3);
+        let successful_records = writer
+            .successful_records
+            .lock()
+            .expect("successful records mutex should lock");
+        assert_eq!(successful_records.len(), 3);
+        assert!(successful_records
+            .iter()
+            .all(|captured| captured.idempotency_key == rec.idempotency_key));
     }
 
     /// Simulates DB disconnect → circuit-breaker opens → backoff intervals

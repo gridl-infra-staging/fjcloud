@@ -3,6 +3,7 @@
 
 | File | Summary |
 | --- | --- |
+| aggregation_known_answer_test.rs | DB-backed aggregation KATs that insert agent-shaped usage_records, execute production ROLLUP_SQL, and summarize exact known answers. |
 | algolia_import_job_domain.rs | Stub summary for infra/api/tests/integration/algolia_import_job_domain.rs. |
 | algolia_import_job_domain_reservation.rs | Stub summary for infra/api/tests/integration/algolia_import_job_domain_reservation.rs. |
 | algolia_import_job_domain_reservation_accounting.rs | Stub summary for infra/api/tests/integration/algolia_import_job_domain_reservation_accounting.rs. |

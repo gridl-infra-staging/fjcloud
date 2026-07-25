@@ -656,7 +656,8 @@ crate::integration_test!(billing_smoke_uses_pg_usage_repo_read_path, async {
         period_end,
         &StorageInputs::cold_only(Decimal::ZERO),
         BillingPlan::Free,
-    );
+    )
+    .unwrap();
 
     // Under the current pricing model, search and write operations are free
     // (see billing::pricing::calculate_invoice — "Searches and writes are free

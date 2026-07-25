@@ -727,6 +727,7 @@ gate_usage_rollup_freshness_contract() {
 
 gate_local_real_pipeline_contract() {
     bash "$REPO_ROOT/scripts/tests/local_real_pipeline_probe_test.sh" || return $?
+    bash "$REPO_ROOT/scripts/tests/aggregation_kat_probe_contract_test.sh" || return $?
 }
 
 gate_flapjack_ami_pointer_contract() {

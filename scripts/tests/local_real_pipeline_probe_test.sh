@@ -383,6 +383,12 @@ exit 0'
     write_mock_script "$fscripts/start-metering.sh" \
         'echo startmeter >> "$LRP_TEST_STATE/events.log"; touch "$LRP_TEST_STATE/agent_started"; exit 0'
     write_mock_script "$fscripts/local-dev-down.sh" 'echo devdown >> "$LRP_TEST_STATE/events.log"; exit 0'
+    write_mock_script "$fbin/date" '
+if [ "$#" -eq 2 ] && [ "$1" = "-u" ] && [ "$2" = "+%F" ]; then
+  printf "2026-07-24\n"
+  exit 0
+fi
+/bin/date "$@"'
 
     if [ "$mode" = "fail_aggregation" ]; then
         write_mock_script "$fscripts/run-aggregation-job.sh" \
@@ -648,6 +654,44 @@ test_full_mode_escapes_sql_metacharacters_in_customer_id() {
         "SQL log should not contain a customer_id that terminates the literal before DROP TABLE"
 }
 
+test_full_mode_rejects_header_injection_bytes() {
+    local tmp fixture_root out err rc
+    tmp="$(mktemp -d)"; register_tmp_path "$tmp"
+    fixture_root="$tmp/fixture"
+    mkdir -p "$fixture_root/scripts/lib"
+
+    cp "$REPO_ROOT/scripts/lib/local_real_pipeline_run.sh" "$fixture_root/scripts/lib/"
+    write_mock_script "$fixture_root/scripts/lib/env.sh" ':'
+    write_mock_script "$fixture_root/scripts/lib/flapjack_regions.sh" ':'
+    write_mock_script "$fixture_root/scripts/lib/local_db_access.sh" ':'
+    write_mock_script "$fixture_root/scripts/lib/process.sh" ':'
+    write_mock_script "$fixture_root/scripts/lib/local_seed_contract.sh" '
+LOCAL_SEED_PRIMARY_INDEX_REGION="us-east-1"
+LOCAL_SEED_PRIMARY_INDEX_NAME="test-index"'
+
+    out="$tmp/out.txt"
+    err="$tmp/err.txt"
+
+    set +e
+    env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" HOME="$HOME" \
+        bash -lc '
+set -euo pipefail
+SCRIPT_DIR="'"$fixture_root"'/scripts"
+REPO_ROOT="'"$fixture_root"'"
+source "$SCRIPT_DIR/lib/local_real_pipeline_run.sh"
+lrp_require_safe_header_value FLAPJACK_ADMIN_KEY $'"'"'fj_local_dev_admin_key\r\nX-Evil: injected'"'"'
+' >"$out" 2>"$err"
+    rc=$?
+    set -e
+
+    assert_eq "$rc" "1" \
+        "header-bearing auth values with CR/LF fail closed before any curl call"
+    assert_contains "$(cat "$out")" "LOCAL_REAL_PIPELINE_STATUS: FAIL reason=env_prep" \
+        "unsafe header bytes surface the existing env_prep failure token"
+    assert_contains "$(cat "$err")" "FLAPJACK_ADMIN_KEY contains CR/LF bytes" \
+        "stderr explains that CR/LF auth bytes are rejected"
+}
+
 test_negative_seeded_mode_fails_with_seeded_row_and_teardown() {
     run_full_mode_probe negative_seeded --negative-seeded
 
@@ -708,6 +752,7 @@ main() {
     test_full_mode_teardown_on_post_startup_failure
     test_full_mode_fails_loud_when_evidence_query_fails
     test_full_mode_escapes_sql_metacharacters_in_customer_id
+    test_full_mode_rejects_header_injection_bytes
     test_negative_seeded_mode_fails_with_seeded_row_and_teardown
     test_negative_nodrive_mode_fails_absent_after_clear_and_teardown
 

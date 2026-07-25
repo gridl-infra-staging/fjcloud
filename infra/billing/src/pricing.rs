@@ -2,8 +2,16 @@
 use crate::invoice::{InvoiceCalculation, LineItem};
 use crate::rate_card::RateCard;
 use crate::types::MonthlyUsageSummary;
+use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
+use thiserror::Error;
+
+#[derive(Error, Debug, PartialEq)]
+pub enum PricingError {
+    #[error("billing amount overflow: invoice total exceeds i64::MAX cents")]
+    AmountOverflow,
+}
 
 /// A billable resource dimension: quantity used, per-unit rate, and display metadata.
 struct UsageDimension<'a> {
@@ -11,6 +19,13 @@ struct UsageDimension<'a> {
     rate_per_unit: Decimal,
     description: &'a str,
     unit: &'a str,
+    cent_conversion: CentConversion,
+}
+
+#[derive(Clone, Copy)]
+enum CentConversion {
+    RoundNearest,
+    WholeCentFloor,
 }
 
 /// Build a line item from a usage dimension, applying the region multiplier.
@@ -19,25 +34,28 @@ fn line_item_from_dimension(
     dim: &UsageDimension<'_>,
     multiplier: Decimal,
     region: &str,
-) -> Option<LineItem> {
+) -> Result<Option<LineItem>, PricingError> {
     if dim.quantity <= Decimal::ZERO {
-        return None;
+        return Ok(None);
     }
     let unit_price_cents = dim.rate_per_unit * multiplier * dec!(100);
-    let amount_cents = round_to_cents(dim.quantity * unit_price_cents);
-    Some(LineItem {
+    let amount_cents = convert_cent_amount(dim.quantity * unit_price_cents, dim.cent_conversion)?;
+    Ok(Some(LineItem {
         description: format!("{} ({})", dim.description, region),
         quantity: dim.quantity,
         unit: dim.unit.to_string(),
         unit_price_cents,
         amount_cents,
         region: region.to_string(),
-    })
+    }))
 }
 
 /// Calculate an invoice for one billing period in one region.
 /// Applies the rate card's per-unit prices and region multiplier. Searches and writes are free (unlimited).
-pub fn calculate_invoice(usage: &MonthlyUsageSummary, rate: &RateCard) -> InvoiceCalculation {
+pub fn calculate_invoice(
+    usage: &MonthlyUsageSummary,
+    rate: &RateCard,
+) -> Result<InvoiceCalculation, PricingError> {
     let multiplier = rate.region_multiplier(&usage.region);
 
     let dimensions = [
@@ -46,35 +64,45 @@ pub fn calculate_invoice(usage: &MonthlyUsageSummary, rate: &RateCard) -> Invoic
             rate_per_unit: rate.storage_rate_per_mb_month,
             description: "Hot storage",
             unit: "mb_months",
+            cent_conversion: CentConversion::RoundNearest,
         },
         UsageDimension {
             quantity: usage.cold_storage_gb_months,
             rate_per_unit: rate.cold_storage_rate_per_gb_month,
             description: "Cold storage",
             unit: "cold_gb_months",
+            cent_conversion: CentConversion::RoundNearest,
         },
         UsageDimension {
             quantity: usage.object_storage_gb_months,
             rate_per_unit: rate.object_storage_rate_per_gb_month,
             description: "Object storage",
             unit: "object_storage_gb_months",
+            cent_conversion: CentConversion::RoundNearest,
         },
         UsageDimension {
             quantity: usage.object_storage_egress_gb,
             rate_per_unit: rate.object_storage_egress_rate_per_gb,
             description: "Object storage egress",
             unit: "object_storage_egress_gb",
+            cent_conversion: CentConversion::WholeCentFloor,
         },
     ];
 
-    let line_items: Vec<LineItem> = dimensions
-        .iter()
-        .filter_map(|dim| line_item_from_dimension(dim, multiplier, &usage.region))
-        .collect();
+    let mut line_items = Vec::new();
+    for dim in &dimensions {
+        if let Some(line_item) = line_item_from_dimension(dim, multiplier, &usage.region)? {
+            line_items.push(line_item);
+        }
+    }
 
-    let subtotal_cents: i64 = line_items.iter().map(|li| li.amount_cents).sum();
+    let subtotal_cents = line_items.iter().try_fold(0_i64, |subtotal, line_item| {
+        subtotal
+            .checked_add(line_item.amount_cents)
+            .ok_or(PricingError::AmountOverflow)
+    })?;
 
-    InvoiceCalculation {
+    Ok(InvoiceCalculation {
         customer_id: usage.customer_id,
         period_start: usage.period_start,
         period_end: usage.period_end,
@@ -82,21 +110,31 @@ pub fn calculate_invoice(usage: &MonthlyUsageSummary, rate: &RateCard) -> Invoic
         subtotal_cents,
         minimum_applied: false,
         total_cents: subtotal_cents,
-    }
+    })
 }
 
 /// Rounds a Decimal cent amount to the nearest whole cent as i64.
-fn round_to_cents(cents: Decimal) -> i64 {
-    cents
-        .round_dp(0)
-        .to_string()
-        .parse::<i64>()
-        .expect("billing amount overflow: invoice total exceeds i64::MAX cents")
+fn round_to_cents(cents: Decimal) -> Result<i64, PricingError> {
+    decimal_to_i64(cents.round_dp(0))
 }
 
-// ============================================================================
-// Tests
-// ============================================================================
+fn floor_to_cents(cents: Decimal) -> Result<i64, PricingError> {
+    decimal_to_i64(cents.floor())
+}
+
+fn convert_cent_amount(
+    cents: Decimal,
+    cent_conversion: CentConversion,
+) -> Result<i64, PricingError> {
+    match cent_conversion {
+        CentConversion::RoundNearest => round_to_cents(cents),
+        CentConversion::WholeCentFloor => floor_to_cents(cents),
+    }
+}
+
+fn decimal_to_i64(value: Decimal) -> Result<i64, PricingError> {
+    value.to_i64().ok_or(PricingError::AmountOverflow)
+}
 
 #[cfg(test)]
 mod tests {
@@ -148,9 +186,57 @@ mod tests {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Hot storage billing (flat $0.05/MB/month)
-    // -------------------------------------------------------------------------
+    #[test]
+    fn round_to_cents_at_i64_max_returns_exact_value() {
+        assert_eq!(round_to_cents(Decimal::from(i64::MAX)), Ok(i64::MAX));
+    }
+
+    #[test]
+    fn round_to_cents_at_i64_min_returns_exact_value() {
+        assert_eq!(round_to_cents(Decimal::from(i64::MIN)), Ok(i64::MIN));
+    }
+
+    #[test]
+    fn round_to_cents_one_past_i64_max_returns_overflow_error_without_panic() {
+        let cents = Decimal::from(i64::MAX) + Decimal::ONE;
+
+        let result = std::panic::catch_unwind(|| round_to_cents(cents));
+
+        assert!(
+            result.is_ok(),
+            "round_to_cents must not panic above i64::MAX"
+        );
+        assert_eq!(result.unwrap(), Err(PricingError::AmountOverflow));
+    }
+
+    #[test]
+    fn round_to_cents_one_below_i64_min_returns_overflow_error_without_panic() {
+        let cents = Decimal::from(i64::MIN) - Decimal::ONE;
+
+        let result = std::panic::catch_unwind(|| round_to_cents(cents));
+
+        assert!(
+            result.is_ok(),
+            "round_to_cents must not panic below i64::MIN"
+        );
+        assert_eq!(result.unwrap(), Err(PricingError::AmountOverflow));
+    }
+
+    #[test]
+    fn calculate_invoice_subtotal_overflow_returns_error() {
+        let mut rate = test_rate_card();
+        rate.storage_rate_per_mb_month = Decimal::from(i64::MAX) / dec!(200);
+        rate.cold_storage_rate_per_gb_month = Decimal::from(i64::MAX) / dec!(200);
+        let usage = MonthlyUsageSummary {
+            storage_mb_months: dec!(1),
+            cold_storage_gb_months: dec!(1),
+            ..zero_usage(Uuid::new_v4())
+        };
+
+        let result = calculate_invoice(&usage, &rate);
+
+        assert_eq!(result, Err(PricingError::AmountOverflow));
+    }
 
     /// Verifies hot storage is billed per MB-month at the rate card rate.
     #[test]
@@ -162,7 +248,7 @@ mod tests {
             ..zero_usage(Uuid::new_v4())
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         assert_eq!(calc.subtotal_cents, 500);
         assert!(!calc.minimum_applied);
@@ -181,7 +267,7 @@ mod tests {
             ..zero_usage(Uuid::new_v4())
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         assert_eq!(calc.subtotal_cents, 8);
         assert!(!calc.minimum_applied);
@@ -197,7 +283,8 @@ mod tests {
                 ..zero_usage(Uuid::new_v4())
             },
             &rate,
-        );
+        )
+        .unwrap();
         // 0.1 MB × 5¢ = 0.5¢ → 0¢.
         assert_eq!(calc.line_items[0].amount_cents, 0);
 
@@ -207,7 +294,8 @@ mod tests {
                 ..zero_usage(Uuid::new_v4())
             },
             &rate,
-        );
+        )
+        .unwrap();
         // 0.3 MB × 5¢ = 1.5¢ → 2¢.
         assert_eq!(calc.line_items[0].amount_cents, 2);
 
@@ -217,7 +305,8 @@ mod tests {
                 ..zero_usage(Uuid::new_v4())
             },
             &rate,
-        );
+        )
+        .unwrap();
         // 0.5 MB × 5¢ = 2.5¢ → 2¢.
         assert_eq!(calc.line_items[0].amount_cents, 2);
 
@@ -227,7 +316,8 @@ mod tests {
                 ..zero_usage(Uuid::new_v4())
             },
             &rate,
-        );
+        )
+        .unwrap();
         // 0.7 MB × 5¢ = 3.5¢ → 4¢.
         assert_eq!(calc.line_items[0].amount_cents, 4);
     }
@@ -241,7 +331,7 @@ mod tests {
             ..zero_usage(Uuid::new_v4())
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         let hot = calc
             .line_items
@@ -264,9 +354,44 @@ mod tests {
         assert_eq!(calc.subtotal_cents, 2);
     }
 
-    // -------------------------------------------------------------------------
-    // Search/write requests produce no line items
-    // -------------------------------------------------------------------------
+    #[test]
+    fn object_storage_egress_fractional_cent_is_floored() {
+        let rate = test_rate_card();
+        let usage = MonthlyUsageSummary {
+            object_storage_egress_gb: dec!(1.5),
+            ..zero_usage(Uuid::new_v4())
+        };
+
+        let calc = calculate_invoice(&usage, &rate).unwrap();
+
+        let egress = calc
+            .line_items
+            .iter()
+            .find(|li| li.unit == "object_storage_egress_gb")
+            .expect("object storage egress line item missing");
+        assert_eq!(egress.amount_cents, 1);
+        assert_eq!(calc.subtotal_cents, 1);
+    }
+
+    #[test]
+    fn object_storage_egress_floor_valid_i64_max_fraction_does_not_overflow() {
+        let mut rate = test_rate_card();
+        rate.object_storage_egress_rate_per_gb = dec!(0.01);
+        let usage = MonthlyUsageSummary {
+            object_storage_egress_gb: Decimal::from(i64::MAX) + dec!(0.5),
+            ..zero_usage(Uuid::new_v4())
+        };
+
+        let calc = calculate_invoice(&usage, &rate).unwrap();
+
+        let egress = calc
+            .line_items
+            .iter()
+            .find(|li| li.unit == "object_storage_egress_gb")
+            .expect("object storage egress line item missing");
+        assert_eq!(egress.amount_cents, i64::MAX);
+        assert_eq!(calc.subtotal_cents, i64::MAX);
+    }
 
     #[test]
     fn search_requests_not_billed() {
@@ -276,7 +401,7 @@ mod tests {
             ..zero_usage(Uuid::new_v4())
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         assert!(calc.line_items.is_empty());
         assert_eq!(calc.subtotal_cents, 0);
@@ -290,22 +415,18 @@ mod tests {
             ..zero_usage(Uuid::new_v4())
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         assert!(calc.line_items.is_empty());
         assert_eq!(calc.subtotal_cents, 0);
     }
-
-    // -------------------------------------------------------------------------
-    // Subtotal-only behavior (minimum enforcement owned by API layer)
-    // -------------------------------------------------------------------------
 
     #[test]
     fn zero_usage_returns_zero_subtotal_without_minimum() {
         let rate = test_rate_card();
         let usage = zero_usage(Uuid::new_v4());
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         assert_eq!(calc.subtotal_cents, 0);
         assert_eq!(calc.total_cents, calc.subtotal_cents);
@@ -322,16 +443,12 @@ mod tests {
             ..zero_usage(Uuid::new_v4())
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         assert_eq!(calc.total_cents, 50_000);
         assert_eq!(calc.total_cents, calc.subtotal_cents);
         assert!(!calc.minimum_applied);
     }
-
-    // -------------------------------------------------------------------------
-    // Region multiplier
-    // -------------------------------------------------------------------------
 
     /// Verifies that the region multiplier is applied multiplicatively to hot storage.
     /// 100 MB × $0.05/MB × 1.3 (eu-west-1 surcharge) = $6.50 = 650 cents.
@@ -351,7 +468,7 @@ mod tests {
         let mut usage = usage;
         usage.region = "eu-west-1".to_string();
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         assert_eq!(calc.total_cents, 650);
         assert!(!calc.minimum_applied);
@@ -368,14 +485,10 @@ mod tests {
         let mut usage = usage;
         usage.region = "ap-southeast-1".to_string();
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         assert_eq!(calc.total_cents, 1000);
     }
-
-    // -------------------------------------------------------------------------
-    // Combined dimensions (hot + cold + object)
-    // -------------------------------------------------------------------------
 
     /// When a summary has both hot and cold storage, both line items must be produced and their
     /// `amount_cents` values must add up to the invoice `subtotal_cents`.
@@ -392,17 +505,13 @@ mod tests {
             ..zero_usage(Uuid::new_v4())
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         assert_eq!(calc.subtotal_cents, 1020);
         assert_eq!(calc.total_cents, 1020);
         assert!(!calc.minimum_applied);
         assert_eq!(calc.line_items.len(), 2);
     }
-
-    // -------------------------------------------------------------------------
-    // Line item correctness
-    // -------------------------------------------------------------------------
 
     /// Validates the individual fields of a hot-storage line item: `quantity` must match the
     /// input MB-months, `unit` must be `"mb_months"`, `unit_price_cents` must equal the rate
@@ -417,7 +526,7 @@ mod tests {
             ..zero_usage(Uuid::new_v4())
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         let li = &calc.line_items[0];
         assert_eq!(li.quantity, dec!(50));
@@ -434,14 +543,10 @@ mod tests {
             ..zero_usage(Uuid::new_v4())
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         assert_eq!(calc.line_items[0].region, "us-east-1");
     }
-
-    // -------------------------------------------------------------------------
-    // Cold storage billing
-    // -------------------------------------------------------------------------
 
     /// Cold storage must be billed at `cold_storage_rate_per_gb_month`, not the hot MB rate.
     /// 10 GB-months × $0.02/GB = $0.20 = 20 ¢; `unit_price_cents` must be 2 (i.e. $0.02 × 100).
@@ -454,7 +559,7 @@ mod tests {
             ..zero_usage(Uuid::new_v4())
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         let cold_li = calc
             .line_items
@@ -478,7 +583,7 @@ mod tests {
             ..zero_usage(Uuid::new_v4())
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         let hot = calc.line_items.iter().find(|li| li.unit == "mb_months");
         let cold = calc
@@ -505,7 +610,7 @@ mod tests {
             ..zero_usage(Uuid::new_v4())
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         let cold_li = calc
             .line_items
@@ -523,15 +628,11 @@ mod tests {
             ..zero_usage(Uuid::new_v4())
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         let vm_li = calc.line_items.iter().find(|li| li.unit == "vm_hours");
         assert!(vm_li.is_none(), "VM hours line items should not exist");
     }
-
-    // -------------------------------------------------------------------------
-    // Object storage billing
-    // -------------------------------------------------------------------------
 
     /// Garage object storage must be billed at `object_storage_rate_per_gb_month`, not the hot
     /// or cold rates. 10 GB-months × $0.024/GB = $0.24 = 24 ¢; `unit_price_cents` must equal
@@ -545,7 +646,7 @@ mod tests {
             ..zero_usage(Uuid::new_v4())
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         let obj_li = calc
             .line_items
@@ -569,7 +670,7 @@ mod tests {
             ..zero_usage(Uuid::new_v4())
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         let egress_li = calc
             .line_items
@@ -595,7 +696,7 @@ mod tests {
             ..zero_usage(Uuid::new_v4())
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         let cold = calc
             .line_items
@@ -636,7 +737,7 @@ mod tests {
             ..zero_usage(Uuid::new_v4())
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         let obj_li = calc
             .line_items
@@ -668,7 +769,7 @@ mod tests {
             ..zero_usage(Uuid::new_v4())
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         let search_li = calc.line_items.iter().find(|li| li.unit == "requests_1k");
         assert!(
@@ -710,7 +811,7 @@ mod tests {
             object_storage_egress_gb: dec!(100),
         };
 
-        let calc = calculate_invoice(&usage, &rate);
+        let calc = calculate_invoice(&usage, &rate).unwrap();
 
         let obj_li = calc
             .line_items

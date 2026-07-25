@@ -5,6 +5,7 @@
 | --- | --- |
 | algolia_migration_safety_probe.sh | Read-only safety oracle for the fail-closed Algolia migration state. |
 | algolia_source_discovery_live_probe.sh | Live acceptance probe for fjcloud-owned Algolia source-index discovery. |
+| aggregation_correctness_kat.sh | Real-pipeline aggregation known-answer wrapper that composes W2's local probe owner and asserts exact daily/raw counters. |
 | api-dev.sh | api-dev.sh — Start the API with repo-local env files exported. |
 | audit_secrets.sh | Machine-checkable secrets drift audit.
 Emits one structured line per finding:

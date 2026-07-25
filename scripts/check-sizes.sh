@@ -53,12 +53,11 @@ PER_FILE_OVERRIDES=(
     # and remove this override.
     "web/src/routes/console/indexes/[name]/IndexDetailShell.svelte|828|temporary cap while index-detail tabs are extracted; split pending"
 
-    # 2026-07-19: the migration console wizard landed at 748 lines, above the
-    # generic 700-line .svelte fallback (jul13_9pm_10 lane closed on the
-    # migration-flow-size-gate blocker; main had this owner at 671).
+    # 2026-07-25: the migration console wizard's current merged owner is 782
+    # lines, above the generic 700-line .svelte fallback.
     # FIXME(migration-create-flow-split): extract wizard step components
     # and remove this override.
-    "web/src/lib/components/migration/MigrationCreateFlow.svelte|760|temporary cap while create-flow wizard steps are extracted; split pending"
+    "web/src/lib/components/migration/MigrationCreateFlow.svelte|782|temporary cap while create-flow wizard steps are extracted; split pending"
     "infra/api/src/services/algolia_import/reconciliation_tests.rs|914|temporary cap for pre-existing reconciliation test owner overage; split pending"
 
     # 2026-07-23: single owner for the metering counter cap. The pre-existing

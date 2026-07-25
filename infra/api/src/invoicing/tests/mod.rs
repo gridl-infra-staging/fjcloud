@@ -70,7 +70,8 @@ fn empty_usage_applies_minimum() {
         end,
         &zero_storage(),
         BillingPlan::Shared,
-    );
+    )
+    .unwrap();
 
     assert_eq!(result.customer_id, cid);
     assert_eq!(result.subtotal_cents, 0);
@@ -112,7 +113,8 @@ fn single_region_with_usage() {
         end,
         &zero_storage(),
         BillingPlan::Free,
-    );
+    )
+    .unwrap();
 
     assert!(!result.minimum_applied);
     assert!(result.subtotal_cents > 0);
@@ -121,6 +123,33 @@ fn single_region_with_usage() {
     for li in &result.line_items {
         assert_eq!(li.region, "us-east-1");
     }
+}
+
+#[test]
+fn generate_invoice_subtotal_overflow_returns_pricing_error() {
+    let mut card = test_rate_card();
+    card.storage_rate_per_mb_month = Decimal::from(i64::MAX) / dec!(200);
+    let cid = Uuid::new_v4();
+    let day = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
+    let rows = vec![
+        make_usage(cid, day, "us-east-1", 0, 0, billing::types::BYTES_PER_MB, 0),
+        make_usage(cid, day, "eu-west-1", 0, 0, billing::types::BYTES_PER_MB, 0),
+    ];
+
+    let result = generate_invoice(
+        &rows,
+        &card,
+        cid,
+        day,
+        day,
+        &zero_storage(),
+        BillingPlan::Free,
+    );
+
+    assert!(matches!(
+        result,
+        Err(billing::pricing::PricingError::AmountOverflow)
+    ));
 }
 
 /// Verifies that both hot and cold storage line items are present,
@@ -148,7 +177,8 @@ fn invoice_with_hot_and_cold_storage() {
         .collect();
 
     let storage = StorageInputs::cold_only(Decimal::from(5));
-    let result = generate_invoice(&rows, &card, cid, start, end, &storage, BillingPlan::Free);
+    let result =
+        generate_invoice(&rows, &card, cid, start, end, &storage, BillingPlan::Free).unwrap();
 
     let hot_li = result.line_items.iter().find(|li| li.unit == "mb_months");
     let cold_li = result
@@ -180,7 +210,8 @@ fn cold_storage_billed_without_hot_usage_rows() {
     let end = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
 
     let storage = StorageInputs::cold_only(Decimal::from(200));
-    let result = generate_invoice(&[], &card, cid, start, end, &storage, BillingPlan::Shared);
+    let result =
+        generate_invoice(&[], &card, cid, start, end, &storage, BillingPlan::Shared).unwrap();
 
     assert_eq!(result.subtotal_cents, 400);
     // 400 cents cold storage > 200 cents shared minimum → no clamp
@@ -319,7 +350,8 @@ fn multi_region_single_minimum() {
         end,
         &zero_storage(),
         BillingPlan::Shared,
-    );
+    )
+    .unwrap();
 
     assert!(!result.line_items.is_empty());
     let regions: Vec<&str> = result

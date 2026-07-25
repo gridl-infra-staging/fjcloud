@@ -37,6 +37,7 @@ ROOT_GROUPS: dict[str, tuple[str, ...]] = {
     ),
     # billing/stripe/invoice/quota/usage stems
     "billing": (
+        "aggregation_known_answer_test",
         "billing_endpoints_test",
         "billing_estimate_test",
         "billing_regression_test",

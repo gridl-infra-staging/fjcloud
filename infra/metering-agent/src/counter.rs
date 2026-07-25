@@ -1,21 +1,13 @@
-use dashmap::DashMap;
-use std::collections::HashMap;
-use std::sync::Arc;
+#[path = "counter_pending.rs"]
+mod counter_pending;
 
+use self::counter_pending::{build_pending_counter_records, commit_counter_total, CounterTotals};
 use super::record;
 use super::tenant_map::{is_cold_tier, resolve_tenant_attribution, TenantCustomerMap};
 use crate::config::Config;
-use crate::delta::CounterState;
 use crate::scraper;
 
-pub type TenantStateMap = Arc<DashMap<String, CounterState>>;
-
-struct CounterTotals<'a> {
-    search_totals: &'a HashMap<String, u64>,
-    write_totals: &'a HashMap<String, u64>,
-    indexed_totals: &'a HashMap<String, u64>,
-    deleted_totals: &'a HashMap<String, u64>,
-}
+pub use counter_pending::TenantStateMap;
 
 /// Perform one full scrape cycle: fetch Prometheus metrics from flapjack,
 /// compute per-index deltas and document-count snapshots, then persist a
@@ -42,11 +34,29 @@ pub async fn scrape_and_record(
         .text()
         .await?;
 
-    let samples = scraper::parse_prometheus_text(&body)?;
+    let samples = scraper::parse_prometheus_text(&body);
     let metrics = scraper::extract_flapjack_metrics(&samples);
     let now = chrono::Utc::now();
+    let totals = CounterTotals {
+        search_totals: &metrics.search_requests_total,
+        write_totals: &metrics.write_operations_total,
+        indexed_totals: &metrics.documents_indexed_total,
+        deleted_totals: &metrics.documents_deleted_total,
+    };
 
-    for rec in build_counter_usage_records(cfg, &metrics, state, tenant_map, now) {
+    for pending in build_pending_counter_records(cfg, &totals, state, tenant_map, now) {
+        if let Some(usage_record) = pending.usage_record.as_ref() {
+            writer.write(usage_record).await?;
+        }
+        commit_counter_total(
+            state,
+            &pending.tenant_id,
+            &pending.event_type,
+            pending.current_total,
+        );
+    }
+
+    for rec in build_document_count_records(cfg, &metrics.documents_count, tenant_map, now) {
         writer.write(&rec).await?;
     }
 
@@ -63,6 +73,7 @@ pub async fn scrape_and_record(
 ///    count for each live index, computed by [`build_document_count_records`].
 ///
 /// Cold and restoring indexes are excluded from both sources.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn build_counter_usage_records(
     cfg: &Config,
     metrics: &scraper::FlapjackMetrics,
@@ -112,6 +123,7 @@ pub fn build_counter_usage_records(
 ///
 /// Other counter totals (write, indexed, deleted) default to 0 when absent
 /// from the scrape payload so a partial metrics exposure never panics.
+#[cfg_attr(not(test), allow(dead_code))]
 fn build_counter_delta_records(
     cfg: &Config,
     totals: &CounterTotals<'_>,
@@ -119,79 +131,17 @@ fn build_counter_delta_records(
     tenant_map: &TenantCustomerMap,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Vec<record::UsageRecord> {
-    let ctx = record::RecordContext {
-        node_id: &cfg.node_id,
-        region: &cfg.region,
-        now,
-    };
     let mut records = Vec::new();
 
-    for (tenant_id, search_total) in totals.search_totals {
-        let tenant = match resolve_tenant_attribution(tenant_map, tenant_id) {
-            Some(tenant) => tenant,
-            None => {
-                tracing::warn!(
-                    tenant_id = tenant_id.as_str(),
-                    "tenant map missing index during metrics scrape; skipping usage attribution"
-                );
-                continue;
-            }
-        };
-
-        if is_cold_tier(&tenant.tier) {
-            continue;
-        }
-
-        // Delta state belongs to the canonical tenant id, not the flapjack
-        // label observed in this scrape, so alias/canonical label changes do
-        // not reset the billing baseline mid-stream.
-        //
-        // On the FIRST observation of an index (no prior state), the baseline
-        // we seed decides whether the initial usage burst is billed:
-        //   - Index created AFTER this agent started: its flapjack counters
-        //     genuinely began at 0 under our watch, so seed a zero baseline
-        //     and bill the full first observed value. Without this, tenant-map
-        //     refresh lag means traffic arriving before the first non-skipped
-        //     scrape would silently set a non-zero baseline and the entire
-        //     initial burst would be dropped.
-        //   - Index created BEFORE this agent started (agent-restart case): we
-        //     don't know how much ran before we began watching, so keep the
-        //     conservative `None` baseline (first scrape bills nothing) to
-        //     avoid re-billing historical usage.
-        let mut entry = state.entry(tenant.tenant_id.clone()).or_insert_with(|| {
-            if tenant.created_at > cfg.started_at {
-                crate::delta::CounterState::seeded_zero()
-            } else {
-                crate::delta::CounterState::default()
-            }
-        });
-        let write_total = totals.write_totals.get(tenant_id).copied().unwrap_or(0);
-        let indexed_total = totals.indexed_totals.get(tenant_id).copied().unwrap_or(0);
-        let deleted_total = totals.deleted_totals.get(tenant_id).copied().unwrap_or(0);
-        let deltas = entry.advance(*search_total, write_total, indexed_total, deleted_total);
-
-        for (event_type, value) in [
-            (record::EventType::SearchRequests, deltas.search_requests),
-            (record::EventType::WriteOperations, deltas.write_operations),
-            (
-                record::EventType::DocumentsIndexed,
-                deltas.documents_indexed,
-            ),
-            (
-                record::EventType::DocumentsDeleted,
-                deltas.documents_deleted,
-            ),
-        ] {
-            if value == 0 {
-                continue;
-            }
-            records.push(record::build_usage_record(
-                &ctx,
-                tenant.customer_id,
-                &tenant.tenant_id,
-                event_type,
-                value as i64,
-            ));
+    for pending in build_pending_counter_records(cfg, totals, state, tenant_map, now) {
+        commit_counter_total(
+            state,
+            &pending.tenant_id,
+            &pending.event_type,
+            pending.current_total,
+        );
+        if let Some(usage_record) = pending.usage_record {
+            records.push(usage_record);
         }
     }
 
@@ -249,11 +199,14 @@ fn build_document_count_records(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::delta::CounterState;
     use crate::tenant_map::{replace_tenant_map_cache, TenantAttribution, TenantMapEntry};
     use chrono::Utc;
     use dashmap::DashMap;
     use std::sync::Arc;
     use uuid::Uuid;
+
+    include!("counter_partial_write_tests.rs");
 
     /// Returns a minimal [`Config`] suitable for unit tests.
     ///

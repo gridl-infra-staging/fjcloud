@@ -4,6 +4,7 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use chrono::{Datelike, NaiveDate};
 use http_body_util::BodyExt;
+use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde_json::json;
 use tower::ServiceExt;
@@ -129,6 +130,44 @@ async fn estimate_returns_correct_total_for_usage() {
         assert!(li["unit_price_cents"].as_str().is_some());
         assert!(li["amount_cents"].is_number());
     }
+}
+
+#[tokio::test]
+async fn estimate_returns_500_when_hot_storage_amount_overflows() {
+    let customer_repo = mock_repo();
+    let customer = customer_repo.seed("Acme", "acme@example.com");
+
+    let usage_repo = mock_usage_repo();
+    for day in 1..=28 {
+        usage_repo.seed(
+            customer.id,
+            NaiveDate::from_ymd_opt(2026, 2, day).unwrap(),
+            "us-east-1",
+            0,
+            0,
+            billing::types::BYTES_PER_MB,
+            0,
+        );
+    }
+
+    let rate_card_repo = mock_rate_card_repo();
+    let mut rate_card = test_rate_card();
+    rate_card.storage_rate_per_mb_month = Decimal::from(i64::MAX) / dec!(100) + Decimal::ONE;
+    rate_card_repo.seed_active_card(rate_card);
+
+    let app = build_app(customer_repo, usage_repo, rate_card_repo);
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::get("/billing/estimate?month=2026-02")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
 }
 
 #[tokio::test]

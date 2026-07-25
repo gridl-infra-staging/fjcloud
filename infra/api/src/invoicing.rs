@@ -179,7 +179,7 @@ pub fn generate_invoice(
     period_end: NaiveDate,
     storage: &StorageInputs,
     billing_plan: BillingPlan,
-) -> GeneratedInvoice {
+) -> Result<GeneratedInvoice, billing::pricing::PricingError> {
     let mut records: Vec<billing::types::DailyUsageRecord> =
         usage_rows.iter().map(|r| r.into()).collect();
 
@@ -210,14 +210,16 @@ pub fn generate_invoice(
     let mut next_cycle_egress_carryforward_cents = storage.object_storage_egress_carryforward_cents;
 
     for summary in &summaries {
-        let calc = billing::pricing::calculate_invoice(summary, rate_card);
+        let calc = billing::pricing::calculate_invoice(summary, rate_card)?;
         for line_item in calc.line_items {
             let line_item = line_items::new_invoice_line_item(
                 line_item,
                 storage,
                 &mut next_cycle_egress_carryforward_cents,
-            );
-            subtotal_cents += line_item.amount_cents;
+            )?;
+            subtotal_cents = subtotal_cents
+                .checked_add(line_item.amount_cents)
+                .ok_or(billing::pricing::PricingError::AmountOverflow)?;
             all_line_items.push(line_item);
         }
     }
@@ -236,7 +238,7 @@ pub fn generate_invoice(
     let (total_cents, minimum_applied) =
         line_items::invoice_total_with_minimum(subtotal_cents, billing_plan, rate_card);
 
-    GeneratedInvoice {
+    Ok(GeneratedInvoice {
         customer_id,
         period_start,
         period_end,
@@ -244,7 +246,7 @@ pub fn generate_invoice(
         total_cents,
         minimum_applied,
         line_items: all_line_items,
-    }
+    })
 }
 
 /// Compute an invoice for a single customer, fetching all required data from repos.
@@ -356,7 +358,7 @@ pub async fn compute_invoice_for_customer_with_shared_inputs(
         object_storage_egress_carryforward_cents,
     );
 
-    Ok(generate_invoice(
+    generate_invoice(
         &usage_rows,
         &billing_card,
         customer_id,
@@ -364,5 +366,6 @@ pub async fn compute_invoice_for_customer_with_shared_inputs(
         period_end,
         &storage,
         billing_plan,
-    ))
+    )
+    .map_err(ApiError::from)
 }

@@ -3,6 +3,7 @@
 
 | File | Summary |
 | --- | --- |
+| billing.rs | Generated integration-test root that includes the aggregation known-answer test module. |
 
 | Directory | Summary |
 | --- | --- |

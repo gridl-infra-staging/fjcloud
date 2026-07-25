@@ -15,6 +15,7 @@ const FAIL_CLOSED_CAPABILITIES: AlgoliaMigrationCapabilities = {
 	resume: false,
 	replace: false
 };
+// eslint-disable-next-line no-control-regex -- The validator must reject ASCII control characters.
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
 const MAX_JOB_ID_LENGTH = 128;
 

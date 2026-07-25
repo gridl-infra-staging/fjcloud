@@ -1,0 +1,42 @@
+lrp_drive_one_write() {
+    curl "$LRP_FLAPJACK_URL/1/indexes/$LRP_FLAPJACK_UID/batch"
+}
+lrp_drive_one_search() {
+    curl "$LRP_FLAPJACK_URL/1/indexes/$LRP_FLAPJACK_UID/query"
+}
+lrp_build_evidence() {
+    printf -v sql "SELECT search_requests,write_operations,to_char(aggregated_at AT TIME ZONE 'UTC','%s'),customer_id::text,region,to_char(date,'YYYY-MM-DD') FROM usage_daily WHERE customer_id=%s AND region=%s AND date=%s::date"
+    doc["row_customer_id"] = rcid
+}
+lrp_clear_target_scope() {
+    printf -v sql "DELETE FROM usage_daily WHERE customer_id=%s AND region=%s AND date=%s::date"
+    printf -v sql "SELECT (SELECT count(*) FROM usage_daily WHERE customer_id=%s AND region=%s AND date=%s::date) + (SELECT count(*) FROM usage_records WHERE customer_id=%s AND region=%s AND recorded_at >= %s AND recorded_at < (%s + interval '1 day'))"
+    total="$(lrp_psql_scalar "$sql")"
+    [ "$total" = "0" ]
+    LRP_CLEARED_BEFORE="true"
+    printf -v sql "DELETE FROM usage_records WHERE customer_id=%s AND region=%s AND recorded_at >= %s AND recorded_at < (%s + interval '1 day')"
+}
+lrp_await_delta_and_read_post() {
+    LRP_EXPECTED_SEARCH=$((LRP_POST_SEARCH - LRP_PRE_SEARCH))
+    LRP_EXPECTED_WRITE=$((LRP_POST_WRITE - LRP_PRE_WRITE))
+}
+run_assert_evidence_mode() {
+    classify_evidence "$evidence_path"
+}
+elif [ "${1:-}" = "--assert-evidence" ]; then
+    if [ "$#" -ne 2 ]; then
+        exit 2
+    fi
+    run_assert_evidence_mode "$2"
+fi
+LRP_DRIVE_WRITES="${LRP_DRIVE_WRITES:-5}"
+LRP_DRIVE_SEARCHES="${LRP_DRIVE_SEARCHES:-8}"
+lrp_drive_traffic() {
+    lrp_drive_one_write 0
+    for ((i = 1; i <= LRP_DRIVE_WRITES; i++)); do
+        lrp_drive_one_write "$i"
+    done
+    for ((i = 1; i <= LRP_DRIVE_SEARCHES; i++)); do
+        lrp_drive_one_search
+    done
+}

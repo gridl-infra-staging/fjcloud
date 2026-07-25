@@ -99,7 +99,8 @@ function renderFlow(
 async function connect(
 	listAlgoliaSourceIndexes: ReturnType<typeof vi.fn>,
 	appId = APP_ID_CANARY,
-	apiKey = API_KEY_CANARY
+	apiKey = API_KEY_CANARY,
+	waitForCompletion = true
 ) {
 	await fireEvent.input(screen.getByLabelText(/algolia application id/i), {
 		target: { value: appId }
@@ -108,7 +109,17 @@ async function connect(
 		target: { value: apiKey }
 	});
 	await fireEvent.click(screen.getByRole('button', { name: /connect to algolia/i }));
+	await waitFor(() => expect(listAlgoliaSourceIndexes).toHaveBeenCalled());
+	if (waitForCompletion) {
+		await waitForDiscoveryToSettle();
+	}
 	return listAlgoliaSourceIndexes;
+}
+
+async function waitForDiscoveryToSettle() {
+	await waitFor(() =>
+		expect(screen.queryByTestId('migration-source-loading')).not.toBeInTheDocument()
+	);
 }
 
 describe('MigrationCreateFlow - connect step', () => {
@@ -240,7 +251,7 @@ describe('MigrationCreateFlow - connect step', () => {
 		);
 		renderFlow(list);
 
-		await connect(list);
+		await connect(list, APP_ID_CANARY, API_KEY_CANARY, false);
 
 		const loading = await screen.findByTestId('migration-source-loading');
 		expect(loading).toHaveAttribute('role', 'status');
@@ -613,7 +624,7 @@ describe('MigrationCreateFlow - credential change invalidates the catalog', () =
 		);
 		renderFlow(list);
 
-		await connect(list);
+		await connect(list, APP_ID_CANARY, API_KEY_CANARY, false);
 		await fireEvent.input(screen.getByLabelText(/algolia application id/i), {
 			target: { value: 'OTHERAPPID0003' }
 		});
@@ -636,7 +647,7 @@ describe('MigrationCreateFlow - credential change invalidates the catalog', () =
 		);
 		renderFlow(list);
 
-		await connect(list);
+		await connect(list, APP_ID_CANARY, API_KEY_CANARY, false);
 		await fireEvent.input(screen.getByLabelText(/algolia api key/i), {
 			target: { value: 'other-secret-key-0004' }
 		});
@@ -661,7 +672,7 @@ describe('MigrationCreateFlow - credential change invalidates the catalog', () =
 		);
 		renderFlow(list);
 
-		await connect(list);
+		await connect(list, APP_ID_CANARY, API_KEY_CANARY, false);
 		await fireEvent.input(screen.getByLabelText(/algolia api key/i), {
 			target: { value: 'replacement-secret-key-0005' }
 		});
@@ -751,10 +762,12 @@ describe('MigrationCreateFlow - error and retry', () => {
 
 		await fireEvent.click(screen.getByRole('button', { name: /load more source indexes/i }));
 		await screen.findByTestId('migration-source-error');
+		await waitForDiscoveryToSettle();
 
 		await fireEvent.click(screen.getByRole('button', { name: /retry/i }));
 
 		await screen.findByTestId('migration-source-row-source_products');
+		await waitForDiscoveryToSettle();
 		expect(list).toHaveBeenLastCalledWith({ appId: APP_ID_CANARY, apiKey: API_KEY_CANARY });
 		// Page one is present again and load-more is offered, so the customer can
 		// walk the full catalog rather than a truncated tail of it.

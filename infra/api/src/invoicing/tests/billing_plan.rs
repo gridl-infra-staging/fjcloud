@@ -22,7 +22,8 @@ fn shared_plan_uses_shared_minimum() {
         end,
         &zero_storage(),
         BillingPlan::Shared,
-    );
+    )
+    .unwrap();
 
     assert_eq!(result.subtotal_cents, 0);
     assert!(result.minimum_applied);
@@ -62,7 +63,8 @@ fn shared_plan_usage_above_shared_minimum_no_clamp() {
         end,
         &zero_storage(),
         BillingPlan::Shared,
-    );
+    )
+    .unwrap();
 
     // Usage above shared minimum of 200 → no minimum applied
     assert!(!result.minimum_applied);
@@ -100,7 +102,8 @@ fn shared_plan_usage_between_minimums_uses_shared() {
         end,
         &zero_storage(),
         BillingPlan::Shared,
-    );
+    )
+    .unwrap();
 
     assert_eq!(result.subtotal_cents, 300);
     assert!(!result.minimum_applied);
@@ -137,7 +140,8 @@ fn free_plan_usage_between_minimums_remains_unclamped() {
         end,
         &zero_storage(),
         BillingPlan::Free,
-    );
+    )
+    .unwrap();
 
     assert_eq!(result.subtotal_cents, 300);
     assert!(!result.minimum_applied);
@@ -176,7 +180,8 @@ fn free_plan_usage_between_minimums_does_not_clamp() {
         end,
         &zero_storage(),
         BillingPlan::Free,
-    );
+    )
+    .unwrap();
 
     assert_eq!(result.subtotal_cents, 300);
     assert_eq!(
@@ -243,7 +248,8 @@ fn unknown_billing_plan_defaults_to_shared_minimum_via_customer_enum() {
         end,
         &zero_storage(),
         customer.billing_plan_for_billing(),
-    );
+    )
+    .unwrap();
 
     assert_eq!(result.subtotal_cents, 0);
     assert!(result.minimum_applied);
@@ -266,7 +272,8 @@ fn carryforward_only_month_persists_remainder_in_metadata() {
         object_storage_egress_carryforward_cents: dec!(0.7),
         object_storage_egress_watermark_targets: Vec::new(),
     };
-    let result = generate_invoice(&[], &card, cid, start, end, &storage, BillingPlan::Free);
+    let result =
+        generate_invoice(&[], &card, cid, start, end, &storage, BillingPlan::Free).unwrap();
 
     let egress = result
         .line_items

@@ -570,7 +570,8 @@ fn expected_hot_storage_totals(case: &HotStorageCase) -> (i64, i64) {
         object_storage_egress_gb: Decimal::ZERO,
     };
 
-    let pricing_calc = billing::pricing::calculate_invoice(&usage_summary, &billing_rate_card);
+    let pricing_calc =
+        billing::pricing::calculate_invoice(&usage_summary, &billing_rate_card).unwrap();
     let minimum_cents = match case.billing_plan {
         BillingPlan::Free => 0,
         BillingPlan::Shared => billing_rate_card.shared_minimum_spend_cents,

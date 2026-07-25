@@ -150,7 +150,8 @@ fn invoice_with_object_storage_line_items() {
         object_storage_egress_carryforward_cents: Decimal::ZERO,
         object_storage_egress_watermark_targets: Vec::new(),
     };
-    let result = generate_invoice(&rows, &card, cid, start, end, &storage, BillingPlan::Free);
+    let result =
+        generate_invoice(&rows, &card, cid, start, end, &storage, BillingPlan::Free).unwrap();
 
     let obj_li = result
         .line_items
@@ -189,7 +190,8 @@ fn object_storage_egress_carryforward_crossing_cent_boundary_bills_only_whole_ce
             egress_bytes: billing::types::BYTES_PER_GIB / 2,
         }],
     };
-    let result = generate_invoice(&[], &card, cid, start, end, &storage, BillingPlan::Free);
+    let result =
+        generate_invoice(&[], &card, cid, start, end, &storage, BillingPlan::Free).unwrap();
 
     let egress = result
         .line_items
@@ -235,7 +237,8 @@ fn object_storage_egress_sub_cent_cycle_retains_remainder_in_metadata() {
             egress_bytes: billing::types::BYTES_PER_GIB / 2,
         }],
     };
-    let result = generate_invoice(&[], &card, cid, start, end, &storage, BillingPlan::Free);
+    let result =
+        generate_invoice(&[], &card, cid, start, end, &storage, BillingPlan::Free).unwrap();
 
     let egress = result
         .line_items
@@ -273,7 +276,8 @@ fn object_storage_egress_whole_cent_behavior_unchanged_with_zero_carryforward() 
             egress_bytes: billing::types::BYTES_PER_GIB * 5,
         }],
     };
-    let result = generate_invoice(&[], &card, cid, start, end, &storage, BillingPlan::Free);
+    let result =
+        generate_invoice(&[], &card, cid, start, end, &storage, BillingPlan::Free).unwrap();
 
     let egress = result
         .line_items
@@ -289,6 +293,42 @@ fn object_storage_egress_whole_cent_behavior_unchanged_with_zero_carryforward() 
     )
     .expect("egress metadata should deserialize");
     assert_eq!(parsed.next_cycle_carryforward_cents, Decimal::ZERO);
+}
+
+#[test]
+fn object_storage_egress_floor_valid_i64_max_fraction_does_not_overflow() {
+    let card = test_rate_card();
+    let cid = Uuid::new_v4();
+    let start = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
+    let end = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
+    let storage = StorageInputs {
+        cold_storage_gb_months: Decimal::ZERO,
+        object_storage_gb_months: Decimal::ZERO,
+        object_storage_egress_gb: Decimal::from(i64::MAX) + dec!(0.5),
+        object_storage_egress_carryforward_cents: Decimal::ZERO,
+        object_storage_egress_watermark_targets: vec![ObjectStorageEgressWatermarkTarget {
+            bucket_id: Uuid::new_v4(),
+            egress_bytes: 1,
+        }],
+    };
+
+    let result =
+        generate_invoice(&[], &card, cid, start, end, &storage, BillingPlan::Free).unwrap();
+
+    let egress = result
+        .line_items
+        .iter()
+        .find(|li| li.unit == "object_storage_egress_gb")
+        .expect("object storage egress line item missing");
+    assert_eq!(egress.amount_cents, i64::MAX);
+    let parsed: ObjectStorageEgressMetadata = serde_json::from_value(
+        egress
+            .metadata
+            .clone()
+            .expect("egress metadata should be attached"),
+    )
+    .expect("egress metadata should deserialize");
+    assert_eq!(parsed.next_cycle_carryforward_cents, dec!(0.5));
 }
 
 /// Verifies that object-storage-only usage on the Shared plan
@@ -311,7 +351,8 @@ fn object_storage_billed_without_hot_usage_rows() {
         object_storage_egress_carryforward_cents: Decimal::ZERO,
         object_storage_egress_watermark_targets: Vec::new(),
     };
-    let result = generate_invoice(&[], &card, cid, start, end, &storage, BillingPlan::Shared);
+    let result =
+        generate_invoice(&[], &card, cid, start, end, &storage, BillingPlan::Shared).unwrap();
 
     // 100 GB × $0.024 = $2.40 = 240 cents
     assert_eq!(result.subtotal_cents, 240);

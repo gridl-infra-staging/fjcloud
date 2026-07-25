@@ -192,6 +192,12 @@ impl From<StripeError> for ApiError {
     }
 }
 
+impl From<billing::pricing::PricingError> for ApiError {
+    fn from(err: billing::pricing::PricingError) -> Self {
+        ApiError::Internal(err.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

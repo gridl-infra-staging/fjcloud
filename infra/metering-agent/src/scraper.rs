@@ -9,7 +9,7 @@ pub struct MetricSample {
     pub value: f64,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum ParseError {
     #[error("malformed metric line: {0:?}")]
     MalformedLine(String),
@@ -19,18 +19,33 @@ pub enum ParseError {
     MalformedLabel(String),
 }
 
-/// Parse a Prometheus text exposition body into a flat list of samples.
+/// Parse a Prometheus text exposition body into a flat list of valid samples.
 ///
 /// Comment lines (`#`) and blank lines are skipped. Lines with `+Inf`, `-Inf`,
-/// and `NaN` are parsed as their f64 representations.
-pub fn parse_prometheus_text(body: &str) -> Result<Vec<MetricSample>, ParseError> {
-    body.lines()
-        .filter(|line| {
-            let trimmed = line.trim();
-            !trimmed.is_empty() && !trimmed.starts_with('#')
-        })
-        .map(parse_metric_line)
-        .collect()
+/// and `NaN` are parsed as their f64 representations. Malformed metric lines
+/// are skipped after warning so one bad line does not discard the whole scrape.
+pub fn parse_prometheus_text(body: &str) -> Vec<MetricSample> {
+    let mut samples = Vec::new();
+
+    for line in body.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+
+        match parse_metric_line(line) {
+            Ok(sample) => samples.push(sample),
+            Err(error) => {
+                tracing::warn!(
+                    error = %error,
+                    line = line,
+                    "skipping malformed Prometheus metric line"
+                );
+            }
+        }
+    }
+
+    samples
 }
 
 /// Parse a single non-comment, non-blank line from a Prometheus text body into
@@ -145,7 +160,9 @@ pub fn extract_flapjack_metrics(samples: &[MetricSample]) -> FlapjackMetrics {
 
     for sample in samples {
         let index = sample.labels.get("index").cloned();
-        let v = sample.value as u64;
+        let Some(v) = metering_value_as_u64(sample) else {
+            continue;
+        };
 
         match sample.name.as_str() {
             "flapjack_search_requests_total" => {
@@ -189,6 +206,23 @@ pub fn extract_flapjack_metrics(samples: &[MetricSample]) -> FlapjackMetrics {
     }
 
     out
+}
+
+fn metering_value_as_u64(sample: &MetricSample) -> Option<u64> {
+    if sample.value.is_finite()
+        && sample.value >= 0.0
+        && sample.value.fract() == 0.0
+        && sample.value <= u64::MAX as f64
+    {
+        Some(sample.value as u64)
+    } else {
+        tracing::warn!(
+            metric = sample.name.as_str(),
+            value = sample.value,
+            "skipping non-integer Prometheus metering value"
+        );
+        None
+    }
 }
 
 // ============================================================================
@@ -246,7 +280,7 @@ flapjack_tenants_loaded 2
     #[test]
     fn comment_and_blank_lines_skipped() {
         let body = "# HELP foo bar\n\nfoo 1.0\n";
-        let samples = parse_prometheus_text(body).unwrap();
+        let samples = parse_prometheus_text(body);
         assert_eq!(samples.len(), 1);
         assert_eq!(samples[0].name, "foo");
     }
@@ -254,7 +288,7 @@ flapjack_tenants_loaded 2
     #[test]
     fn parses_metric_with_labels() {
         let body = r#"flapjack_search_requests_total{index="products"} 145023"#;
-        let samples = parse_prometheus_text(body).unwrap();
+        let samples = parse_prometheus_text(body);
 
         assert_eq!(samples.len(), 1);
         assert_eq!(samples[0].name, "flapjack_search_requests_total");
@@ -268,7 +302,7 @@ flapjack_tenants_loaded 2
     #[test]
     fn parses_metric_without_labels() {
         let body = "flapjack_active_writers 3";
-        let samples = parse_prometheus_text(body).unwrap();
+        let samples = parse_prometheus_text(body);
 
         assert_eq!(samples[0].name, "flapjack_active_writers");
         assert!(samples[0].labels.is_empty());
@@ -278,7 +312,7 @@ flapjack_tenants_loaded 2
     #[test]
     fn parses_multiple_labels() {
         let body = r#"some_metric{region="us-east-1",index="products"} 42"#;
-        let samples = parse_prometheus_text(body).unwrap();
+        let samples = parse_prometheus_text(body);
 
         assert_eq!(
             samples[0].labels.get("region").map(String::as_str),
@@ -292,7 +326,7 @@ flapjack_tenants_loaded 2
 
     #[test]
     fn parses_full_example_body() {
-        let samples = parse_prometheus_text(EXAMPLE_BODY).unwrap();
+        let samples = parse_prometheus_text(EXAMPLE_BODY);
         // 2 search + 2 write + 2 indexed + 2 deleted + 2 doc_count + 2 storage
         // + 1 active_writers + 1 tenants_loaded = 14
         assert_eq!(samples.len(), 14);
@@ -302,9 +336,62 @@ flapjack_tenants_loaded 2
     fn ignores_optional_timestamp() {
         // Prometheus format allows an optional Unix ms timestamp after the value.
         let body = r#"flapjack_search_requests_total{index="x"} 100 1706745600000"#;
-        let samples = parse_prometheus_text(body).unwrap();
+        let samples = parse_prometheus_text(body);
 
         assert_eq!(samples[0].value, 100.0);
+    }
+
+    #[test]
+    fn parse_metric_line_reports_malformed_line_with_source() {
+        assert_eq!(
+            parse_metric_line("justtoken"),
+            Err(ParseError::MalformedLine("justtoken".to_string()))
+        );
+    }
+
+    #[test]
+    fn parse_metric_line_reports_invalid_value_with_source() {
+        let line = r#"flapjack_search_requests_total{index="x"} not_a_number"#;
+
+        assert_eq!(
+            parse_metric_line(line),
+            Err(ParseError::InvalidValue(line.to_string()))
+        );
+    }
+
+    #[test]
+    fn parse_metric_line_reports_malformed_label_with_source() {
+        let line = "some_metric{badlabel} 5";
+
+        assert_eq!(
+            parse_metric_line(line),
+            Err(ParseError::MalformedLabel(line.to_string()))
+        );
+    }
+
+    #[test]
+    fn parse_prometheus_text_keeps_valid_samples_after_malformed_line() {
+        let body = r#"
+flapjack_search_requests_total{index="products"} 50
+justtoken
+flapjack_write_operations_total{index="orders"} 25
+"#;
+
+        let samples = parse_prometheus_text(body);
+
+        assert_eq!(samples.len(), 2);
+        assert_eq!(samples[0].name, "flapjack_search_requests_total");
+        assert_eq!(
+            samples[0].labels.get("index").map(String::as_str),
+            Some("products")
+        );
+        assert_eq!(samples[0].value, 50.0);
+        assert_eq!(samples[1].name, "flapjack_write_operations_total");
+        assert_eq!(
+            samples[1].labels.get("index").map(String::as_str),
+            Some("orders")
+        );
+        assert_eq!(samples[1].value, 25.0);
     }
 
     // -------------------------------------------------------------------------
@@ -313,7 +400,7 @@ flapjack_tenants_loaded 2
 
     #[test]
     fn extracts_per_index_counters() {
-        let samples = parse_prometheus_text(EXAMPLE_BODY).unwrap();
+        let samples = parse_prometheus_text(EXAMPLE_BODY);
         let m = extract_flapjack_metrics(&samples);
 
         assert_eq!(m.search_requests_total.get("products"), Some(&145023));
@@ -324,7 +411,7 @@ flapjack_tenants_loaded 2
 
     #[test]
     fn extracts_documents_indexed_and_deleted_counters() {
-        let samples = parse_prometheus_text(EXAMPLE_BODY).unwrap();
+        let samples = parse_prometheus_text(EXAMPLE_BODY);
         let m = extract_flapjack_metrics(&samples);
 
         assert_eq!(m.documents_indexed_total.get("products"), Some(&12345));
@@ -335,7 +422,7 @@ flapjack_tenants_loaded 2
 
     #[test]
     fn extracts_storage_and_doc_count_gauges() {
-        let samples = parse_prometheus_text(EXAMPLE_BODY).unwrap();
+        let samples = parse_prometheus_text(EXAMPLE_BODY);
         let m = extract_flapjack_metrics(&samples);
 
         assert_eq!(m.storage_bytes.get("products"), Some(&104_857_600));
@@ -344,7 +431,7 @@ flapjack_tenants_loaded 2
 
     #[test]
     fn extracts_system_gauges() {
-        let samples = parse_prometheus_text(EXAMPLE_BODY).unwrap();
+        let samples = parse_prometheus_text(EXAMPLE_BODY);
         let m = extract_flapjack_metrics(&samples);
 
         assert_eq!(m.active_writers, Some(3));
@@ -354,7 +441,7 @@ flapjack_tenants_loaded 2
     #[test]
     fn unknown_metrics_are_ignored() {
         let body = "some_unknown_metric{foo=\"bar\"} 99\n";
-        let samples = parse_prometheus_text(body).unwrap();
+        let samples = parse_prometheus_text(body);
         let m = extract_flapjack_metrics(&samples);
 
         assert!(m.search_requests_total.is_empty());
@@ -365,9 +452,48 @@ flapjack_tenants_loaded 2
     fn missing_index_label_does_not_panic() {
         // A labelled-looking metric with no `index` label should be ignored gracefully.
         let body = r#"flapjack_search_requests_total{peer_id="node-b"} 5"#;
-        let samples = parse_prometheus_text(body).unwrap();
+        let samples = parse_prometheus_text(body);
         let m = extract_flapjack_metrics(&samples);
 
         assert!(m.search_requests_total.is_empty());
+    }
+
+    #[test]
+    fn rejects_non_finite_and_fractional_metering_values() {
+        let samples = vec![
+            MetricSample {
+                name: "flapjack_search_requests_total".to_string(),
+                labels: HashMap::from([("index".to_string(), "inf".to_string())]),
+                value: f64::INFINITY,
+            },
+            MetricSample {
+                name: "flapjack_write_operations_total".to_string(),
+                labels: HashMap::from([("index".to_string(), "nan".to_string())]),
+                value: f64::NAN,
+            },
+            MetricSample {
+                name: "flapjack_documents_count".to_string(),
+                labels: HashMap::from([("index".to_string(), "negative".to_string())]),
+                value: -1.0,
+            },
+            MetricSample {
+                name: "flapjack_documents_deleted_total".to_string(),
+                labels: HashMap::from([("index".to_string(), "fractional".to_string())]),
+                value: 1.5,
+            },
+            MetricSample {
+                name: "flapjack_documents_indexed_total".to_string(),
+                labels: HashMap::from([("index".to_string(), "valid".to_string())]),
+                value: 7.0,
+            },
+        ];
+
+        let m = extract_flapjack_metrics(&samples);
+
+        assert!(m.search_requests_total.is_empty());
+        assert!(m.write_operations_total.is_empty());
+        assert!(m.documents_count.is_empty());
+        assert!(m.documents_deleted_total.is_empty());
+        assert_eq!(m.documents_indexed_total.get("valid"), Some(&7));
     }
 }

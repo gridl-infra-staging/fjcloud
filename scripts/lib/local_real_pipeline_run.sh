@@ -100,6 +100,15 @@ lrp_pg_text_literal() {
     printf "'%s'" "$value"
 }
 
+lrp_require_safe_header_value() {
+    local field="$1" value="$2"
+    case "$value" in
+        *$'\r'*|*$'\n'*)
+            probe_fail env_prep "${field} contains CR/LF bytes and cannot be forwarded to HTTP auth headers"
+            ;;
+    esac
+}
+
 lrp_pg_utc_day_start_expr() {
     local day_literal
     day_literal="$(lrp_pg_text_literal "$1")"
@@ -216,6 +225,7 @@ lrp_prepare_env() {
         || probe_fail env_prep "local_demo.sh --prepare-env-only failed; fix .env.local bootstrap before rerunning"
     load_env_file "$REPO_ROOT/.env.local"
     export FLAPJACK_ADMIN_KEY="${FLAPJACK_ADMIN_KEY:-$DEFAULT_LOCAL_FLAPJACK_ADMIN_KEY}"
+    lrp_require_safe_header_value FLAPJACK_ADMIN_KEY "$FLAPJACK_ADMIN_KEY"
     [ -n "${DATABASE_URL:-}" ] \
         || probe_fail env_prep "DATABASE_URL missing from .env.local; local Postgres owner must supply it"
     [ -n "${FLAPJACK_REGIONS:-}" ] \

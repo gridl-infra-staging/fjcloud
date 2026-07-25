@@ -165,6 +165,7 @@ cold-storage, and HA proof-owner scripts in strict order.
 
 Does NOT duplicate proof-owner internals — only calls the three scripts
 and interprets exit codes/output. |
+| local_real_pipeline_probe.sh | Behavior owner for exact-row local metering and aggregation proofs, including pure fixture classification and explicit full-stack positive and negative modes. |
 | local_demo.sh | One-command local demo launcher: infra + API + web + seed data + metering. |
 | local_play.sh | local_play.sh - One-command fresh local demo launcher. |
 | playwright_local_stack.sh | playwright_local_stack.sh — Start local API + web for Playwright runs. |

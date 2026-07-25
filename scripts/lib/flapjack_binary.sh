@@ -378,13 +378,28 @@ flapjack_receipt_path_from_provenance() {
     esac
 }
 
-flapjack_export_required_runtime_identity() {
+# Export the selected executable's artifact-layer identity. Source receipts and
+# manifests bind this checksum to the selected bytes; public /health deliberately
+# omits private revision, workspace digest, and dirty-state fields.
+flapjack_export_required_artifact_identity() {
     local binary_path="$1"
     [ -x "$binary_path" ] || return 1
 
-    local provenance receipt_path revision build_id binary_sha
+    unset FJCLOUD_FLAPJACK_REQUIRED_REVISION
+    unset FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID
+    export FJCLOUD_FLAPJACK_REQUIRED_SHA256
+    FJCLOUD_FLAPJACK_REQUIRED_SHA256="$(flapjack_binary_sha256 "$binary_path")"
+}
+
+# Export the complete private identity contract for owners that compare against
+# build-info or another private evidence source. Public-health launchers must use
+# flapjack_export_required_artifact_identity instead.
+flapjack_export_required_runtime_identity() {
+    local binary_path="$1"
+    flapjack_export_required_artifact_identity "$binary_path" || return 1
+
+    local provenance receipt_path revision build_id
     provenance="$(flapjack_source_provenance_summary)"
-    binary_sha="$(flapjack_binary_sha256 "$binary_path")"
     revision="$(flapjack_provenance_token_after "$provenance" "revision" || true)"
     build_id="$(flapjack_provenance_token_after "$provenance" "build_id" || true)"
     if [ -z "$build_id" ]; then
@@ -399,7 +414,6 @@ flapjack_export_required_runtime_identity() {
         [ -n "$build_id" ] || build_id="$(flapjack_receipt_value "$receipt_path" "source_digest" || true)"
     fi
 
-    export FJCLOUD_FLAPJACK_REQUIRED_SHA256="$binary_sha"
     if [ -n "$revision" ]; then
         export FJCLOUD_FLAPJACK_REQUIRED_REVISION="$revision"
     fi

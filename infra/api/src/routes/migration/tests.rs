@@ -123,6 +123,19 @@ fn valid_provider_claims_are_accepted() {
 }
 
 #[test]
+fn provider_claims_accept_later_selected_create_destination_name() {
+    let claims = provider_claims();
+    assert!(validate_provider_claims(
+        &claims,
+        claims.exp - 1,
+        "11111111-1111-1111-1111-111111111111",
+        AlgoliaImportDestinationKind::Create,
+        &target("us-east-1", "customer_selected_products"),
+    )
+    .is_ok());
+}
+
+#[test]
 fn expired_provider_envelope_is_rejected() {
     let claims = provider_claims();
     let error = validate_provider_claims(

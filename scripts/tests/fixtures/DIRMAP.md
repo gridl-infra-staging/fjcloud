@@ -7,5 +7,6 @@
 
 | Directory | Summary |
 | --- | --- |
+| local_real_pipeline_probe | Local JSON specimens covering every exact-row classifier verdict without Docker, Postgres, Flapjack, AWS, or a live collector. |
 | security | — |
 <!-- [scrai:end] -->

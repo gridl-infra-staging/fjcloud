@@ -146,7 +146,11 @@ resolve_ssm_parameter_if_configured() {
     fi
 
     raw_value="${!var_name:-}"
-    if [ -z "$raw_value" ] || [[ "$raw_value" != /* ]]; then
+    # This repository's parameter namespace is canonical and distinguishes an
+    # SSM reference from an already-resolved secret that happens to start with
+    # "/". Treating every slash-prefixed value as a parameter path corrupts
+    # valid URL-safe credentials in local/operator invocation.
+    if [ -z "$raw_value" ] || [[ "$raw_value" != /fjcloud/* ]]; then
         return 0
     fi
 

@@ -101,6 +101,7 @@ Usage:
   source scripts/lib/live_gate.sh
   live_gate_require "$some_condition" "reason for requirement". |
 | local_db_access.sh | Shared local Postgres access helpers for sourceable local-dev scripts. |
+| local_real_pipeline_run.sh | Source-only full-mode orchestration for the local real-pipeline probe's two-scrape bracket, aggregation, evidence construction, and teardown. |
 | local_seed_contract.sh | Canonical local seed data contract shared by seed and audit scripts.
 
 This file is source-only: it defines stable values and tuple builders, and

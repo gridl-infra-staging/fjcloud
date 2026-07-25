@@ -1,11 +1,35 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/svelte';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { render, screen, cleanup, waitFor, within } from '@testing-library/svelte';
 import { layoutTestDefaults } from '../layout-test-context';
-import type { AlgoliaMigrationAvailabilityResponse } from '$lib/api/types';
+import type {
+	AlgoliaMigrationAvailabilityResponse,
+	PublicAlgoliaImportJob,
+	PublicAlgoliaImportJobPage
+} from '$lib/api/types';
+import { migrationJobHref } from '$lib/components/migration/create_success_intent';
+import {
+	availableAvailability,
+	unavailableAvailability
+} from '$lib/components/migration/migration_test_fixtures';
+
+const { applyActionMock, deserializeMock, fetchMock, gotoMock, invalidateAllMock } = vi.hoisted(
+	() => ({
+		applyActionMock: vi.fn(),
+		deserializeMock: vi.fn(),
+		fetchMock: vi.fn(),
+		gotoMock: vi.fn(),
+		invalidateAllMock: vi.fn()
+	})
+);
+
+vi.mock('$app/forms', () => ({
+	applyAction: applyActionMock,
+	deserialize: deserializeMock
+}));
 
 vi.mock('$app/navigation', () => ({
-	goto: vi.fn(),
-	invalidateAll: vi.fn()
+	goto: gotoMock,
+	invalidateAll: invalidateAllMock
 }));
 
 vi.mock('$app/state', () => ({
@@ -13,40 +37,87 @@ vi.mock('$app/state', () => ({
 }));
 
 vi.mock('$app/environment', () => ({
-	browser: false
+	browser: true
 }));
 
 import MigratePage from './+page.svelte';
 
+beforeEach(() => {
+	fetchMock.mockResolvedValue(new Response('serialized-action-result'));
+	deserializeMock.mockReturnValue({
+		type: 'success',
+		status: 200,
+		data: {
+			providerEligibility: {
+				phase: 'provider',
+				mode: 'create',
+				provider: 'aws',
+				target: {
+					kind: 'create',
+					region: 'us-east-1'
+				},
+				eligibilityToken: 'provider-token',
+				expiresAt: '2099-07-18T10:15:00Z'
+			}
+		}
+	});
+	vi.stubGlobal('fetch', fetchMock);
+});
+
 afterEach(() => {
 	cleanup();
 	vi.clearAllMocks();
+	vi.unstubAllGlobals();
 });
 
-const unavailableAvailability: AlgoliaMigrationAvailabilityResponse = {
-	available: false,
-	reason: 'temporarily_unavailable' as const,
-	message: 'Algolia migration is temporarily unavailable while we replace the importer.',
-	capabilities: { cancel: false, resume: false, replace: false }
-};
+type RecentImportsData = { page: PublicAlgoliaImportJobPage | null; error: string | null };
 
 function renderMigratePage(
-	availability: AlgoliaMigrationAvailabilityResponse = unavailableAvailability
+	availability: AlgoliaMigrationAvailabilityResponse = unavailableAvailability,
+	recentImports: RecentImportsData = { page: null, error: null }
 ) {
 	return render(MigratePage, {
 		data: {
 			...layoutTestDefaults,
-			availability
+			availability,
+			recentImports
 		}
 	});
 }
 
-function capabilityRows(section: HTMLElement): string[] {
-	return Array.from(section.querySelectorAll('dl > div')).map((row) => {
-		const label = row.querySelector('dt')?.textContent?.trim();
-		const value = row.querySelector('dd')?.textContent?.trim();
-		return `${label} — ${value}`;
-	});
+function recentImportJob(
+	overrides: Partial<PublicAlgoliaImportJob> = {}
+): PublicAlgoliaImportJob {
+	return {
+		id: 'job_123',
+		status: 'copying_documents',
+		mode: 'create',
+		destination: { kind: 'create', target: 'products_migrated', region: 'us-east-1' },
+		source: { name: 'products' },
+		summary: {
+			documentsExpected: 17,
+			documentsImported: 13,
+			documentsRejected: 4,
+			settingsApplied: 2,
+			settingsUnsupported: 1,
+			synonymsExpected: 5,
+			synonymsImported: 3,
+			synonymsRejected: 2,
+			rulesExpected: 7,
+			rulesImported: 6,
+			rulesRejected: 1
+		},
+		error: null,
+		cancelRequestedAt: null,
+		resumeProvenance: null,
+		resumeDeadline: null,
+		resumable: false,
+		resumeCount: 0,
+		publicationDisposition: 'not_started',
+		createdAt: '2026-07-18T10:00:00Z',
+		updatedAt: '2026-07-18T10:05:00Z',
+		...overrides
+	};
 }
 
 function expectNoDormantMigrationControls(container: HTMLElement) {
@@ -65,23 +136,25 @@ function expectNoDormantMigrationControls(container: HTMLElement) {
 }
 
 describe('Migrate page unavailable state', () => {
-	it('renders the available state branch when availability.available is true', () => {
-		const { container } = renderMigratePage({
-			available: true,
-			message: 'Algolia migration is available.',
-			capabilities: { cancel: true, resume: false, replace: true }
-		});
+	it('renders the connected create flow when availability.available is true', async () => {
+		const { container } = renderMigratePage(availableAvailability);
 		const available = screen.getByTestId('migration-available');
 
 		expect(available).toHaveTextContent('Algolia migration is available.');
-		expect(capabilityRows(available)).toEqual([
-			'Cancel — Supported',
-			'Resume — Unavailable',
-			'Replace — Supported'
-		]);
 		expect(screen.queryByTestId('migration-unavailable')).not.toBeInTheDocument();
-		expectNoDormantMigrationControls(container);
-		expect(container.querySelectorAll('a')).toHaveLength(0);
+		expect(await screen.findByTestId('migration-create-flow')).toBeInTheDocument();
+		expect(await screen.findByLabelText(/algolia application id/i)).toHaveValue('');
+		expect(await screen.findByLabelText(/algolia api key/i)).toHaveValue('');
+		expect(screen.getByRole('button', { name: /connect to algolia/i })).toBeDisabled();
+		expect(container.innerHTML).not.toContain('provider-token');
+		await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+		expect(fetchMock).toHaveBeenCalledWith(
+			'?/providerEligibility',
+			expect.objectContaining({
+				method: 'POST',
+				headers: { 'x-sveltekit-action': 'true' }
+			})
+		);
 	});
 
 	it('renders the authenticated unavailable explanation page', () => {
@@ -129,5 +202,81 @@ describe('Migrate page unavailable state', () => {
 		);
 		expect(renderedLinks).toEqual(['mailto:support@flapjack.foo']);
 		expect(container.innerHTML).not.toMatch(/\/migration\/|\/console\/migrate\/job_|preview/i);
+	});
+});
+
+describe('Migrate page recent imports on the available surface', () => {
+	it('renders recent import rows with exact status, destination, date, and reopen link', () => {
+		const job = recentImportJob();
+		renderMigratePage(availableAvailability, {
+			page: { jobs: [job], nextCursor: null },
+			error: null
+		});
+
+		const recent = screen.getByTestId('migration-recent-imports');
+		const row = within(recent).getByTestId(`migration-recent-import-${job.id}`);
+		expect(row).toHaveTextContent('products to products_migrated');
+		expect(row).toHaveTextContent('Copying documents');
+		expect(row).toHaveTextContent('us-east-1');
+		expect(row).toHaveTextContent('Updated Jul 18, 2026');
+
+		const reopenLink = within(row).getByRole('link', { name: /open import job_123/i });
+		expect(reopenLink).toHaveAttribute('href', migrationJobHref(job.id));
+		expect(reopenLink).toHaveAttribute('href', '/console/migrate/job_123');
+	});
+
+	it('keeps the create flow visible when the recent-import list is empty', async () => {
+		renderMigratePage(availableAvailability, { page: { jobs: [], nextCursor: null }, error: null });
+
+		expect(await screen.findByTestId('migration-create-flow')).toBeInTheDocument();
+		expect(screen.getByTestId('migration-recent-imports-empty')).toHaveTextContent(
+			'No Algolia imports yet'
+		);
+	});
+
+	it('keeps the create flow visible when the recent-import list failed to load', async () => {
+		renderMigratePage(availableAvailability, {
+			page: null,
+			error: 'Recent imports could not be loaded'
+		});
+
+		expect(await screen.findByTestId('migration-create-flow')).toBeInTheDocument();
+		expect(screen.getByTestId('migration-recent-imports-error')).toHaveTextContent(
+			'Recent imports could not be loaded'
+		);
+		expect(screen.getByRole('button', { name: /retry recent imports/i })).toBeInTheDocument();
+	});
+
+	it('resyncs recent imports from refreshed route data', async () => {
+		const firstJob = recentImportJob();
+		const rerenderedJob = recentImportJob({
+			id: 'job_456',
+			source: { name: 'products_archive' },
+			destination: { kind: 'create', target: 'products_archive_migrated', region: 'us-west-2' }
+		});
+		const { rerender } = renderMigratePage(availableAvailability, {
+			page: { jobs: [firstJob], nextCursor: null },
+			error: null
+		});
+
+		expect(screen.getByTestId(`migration-recent-import-${firstJob.id}`)).toHaveTextContent(
+			'products to products_migrated'
+		);
+
+		await rerender({
+			data: {
+				...layoutTestDefaults,
+				availability: availableAvailability,
+				recentImports: {
+					page: { jobs: [rerenderedJob], nextCursor: null },
+					error: null
+				}
+			}
+		});
+
+		expect(screen.queryByTestId(`migration-recent-import-${firstJob.id}`)).not.toBeInTheDocument();
+		expect(screen.getByTestId(`migration-recent-import-${rerenderedJob.id}`)).toHaveTextContent(
+			'products_archive to products_archive_migrated'
+		);
 	});
 });

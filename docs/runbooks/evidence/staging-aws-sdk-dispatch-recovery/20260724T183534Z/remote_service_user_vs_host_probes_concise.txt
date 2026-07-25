@@ -9,7 +9,7 @@ proxy_booleans_end
 exit_status=0
 --- dns_email.us-east-1.amazonaws.com_end ---
 --- route4_email.us-east-1.amazonaws.com_begin ---
-18.208.240.210 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 992 
+18.208.240.210 via PRIVATE_IP_REDACTED dev ens5 src PRIVATE_IP_REDACTED uid 992
     cache 
 exit_status=0
 --- route4_email.us-east-1.amazonaws.com_end ---
@@ -45,7 +45,7 @@ exit_status=2
 exit_status=0
 --- dns_monitoring.us-east-1.amazonaws.com_end ---
 --- route4_monitoring.us-east-1.amazonaws.com_begin ---
-44.213.98.47 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 992 
+44.213.98.47 via PRIVATE_IP_REDACTED dev ens5 src PRIVATE_IP_REDACTED uid 992
     cache 
 exit_status=0
 --- route4_monitoring.us-east-1.amazonaws.com_end ---
@@ -60,7 +60,7 @@ exit_status=2
 exit_status=0
 --- dns_sts.us-east-1.amazonaws.com_end ---
 --- route4_sts.us-east-1.amazonaws.com_begin ---
-44.216.202.239 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 992 
+44.216.202.239 via PRIVATE_IP_REDACTED dev ens5 src PRIVATE_IP_REDACTED uid 992
     cache 
 exit_status=0
 --- route4_sts.us-east-1.amazonaws.com_end ---
@@ -87,7 +87,7 @@ exit_status=2
 exit_status=0
 --- dns_discord.com_end ---
 --- route4_discord.com_begin ---
-162.159.128.233 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 992 
+162.159.128.233 via PRIVATE_IP_REDACTED dev ens5 src PRIVATE_IP_REDACTED uid 992
     cache 
 exit_status=0
 --- route4_discord.com_end ---
@@ -102,7 +102,7 @@ exit_status=2
 exit_status=0
 --- dns_github.com_end ---
 --- route4_github.com_begin ---
-140.82.112.4 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 992 
+140.82.112.4 via PRIVATE_IP_REDACTED dev ens5 src PRIVATE_IP_REDACTED uid 992
     cache 
 exit_status=0
 --- route4_github.com_end ---
@@ -174,7 +174,7 @@ proxy_booleans_end
 exit_status=0
 --- dns_email.us-east-1.amazonaws.com_end ---
 --- route4_email.us-east-1.amazonaws.com_begin ---
-18.208.240.210 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 0 
+18.208.240.210 via PRIVATE_IP_REDACTED dev ens5 src PRIVATE_IP_REDACTED uid 0
     cache 
 exit_status=0
 --- route4_email.us-east-1.amazonaws.com_end ---
@@ -210,7 +210,7 @@ exit_status=2
 exit_status=0
 --- dns_monitoring.us-east-1.amazonaws.com_end ---
 --- route4_monitoring.us-east-1.amazonaws.com_begin ---
-44.213.98.147 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 0 
+44.213.98.147 via PRIVATE_IP_REDACTED dev ens5 src PRIVATE_IP_REDACTED uid 0
     cache 
 exit_status=0
 --- route4_monitoring.us-east-1.amazonaws.com_end ---
@@ -225,7 +225,7 @@ exit_status=2
 exit_status=0
 --- dns_sts.us-east-1.amazonaws.com_end ---
 --- route4_sts.us-east-1.amazonaws.com_begin ---
-44.216.202.239 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 0 
+44.216.202.239 via PRIVATE_IP_REDACTED dev ens5 src PRIVATE_IP_REDACTED uid 0
     cache 
 exit_status=0
 --- route4_sts.us-east-1.amazonaws.com_end ---
@@ -252,7 +252,7 @@ exit_status=2
 exit_status=0
 --- dns_discord.com_end ---
 --- route4_discord.com_begin ---
-162.159.137.232 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 0 
+162.159.137.232 via PRIVATE_IP_REDACTED dev ens5 src PRIVATE_IP_REDACTED uid 0
     cache 
 exit_status=0
 --- route4_discord.com_end ---
@@ -267,7 +267,7 @@ exit_status=2
 exit_status=0
 --- dns_github.com_end ---
 --- route4_github.com_begin ---
-140.82.112.4 via 10.0.10.1 dev ens5 src 10.0.10.178 uid 0 
+140.82.112.4 via PRIVATE_IP_REDACTED dev ens5 src PRIVATE_IP_REDACTED uid 0
     cache 
 exit_status=0
 --- route4_github.com_end ---

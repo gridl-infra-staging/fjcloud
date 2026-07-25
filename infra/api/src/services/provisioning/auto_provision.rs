@@ -78,6 +78,8 @@ impl ProvisioningService {
             }
         }
 
+        ensure_managed_shared_vm_provider(provider)?;
+
         let is_durable_recovery = durable_draft.is_some();
         let draft = self.build_shared_vm_draft(provider, durable_draft)?;
         let _provisioning_guard = if is_durable_recovery {
@@ -151,12 +153,13 @@ impl ProvisioningService {
         region: &str,
         provider: &str,
     ) -> Result<(VmInventory, String), ProvisioningError> {
+        ensure_managed_shared_vm_provider(provider)?;
         let api_key = self
             .node_secret_manager
             .create_node_api_key(&draft.node_id, region)
             .await
             .map_err(|error| ProvisioningError::SecretFailed(error.to_string()))?;
-        let vm_request = build_shared_vm_request(draft, provider, region, &api_key);
+        let vm_request = build_shared_vm_request(draft, provider, region, &api_key)?;
         let vm_instance = match self.vm_provisioner.create_vm(&vm_request).await {
             Ok(vm) => vm,
             Err(error) => {
@@ -587,6 +590,20 @@ pub(super) fn ensure_supported_vm_provider(vm_provider: &str) -> Result<(), Prov
     }
 }
 
+fn ensure_managed_shared_vm_provider(vm_provider: &str) -> Result<(), ProvisioningError> {
+    match vm_provider {
+        AWS_VM_PROVIDER => Ok(()),
+        HETZNER_VM_PROVIDER | GCP_VM_PROVIDER | OCI_VM_PROVIDER | BARE_METAL_VM_PROVIDER => {
+            Err(ProvisioningError::ProvisionerFailed(format!(
+                "managed shared VM provisioning for provider '{vm_provider}' is disabled because it would embed live credentials in user-data"
+            )))
+        }
+        _ => Err(ProvisioningError::ProvisionerFailed(format!(
+            "unsupported VM provider '{vm_provider}'"
+        ))),
+    }
+}
+
 fn is_local_dev_host(host: &str) -> bool {
     if host == "localhost" {
         return true;
@@ -605,7 +622,8 @@ fn build_shared_vm_request(
     provider: &str,
     region: &str,
     api_key: &str,
-) -> CreateVmRequest {
+) -> Result<CreateVmRequest, ProvisioningError> {
+    ensure_managed_shared_vm_provider(provider)?;
     let user_data = build_user_data(
         provider,
         &Uuid::nil().to_string(),
@@ -615,14 +633,14 @@ fn build_shared_vm_request(
         &draft.hostname,
     );
 
-    CreateVmRequest {
+    Ok(CreateVmRequest {
         region: region.to_string(),
         vm_type: default_shared_vm_type(provider).to_string(),
         hostname: draft.hostname.clone(),
         customer_id: Uuid::nil(),
         node_id: draft.node_id.clone(),
         user_data: Some(user_data),
-    }
+    })
 }
 
 fn default_shared_vm_type(provider: &str) -> &'static str {
@@ -744,14 +762,32 @@ mod security_tests {
 
     #[test]
     fn supported_providers_are_accepted() {
-        for provider in ["aws", "hetzner", "gcp", "oci"] {
+        for provider in ["aws", "hetzner", "gcp", "oci", "bare_metal"] {
             ensure_supported_vm_provider(provider)
                 .unwrap_or_else(|error| panic!("supported provider {provider} failed: {error}"));
-            let user_data =
-                build_user_data(provider, "cust", "node", "iad", "secret", "vm.example.com");
+        }
+    }
+
+    #[test]
+    fn managed_shared_vm_user_data_is_restricted_to_aws() {
+        let draft = SharedVmDraft {
+            hostname: "vm-shared-guardrail.example.com".to_string(),
+            flapjack_url: "http://vm-shared-guardrail.example.com:7700".to_string(),
+            node_id: "node-guardrail".to_string(),
+        };
+        let request = build_shared_vm_request(&draft, "aws", "iad", "secret")
+            .expect("aws must keep managed shared VM provisioning enabled");
+        assert!(
+            request.user_data.is_some(),
+            "aws must still produce managed shared VM user-data"
+        );
+
+        for provider in ["hetzner", "gcp", "oci", "bare_metal"] {
+            let error = build_shared_vm_request(&draft, provider, "iad", "secret")
+                .expect_err("non-AWS managed shared VM provisioning must stay disabled");
             assert!(
-                !user_data.is_empty(),
-                "supported provider {provider} must produce user-data"
+                matches!(error, ProvisioningError::ProvisionerFailed(ref message) if message.contains("embed live credentials in user-data")),
+                "{provider}: expected credential-exposure guardrail, got {error}"
             );
         }
     }

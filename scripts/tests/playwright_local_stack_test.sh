@@ -100,6 +100,9 @@ FJCLOUD_FLAPJACK_VERSION="1.0.10"
 FJCLOUD_FLAPJACK_SOURCE_RESOLUTION_FAILURE_STATUS=2
 find_restart_ready_flapjack_binary() { printf '%s\n' "$TEST_STACK_RUN_DIR/flapjack-server"; }
 flapjack_source_provenance_summary() { printf 'source-build:%s\n' "$TEST_STACK_RUN_DIR/receipts/source.receipt"; }
+flapjack_export_required_artifact_identity() {
+	export FJCLOUD_FLAPJACK_REQUIRED_SHA256="test-sha"
+}
 flapjack_export_required_runtime_identity() {
 	export FJCLOUD_FLAPJACK_REQUIRED_REVISION="test-revision"
 	export FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID="test-digest"
@@ -281,6 +284,9 @@ FJCLOUD_FLAPJACK_VERSION="1.0.10"
 FJCLOUD_FLAPJACK_SOURCE_RESOLUTION_FAILURE_STATUS=2
 find_restart_ready_flapjack_binary() { printf '%s\n' "$TEST_STACK_RUN_DIR/flapjack-server"; }
 flapjack_source_provenance_summary() { printf 'test-source\n'; }
+flapjack_export_required_artifact_identity() {
+	export FJCLOUD_FLAPJACK_REQUIRED_SHA256="test-sha"
+}
 flapjack_export_required_runtime_identity() {
 	export FJCLOUD_FLAPJACK_REQUIRED_REVISION="test-revision"
 	export FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID="test-digest"
@@ -468,6 +474,9 @@ FJCLOUD_FLAPJACK_VERSION="1.0.10"
 FJCLOUD_FLAPJACK_SOURCE_RESOLUTION_FAILURE_STATUS=2
 find_restart_ready_flapjack_binary() { printf '%s\n' "$TEST_STACK_RUN_DIR/flapjack-server"; }
 flapjack_source_provenance_summary() { printf 'test-source\n'; }
+flapjack_export_required_artifact_identity() {
+	export FJCLOUD_FLAPJACK_REQUIRED_SHA256="test-sha"
+}
 flapjack_export_required_runtime_identity() {
 	export FJCLOUD_FLAPJACK_REQUIRED_REVISION="test-revision"
 	export FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID="test-digest"

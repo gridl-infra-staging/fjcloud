@@ -6,18 +6,17 @@ use aws_sdk_cloudwatch::types::{Dimension, MetricDatum, StandardUnit};
 use config::Config;
 use std::future::Future;
 use tracing::{info, warn};
+use tracing_subscriber::EnvFilter;
 
 const ROLLUP_METRIC_NAMESPACE: &str = "fjcloud/aggregation-job";
 const ROLLUP_SUCCESS_METRIC_NAME: &str = "UsageDailyRollupSuccess";
+const AGGREGATION_JOB_LOG_TARGET: &str = env!("CARGO_CRATE_NAME");
 
 /// Program entry point for the daily rollup job: initialize structured logging, load env config, open PostgreSQL, execute run, and report affected rows.
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("aggregation_job=info".parse().unwrap()),
-        )
+        .with_env_filter(default_log_filter())
         .init();
 
     let cfg = Config::from_env().map_err(|e| anyhow::anyhow!("{}", e))?;
@@ -38,6 +37,14 @@ async fn main() -> Result<()> {
     );
 
     Ok(())
+}
+
+fn default_log_filter() -> EnvFilter {
+    EnvFilter::from_default_env().add_directive(
+        format!("{AGGREGATION_JOB_LOG_TARGET}=info")
+            .parse()
+            .expect("static aggregation-job log directive must parse"),
+    )
 }
 
 async fn run(cfg: &Config, pool: &sqlx::PgPool) -> Result<u64> {
@@ -307,6 +314,37 @@ mod tests {
         } else {
             assert_cbor_metric_payload(raw_body, expected_env);
         }
+    }
+
+    #[test]
+    fn default_log_filter_enables_binary_target_completion_event() {
+        let capture = LogCapture::default();
+        let events = Arc::clone(&capture.events);
+        let subscriber = tracing_subscriber::registry()
+            .with(default_log_filter())
+            .with(capture);
+
+        let guard = tracing::subscriber::set_default(subscriber);
+        tracing::info!(
+            target: AGGREGATION_JOB_LOG_TARGET,
+            target_date = "2026-07-24",
+            rows_affected = 1_u64,
+            "aggregation complete"
+        );
+        drop(guard);
+
+        let logs = events.lock().unwrap();
+        assert!(
+            logs.iter().any(|event| {
+                event.level == Level::INFO
+                    && event.message == "aggregation complete"
+                    && event
+                        .fields
+                        .get("rows_affected")
+                        .is_some_and(|value| value == "1")
+            }),
+            "default filter must expose the completion event consumed by scripts/local_real_pipeline_probe.sh; logs={logs:?}"
+        );
     }
 
     #[tokio::test]

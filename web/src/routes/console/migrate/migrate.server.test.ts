@@ -3,16 +3,29 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ApiRequestError } from '$lib/api/client';
+import type {
+	AlgoliaDestinationEligibilityRequest,
+	CreateAlgoliaImportJobRequest,
+	ListAlgoliaIndexesRequest
+} from '$lib/api/types';
 
 const getAlgoliaMigrationAvailabilityMock = vi.fn();
+const checkAlgoliaDestinationEligibilityMock = vi.fn();
+const listAlgoliaSourceIndexesMock = vi.fn();
+const createAlgoliaImportJobMock = vi.fn();
+const listAlgoliaImportJobsMock = vi.fn();
 
 vi.mock('$lib/server/api', () => ({
 	createApiClient: vi.fn(() => ({
-		getAlgoliaMigrationAvailability: getAlgoliaMigrationAvailabilityMock
+		getAlgoliaMigrationAvailability: getAlgoliaMigrationAvailabilityMock,
+		checkAlgoliaDestinationEligibility: checkAlgoliaDestinationEligibilityMock,
+		listAlgoliaSourceIndexes: listAlgoliaSourceIndexesMock,
+		createAlgoliaImportJob: createAlgoliaImportJobMock,
+		listAlgoliaImportJobs: listAlgoliaImportJobsMock
 	}))
 }));
 
-import { load } from './+page.server';
+import { actions, load } from './+page.server';
 
 const routeOwnerFiles = ['+page.svelte', '+page.server.ts', '+server.ts'];
 
@@ -52,6 +65,24 @@ function findDynamicRouteOwners(
 	return owners;
 }
 
+function actionRequest(fields: Record<string, string>): Request {
+	const formData = new FormData();
+	for (const [key, value] of Object.entries(fields)) {
+		formData.set(key, value);
+	}
+	return new Request('http://localhost/console/migrate', {
+		method: 'POST',
+		body: formData
+	});
+}
+
+function payloadRequest(payload: unknown, extraFields: Record<string, string> = {}): Request {
+	return actionRequest({
+		payload: JSON.stringify(payload),
+		...extraFields
+	});
+}
+
 describe('Migrate page server', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -61,6 +92,17 @@ describe('Migrate page server', () => {
 			message: 'Algolia migration is temporarily unavailable while we replace the importer.',
 			capabilities: { cancel: false, resume: false, replace: false }
 		});
+		checkAlgoliaDestinationEligibilityMock.mockResolvedValue({
+			phase: 'provider',
+			mode: 'create',
+			provider: 'aws',
+			target: { kind: 'create', region: 'us-east-1' },
+			eligibilityToken: 'provider-token',
+			expiresAt: '2099-07-18T10:15:00Z'
+		});
+		listAlgoliaSourceIndexesMock.mockResolvedValue({ items: [], nextCursor: null });
+		createAlgoliaImportJobMock.mockResolvedValue({ id: 'job_123' });
+		listAlgoliaImportJobsMock.mockResolvedValue({ jobs: [], nextCursor: null });
 	});
 
 	it('load fetches authenticated migration availability from the shared API client', async () => {
@@ -75,8 +117,124 @@ describe('Migrate page server', () => {
 				reason: 'temporarily_unavailable',
 				message: 'Algolia migration is temporarily unavailable while we replace the importer.',
 				capabilities: { cancel: false, resume: false, replace: false }
-			}
+			},
+			recentImports: { page: null, error: null }
 		});
+	});
+
+	it('does not fetch the recent-import list while migration is unavailable', async () => {
+		await load({ locals: { user: { token: 'jwt' } } } as never);
+
+		expect(listAlgoliaImportJobsMock).not.toHaveBeenCalled();
+	});
+
+	it('fetches the initial recent-import page only after availability is true', async () => {
+		getAlgoliaMigrationAvailabilityMock.mockResolvedValue({
+			available: true,
+			message: 'Algolia migration is available.',
+			capabilities: { cancel: true, resume: false, replace: true }
+		});
+		listAlgoliaImportJobsMock.mockResolvedValue({
+			jobs: [{ id: 'job_123' }],
+			nextCursor: 'cursor_2'
+		});
+
+		const result = (await load({
+			locals: { user: { token: 'jwt' } }
+		} as never)) as Record<string, unknown>;
+
+		expect(listAlgoliaImportJobsMock).toHaveBeenCalledOnce();
+		expect(listAlgoliaImportJobsMock).toHaveBeenCalledWith({ limit: 10 });
+		expect(result.recentImports).toEqual({
+			page: { jobs: [{ id: 'job_123' }], nextCursor: 'cursor_2' },
+			error: null
+		});
+	});
+
+	it('converts an initial recent-import failure into a retryable list error without blocking availability', async () => {
+		getAlgoliaMigrationAvailabilityMock.mockResolvedValue({
+			available: true,
+			message: 'Algolia migration is available.',
+			capabilities: { cancel: true, resume: false, replace: true }
+		});
+		listAlgoliaImportJobsMock.mockRejectedValue(new ApiRequestError(500, 'boom'));
+
+		const result = (await load({
+			locals: { user: { token: 'jwt-secret-canary' } }
+		} as never)) as Record<string, unknown>;
+
+		expect((result.availability as { available: boolean }).available).toBe(true);
+		const recentImports = result.recentImports as { page: unknown; error: string };
+		expect(recentImports.page).toBeNull();
+		expect(typeof recentImports.error).toBe('string');
+		expect(recentImports.error.length).toBeGreaterThan(0);
+		expect(JSON.stringify(result)).not.toContain('jwt-secret-canary');
+	});
+
+	it('maps a 401 recent-import load failure through the dashboard auth contract', async () => {
+		getAlgoliaMigrationAvailabilityMock.mockResolvedValue({
+			available: true,
+			message: 'Algolia migration is available.',
+			capabilities: { cancel: true, resume: false, replace: true }
+		});
+		listAlgoliaImportJobsMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
+
+		const result = await load({
+			locals: { user: { token: 'jwt' } }
+		} as never);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 401,
+				data: expect.objectContaining({
+					_authSessionExpired: true,
+					error: 'Unauthorized'
+				})
+			})
+		);
+	});
+
+	it('recentImports action parses only cursor and limit and forwards them to the API owner', async () => {
+		listAlgoliaImportJobsMock.mockResolvedValue({
+			jobs: [{ id: 'job_123' }],
+			nextCursor: 'cursor_3'
+		});
+
+		const result = await actions.recentImports({
+			request: actionRequest({
+				cursor: 'cursor_2',
+				limit: '10',
+				appId: 'algolia_app_id_canary',
+				apiKey: 'algolia_api_key_canary'
+			}),
+			locals: { user: { token: 'jwt-secret-canary' } }
+		} as never);
+
+		expect(listAlgoliaImportJobsMock).toHaveBeenCalledOnce();
+		expect(listAlgoliaImportJobsMock).toHaveBeenCalledWith({ cursor: 'cursor_2', limit: 10 });
+		expect(result).toEqual({
+			recentImports: { jobs: [{ id: 'job_123' }], nextCursor: 'cursor_3' }
+		});
+		const serialized = JSON.stringify(result);
+		expect(serialized).not.toContain('jwt-secret-canary');
+		expect(serialized).not.toContain('algolia_app_id_canary');
+		expect(serialized).not.toContain('algolia_api_key_canary');
+	});
+
+	it('recentImports action maps 401/403 through the dashboard auth contract', async () => {
+		listAlgoliaImportJobsMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
+
+		const result = await actions.recentImports({
+			request: actionRequest({ cursor: 'cursor_2', limit: '10' }),
+			locals: { user: { token: 'jwt' } }
+		} as never);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 401,
+				data: expect.objectContaining({ _authSessionExpired: true, error: 'Unauthorized' })
+			})
+		);
 	});
 
 	it('load maps session failures through the dashboard auth contract', async () => {
@@ -97,10 +255,107 @@ describe('Migrate page server', () => {
 		);
 	});
 
-	it('does not export form actions for the unavailable migration page', async () => {
-		const pageServer = await import('./+page.server');
+	it('exports only the server-owned migration action bridge names', () => {
+		expect(Object.keys(actions).sort()).toEqual([
+			'checkDestinationEligibility',
+			'createImportJob',
+			'listSourceIndexes',
+			'providerEligibility',
+			'recentImports'
+		]);
+	});
 
-		expect(pageServer).not.toHaveProperty('actions');
+	it('providerEligibility action mints the coarse create provider envelope without a destination name', async () => {
+		const result = await actions.providerEligibility({
+			request: payloadRequest({ region: 'us-east-1' }),
+			locals: { user: { token: 'jwt-secret-canary' } }
+		} as never);
+
+		expect(checkAlgoliaDestinationEligibilityMock).toHaveBeenCalledOnce();
+		expect(checkAlgoliaDestinationEligibilityMock).toHaveBeenCalledWith({
+			phase: 'provider',
+			mode: 'create',
+			target: { region: 'us-east-1', name: '' }
+		} satisfies AlgoliaDestinationEligibilityRequest);
+		expect(JSON.stringify(result)).not.toContain('jwt-secret-canary');
+		expect(JSON.stringify(result)).not.toContain('algolia_api_key_canary');
+		expect(result).toEqual({
+			providerEligibility: {
+				phase: 'provider',
+				mode: 'create',
+				provider: 'aws',
+				target: { kind: 'create', region: 'us-east-1' },
+				eligibilityToken: 'provider-token',
+				expiresAt: '2099-07-18T10:15:00Z'
+			}
+			});
+	});
+
+	it('providerEligibility action rejects malformed JSON payloads with a 400 action failure', async () => {
+		const result = await actions.providerEligibility({
+			request: actionRequest({ payload: '{"region":' }),
+			locals: { user: { token: 'jwt' } }
+		} as never);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: { error: 'Invalid payload' }
+			})
+		);
+		expect(checkAlgoliaDestinationEligibilityMock).not.toHaveBeenCalled();
+	});
+
+	it('listSourceIndexes and createImportJob forward credential-bearing payloads without echoing them', async () => {
+		const listPayload = {
+			appId: 'algolia_app_id_canary',
+			apiKey: 'algolia_api_key_canary',
+			cursor: 'cursor_1'
+		} satisfies ListAlgoliaIndexesRequest;
+		const createPayload = {
+			mode: 'create',
+			appId: 'algolia_app_id_canary',
+			apiKey: 'algolia_api_key_canary',
+			sourceName: 'source_products',
+			target: { eligibilityToken: 'target-token-canary' }
+		} satisfies CreateAlgoliaImportJobRequest;
+
+		const listResult = await actions.listSourceIndexes({
+			request: payloadRequest(listPayload),
+			locals: { user: { token: 'jwt-secret-canary' } }
+		} as never);
+		const createResult = await actions.createImportJob({
+			request: payloadRequest(createPayload, { idempotencyKey: 'idem-key-canary' }),
+			locals: { user: { token: 'jwt-secret-canary' } }
+		} as never);
+
+		expect(listAlgoliaSourceIndexesMock).toHaveBeenCalledWith(listPayload);
+		expect(createAlgoliaImportJobMock).toHaveBeenCalledWith(createPayload, 'idem-key-canary');
+		for (const result of [listResult, createResult]) {
+			const serialized = JSON.stringify(result);
+			expect(serialized).not.toContain('jwt-secret-canary');
+			expect(serialized).not.toContain('algolia_app_id_canary');
+			expect(serialized).not.toContain('algolia_api_key_canary');
+			expect(serialized).not.toContain('idem-key-canary');
+			}
+		});
+
+	it('createImportJob action rejects malformed JSON payloads before calling the API client', async () => {
+		const result = await actions.createImportJob({
+			request: actionRequest({
+				payload: '{"mode":"create"',
+				idempotencyKey: 'idem-key-canary'
+			}),
+			locals: { user: { token: 'jwt' } }
+		} as never);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: { error: 'Invalid payload' }
+			})
+		);
+		expect(createAlgoliaImportJobMock).not.toHaveBeenCalled();
 	});
 
 	it('does not lift Algolia credentials or a source catalog into SSR load data', async () => {
@@ -113,7 +368,9 @@ describe('Migrate page server', () => {
 		for (const forbiddenKey of ['appId', 'apiKey', 'sources', 'sourceIndexes', 'eligibility']) {
 			expect(result).not.toHaveProperty(forbiddenKey);
 		}
-		expect(Object.keys(result)).toEqual(['availability']);
+		// The load key set intentionally expands to carry the SSR recent-import
+		// page alongside availability, but nothing else may leak into SSR data.
+		expect(Object.keys(result).sort()).toEqual(['availability', 'recentImports']);
 	});
 
 	it('serializes only availability data and never the customer token or dormant import state', async () => {
@@ -135,7 +392,8 @@ describe('Migrate page server', () => {
 				reason: 'temporarily_unavailable',
 				message: 'Algolia migration is temporarily unavailable while we replace the importer.',
 				capabilities: { cancel: false, resume: false, replace: false }
-			}
+			},
+			recentImports: { page: null, error: null }
 		});
 		for (const forbidden of [
 			'jwt-secret-canary',
@@ -184,14 +442,17 @@ describe('Migrate page server', () => {
 		expect(() => findDynamicRouteOwners(missingRoot, '')).toThrow();
 	});
 
-	it('keeps retained import job detail routes activation-gated and unserved', () => {
+	it('serves only the intended [jobId] job-detail dynamic route owners', () => {
 		const migrateRouteDir = join(process.cwd(), 'src/routes/console/migrate');
 
-		// Prove the guard is pointed at a real, readable directory so an empty
-		// result cannot come from a misresolved or unreadable root path.
+		// Prove the guard is pointed at a real, readable directory so the result
+		// cannot come from a misresolved or unreadable root path.
 		expect(existsSync(migrateRouteDir)).toBe(true);
 
-		const dynamicRouteOwners = findDynamicRouteOwners(migrateRouteDir, '');
-		expect(dynamicRouteOwners).toEqual([]);
+		// Stage 3 serves exactly the [jobId] detail route: its server contract and
+		// its page. Any other dynamic owner (a nested proxy, a token endpoint, a
+		// second job-detail route) must make this fail.
+		const dynamicRouteOwners = findDynamicRouteOwners(migrateRouteDir, '').sort();
+		expect(dynamicRouteOwners).toEqual(['[jobId]/+page.server.ts', '[jobId]/+page.svelte']);
 	});
 });

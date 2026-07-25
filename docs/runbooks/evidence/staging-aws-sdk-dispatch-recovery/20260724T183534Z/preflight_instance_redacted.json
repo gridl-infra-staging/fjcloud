@@ -4,7 +4,7 @@
     "ImageId": "ami-0df77f1c103ce1be7",
     "IamInstanceProfileArn": "arn:aws:iam::ACCOUNT_ID_REDACTED:instance-profile/fjcloud-instance-profile",
     "State": "running",
-    "PrivateIpAddress": "10.0.10.178",
+    "PrivateIpAddress": "PRIVATE_IP_REDACTED",
     "PublicIpAddress": null
   }
 ]

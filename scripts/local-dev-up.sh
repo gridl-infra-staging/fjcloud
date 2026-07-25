@@ -290,8 +290,8 @@ if [ "$FLAPJACK_RESOLUTION_STATUS" -eq "$FJCLOUD_FLAPJACK_SOURCE_RESOLUTION_FAIL
 fi
 FLAPJACK_BIN_PROVENANCE="$(flapjack_source_provenance_summary)"
 if [ -n "$FLAPJACK_BIN" ] && [ -x "$FLAPJACK_BIN" ]; then
-    flapjack_export_required_runtime_identity "$FLAPJACK_BIN" \
-        || die "failed to derive required Flapjack runtime identity from selected binary: $FLAPJACK_BIN"
+    flapjack_export_required_artifact_identity "$FLAPJACK_BIN" \
+        || die "failed to derive required Flapjack artifact identity from selected binary: $FLAPJACK_BIN"
 fi
 
 # Helper to start one Flapjack instance with the given region, port, and data dir.
@@ -319,7 +319,7 @@ start_one_flapjack() {
     local identity_reason
     identity_reason="$(flapjack_runtime_identity_reason "http://127.0.0.1:${port}")"
     if [ "$identity_reason" != "match" ]; then
-        die "flapjack-${region} identity rejected (${identity_reason}); fjcloud requires exact Flapjack engine identity for ${FJCLOUD_FLAPJACK_VERSION}. Rebuild the selected FLAPJACK_DEV_DIR checkout before retrying"
+        die "flapjack-${region} compatibility rejected (${identity_reason}); fjcloud requires Flapjack ${FJCLOUD_FLAPJACK_VERSION} from the selected receipt-backed artifact. Rebuild the selected FLAPJACK_DEV_DIR checkout before retrying"
     fi
 }
 

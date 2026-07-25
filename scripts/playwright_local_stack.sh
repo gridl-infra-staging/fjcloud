@@ -203,8 +203,8 @@ ensure_local_flapjack_ready() {
 		exit 1
 	fi
 	if [ -n "$flapjack_bin" ] && [ -x "$flapjack_bin" ]; then
-		flapjack_export_required_runtime_identity "$flapjack_bin" || {
-			echo "[playwright_local_stack] ERROR: failed to derive required Flapjack runtime identity from selected binary: $flapjack_bin" >&2
+		flapjack_export_required_artifact_identity "$flapjack_bin" || {
+			echo "[playwright_local_stack] ERROR: failed to derive required Flapjack artifact identity from selected binary: $flapjack_bin" >&2
 			exit 1
 		}
 	fi

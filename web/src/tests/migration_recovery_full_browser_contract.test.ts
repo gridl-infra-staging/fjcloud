@@ -15,10 +15,10 @@ describe('migration recovery full-browser contract', () => {
 			"await expect(page.getByTestId('migration-unavailable')).toContainText("
 		);
 		expect(migrationRecoverySource).toContain(
-			"await expect(page.getByRole('button', { name: 'Browse indexes' })).toHaveCount(0);"
+			"await expect(page.getByTestId('migration-create-flow')).toHaveCount(0);"
 		);
 		expect(migrationRecoverySource).toContain(
-			"await expect(page.getByTestId('migrate-button')).toHaveCount(0);"
+			"await expect(page.getByRole('button', { name: 'Start import' })).toHaveCount(0);"
 		);
 		expect(migrationRecoverySource).not.toContain('ensureLocalSharedVmInventory');
 		expect(migrationRecoverySource).not.toContain('create-index');

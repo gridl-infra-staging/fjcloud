@@ -55,8 +55,8 @@ build_health='{"version":"1.0.10","producer_revision":"abc123","build_id":"build
 missing_capability_health='{"version":"1.0.10","producer_revision":"abc123","build_id":"build-1","dirty":false,"capabilities":[]}'
 legacy_health='{"version":"1.0.10"}'
 
-test_selected_binary_identity_defaults_reject_runtime_drift() {
-    local tmp_dir binary_path receipt_path reason binary_sha drifted_health
+test_selected_binary_artifact_identity_accepts_public_health_projection() {
+    local tmp_dir binary_path receipt_path reason binary_sha public_health
     tmp_dir="$(mktemp -d)"
     trap 'rm -rf "'"$tmp_dir"'"' RETURN
     binary_path="$tmp_dir/flapjack"
@@ -71,20 +71,26 @@ source_digest=build-1
 dirty=clean
 EOF
     printf 'binary_sha256=%s\n' "$binary_sha" >> "$receipt_path"
-    drifted_health='{"version":"1.0.10","producer_revision":"def456","build_id":"build-1","dirty":false,"capabilities":["preview_events_v1"]}'
+    public_health='{"status":"ok","version":"1.0.10","build":{"schemaVersion":1,"version":"1.0.10","profile":"debug","capabilities":{"preview_events_v1":true}},"capabilities":{"preview_events_v1":true}}'
 
-    unset FJCLOUD_FLAPJACK_REQUIRED_REVISION
-    unset FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID
+    export FJCLOUD_FLAPJACK_REQUIRED_REVISION="stale-shell-revision"
+    export FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID="stale-shell-build"
     unset FJCLOUD_FLAPJACK_REQUIRED_SHA256
     FLAPJACK_BINARY_PROVENANCE="source-receipt:$receipt_path" \
-        flapjack_export_required_runtime_identity "$binary_path"
+        flapjack_export_required_artifact_identity "$binary_path"
 
-    reason="$(runtime_identity_reason_with_mock_curl "$drifted_health")"
-    assert_eq "$reason" "revision_mismatch" \
-        "selected binary identity should reject same-semver runtime drift without caller pre-exported required env"
+    reason="$(runtime_identity_reason_with_mock_curl "$public_health")"
+    assert_eq "$reason" "match" \
+        "receipt-backed selected binary should accept the engine's intentionally public health projection"
+    assert_eq "${FJCLOUD_FLAPJACK_REQUIRED_SHA256:-}" "$binary_sha" \
+        "selected binary should retain its receipt-backed artifact checksum requirement"
+    assert_eq "${FJCLOUD_FLAPJACK_REQUIRED_REVISION:-}" "" \
+        "artifact identity must not auto-require private runtime revision evidence"
+    assert_eq "${FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID:-}" "" \
+        "artifact identity must not auto-require private runtime build-id evidence"
 }
 
-test_selected_binary_identity_defaults_reject_runtime_drift
+test_selected_binary_artifact_identity_accepts_public_health_projection
 export FJCLOUD_FLAPJACK_REQUIRED_REVISION="abc123"
 export FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID="build-1"
 export FJCLOUD_FLAPJACK_REQUIRED_SHA256="sha-1"
@@ -123,7 +129,11 @@ local_dev_text="$(cat "$REPO_ROOT/scripts/local-dev-up.sh")"
 preflight_text="$(cat "$REPO_ROOT/scripts/e2e-preflight.sh")"
 playwright_text="$(cat "$REPO_ROOT/scripts/playwright_local_stack.sh")"
 assert_contains "$local_dev_text" 'flapjack_runtime_identity_reason' "local dev startup enforces the shared Flapjack identity classifier"
+assert_contains "$local_dev_text" 'flapjack_export_required_artifact_identity "$FLAPJACK_BIN"' \
+    "local dev startup should derive only artifact evidence before checking public health"
 assert_contains "$preflight_text" 'api_supports_capability' "browser preflight enforces the API capability contract"
 assert_contains "$playwright_text" 'flapjack_runtime_identity_reason' "Playwright stack enforces the shared Flapjack identity classifier"
+assert_contains "$playwright_text" 'flapjack_export_required_artifact_identity "$flapjack_bin"' \
+    "Playwright startup should derive only artifact evidence before checking public health"
 assert_contains "$playwright_text" 'api_supports_capability' "Playwright stack enforces the API capability contract"
 run_test_summary

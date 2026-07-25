@@ -3,6 +3,9 @@
 use super::*;
 use crate::vm_providers::VALID_VM_PROVIDERS;
 
+const MANAGED_SHARED_VM_PROVIDERS: &[&str] = &["aws"];
+const DISABLED_MANAGED_SHARED_VM_PROVIDERS: &[&str] = &["hetzner", "gcp", "oci", "bare_metal"];
+
 fn assert_caddy_runtime_present(script: &str, hostname: &str) {
     assert!(script.contains(&format!("CADDY_SERVED_HOSTNAME='{hostname}'")));
     assert!(script.contains("cat > /etc/caddy/Caddyfile <<CADDYEOF"));
@@ -12,28 +15,17 @@ fn assert_caddy_runtime_present(script: &str, hostname: &str) {
     assert!(script.contains("systemctl reload-or-restart caddy"));
 }
 
-fn assert_caddy_runtime_absent(provider: &str, script: &str) {
+fn expect_disabled_managed_provider(provider: &str) {
+    let draft = SharedVmDraft {
+        hostname: "vm-shared-disabled.example.com".to_string(),
+        flapjack_url: "http://vm-shared-disabled.example.com:7700".to_string(),
+        node_id: "node-disabled".to_string(),
+    };
+    let error = build_shared_vm_request(&draft, provider, "region", "fj_live_secret")
+        .expect_err("non-AWS managed shared VM provisioning must stay disabled");
     assert!(
-        !script.contains("CADDY_SERVED_HOSTNAME"),
-        "{provider}: non-AWS user-data must not configure a served Caddy hostname"
-    );
-    assert!(
-        !script.contains("configure_caddy"),
-        "{provider}: non-AWS user-data must not define Caddy setup"
-    );
-    assert!(
-        !script.contains("/etc/caddy"),
-        "{provider}: non-AWS user-data must not write Caddy config"
-    );
-    assert!(
-        !script.contains("reverse_proxy 127.0.0.1:7700"),
-        "{provider}: non-AWS user-data must not proxy through local Caddy"
-    );
-    assert!(
-        !script
-            .lines()
-            .any(|line| line.contains("systemctl") && line.contains("caddy")),
-        "{provider}: non-AWS user-data must not manage Caddy with systemctl"
+        matches!(error, ProvisioningError::ProvisionerFailed(ref message) if message.contains("embed live credentials in user-data")),
+        "{provider}: expected credential-exposure guardrail, got {error}"
     );
 }
 
@@ -77,113 +69,37 @@ fn build_user_data_aws_uses_ssm() {
     );
 }
 
-/// Verifies that Hetzner user-data embeds the API key directly via
-/// cloud-init and does not reference AWS SSM.
+/// Verifies that managed Hetzner shared VM provisioning is rejected
+/// before user-data generation can embed live credentials.
 #[test]
-fn build_user_data_hetzner_uses_direct_secrets() {
-    let script = build_user_data(
-        "hetzner",
-        "cust-456",
-        "node-xyz",
-        "eu-central-1",
-        "fj_live_htz",
-        "vm-xyz.example.com",
-    );
-
-    assert!(script.contains("CUSTOMER_ID='cust-456'"));
-    assert!(script.contains("NODE_ID='node-xyz'"));
-    assert!(script.contains("REGION='eu-central-1'"));
-    assert!(
-        !script.contains("aws ssm"),
-        "Hetzner user-data must NOT reference AWS SSM"
-    );
-    assert!(
-        script.contains("fj_live_htz"),
-        "Hetzner user-data must embed the API key directly"
-    );
+fn build_user_data_hetzner_is_rejected() {
+    expect_disabled_managed_provider("hetzner");
 }
 
-/// Verifies that GCP user-data embeds the API key directly and does
-/// not reference AWS SSM.
+/// Verifies that managed GCP shared VM provisioning is rejected before
+/// user-data generation can embed live credentials.
 #[test]
-fn build_user_data_gcp_uses_direct_secrets() {
-    let script = build_user_data(
-        "gcp",
-        "cust-789",
-        "node-gcp",
-        "us-central1-a",
-        "fj_live_gcp",
-        "vm-gcp.example.com",
-    );
-
-    assert!(script.contains("CUSTOMER_ID='cust-789'"));
-    assert!(script.contains("NODE_ID='node-gcp'"));
-    assert!(script.contains("REGION='us-central1-a'"));
-    assert!(
-        !script.contains("aws ssm"),
-        "GCP user-data must NOT reference AWS SSM"
-    );
-    assert!(
-        script.contains("fj_live_gcp"),
-        "GCP user-data must embed the API key directly"
-    );
+fn build_user_data_gcp_is_rejected() {
+    expect_disabled_managed_provider("gcp");
 }
 
-/// Verifies that OCI user-data embeds the API key directly and does
-/// not reference AWS SSM.
+/// Verifies that managed OCI shared VM provisioning is rejected before
+/// user-data generation can embed live credentials.
 #[test]
-fn build_user_data_oci_uses_direct_secrets() {
-    let script = build_user_data(
-        "oci",
-        "cust-oci",
-        "node-oci",
-        "Uocm:US-ASHBURN-AD-1",
-        "fj_live_oci",
-        "vm-oci.example.com",
-    );
-
-    assert!(script.contains("CUSTOMER_ID='cust-oci'"));
-    assert!(script.contains("NODE_ID='node-oci'"));
-    assert!(script.contains("REGION='Uocm:US-ASHBURN-AD-1'"));
-    assert!(
-        !script.contains("aws ssm"),
-        "OCI user-data must NOT reference AWS SSM"
-    );
-    assert!(
-        script.contains("fj_live_oci"),
-        "OCI user-data must embed the API key directly"
-    );
+fn build_user_data_oci_is_rejected() {
+    expect_disabled_managed_provider("oci");
 }
 
-/// Verifies that bare-metal user-data embeds the API key directly and
-/// does not reference AWS SSM.
+/// Verifies that managed bare-metal shared VM provisioning is rejected
+/// before user-data generation can embed live credentials.
 #[test]
-fn build_user_data_bare_metal_uses_direct_secrets() {
-    let script = build_user_data(
-        "bare_metal",
-        "cust-bm",
-        "node-bm",
-        "eu-central-bm",
-        "fj_live_bm",
-        "vm-bm.example.com",
-    );
-
-    assert!(script.contains("CUSTOMER_ID='cust-bm'"));
-    assert!(script.contains("NODE_ID='node-bm'"));
-    assert!(script.contains("REGION='eu-central-bm'"));
-    assert!(
-        !script.contains("aws ssm"),
-        "bare_metal user-data must NOT reference AWS SSM"
-    );
-    assert!(
-        script.contains("fj_live_bm"),
-        "bare_metal user-data must embed the API key directly"
-    );
+fn build_user_data_bare_metal_is_rejected() {
+    expect_disabled_managed_provider("bare_metal");
 }
 
 #[test]
 fn build_user_data_starts_systemd_services() {
-    for provider in &["aws", "hetzner", "gcp", "oci", "bare_metal"] {
+    for provider in MANAGED_SHARED_VM_PROVIDERS {
         let script = build_user_data(provider, "c", "n", "r", "k", "vm-test.example.com");
         assert!(
             script.contains("systemctl enable --now flapjack fj-metering-agent"),
@@ -198,7 +114,7 @@ fn build_user_data_starts_systemd_services() {
 
 #[test]
 fn build_user_data_sets_secure_permissions() {
-    for provider in &["aws", "hetzner", "gcp", "oci", "bare_metal"] {
+    for provider in MANAGED_SHARED_VM_PROVIDERS {
         let script = build_user_data(provider, "c", "n", "r", "k", "vm-test.example.com");
         assert!(
             script.contains("chmod 600"),
@@ -213,7 +129,7 @@ fn build_user_data_sets_secure_permissions() {
 
 #[test]
 fn build_user_data_includes_logging() {
-    for provider in &["aws", "hetzner", "gcp", "oci", "bare_metal"] {
+    for provider in MANAGED_SHARED_VM_PROVIDERS {
         let script = build_user_data(provider, "c", "n", "r", "k", "vm-test.example.com");
         assert!(
             script.contains("logger -t"),
@@ -226,7 +142,7 @@ fn build_user_data_includes_logging() {
 /// (`DATABASE_URL`, `FLAPJACK_URL`, etc.) without a `METERING_` prefix.
 #[test]
 fn build_user_data_metering_env_uses_correct_var_names() {
-    for provider in &["aws", "hetzner", "gcp", "oci", "bare_metal"] {
+    for provider in MANAGED_SHARED_VM_PROVIDERS {
         let script = build_user_data(provider, "c", "n", "r", "k", "vm-test.example.com");
         assert!(
             script.contains("DATABASE_URL="),
@@ -259,7 +175,7 @@ fn build_user_data_limits_caddy_runtime_to_aws() {
         &["aws", "hetzner", "gcp", "oci", "bare_metal"]
     );
 
-    for provider in VALID_VM_PROVIDERS {
+    for provider in MANAGED_SHARED_VM_PROVIDERS {
         let script = build_user_data(
             provider,
             "cust-canonical",
@@ -269,28 +185,20 @@ fn build_user_data_limits_caddy_runtime_to_aws() {
             "vm-canonical.example.com",
         );
 
-        if *provider == "aws" {
-            assert!(
-                script.contains("aws ssm get-parameter"),
-                "AWS user-data must keep SSM secret delivery"
-            );
-            assert!(
-                !script.contains("fj_live_secret"),
-                "AWS user-data must not embed the API key"
-            );
-            assert_caddy_runtime_present(&script, "vm-canonical.example.com");
-        } else {
-            assert!(
-                !script.contains("aws ssm"),
-                "{provider}: non-AWS user-data must not reference AWS SSM"
-            );
-            assert!(
-                script.contains("fj_live_secret"),
-                "{provider}: non-AWS user-data must embed the API key directly"
-            );
-            assert_core_flapjack_and_metering_script(&script);
-            assert_caddy_runtime_absent(provider, &script);
-        }
+        assert!(
+            script.contains("aws ssm get-parameter"),
+            "AWS user-data must keep SSM secret delivery"
+        );
+        assert!(
+            !script.contains("fj_live_secret"),
+            "AWS user-data must not embed the API key"
+        );
+        assert_core_flapjack_and_metering_script(&script);
+        assert_caddy_runtime_present(&script, "vm-canonical.example.com");
+    }
+
+    for provider in DISABLED_MANAGED_SHARED_VM_PROVIDERS {
+        expect_disabled_managed_provider(provider);
     }
 }
 
@@ -302,7 +210,8 @@ fn build_shared_vm_request_passes_request_hostname_to_user_data() {
         node_id: "node-shared-canonical".to_string(),
     };
 
-    let request = build_shared_vm_request(&draft, "aws", "us-east-1", "fj_live_secret");
+    let request = build_shared_vm_request(&draft, "aws", "us-east-1", "fj_live_secret")
+        .expect("aws managed shared VM request should build");
     let script = request
         .user_data
         .expect("shared VM request should include user-data");

@@ -25,6 +25,17 @@ const ELIGIBLE_AWS_PROVIDER = {
 	eligibilityToken: 'provider-eligibility-token',
 	expiresAt: '2099-07-18T10:15:00Z'
 } as const;
+const ELIGIBLE_AWS_PROVIDER_WITHOUT_DESTINATION_NAME = {
+	phase: 'provider',
+	mode: 'create',
+	provider: 'aws',
+	target: {
+		kind: 'create',
+		region: 'us-east-1'
+	},
+	eligibilityToken: 'provider-eligibility-token',
+	expiresAt: '2099-07-18T10:15:00Z'
+} as const;
 const EXPIRING_AWS_PROVIDER = {
 	...ELIGIBLE_AWS_PROVIDER,
 	expiresAt: '2026-07-18T10:15:00Z'
@@ -121,6 +132,17 @@ describe('MigrationCreateFlow - provider gate', () => {
 
 	it('shows Algolia credentials only for AWS provider eligibility success', () => {
 		renderFlow();
+
+		expect(screen.getByTestId('migration-provider-eligibility')).toHaveTextContent(
+			'AWS us-east-1 destination eligible'
+		);
+		expect(screen.getByLabelText(/algolia application id/i)).toHaveValue('');
+		expect(screen.getByLabelText(/algolia api key/i)).toHaveValue('');
+		expect(screen.getByRole('button', { name: /connect to algolia/i })).toBeDisabled();
+	});
+
+	it('shows Algolia credentials for create provider eligibility before a destination name is selected', () => {
+		renderFlow(ELIGIBLE_AWS_PROVIDER_WITHOUT_DESTINATION_NAME);
 
 		expect(screen.getByTestId('migration-provider-eligibility')).toHaveTextContent(
 			'AWS us-east-1 destination eligible'

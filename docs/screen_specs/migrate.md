@@ -153,15 +153,14 @@ Algolia credentials.
 ## Navigation
 
 - Route: `/console/migrate`
-- Current entry: authenticated direct visit only; console navigation must not
-  advertise migration while the served page is unavailable.
-- Target entry: future console navigation after route activation.
-- Start success: future navigation to `/console/migrate/[jobId]`.
-- Reopen: Recent-import rows link to future `/console/migrate/[jobId]` detail
-  pages owned by the retained job contract.
+- Current entry: authenticated direct visit; console navigation must not
+  advertise migration while the served page is unavailable by default.
+- Start success: navigation to `/console/migrate/[jobId]`.
+- Reopen: Recent-import rows link to `/console/migrate/[jobId]` detail pages
+  owned by the retained job contract.
 - Browser back from in-progress create state returns to the previous console
-  page; if a future mounted flow has unsent credentials, leaving destroys them
-  without persistence.
+  page; if a mounted flow has unsent credentials, leaving destroys them without
+  persistence.
 
 ## Acceptance Criteria
 
@@ -207,17 +206,6 @@ Algolia credentials.
 
 ## Current Implementation Gaps
 
-- Current: `/console/migrate` renders only the unavailable explanation.
-  Target: mounted provider-gated create flow and recent imports.
-  Evidence: `web/src/routes/console/migrate/+page.svelte` and
-  `web/src/routes/console/migrate/migrate.test.ts`.
-- Current: public `ApiClient` intentionally exposes availability and source
-  discovery plus destination eligibility and retained job create/list/get/cancel/resume.
-  Target: `/console/migrate` still does not mount the connected workflow until
-  presentation activation.
-  Evidence: `web/src/lib/api/client-migration.test.ts`,
-  `infra/api/src/router/route_assembly.rs`, and
-  `infra/api/tests/integration/migration_routes_test/discovery.rs`.
 - Current: replica topology copy is not specified.
   Target: exact replica behavior only after a bounded engine translation owner
   is cited and tested.
@@ -227,10 +215,16 @@ Algolia credentials.
 
 - Browser-unmocked current unavailable proof:
   `web/tests/e2e-ui/full/migration-recovery.spec.ts`.
+- Browser-mocked available create-to-detail proof:
+  `web/tests/e2e-ui/mocked/migration_console_flow.spec.ts`.
 - Route component proof:
   `web/src/routes/console/migrate/migrate.test.ts`.
 - Route server proof:
   `web/src/routes/console/migrate/migrate.server.test.ts`.
+- Job detail route component proof:
+  `web/src/routes/console/migrate/[jobId]/job.test.ts`.
+- Job detail route server proof:
+  `web/src/routes/console/migrate/[jobId]/job.server.test.ts`.
 - Dormant create component proof:
   `web/src/lib/components/migration/MigrationCreateFlow.test.ts`;
   `web/src/lib/components/migration/MigrationCreateFlowProvider.test.ts`;

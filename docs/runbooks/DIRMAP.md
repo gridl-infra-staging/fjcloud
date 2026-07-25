@@ -3,6 +3,7 @@
 
 | File | Summary |
 | --- | --- |
+| local_real_pipeline_probe.md | Sole operational guide for the local real-pipeline positive proof, fail-capable negative proofs, and production-timer proof boundary. |
 | vm_autorepair.md | canonical operator runbook for VM autorepair detection, guardrails, lifecycle events, disabled rollout state, and incident disable verification. |
 
 | Directory | Summary |

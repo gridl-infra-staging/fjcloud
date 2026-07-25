@@ -1,4 +1,4 @@
-customer_id=fb509beb-9028-4e31-9515-12c1be6d1faa
+customer_id=CUSTOMER_ID_REDACTED
 soft_delete_status=204
 hard_erase_status=204
 matching_customer_rows_after_cleanup=0

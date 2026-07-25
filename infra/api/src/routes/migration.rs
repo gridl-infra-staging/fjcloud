@@ -346,10 +346,7 @@ fn validate_provider_claims(
             AlgoliaImportErrorCode::DestinationChanged,
         ));
     }
-    if claims.mode != expected_mode
-        || claims.region != expected_target.region
-        || claims.name != expected_target.name
-    {
+    if claims.mode != expected_mode || claims.region != expected_target.region {
         return Err(migration_error(
             StatusCode::BAD_REQUEST,
             "destination_changed",

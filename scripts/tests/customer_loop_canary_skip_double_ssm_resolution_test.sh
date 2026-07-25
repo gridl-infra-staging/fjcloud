@@ -72,6 +72,25 @@ test_skips_second_pass_when_bootstrap_hydrated() {
     unset CANARY_SSM_HYDRATED
 }
 
+test_preserves_non_ssm_slash_prefixed_secret() {
+    AWS_CALLS=0
+    export CANARY_AWS_REGION="us-east-1"
+    unset CANARY_SSM_HYDRATED || true
+    export ADMIN_KEY="/uiaeMnmRzsOPw0aEglARrv5hW6GX0pi"
+
+    aws() {
+        AWS_CALLS=$((AWS_CALLS + 1))
+        return 254
+    }
+
+    if ! resolve_ssm_parameter_if_configured "ADMIN_KEY"; then
+        fail "non-SSM slash-prefixed secret must remain a literal value"
+        return
+    fi
+    assert_eq "$ADMIN_KEY" "/uiaeMnmRzsOPw0aEglARrv5hW6GX0pi" \
+        "non-SSM slash-prefixed secret must be preserved verbatim"
+}
+
 test_resolves_when_not_hydrated() {
     AWS_CALLS=0
     export CANARY_AWS_REGION="us-east-1"
@@ -104,6 +123,7 @@ main() {
     echo ""
 
     test_skips_second_pass_when_bootstrap_hydrated
+    test_preserves_non_ssm_slash_prefixed_secret
     test_resolves_when_not_hydrated
 
     echo ""

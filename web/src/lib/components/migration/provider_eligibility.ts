@@ -46,7 +46,6 @@ export function activeProviderEligibility({
 		eligibility.phase !== 'provider' ||
 		eligibility.provider !== 'aws' ||
 		eligibility.target.region.trim() === '' ||
-		eligibility.target.name.trim() === '' ||
 		expiresAtMillis === null ||
 		expiresAtMillis <= nowMillis
 	) {
@@ -55,7 +54,12 @@ export function activeProviderEligibility({
 	if (eligibility.mode === 'create' && eligibility.target.kind === 'create') {
 		return eligibility;
 	}
-	if (replaceEnabled && eligibility.mode === 'replace' && eligibility.target.kind === 'replace') {
+	if (
+		replaceEnabled &&
+		eligibility.mode === 'replace' &&
+		eligibility.target.kind === 'replace' &&
+		eligibility.target.name?.trim()
+	) {
 		return eligibility;
 	}
 	return null;
@@ -88,7 +92,7 @@ export function providerEligibilityBinding(
 		currentEligibility.provider,
 		currentEligibility.target.kind,
 		currentEligibility.target.region,
-		currentEligibility.target.name,
+		currentEligibility.target.name ?? '',
 		currentEligibility.eligibilityToken,
 		currentEligibility.expiresAt
 	].join('\u0000');

@@ -4,6 +4,7 @@
 | File | Summary |
 | --- | --- |
 | customer_broadcast_smoke.sh | Focused smoke coverage for scripts/customer_broadcast.sh wrapper contract. |
+| local_real_pipeline_probe_test.sh | Hermetic known-answer and orchestration contract suite for the local real-pipeline probe, including fail-capable local-ci registration coverage. |
 | probe_ses_bounce_complaint_e2e_smoke.sh | Smoke tests for scripts/probe_ses_bounce_complaint_e2e.sh. |
 | vm_autorepair_docs_contract_test.sh | Contract coverage for the VM autorepair operator runbook and successor admin UI documentation. |
 

@@ -73,7 +73,7 @@ export interface AlgoliaDestinationEligibilityRequest {
 export interface AlgoliaDestinationEligibilityTargetResponse {
 	kind: AlgoliaMigrationDestinationMode;
 	region: string;
-	name: string;
+	name?: string;
 }
 
 export interface AlgoliaDestinationEligibilityResponse {

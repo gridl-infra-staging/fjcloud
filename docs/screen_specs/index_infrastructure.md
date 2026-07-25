@@ -70,12 +70,10 @@ Baseline viewport: 390px wide (iPhone 14). The `Infrastructure` heading, refresh
 
 ## Current Implementation Gaps
 
-- Current: the registered tab, read-only component, refresh cooldown, Metrics link, and deterministic browser acceptance spec are implemented through the existing index-detail and fixture owners.
-- Target: no Stage 5 implementation gap remains. Stage 6 executes the authored unmocked browser acceptance spec against the local stack.
-- Evidence: the component and shell tests listed below pass, and `web/tests/e2e-ui/full/index-detail-infrastructure.spec.ts` collects successfully.
+- None known for the implemented index infrastructure privacy contract.
 
 ## Automated Coverage
 
-- Browser-unmocked tests: `web/tests/e2e-ui/full/index-detail-infrastructure.spec.ts`
+- Browser-unmocked tests: `web/tests/e2e-ui/full/index-detail-infrastructure.spec.ts` passed unmocked against the local app/database in Stage 3; the tested worktree was finalized in `03ef95443`. The spec rejects the seeded replica hostname, VM UUID, and absolute telemetry in both the infrastructure panel and full-page HTML.
 - Component tests: `web/src/routes/console/indexes/[name]/tabs/InfrastructureTab.test.ts`; `web/src/routes/console/indexes/[name]/tabs/MetricsTab.test.ts`; `web/src/routes/console/indexes/[name]/detail.test.ts`
 - Server/contract tests: `web/src/routes/console/indexes/[name]/detail.server.load.test.ts`; backend endpoint/type coverage delivered before this UI stage

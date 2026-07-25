@@ -69,6 +69,10 @@ test('customer can inspect managed infrastructure and footprint at desktop and m
 	for (const forbidden of expected.forbiddenText) {
 		await expect(panel).not.toContainText(forbidden);
 	}
+	const fullHtml = await page.content();
+	for (const forbidden of expected.forbiddenText) {
+		expect(fullHtml).not.toContain(forbidden);
+	}
 
 	await page.getByRole('tab', { name: 'Metrics', exact: true }).click();
 	await page.getByRole('link', { name: 'View infrastructure and headroom', exact: true }).click();

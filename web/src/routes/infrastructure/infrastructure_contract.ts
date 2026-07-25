@@ -15,6 +15,22 @@ export type InfrastructureRouteData =
 
 type InfrastructureRecord = Record<string, unknown>;
 
+const PUBLIC_INFRASTRUCTURE_RESPONSE_KEYS = new Set(['overall', 'regions']);
+const PUBLIC_INFRASTRUCTURE_OVERALL_KEYS = new Set([
+	'availability_pct',
+	'total_regions',
+	'total_vms'
+]);
+const PUBLIC_INFRASTRUCTURE_REGION_KEYS = new Set([
+	'region',
+	'provider',
+	'display_name',
+	'provider_location',
+	'health',
+	'utilization',
+	'vm_count'
+]);
+
 const HEALTH_BADGES: Record<PublicRegionHealth, InfrastructureBadge> = {
 	operational: {
 		label: 'Operational',
@@ -66,6 +82,11 @@ function isInfrastructureRecord(value: unknown): value is InfrastructureRecord {
 	return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+function hasExactKeys(value: InfrastructureRecord, expectedKeys: ReadonlySet<string>): boolean {
+	const actualKeys = Object.keys(value);
+	return actualKeys.length === expectedKeys.size && actualKeys.every((key) => expectedKeys.has(key));
+}
+
 function readString(value: unknown): string | null {
 	return typeof value === 'string' ? value : null;
 }
@@ -98,12 +119,19 @@ export function parseInfrastructureUtilization(value: unknown): PublicRegionUtil
 export function parsePublicInfrastructureResponse(
 	value: unknown
 ): PublicInfrastructureResponse | null {
-	if (!isInfrastructureRecord(value)) {
+	if (
+		!isInfrastructureRecord(value) ||
+		!hasExactKeys(value, PUBLIC_INFRASTRUCTURE_RESPONSE_KEYS)
+	) {
 		return null;
 	}
 
 	const { overall, regions } = value;
-	if (!isInfrastructureRecord(overall) || !Array.isArray(regions)) {
+	if (
+		!isInfrastructureRecord(overall) ||
+		!hasExactKeys(overall, PUBLIC_INFRASTRUCTURE_OVERALL_KEYS) ||
+		!Array.isArray(regions)
+	) {
 		return null;
 	}
 
@@ -120,7 +148,10 @@ export function parsePublicInfrastructureResponse(
 
 	const parsedRegions = [];
 	for (const region of regions) {
-		if (!isInfrastructureRecord(region)) {
+		if (
+			!isInfrastructureRecord(region) ||
+			!hasExactKeys(region, PUBLIC_INFRASTRUCTURE_REGION_KEYS)
+		) {
 			return null;
 		}
 

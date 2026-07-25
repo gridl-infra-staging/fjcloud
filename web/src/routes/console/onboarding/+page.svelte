@@ -6,11 +6,11 @@
 	import { copyToClipboard } from '$lib/clipboard';
 	import { REGIONS, SUPPORT_EMAIL } from '$lib/format';
 	import { validateIndexName } from '$lib/index-name';
-	import type { OnboardingStatus, FlapjackCredentials } from '$lib/api/types';
+	import type { ClientOnboardingStatus, FlapjackCredentials } from '$lib/api/types';
 
 	let { data, form: formResult } = $props();
 
-	const onboardingStatus: OnboardingStatus | null = $derived(data.onboardingStatus ?? null);
+	const onboardingStatus: ClientOnboardingStatus | null = $derived(data.onboardingStatus ?? null);
 	const planContext = $derived(data.planContext);
 
 	// Wizard step derived from form result

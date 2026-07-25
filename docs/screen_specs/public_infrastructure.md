@@ -84,5 +84,4 @@ Show current infrastructure only at region granularity. The page may consume onl
 
 - Client contract: `web/src/lib/api/public_infrastructure.test.ts`
 - Route contract, rendering, and server load: `web/src/routes/infrastructure/infrastructure.test.ts`
-- Browser-unmocked UI and raw JSON privacy contract:
-  `web/tests/e2e-ui/full/public-infrastructure.spec.ts`
+- Browser-unmocked UI and raw JSON privacy contract: `web/tests/fixtures/fixtures.ts::arrangePublicInfrastructureCanaryVm` owns the tethered canary. In `web/tests/e2e-ui/full/public-infrastructure.spec.ts`, `renders current region-level infrastructure for an anonymous visitor` proves the tethered private-value exclusions plus the one-VM `vm_count = 1` / utilization `—` k-anonymity behavior, and `raw public JSON is anonymous and contains only the public region contract` proves the closed response shape.

@@ -155,6 +155,29 @@ describe('Infrastructure presentation contract', () => {
 			})
 		).toBeNull();
 	});
+
+	it.each([
+		['top level', { ...mixedRegionInfrastructure, debug_hostname: 'private-hostname' }],
+		[
+			'overall',
+			{
+				...mixedRegionInfrastructure,
+				overall: { ...mixedRegionInfrastructure.overall, debug_hostname: 'private-hostname' }
+			}
+		],
+		[
+			'region',
+			{
+				...mixedRegionInfrastructure,
+				regions: [
+					{ ...mixedRegionInfrastructure.regions[0], debug_hostname: 'private-hostname' },
+					...mixedRegionInfrastructure.regions.slice(1)
+				]
+			}
+		]
+	])('rejects an unexpected private field at the %s boundary', (_boundary, payload) => {
+		expect(parsePublicInfrastructureResponse(payload)).toBeNull();
+	});
 });
 
 describe('Infrastructure page', () => {

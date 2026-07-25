@@ -573,6 +573,116 @@ describe('e2e fixture user helpers', () => {
 		expect(runSql).toHaveBeenCalledTimes(1);
 	});
 
+	it('reconciles infrastructure primary telemetry against the actual tenant VM', () => {
+		const runSql = vi.fn().mockReturnValue('1\n');
+
+		__fixtureTestSeams.reconcileIndexPrimaryVmTelemetry('cust-123', 'products', {
+			databaseUrl: 'postgres://127.0.0.1/fixture-db',
+			runSql
+		});
+
+		expect(runSql).toHaveBeenCalledTimes(1);
+		const [databaseUrl, sql, context] = runSql.mock.calls[0];
+		expect(databaseUrl).toBe('postgres://127.0.0.1/fixture-db');
+		expect(context).toBe('reconcile Infrastructure primary telemetry for products');
+		expect(sql).toContain("customer_id = 'cust-123'::uuid");
+		expect(sql).toContain("tenant_id = 'products'");
+		expect(sql).toContain('vm.id = target.vm_id');
+		expect(sql).toContain('"cpu_weight":4.0');
+		expect(sql).toContain('"cpu_weight":0.0');
+		expect(sql).not.toContain('local-dev-us-east-1');
+	});
+
+	it('seeds the public infrastructure canary with restore metadata for displaced active VMs', () => {
+		const runSql = vi
+			.fn()
+			.mockReturnValue('{"vm_id":"canary-vm-1","displaced_vm_ids":["old-vm-1","old-vm-2"]}\n');
+
+		const canary = __fixtureTestSeams.seedPublicInfrastructureCanaryVm({
+			databaseUrl: 'postgres://127.0.0.1/fixture-db',
+			runSql
+		});
+
+		expect(runSql).toHaveBeenCalledTimes(1);
+		const [databaseUrl, sql, context] = runSql.mock.calls[0];
+		expect(databaseUrl).toBe('postgres://127.0.0.1/fixture-db');
+		expect(context).toBe('seed public Infrastructure canary VM for us-west-1');
+		expect(sql).toContain('WITH prior_active AS');
+		expect(sql).toContain("WHERE region = 'us-west-1'");
+		expect(sql).toContain("'displaced_vm_ids'");
+		expect(canary).toMatchObject({
+			vmId: 'canary-vm-1',
+			displacedVmIds: ['old-vm-1', 'old-vm-2'],
+			kAnonymityRegion: 'us-west-1'
+		});
+		expect(canary.forbiddenText).toContain('canary-vm-1');
+	});
+
+	it('restores the public infrastructure canary cleanup state after the proof', () => {
+		const runSql = vi.fn();
+
+		__fixtureTestSeams.restorePublicInfrastructureCanaryVm(
+			{
+				vmId: 'canary-vm-1',
+				displacedVmIds: ['old-vm-1', 'old-vm-2'],
+				kAnonymityRegion: 'us-west-1',
+				forbiddenText: ['canary-vm-1']
+			},
+			{
+				databaseUrl: 'postgres://127.0.0.1/fixture-db',
+				runSql
+			}
+		);
+
+		expect(runSql).toHaveBeenCalledTimes(1);
+		const [databaseUrl, sql, context] = runSql.mock.calls[0];
+		expect(databaseUrl).toBe('postgres://127.0.0.1/fixture-db');
+		expect(context).toBe('restore public Infrastructure canary VM canary-vm-1');
+		expect(sql).toContain("WHERE id = 'canary-vm-1'::uuid");
+		expect(sql).toContain("'old-vm-1'::uuid");
+		expect(sql).toContain("'old-vm-2'::uuid");
+		expect(sql).toContain("SET status = 'active'");
+	});
+
+	it('rejects remote databases before infrastructure fixture SQL can mutate them', () => {
+		const runSql = vi.fn();
+		const remoteDatabase = 'postgres://production-db.example.com/fjcloud';
+
+		expect(() =>
+			__fixtureTestSeams.reconcileIndexPrimaryVmTelemetry('cust-123', 'products', {
+				databaseUrl: remoteDatabase,
+				runSql
+			})
+		).toThrow('requires a loopback PostgreSQL DATABASE_URL');
+		expect(() =>
+			__fixtureTestSeams.seedPublicInfrastructureCanaryVm({
+				databaseUrl: remoteDatabase,
+				runSql
+			})
+		).toThrow('requires a loopback PostgreSQL DATABASE_URL');
+		expect(() =>
+			__fixtureTestSeams.seedPublicInfrastructureCanaryVm({
+				databaseUrl: 'postgres://127.0.0.1.attacker.example/fjcloud',
+				runSql
+			})
+		).toThrow('requires a loopback PostgreSQL DATABASE_URL');
+		expect(() =>
+			__fixtureTestSeams.restorePublicInfrastructureCanaryVm(
+				{
+					vmId: 'canary-vm-1',
+					displacedVmIds: [],
+					kAnonymityRegion: 'us-west-1',
+					forbiddenText: []
+				},
+				{
+					databaseUrl: remoteDatabase,
+					runSql
+				}
+			)
+		).toThrow('requires a loopback PostgreSQL DATABASE_URL');
+		expect(runSql).not.toHaveBeenCalled();
+	});
+
 	it('resolves cleanup ownership from authenticated session token after successful browser signup', async () => {
 		const resolveCustomerIdByToken = vi.fn().mockResolvedValue('cust-owned-by-session');
 

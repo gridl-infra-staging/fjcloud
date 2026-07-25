@@ -2,12 +2,6 @@ import { test, expect } from '../../fixtures/fixtures';
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-const PRIVATE_SENTINELS = [
-	'SENTINEL-HOSTNAME-DO-NOT-LEAK.internal',
-	'10.11.12.13',
-	'424242424242'
-] as const;
-
 const PRIVATE_KEYS = [
 	'vms',
 	'machines',
@@ -30,7 +24,12 @@ function collectKeys(value: unknown): string[] {
 }
 
 test.describe('Public infrastructure', () => {
-	test('renders current region-level infrastructure for an anonymous visitor', async ({ page }) => {
+	test('renders current region-level infrastructure for an anonymous visitor', async ({
+		page,
+		arrangePublicInfrastructureCanaryVm
+	}) => {
+		const privacyCanary = await arrangePublicInfrastructureCanaryVm();
+
 		await page.goto('/infrastructure');
 
 		const main = page.getByTestId('public-infrastructure-main');
@@ -50,14 +49,26 @@ test.describe('Public infrastructure', () => {
 			/Green|Yellow|Red|—/
 		);
 
-		for (const sentinel of PRIVATE_SENTINELS) {
+		const kAnonymityRegionRow = page.getByTestId(
+			`infrastructure-region-row-${privacyCanary.kAnonymityRegion}`
+		);
+		await expect(
+			page.getByTestId(`infrastructure-utilization-${privacyCanary.kAnonymityRegion}`)
+		).toHaveText('—');
+		await expect(kAnonymityRegionRow.getByRole('cell').last()).toHaveText('1');
+
+		const fullHtml = await page.content();
+		for (const sentinel of privacyCanary.forbiddenText) {
 			await expect(main).not.toContainText(sentinel);
+			expect(fullHtml).not.toContain(sentinel);
 		}
 	});
 
 	test('raw public JSON is anonymous and contains only the public region contract', async ({
+		arrangePublicInfrastructureCanaryVm,
 		getPublicInfrastructureRaw
 	}) => {
+		const privacyCanary = await arrangePublicInfrastructureCanaryVm();
 		const { status, body, text } = await getPublicInfrastructureRaw();
 
 		expect(status).toBe(200);
@@ -68,11 +79,7 @@ test.describe('Public infrastructure', () => {
 		expect(Object.keys(payload).sort()).toEqual(['overall', 'regions']);
 
 		const overall = payload.overall as Record<string, unknown>;
-		expect(Object.keys(overall).sort()).toEqual([
-			'availability_pct',
-			'total_regions',
-			'total_vms'
-		]);
+		expect(Object.keys(overall).sort()).toEqual(['availability_pct', 'total_regions', 'total_vms']);
 
 		expect(Array.isArray(payload.regions)).toBe(true);
 		const regions = payload.regions as Array<Record<string, unknown>>;
@@ -93,7 +100,7 @@ test.describe('Public infrastructure', () => {
 		for (const privateKey of PRIVATE_KEYS) {
 			expect(allKeys).not.toContain(privateKey);
 		}
-		for (const sentinel of PRIVATE_SENTINELS) {
+		for (const sentinel of privacyCanary.forbiddenText) {
 			expect(text).not.toContain(sentinel);
 		}
 	});

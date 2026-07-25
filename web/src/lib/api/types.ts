@@ -148,7 +148,12 @@ export type { DebugEvent, DebugEventsResponse, DebugEventsFilters } from './type
 
 export type { CreateIndexKeyRequest, FlapjackApiKey } from './types/flapjack';
 
-export type { OnboardingStatus, FreeTierLimits, FlapjackCredentials } from './types/onboarding';
+export type {
+	OnboardingStatus,
+	ClientOnboardingStatus,
+	FreeTierLimits,
+	FlapjackCredentials
+} from './types/onboarding';
 
 export type { SecuritySource, SecuritySourcesResponse } from './types/security_sources';
 

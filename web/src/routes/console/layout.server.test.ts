@@ -73,6 +73,12 @@ const completedSharedOnboarding: OnboardingStatus = {
 	suggested_next_step: "You're all set!"
 };
 
+function withoutPrivateOnboardingFields(onboardingStatus: OnboardingStatus) {
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	const { flapjack_url, ...publicOnboardingStatus } = onboardingStatus;
+	return publicOnboardingStatus;
+}
+
 describe('Dashboard layout server load', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -97,7 +103,7 @@ describe('Dashboard layout server load', () => {
 		expect(result).toMatchObject({
 			user: { customerId: 'cust-1' },
 			profile: freeProfile,
-			onboardingStatus: freeOnboarding,
+			onboardingStatus: withoutPrivateOnboardingFields(freeOnboarding),
 			planContext: {
 				billing_plan: 'free',
 				free_tier_limits: expect.objectContaining({
@@ -165,6 +171,43 @@ describe('Dashboard layout server load', () => {
 		});
 	});
 
+	it('does not serialize private onboarding infrastructure fields', async () => {
+		getProfileMock.mockResolvedValue(sharedProfile);
+		getOnboardingStatusMock.mockResolvedValue({
+			...completedSharedOnboarding,
+			debug_private_endpoint: 'https://future-private-vm.flapjack.foo'
+		});
+
+		const result = (await load(makeEvent()))!;
+		const serialized = JSON.stringify(result);
+
+		expect(result.onboardingStatus).toEqual(
+			withoutPrivateOnboardingFields(completedSharedOnboarding)
+		);
+		expect(serialized).not.toContain('flapjack_url');
+		expect(serialized).not.toContain('vm-abc.flapjack.foo');
+		expect(serialized).not.toContain('debug_private_endpoint');
+		expect(serialized).not.toContain('future-private-vm.flapjack.foo');
+	});
+
+	it('does not serialize unexpected nested onboarding limit fields', async () => {
+		getProfileMock.mockResolvedValue(freeProfile);
+		getOnboardingStatusMock.mockResolvedValue({
+			...freeOnboarding,
+			free_tier_limits: {
+				...freeOnboarding.free_tier_limits!,
+				debug_quota_signing_key: 'future-private-quota-key'
+			}
+		});
+
+		const result = (await load(makeEvent()))!;
+		const serialized = JSON.stringify(result);
+
+		expect(result.onboardingStatus).toEqual(withoutPrivateOnboardingFields(freeOnboarding));
+		expect(serialized).not.toContain('debug_quota_signing_key');
+		expect(serialized).not.toContain('future-private-quota-key');
+	});
+
 	it('falls back gracefully when profile fetch fails', async () => {
 		getProfileMock.mockRejectedValue(new Error('unauthorized'));
 		getOnboardingStatusMock.mockResolvedValue(freeOnboarding);
@@ -173,7 +216,7 @@ describe('Dashboard layout server load', () => {
 
 		expect(result.user).toEqual({ customerId: 'cust-1' });
 		expect(result.planContext.billing_plan).toBe('free');
-		expect(result.onboardingStatus).toEqual(freeOnboarding);
+		expect(result.onboardingStatus).toEqual(withoutPrivateOnboardingFields(freeOnboarding));
 	});
 
 	it('keeps Paid plan context when profile fetch fails but onboarding succeeds', async () => {

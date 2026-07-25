@@ -203,6 +203,14 @@ type EnsureLocalSharedVmInventoryForRegionDeps = {
 	databaseUrl?: string | null;
 	runSql?: (databaseUrl: string, sql: string, context: string) => unknown;
 };
+type ReconcileIndexPrimaryVmTelemetryDeps = {
+	databaseUrl?: string | null;
+	runSql?: (databaseUrl: string, sql: string, context: string) => unknown;
+};
+type PublicInfrastructureCanaryVmDeps = {
+	databaseUrl?: string | null;
+	runSql?: (databaseUrl: string, sql: string, context: string) => unknown;
+};
 type StaleFixtureIndexCleanupState = {
 	cleaned: boolean;
 	cooldownUntil: number;
@@ -265,6 +273,26 @@ const LOCAL_VM_CURRENT_LOAD_JSON = readShellStringAssignment(
 	LOCAL_SEED_CONTRACT_PATH,
 	'LOCAL_SEED_VM_CURRENT_LOAD_JSON'
 );
+const REPLICA_CANARY_MEM_RSS_BYTES = 5_153_960_755;
+const REPLICA_CANARY_DISK_BYTES = 64_424_509_440;
+const PUBLIC_INFRASTRUCTURE_CANARY_REGION = 'us-west-1';
+// Single source of truth for the canary VM's private telemetry: the SQL seed and the
+// forbidden-text assertions both derive from these objects, so a value can never be
+// asserted-absent without also having been seeded (which would make the canary vacuous).
+const PUBLIC_INFRASTRUCTURE_CANARY_CAPACITY = {
+	cpu_weight: 24,
+	mem_rss_bytes: 103_079_215_104,
+	disk_bytes: 1_099_511_627_776,
+	query_rps: 200,
+	indexing_rps: 50
+};
+const PUBLIC_INFRASTRUCTURE_CANARY_CURRENT_LOAD = {
+	cpu_weight: 3.75,
+	mem_rss_bytes: 34_359_738_368,
+	disk_bytes: 274_877_906_944,
+	query_rps: 41.5,
+	indexing_rps: 9.25
+};
 
 function fixtureLocalDatabaseUrl(): string | null {
 	const directDatabaseUrl = process.env.DATABASE_URL?.trim();
@@ -296,6 +324,68 @@ function requireFixtureDatabaseUrl(context: string): string {
 
 function runFixtureSql(sql: string, context: string): string {
 	return runSqlWithPsqlFallback(requireFixtureDatabaseUrl(context), sql, context).trim();
+}
+
+function requireLoopbackDatabaseUrl(databaseUrl: string, context: string): string {
+	let parsed: URL;
+	try {
+		parsed = new URL(databaseUrl);
+	} catch {
+		throw new Error(`${context} requires a valid local PostgreSQL DATABASE_URL`);
+	}
+
+	const isPostgres = parsed.protocol === 'postgres:' || parsed.protocol === 'postgresql:';
+	const isLoopback =
+		parsed.hostname === 'localhost' ||
+		parsed.hostname === '::1' ||
+		parsed.hostname === '[::1]' ||
+		/^127(?:\.\d{1,3}){3}$/.test(parsed.hostname);
+	if (!isPostgres || !isLoopback) {
+		throw new Error(`${context} requires a loopback PostgreSQL DATABASE_URL`);
+	}
+	return databaseUrl;
+}
+
+function reconcileIndexPrimaryVmTelemetry(
+	customerId: string,
+	indexName: string,
+	deps?: ReconcileIndexPrimaryVmTelemetryDeps
+): void {
+	const databaseUrl = deps && 'databaseUrl' in deps ? deps.databaseUrl : fixtureLocalDatabaseUrl();
+	if (!databaseUrl) {
+		throw new Error('DATABASE_URL must be set to reconcile Infrastructure primary telemetry');
+	}
+	const localDatabaseUrl = requireLoopbackDatabaseUrl(
+		databaseUrl,
+		'reconcile Infrastructure primary telemetry'
+	);
+
+	const output = String(
+		(deps?.runSql ?? runSqlWithPsqlFallback)(
+			localDatabaseUrl,
+			`
+WITH target AS (
+    SELECT vm_id
+    FROM customer_tenants
+    WHERE customer_id = ${quoteSqlLiteral(customerId)}::uuid
+      AND tenant_id = ${quoteSqlLiteral(indexName)}
+), updated AS (
+    UPDATE vm_inventory vm
+    SET capacity = ${quoteSqlLiteral(LOCAL_VM_CAPACITY_JSON)}::jsonb,
+        current_load = ${quoteSqlLiteral(LOCAL_VM_CURRENT_LOAD_JSON)}::jsonb,
+        status = 'active',
+        load_scraped_at = NOW(),
+        updated_at = NOW()
+    FROM target
+    WHERE vm.id = target.vm_id
+    RETURNING 1
+)
+SELECT COUNT(*) FROM updated;
+`,
+			`reconcile Infrastructure primary telemetry for ${indexName}`
+		)
+	).trim();
+	assertSingleSqlUpdatedRow(output, `reconcile Infrastructure primary telemetry for ${indexName}`);
 }
 
 function assertSingleSqlUpdatedRow(output: string, context: string): void {
@@ -435,9 +525,16 @@ function seedInfrastructureReplicaTopology({
 }: SeedInfrastructureTopologyInput): SeedInfrastructureTopologyResult {
 	const seed = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 	const replicaHostname = `e2e-infrastructure-replica-${seed}`;
+	const replicaCurrentLoad = JSON.stringify({
+		cpu_weight: 2.4,
+		mem_rss_bytes: REPLICA_CANARY_MEM_RSS_BYTES,
+		disk_bytes: REPLICA_CANARY_DISK_BYTES,
+		query_rps: 300.0,
+		indexing_rps: 120.0
+	});
 	const output = runFixtureSql(
 		`
-WITH primary_target AS (
+	WITH primary_target AS (
     SELECT vm_id
     FROM customer_tenants
     WHERE customer_id = ${quoteSqlLiteral(customerId)}::uuid
@@ -456,14 +553,14 @@ WITH primary_target AS (
     )
     VALUES (
         'local',
-        ${quoteSqlLiteral(replicaHostname)},
-        ${quoteSqlLiteral(flapjackUrl)},
-        ${quoteSqlLiteral(replicaRegion)},
-        ${quoteSqlLiteral(LOCAL_VM_CAPACITY_JSON)}::jsonb,
-        '{"cpu_weight":2.4,"mem_rss_bytes":5153960755,"disk_bytes":64424509440,"query_rps":300.0,"indexing_rps":120.0}'::jsonb,
-        NOW(),
-        NOW(),
-        NOW()
+	        ${quoteSqlLiteral(replicaHostname)},
+	        ${quoteSqlLiteral(flapjackUrl)},
+	        ${quoteSqlLiteral(replicaRegion)},
+	        ${quoteSqlLiteral(LOCAL_VM_CAPACITY_JSON)}::jsonb,
+	        ${quoteSqlLiteral(replicaCurrentLoad)}::jsonb,
+	        NOW(),
+	        NOW(),
+	        NOW()
     )
     RETURNING id
 ), created_replica AS (
@@ -504,6 +601,7 @@ function infrastructureBrowserContract(
 	indexName: string,
 	payload: IndexInfrastructureResponse,
 	replicaRegion: string,
+	replicaVmId: string,
 	replicaHostname: string
 ): IndexInfrastructureBrowserContract {
 	const replica = payload.replicas.find((candidate) => candidate.region === replicaRegion);
@@ -534,7 +632,10 @@ function infrastructureBrowserContract(
 		headroom: 'Comfortable',
 		failover: `Automatic cross-region failover is available in ${replica.region}.`,
 		forbiddenText: [
+			replicaVmId,
 			replicaHostname,
+			String(REPLICA_CANARY_MEM_RSS_BYTES),
+			String(REPLICA_CANARY_DISK_BYTES),
 			'hostname',
 			'flapjack_url',
 			'vm_id',
@@ -552,6 +653,159 @@ function infrastructureBrowserContract(
 			writeOperations: formatNumber(payload.footprint.write_operations_total)
 		}
 	};
+}
+
+type PublicInfrastructureCanaryVm = {
+	vmId: string;
+	displacedVmIds: string[];
+	kAnonymityRegion: string;
+	forbiddenText: string[];
+};
+
+function seedPublicInfrastructureCanaryVm(
+	deps?: PublicInfrastructureCanaryVmDeps
+): PublicInfrastructureCanaryVm {
+	const databaseUrl = deps && 'databaseUrl' in deps ? deps.databaseUrl : fixtureLocalDatabaseUrl();
+	if (!databaseUrl) {
+		throw new Error('DATABASE_URL must be set to seed the public Infrastructure canary VM');
+	}
+	const localDatabaseUrl = requireLoopbackDatabaseUrl(
+		databaseUrl,
+		'seed public Infrastructure canary VM'
+	);
+
+	const seed = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+	const hostname = `e2e-public-infra-canary-${seed}`;
+	const ipLiteral = `127.64.${Math.floor(Math.random() * 200) + 20}.${
+		Math.floor(Math.random() * 200) + 20
+	}`;
+	const flapjackUrl = `http://${ipLiteral}:47700`;
+	const output = String(
+		(deps?.runSql ?? runSqlWithPsqlFallback)(
+			localDatabaseUrl,
+			`
+	WITH prior_active AS (
+	    SELECT id, id::text AS id_text
+	    FROM vm_inventory
+	    WHERE region = ${quoteSqlLiteral(PUBLIC_INFRASTRUCTURE_CANARY_REGION)}
+	      AND status = 'active'
+	), decommissioned AS (
+	    UPDATE vm_inventory
+	    SET status = 'decommissioned',
+	        updated_at = NOW()
+	    WHERE id IN (SELECT id FROM prior_active)
+	    RETURNING 1
+	), inserted AS (
+	    INSERT INTO vm_inventory (
+	        provider,
+	        hostname,
+	        flapjack_url,
+	        region,
+	        capacity,
+	        current_load,
+	        load_scraped_at,
+	        created_at,
+	        updated_at,
+	        status
+	    )
+	    VALUES (
+	        'local',
+	        ${quoteSqlLiteral(hostname)},
+	        ${quoteSqlLiteral(flapjackUrl)},
+	        ${quoteSqlLiteral(PUBLIC_INFRASTRUCTURE_CANARY_REGION)},
+	        ${quoteSqlLiteral(JSON.stringify(PUBLIC_INFRASTRUCTURE_CANARY_CAPACITY))}::jsonb,
+	        ${quoteSqlLiteral(JSON.stringify(PUBLIC_INFRASTRUCTURE_CANARY_CURRENT_LOAD))}::jsonb,
+	        NOW(),
+	        NOW(),
+	        NOW(),
+	        'active'
+	    )
+	    RETURNING id::text AS id_text
+	)
+	SELECT json_build_object(
+	    'vm_id',
+	    (SELECT id_text FROM inserted),
+	    'displaced_vm_ids',
+	    COALESCE((SELECT json_agg(id_text ORDER BY id_text) FROM prior_active), '[]'::json)
+	)::text;
+	`,
+			`seed public Infrastructure canary VM for ${PUBLIC_INFRASTRUCTURE_CANARY_REGION}`
+		)
+	).trim();
+
+	if (!output) {
+		throw new Error('seed public Infrastructure canary VM returned no seed metadata');
+	}
+
+	let seedMetadata: { vm_id?: unknown; displaced_vm_ids?: unknown };
+	try {
+		seedMetadata = JSON.parse(output) as { vm_id?: unknown; displaced_vm_ids?: unknown };
+	} catch (error) {
+		throw new Error(
+			`seed public Infrastructure canary VM returned invalid JSON metadata: ${setupFailureDetailsFromError(error)}`
+		);
+	}
+
+	if (
+		typeof seedMetadata.vm_id !== 'string' ||
+		!Array.isArray(seedMetadata.displaced_vm_ids) ||
+		!seedMetadata.displaced_vm_ids.every((value) => typeof value === 'string')
+	) {
+		throw new Error('seed public Infrastructure canary VM returned incomplete seed metadata');
+	}
+
+	return {
+		vmId: seedMetadata.vm_id,
+		displacedVmIds: seedMetadata.displaced_vm_ids,
+		kAnonymityRegion: PUBLIC_INFRASTRUCTURE_CANARY_REGION,
+		forbiddenText: [
+			seedMetadata.vm_id,
+			hostname,
+			flapjackUrl,
+			ipLiteral,
+			String(PUBLIC_INFRASTRUCTURE_CANARY_CAPACITY.mem_rss_bytes),
+			String(PUBLIC_INFRASTRUCTURE_CANARY_CAPACITY.disk_bytes),
+			String(PUBLIC_INFRASTRUCTURE_CANARY_CURRENT_LOAD.mem_rss_bytes),
+			String(PUBLIC_INFRASTRUCTURE_CANARY_CURRENT_LOAD.disk_bytes),
+			String(PUBLIC_INFRASTRUCTURE_CANARY_CURRENT_LOAD.query_rps),
+			String(PUBLIC_INFRASTRUCTURE_CANARY_CURRENT_LOAD.indexing_rps)
+		]
+	};
+}
+
+function restorePublicInfrastructureCanaryVm(
+	canary: PublicInfrastructureCanaryVm,
+	deps?: PublicInfrastructureCanaryVmDeps
+): void {
+	const databaseUrl = deps && 'databaseUrl' in deps ? deps.databaseUrl : fixtureLocalDatabaseUrl();
+	if (!databaseUrl) {
+		throw new Error('DATABASE_URL must be set to restore the public Infrastructure canary VM');
+	}
+	const localDatabaseUrl = requireLoopbackDatabaseUrl(
+		databaseUrl,
+		'restore public Infrastructure canary VM'
+	);
+
+	const restoreDisplacedSql =
+		canary.displacedVmIds.length > 0
+			? `
+UPDATE vm_inventory
+SET status = 'active',
+    updated_at = NOW()
+WHERE id IN (${canary.displacedVmIds.map((vmId) => `${quoteSqlLiteral(vmId)}::uuid`).join(', ')});`
+			: '';
+
+	(deps?.runSql ?? runSqlWithPsqlFallback)(
+		localDatabaseUrl,
+		`
+UPDATE vm_inventory
+SET status = 'decommissioned',
+    updated_at = NOW()
+WHERE id = ${quoteSqlLiteral(canary.vmId)}::uuid;
+${restoreDisplacedSql}
+	`,
+		`restore public Infrastructure canary VM ${canary.vmId}`
+	);
 }
 
 const STALE_FIXTURE_INDEX_PREFIXES = readStaleFixtureIndexPrefixes();
@@ -1968,10 +2222,13 @@ export const __fixtureTestSeams = {
 	createSeededIndexViaCustomerToken,
 	ensureLocalSharedVmInventoryForRegion,
 	getStaleFixtureIndexCleanupState,
+	reconcileIndexPrimaryVmTelemetry,
 	resolveFixtureContractPath,
 	resetStaleFixtureIndexCleanupState,
+	restorePublicInfrastructureCanaryVm,
 	runTrackedCustomerCleanup,
 	runTrackedIndexCleanup,
+	seedPublicInfrastructureCanaryVm,
 	shouldVerifyTrackedCustomerEmailViaStaging
 };
 
@@ -3743,6 +4000,7 @@ type GetPublicInfrastructureRawFn = () => Promise<{
 	body: unknown;
 	text: string;
 }>;
+type ArrangePublicInfrastructureCanaryVmFn = () => Promise<PublicInfrastructureCanaryVm>;
 type DiscoverWithApiKeyFn = (
 	indexName: string,
 	apiKey: string
@@ -3914,6 +4172,8 @@ type E2eFixtures = {
 	listApiKeys: ListApiKeysFn;
 	/** Read the anonymous public infrastructure response without browser auth state. */
 	getPublicInfrastructureRaw: GetPublicInfrastructureRawFn;
+	/** Seed one local VM row that proves public infrastructure keeps private VM facts anonymous. */
+	arrangePublicInfrastructureCanaryVm: ArrangePublicInfrastructureCanaryVmFn;
 	/** Call /discover with a bearer API key through fixture-owned API access. */
 	discoverWithApiKey: DiscoverWithApiKeyFn;
 	/** Temporarily switch the authenticated customer between free and shared plans. */
@@ -4136,6 +4396,7 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures, E2eWorkerFixt
 				flapjackUrl: fixtureEnv.flapjackUrl,
 				...createMetricsReadySearchableIndexSeedOptions()
 			});
+			reconcileIndexPrimaryVmTelemetry(customer.customerId, indexName);
 
 			const seededTopology = seedInfrastructureReplicaTopology({
 				customerId: customer.customerId,
@@ -4160,6 +4421,7 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures, E2eWorkerFixt
 				indexName,
 				(await response.json()) as IndexInfrastructureResponse,
 				replicaRegion,
+				seededTopology.replicaVmId,
 				seededTopology.replicaHostname
 			);
 		};
@@ -4745,6 +5007,19 @@ DELETE FROM vm_inventory WHERE id = ${quoteSqlLiteral(entry.replicaVmId)}::uuid;
 
 			return { status: response.status, body, text };
 		});
+	},
+
+	arrangePublicInfrastructureCanaryVm: async ({}, use) => {
+		const created: PublicInfrastructureCanaryVm[] = [];
+		await use(async () => {
+			const canary = seedPublicInfrastructureCanaryVm();
+			created.push(canary);
+			return canary;
+		});
+
+		for (const canary of created.reverse()) {
+			restorePublicInfrastructureCanaryVm(canary);
+		}
 	},
 
 	discoverWithApiKey: async ({}, use) => {

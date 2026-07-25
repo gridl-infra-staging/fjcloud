@@ -7,7 +7,7 @@
 		DailyUsageEntry,
 		EstimatedBillResponse,
 		Index,
-		OnboardingStatus
+		ClientOnboardingStatus
 	} from '$lib/api/types';
 	import {
 		formatCents,
@@ -30,13 +30,12 @@
 		slug: string;
 		usage: { used: number; limit: number };
 	};
-
 	const usage = $derived(data.usage);
 	const dailyUsage: DailyUsageEntry[] = $derived(data.dailyUsage);
 	const currentMonth: string = $derived(data.month);
 	const estimate: EstimatedBillResponse | null = $derived(data.estimate ?? null);
 	const indexes: Index[] = $derived(data.indexes ?? []);
-	const onboardingStatus: OnboardingStatus | null = $derived(data.onboardingStatus ?? null);
+	const onboardingStatus: ClientOnboardingStatus | null = $derived(data.onboardingStatus ?? null);
 	const planContext = $derived(data.planContext);
 	const freeTierProgress: FreeTierProgress | null = $derived(data.freeTierProgress ?? null);
 	const onboardingCompleted = $derived(

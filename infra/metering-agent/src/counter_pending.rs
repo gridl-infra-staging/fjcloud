@@ -21,9 +21,9 @@ pub(super) struct CounterTotals<'a> {
 pub(super) struct CounterObservation {
     pub tenant: TenantAttribution,
     pub search_total: u64,
-    pub write_total: u64,
-    pub indexed_total: u64,
-    pub deleted_total: u64,
+    pub write_total: Option<u64>,
+    pub indexed_total: Option<u64>,
+    pub deleted_total: Option<u64>,
 }
 
 pub(super) struct PendingCounterRecord {
@@ -54,14 +54,14 @@ pub(super) fn build_pending_counter_records(
             .clone();
         let deltas = previous.advance(
             observation.search_total,
-            observation.write_total,
-            observation.indexed_total,
-            observation.deleted_total,
+            observation.write_total.unwrap_or(0),
+            observation.indexed_total.unwrap_or(0),
+            observation.deleted_total.unwrap_or(0),
         );
         for (event_type, current_total, delta) in [
             (
                 record::EventType::SearchRequests,
-                observation.search_total,
+                Some(observation.search_total),
                 deltas.search_requests,
             ),
             (
@@ -80,6 +80,9 @@ pub(super) fn build_pending_counter_records(
                 deltas.documents_deleted,
             ),
         ] {
+            let Some(current_total) = current_total else {
+                continue;
+            };
             pending_records.push(PendingCounterRecord {
                 usage_record: (delta != 0).then(|| {
                     record::build_usage_record(
@@ -126,21 +129,9 @@ pub(super) fn counter_observations(
         let observation = CounterObservation {
             tenant,
             search_total,
-            write_total: totals
-                .write_totals
-                .get(observed_tenant_id)
-                .copied()
-                .unwrap_or(0),
-            indexed_total: totals
-                .indexed_totals
-                .get(observed_tenant_id)
-                .copied()
-                .unwrap_or(0),
-            deleted_total: totals
-                .deleted_totals
-                .get(observed_tenant_id)
-                .copied()
-                .unwrap_or(0),
+            write_total: totals.write_totals.get(observed_tenant_id).copied(),
+            indexed_total: totals.indexed_totals.get(observed_tenant_id).copied(),
+            deleted_total: totals.deleted_totals.get(observed_tenant_id).copied(),
         };
         state
             .entry(observation.tenant.tenant_id.clone())
@@ -155,14 +146,12 @@ fn initial_counter_state(cfg: &Config, observation: &CounterObservation) -> Coun
     if observation.tenant.created_at > cfg.started_at {
         CounterState::seeded_zero()
     } else {
-        let mut baseline = CounterState::default();
-        baseline.advance(
-            observation.search_total,
-            observation.write_total,
-            observation.indexed_total,
-            observation.deleted_total,
-        );
-        baseline
+        CounterState {
+            search_requests: Some(observation.search_total),
+            write_operations: observation.write_total,
+            documents_indexed: observation.indexed_total,
+            documents_deleted: observation.deleted_total,
+        }
     }
 }
 

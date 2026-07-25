@@ -1,7 +1,7 @@
 use billing::aggregation::{summarize, CustomerBillingContext};
-use billing::pricing::calculate_invoice;
+use billing::pricing::{calculate_invoice, PricingError};
 use billing::rate_card::RateCard;
-use billing::types::DailyUsageRecord;
+use billing::types::{DailyUsageRecord, MonthlyUsageSummary};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -54,6 +54,22 @@ fn canonical_rate_card(region_multipliers: HashMap<String, Decimal>) -> RateCard
 
 fn no_billing_context() -> HashMap<Uuid, CustomerBillingContext> {
     HashMap::new()
+}
+
+fn zero_monthly_usage() -> MonthlyUsageSummary {
+    let (period_start, period_end) = february_period();
+    MonthlyUsageSummary {
+        customer_id: Uuid::new_v4(),
+        period_start,
+        period_end,
+        region: "us-east-1".to_string(),
+        total_search_requests: 0,
+        total_write_operations: 0,
+        storage_mb_months: Decimal::ZERO,
+        cold_storage_gb_months: Decimal::ZERO,
+        object_storage_gb_months: Decimal::ZERO,
+        object_storage_egress_gb: Decimal::ZERO,
+    }
 }
 
 fn line_item_amount(
@@ -181,4 +197,39 @@ fn cold_storage_context_is_billed_once_across_regions() {
     assert_eq!(line_item_amount(eu_summary, &rate, "cold_gb_months"), 8);
     assert_eq!(total_line_item_amount(&[us_summary.clone()], &rate), 0);
     assert_eq!(total_line_item_amount(&summaries, &rate), 8);
+}
+
+#[test]
+fn invoice_subtotal_overflow_returns_error() {
+    let mut rate = canonical_rate_card(HashMap::new());
+    rate.storage_rate_per_mb_month = Decimal::from(i64::MAX) / dec!(200);
+    rate.cold_storage_rate_per_gb_month = Decimal::from(i64::MAX) / dec!(200);
+    let usage = MonthlyUsageSummary {
+        storage_mb_months: dec!(1),
+        cold_storage_gb_months: dec!(1),
+        ..zero_monthly_usage()
+    };
+
+    assert_eq!(
+        calculate_invoice(&usage, &rate),
+        Err(PricingError::AmountOverflow)
+    );
+}
+
+#[test]
+fn decimal_multiplication_overflow_returns_error_without_panic() {
+    let mut rate = canonical_rate_card(HashMap::new());
+    rate.storage_rate_per_mb_month = Decimal::ONE;
+    let usage = MonthlyUsageSummary {
+        storage_mb_months: Decimal::MAX,
+        ..zero_monthly_usage()
+    };
+
+    let result = std::panic::catch_unwind(|| calculate_invoice(&usage, &rate));
+
+    assert!(
+        result.is_ok(),
+        "calculate_invoice must not panic when Decimal multiplication overflows"
+    );
+    assert_eq!(result.unwrap(), Err(PricingError::AmountOverflow));
 }

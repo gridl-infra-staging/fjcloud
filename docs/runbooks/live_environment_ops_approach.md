@@ -13,7 +13,8 @@ This note captures why, and how to do it differently. It is doctrine for anyone
 Treat local work and live work as **two different modes**:
 
 - **Local mode** — agents run free, fully autonomous. This works well; keep it.
-- **Live mode** — small, supervised, on an environment made reliable *first*.
+- **Live mode** — small, automated, evidence-producing steps on an environment
+  made reliable *first*.
   Do **not** run live work as big hands-off marathons. That is precisely what
   keeps stranding it.
 
@@ -34,13 +35,14 @@ was actually running. Push after each small change; there is never a scary
 "deploy weeks of changes at once" moment, and nobody reasons off a stale
 picture of the environment.
 
-**3. Small, single-purpose, supervised steps — not big autonomous marathons.**
+**3. Small, single-purpose automated steps — not broad marathons.**
 The failure pattern is one job that tries to deploy AND prove AND sign off, runs
 out of budget, and drops the proof at the very end (the proof is always the last
 stage). Instead: one tiny job that *just* deploys; another that *just* proves
-billing; another that *just* flips a switch — each with a person available to
-unstick it the moment it breaks. Live environments break in messy ways that
-need a human's eyes and access an agent doesn't have.
+billing; another that *just* flips a switch. Each step must emit unattended,
+machine-checkable evidence and diagnose its own failure boundary. Escalate only
+when a concrete external-access or physical-world action is genuinely outside
+the session's reach; manual observation is not launch evidence.
 
 **4. Tell "the code is broken" apart from "the environment isn't set up right."**
 A lot of wasted effort came from a live check failing and nobody being sure
@@ -58,8 +60,8 @@ broad build lane.
 ## One sentence
 
 Agents run free locally; **live work should be small, deployed continuously,
-watched by a person, on an environment you made reliable first** — and that
-alone removes most of the headaches.
+automatically verified, and run on an environment you made reliable first** —
+and that alone removes most of the headaches.
 
 ## Note
 

@@ -212,7 +212,10 @@ fn metering_value_as_u64(sample: &MetricSample) -> Option<u64> {
     if sample.value.is_finite()
         && sample.value >= 0.0
         && sample.value.fract() == 0.0
-        && sample.value <= u64::MAX as f64
+        // UsageRecord persists values as i64. Because i64::MAX rounds up to
+        // 2^63 as f64, the comparison must be exclusive to reject that first
+        // unpersistable value.
+        && sample.value < i64::MAX as f64
     {
         Some(sample.value as u64)
     } else {
@@ -480,6 +483,11 @@ flapjack_write_operations_total{index="orders"} 25
                 name: "flapjack_documents_deleted_total".to_string(),
                 labels: HashMap::from([("index".to_string(), "fractional".to_string())]),
                 value: 1.5,
+            },
+            MetricSample {
+                name: "flapjack_search_requests_total".to_string(),
+                labels: HashMap::from([("index".to_string(), "i64_overflow".to_string())]),
+                value: i64::MAX as f64,
             },
             MetricSample {
                 name: "flapjack_documents_indexed_total".to_string(),

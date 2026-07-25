@@ -385,6 +385,75 @@ async fn token_issue_custom_expiry() {
 }
 
 #[tokio::test]
+async fn token_issue_expiry_clamps_to_minimum() {
+    let repo = crate::common::mock_repo();
+    let customer = repo.seed("Token Issue Minimum Expiry", "token-issue-min@e2e.test");
+    let customer_id = customer.id;
+    let app = crate::common::test_app_with_repo(repo);
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/admin/tokens")
+        .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({"customer_id": customer_id, "expires_in_secs": 0}).to_string(),
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let json = body_json(resp).await;
+    let token = json["token"].as_str().unwrap();
+
+    let token_data = jsonwebtoken::decode::<api::auth::Claims>(
+        token,
+        &jsonwebtoken::DecodingKey::from_secret(crate::common::TEST_JWT_SECRET.as_bytes()),
+        &jsonwebtoken::Validation::default(),
+    )
+    .unwrap();
+
+    let duration = token_data.claims.exp - token_data.claims.iat;
+    assert_eq!(duration, 60);
+}
+
+#[tokio::test]
+async fn token_issue_expiry_clamps_to_maximum() {
+    let repo = crate::common::mock_repo();
+    let customer = repo.seed("Token Issue Maximum Expiry", "token-issue-max@e2e.test");
+    let customer_id = customer.id;
+    let app = crate::common::test_app_with_repo(repo);
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/admin/tokens")
+        .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({"customer_id": customer_id, "expires_in_secs": 999999999})
+                .to_string(),
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let json = body_json(resp).await;
+    let token = json["token"].as_str().unwrap();
+
+    let token_data = jsonwebtoken::decode::<api::auth::Claims>(
+        token,
+        &jsonwebtoken::DecodingKey::from_secret(crate::common::TEST_JWT_SECRET.as_bytes()),
+        &jsonwebtoken::Validation::default(),
+    )
+    .unwrap();
+
+    let duration = token_data.claims.exp - token_data.claims.iat;
+    assert_eq!(duration, 2_592_000);
+}
+
+#[tokio::test]
 async fn token_issue_missing_admin_key_returns_401() {
     let app = crate::common::test_app();
     let customer_id = Uuid::new_v4();

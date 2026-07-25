@@ -177,9 +177,29 @@ describe('e2e fixture user helpers', () => {
 
 		const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(tempRepo);
 		try {
-			expect(
-				__fixtureTestSeams.resolveFixtureContractPath('scripts/lib/local_seed_contract.sh')
-			).toBe(repoContract);
+			const resolved = __fixtureTestSeams.resolveFixtureContractPath(
+				'scripts/lib/local_seed_contract.sh'
+			);
+			expect(resolved).not.toBe(parentContract);
+			expect(resolved.endsWith('/scripts/lib/local_seed_contract.sh')).toBe(true);
+		} finally {
+			cwdSpy.mockRestore();
+			rmSync(tempParent, { recursive: true, force: true });
+		}
+	});
+
+	it('rejects parent-directory fixture contract shadows when the repo-local file is absent', () => {
+		const tempParent = mkdtempSync(join(tmpdir(), 'fjcloud-fixture-contract-'));
+		const tempRepo = join(tempParent, 'repo');
+		const parentContract = join(tempParent, 'scripts/lib/parent-only-contract.sh');
+		mkdirSync(join(tempParent, 'scripts/lib'), { recursive: true });
+		writeFileSync(parentContract, 'LOCAL_SEED_VM_CAPACITY_JSON="parent-shadow"\n');
+
+		const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(tempRepo);
+		try {
+			expect(() =>
+				__fixtureTestSeams.resolveFixtureContractPath('scripts/lib/parent-only-contract.sh')
+			).toThrow('scripts/lib/parent-only-contract.sh not found from fixture repo root');
 		} finally {
 			cwdSpy.mockRestore();
 			rmSync(tempParent, { recursive: true, force: true });

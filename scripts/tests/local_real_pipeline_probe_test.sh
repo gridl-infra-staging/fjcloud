@@ -513,7 +513,7 @@ case "$sql" in
       fi
       printf "%s|%s|%s|%s|%s|%s\n" \
         "$(searches_now)" "$(writes_now)" "2026-07-24T00:00:05.000000Z" \
-        "$customer_value" "us-east-1" "2026-07-24" ;;
+        "$customer_value" "us-east-1" "$(date -u +%F)" ;;
   *)                              : ;;
 esac
 exit 0'

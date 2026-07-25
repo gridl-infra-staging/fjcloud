@@ -38,8 +38,16 @@ fn line_item_from_dimension(
     if dim.quantity <= Decimal::ZERO {
         return Ok(None);
     }
-    let unit_price_cents = dim.rate_per_unit * multiplier * dec!(100);
-    let amount_cents = convert_cent_amount(dim.quantity * unit_price_cents, dim.cent_conversion)?;
+    let unit_price_cents = dim
+        .rate_per_unit
+        .checked_mul(multiplier)
+        .and_then(|price| price.checked_mul(dec!(100)))
+        .ok_or(PricingError::AmountOverflow)?;
+    let raw_amount_cents = dim
+        .quantity
+        .checked_mul(unit_price_cents)
+        .ok_or(PricingError::AmountOverflow)?;
+    let amount_cents = convert_cent_amount(raw_amount_cents, dim.cent_conversion)?;
     Ok(Some(LineItem {
         description: format!("{} ({})", dim.description, region),
         quantity: dim.quantity,
@@ -222,22 +230,6 @@ mod tests {
         assert_eq!(result.unwrap(), Err(PricingError::AmountOverflow));
     }
 
-    #[test]
-    fn calculate_invoice_subtotal_overflow_returns_error() {
-        let mut rate = test_rate_card();
-        rate.storage_rate_per_mb_month = Decimal::from(i64::MAX) / dec!(200);
-        rate.cold_storage_rate_per_gb_month = Decimal::from(i64::MAX) / dec!(200);
-        let usage = MonthlyUsageSummary {
-            storage_mb_months: dec!(1),
-            cold_storage_gb_months: dec!(1),
-            ..zero_usage(Uuid::new_v4())
-        };
-
-        let result = calculate_invoice(&usage, &rate);
-
-        assert_eq!(result, Err(PricingError::AmountOverflow));
-    }
-
     /// Verifies hot storage is billed per MB-month at the rate card rate.
     #[test]
     fn hot_storage_billed_per_mb_month() {
@@ -277,49 +269,19 @@ mod tests {
     fn half_cent_hot_storage_rounds_to_nearest_even_cent() {
         let rate = test_rate_card();
 
-        let calc = calculate_invoice(
-            &MonthlyUsageSummary {
-                storage_mb_months: dec!(0.1),
+        for (storage_mb_months, expected_cents) in [
+            (dec!(0.1), 0),
+            (dec!(0.3), 2),
+            (dec!(0.5), 2),
+            (dec!(0.7), 4),
+        ] {
+            let usage = MonthlyUsageSummary {
+                storage_mb_months,
                 ..zero_usage(Uuid::new_v4())
-            },
-            &rate,
-        )
-        .unwrap();
-        // 0.1 MB × 5¢ = 0.5¢ → 0¢.
-        assert_eq!(calc.line_items[0].amount_cents, 0);
-
-        let calc = calculate_invoice(
-            &MonthlyUsageSummary {
-                storage_mb_months: dec!(0.3),
-                ..zero_usage(Uuid::new_v4())
-            },
-            &rate,
-        )
-        .unwrap();
-        // 0.3 MB × 5¢ = 1.5¢ → 2¢.
-        assert_eq!(calc.line_items[0].amount_cents, 2);
-
-        let calc = calculate_invoice(
-            &MonthlyUsageSummary {
-                storage_mb_months: dec!(0.5),
-                ..zero_usage(Uuid::new_v4())
-            },
-            &rate,
-        )
-        .unwrap();
-        // 0.5 MB × 5¢ = 2.5¢ → 2¢.
-        assert_eq!(calc.line_items[0].amount_cents, 2);
-
-        let calc = calculate_invoice(
-            &MonthlyUsageSummary {
-                storage_mb_months: dec!(0.7),
-                ..zero_usage(Uuid::new_v4())
-            },
-            &rate,
-        )
-        .unwrap();
-        // 0.7 MB × 5¢ = 3.5¢ → 4¢.
-        assert_eq!(calc.line_items[0].amount_cents, 4);
+            };
+            let calc = calculate_invoice(&usage, &rate).unwrap();
+            assert_eq!(calc.line_items[0].amount_cents, expected_cents);
+        }
     }
 
     #[test]

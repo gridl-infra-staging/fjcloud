@@ -57,6 +57,69 @@ fn counter_metrics(search_requests: u64, write_operations: u64) -> String {
     )
 }
 
+#[test]
+fn missing_counter_dimension_preserves_baseline_until_valid_sample_returns() {
+    let cfg = test_config();
+    let state: TenantStateMap = Arc::new(DashMap::new());
+    let tenant_map: TenantCustomerMap = Arc::new(DashMap::new());
+    let customer_id = Uuid::new_v4();
+    tenant_map.insert(
+        "products".to_string(),
+        TenantAttribution {
+            customer_id,
+            tenant_id: "products".to_string(),
+            tier: "active".to_string(),
+            created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
+        },
+    );
+    state.insert(
+        "products".to_string(),
+        CounterState {
+            search_requests: Some(100),
+            write_operations: Some(50),
+            documents_indexed: Some(0),
+            documents_deleted: Some(0),
+        },
+    );
+
+    let mut partial_metrics = crate::scraper::FlapjackMetrics::default();
+    partial_metrics
+        .search_requests_total
+        .insert("products".to_string(), 110);
+    let partial_records =
+        build_counter_usage_records(&cfg, &partial_metrics, &state, &tenant_map, Utc::now());
+
+    assert_eq!(partial_records.len(), 1);
+    assert_eq!(
+        partial_records[0].event_type,
+        record::EventType::SearchRequests
+    );
+    assert_eq!(partial_records[0].value, 10);
+    assert_eq!(
+        state
+            .get("products")
+            .expect("tenant state should remain present")
+            .write_operations,
+        Some(50)
+    );
+
+    let mut recovered_metrics = crate::scraper::FlapjackMetrics::default();
+    recovered_metrics
+        .search_requests_total
+        .insert("products".to_string(), 120);
+    recovered_metrics
+        .write_operations_total
+        .insert("products".to_string(), 55);
+    let recovered_records =
+        build_counter_usage_records(&cfg, &recovered_metrics, &state, &tenant_map, Utc::now());
+    let recovered_write = recovered_records
+        .iter()
+        .find(|usage| usage.event_type == record::EventType::WriteOperations)
+        .expect("recovered write counter should produce its incremental delta");
+
+    assert_eq!(recovered_write.value, 5);
+}
+
 #[tokio::test]
 async fn scrape_retries_only_unwritten_counter_delta_after_partial_write_failure() {
     let metrics_fixture = MetricsFixture::spawn(counter_metrics(100, 20)).await;

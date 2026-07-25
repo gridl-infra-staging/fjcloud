@@ -51,8 +51,13 @@ pub(super) fn bill_object_storage_egress_line_item(
     storage: &StorageInputs,
     next_cycle_carryforward_cents: &mut Decimal,
 ) -> Result<(i64, Option<serde_json::Value>), PricingError> {
-    let raw_egress_cents = line_item.quantity * line_item.unit_price_cents;
-    let total_egress_cents = raw_egress_cents + *next_cycle_carryforward_cents;
+    let raw_egress_cents = line_item
+        .quantity
+        .checked_mul(line_item.unit_price_cents)
+        .ok_or(PricingError::AmountOverflow)?;
+    let total_egress_cents = raw_egress_cents
+        .checked_add(*next_cycle_carryforward_cents)
+        .ok_or(PricingError::AmountOverflow)?;
     let whole_egress_cents = total_egress_cents.floor();
     *next_cycle_carryforward_cents = total_egress_cents - whole_egress_cents;
     let amount_cents = whole_egress_cents
@@ -216,6 +221,28 @@ mod tests {
         assert!(
             result.is_ok(),
             "object storage egress billing must not panic above i64::MAX"
+        );
+        assert_eq!(result.unwrap(), Err(PricingError::AmountOverflow));
+    }
+
+    #[test]
+    fn egress_decimal_multiplication_overflow_returns_error_without_panic() {
+        let storage = StorageInputs::default();
+        let mut carryforward = Decimal::ZERO;
+        let mut overflowing_line_item = line_item(dec!(2));
+        overflowing_line_item.quantity = Decimal::MAX;
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            bill_object_storage_egress_line_item(
+                &overflowing_line_item,
+                &storage,
+                &mut carryforward,
+            )
+        }));
+
+        assert!(
+            result.is_ok(),
+            "object storage egress billing must not panic when Decimal multiplication overflows"
         );
         assert_eq!(result.unwrap(), Err(PricingError::AmountOverflow));
     }

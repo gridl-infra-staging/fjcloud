@@ -178,13 +178,7 @@ fn build_region_response(
         display_name: entry.display_name.clone(),
         provider_location: entry.provider_location.clone(),
         health: region_health(vm_signals),
-        utilization: worst_region_utilization(
-            vm_signals.len(),
-            &vm_signals
-                .iter()
-                .map(|signal| signal.utilization)
-                .collect::<Vec<_>>(),
-        ),
+        utilization: worst_region_utilization(vm_signals),
         vm_count: vm_signals.len(),
     }
 }
@@ -203,16 +197,22 @@ fn region_health(vm_signals: &[RegionVmSignal]) -> PublicRegionHealth {
     }
 }
 
-fn worst_region_utilization(
-    vm_count: usize,
-    buckets: &[Option<UtilizationBucket>],
-) -> Option<UtilizationBucket> {
-    if vm_count < 2 {
+fn worst_region_utilization(vm_signals: &[RegionVmSignal]) -> Option<UtilizationBucket> {
+    if vm_signals.len() < 2 {
         return None;
     }
-    buckets
+
+    let observed_bucket_count = vm_signals
         .iter()
-        .filter_map(|bucket| *bucket)
+        .filter(|signal| signal.utilization.is_some())
+        .count();
+    if observed_bucket_count < 2 {
+        return None;
+    }
+
+    vm_signals
+        .iter()
+        .filter_map(|signal| signal.utilization)
         .max_by_key(|bucket| match bucket {
             UtilizationBucket::Green => 0,
             UtilizationBucket::Yellow => 1,
@@ -348,37 +348,47 @@ mod tests {
     #[test]
     fn region_rollup_reduces_utilization_to_worst_bucket_after_k_anonymity() {
         assert_eq!(
-            worst_region_utilization(
-                2,
-                &[
-                    Some(UtilizationBucket::Green),
-                    Some(UtilizationBucket::Green)
-                ]
-            ),
+            worst_region_utilization(&[
+                signal(VmHealth::Healthy, Some(UtilizationBucket::Green)),
+                signal(VmHealth::Healthy, Some(UtilizationBucket::Green)),
+            ]),
             Some(UtilizationBucket::Green)
         );
         assert_eq!(
-            worst_region_utilization(
-                3,
-                &[
-                    Some(UtilizationBucket::Green),
-                    Some(UtilizationBucket::Red),
-                    Some(UtilizationBucket::Yellow),
-                ]
-            ),
+            worst_region_utilization(&[
+                signal(VmHealth::Healthy, Some(UtilizationBucket::Green)),
+                signal(VmHealth::Healthy, Some(UtilizationBucket::Red)),
+                signal(VmHealth::Healthy, Some(UtilizationBucket::Yellow)),
+            ]),
             Some(UtilizationBucket::Red)
         );
-        assert_eq!(worst_region_utilization(2, &[None, None]), None);
-        assert_eq!(worst_region_utilization(0, &[]), None);
         assert_eq!(
-            worst_region_utilization(1, &[Some(UtilizationBucket::Red)]),
+            worst_region_utilization(&[
+                signal(VmHealth::Healthy, None),
+                signal(VmHealth::Healthy, None),
+            ]),
+            None
+        );
+        assert_eq!(
+            worst_region_utilization(&[
+                signal(VmHealth::Healthy, Some(UtilizationBucket::Red)),
+                signal(VmHealth::Healthy, None),
+            ]),
+            None
+        );
+        assert_eq!(worst_region_utilization(&[]), None);
+        assert_eq!(
+            worst_region_utilization(&[signal(VmHealth::Healthy, Some(UtilizationBucket::Red))]),
             None
         );
 
         let zero_capacity_vm = vm(vector(0.0, 0, 0), vector(0.0, 0, 0));
         let topology = to_public_topology(&[&zero_capacity_vm], now());
         assert_eq!(
-            worst_region_utilization(2, &[topology[0].utilization]),
+            worst_region_utilization(&[
+                signal(VmHealth::Healthy, topology[0].utilization),
+                signal(VmHealth::Healthy, None),
+            ]),
             None
         );
     }

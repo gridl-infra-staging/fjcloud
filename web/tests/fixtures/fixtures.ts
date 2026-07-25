@@ -13,6 +13,7 @@ import { test as base, expect, type Locator, type Page } from '@playwright/test'
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
 	createMetricsReadySearchableIndexSeedOptions,
 	createSeedSearchableIndexFactory,
@@ -227,13 +228,15 @@ type AdminDeploymentFixture = {
 	status: string;
 };
 
+const FIXTURE_REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+
 function resolveFixtureContractPath(relativePath: string): string {
-	const contractPath = [
-		path.resolve(process.cwd(), relativePath),
-		path.resolve(process.cwd(), '..', relativePath)
-	].find((candidate) => existsSync(candidate));
+	const contractPath = path.resolve(FIXTURE_REPO_ROOT, relativePath);
 	if (!contractPath) {
-		throw new Error(`${relativePath} not found from fixture cwd`);
+		throw new Error(`${relativePath} not found from fixture repo root`);
+	}
+	if (!existsSync(contractPath)) {
+		throw new Error(`${relativePath} not found from fixture repo root`);
 	}
 	return contractPath;
 }

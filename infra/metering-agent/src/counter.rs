@@ -110,8 +110,8 @@ pub fn build_counter_usage_records(
 /// - Resolves customer attribution from `tenant_map`; unmapped indexes are
 ///   warned and skipped.
 /// - Skips cold/restoring tiers — live counter metrics do not apply to them.
-/// - Calls [`CounterState::advance`] to compute the delta since the previous
-///   scrape.  On the first observation of an index the baseline depends on
+/// - Computes each available counter's delta since the previous scrape. On
+///   the first observation of an index the baseline depends on
 ///   when the index was created relative to the agent start time: indexes
 ///   created after the agent started are seeded with a zero baseline (their
 ///   flapjack counters began at 0 under our watch, so the first observed value
@@ -121,8 +121,9 @@ pub fn build_counter_usage_records(
 /// - Emits one record per event type (search, write, indexed, deleted) only
 ///   when the delta is non-zero, preventing zero-value noise in the DB.
 ///
-/// Other counter totals (write, indexed, deleted) default to 0 when absent
-/// from the scrape payload so a partial metrics exposure never panics.
+/// Other counter totals (write, indexed, deleted) are left unchanged when
+/// absent from the scrape payload. This preserves their last valid baselines
+/// until a complete sample returns.
 #[cfg_attr(not(test), allow(dead_code))]
 fn build_counter_delta_records(
     cfg: &Config,
@@ -610,8 +611,8 @@ mod tests {
     /// (baseline set, no prior value).
     ///
     /// Second scrape: `search_requests_total=75`, `write_operations_total=30`
-    /// → search delta of 25 and write delta of 30 (first observation acts as
-    /// a baseline, not counted as activity).
+    /// → search delta of 25 and no write delta because the first valid write
+    /// observation establishes its baseline.
     #[test]
     fn metering_delta_computation_with_missing_counters() {
         let (cfg, state, tenant_map) = setup_active_counter_test("test-idx");
@@ -646,7 +647,7 @@ mod tests {
             .sum();
 
         assert_eq!(search_delta, 25);
-        assert_eq!(write_delta, 30);
+        assert_eq!(write_delta, 0);
     }
 
     /// Guards the new-index seed-from-zero behavior: an index created after the

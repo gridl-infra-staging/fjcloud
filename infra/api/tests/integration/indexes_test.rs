@@ -4896,10 +4896,13 @@ async fn shared_customer_with_existing_deployment_still_uses_scheduler_placement
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
-async fn create_with_hetzner_region_auto_provisions_when_no_capacity() {
+async fn create_with_hetzner_region_refuses_managed_auto_provision_without_secure_secret_delivery()
+{
     let Some(setup) = setup_empty_region_auto_provision_test().await else {
         return;
     };
+    let _env_guard = async_process_env_lock().lock().await;
+    let _local_dev_url = EnvVarGuard::unset("LOCAL_DEV_FLAPJACK_URL");
     setup.http_client.push_json_response(200, json!({}));
 
     let resp = setup
@@ -4921,24 +4924,27 @@ async fn create_with_hetzner_region_auto_provisions_when_no_capacity() {
     let (status, body) = response_json(resp).await;
     assert_eq!(
         status,
-        StatusCode::CREATED,
-        "auto-provision should create a VM for empty regions, including Hetzner regions"
+        StatusCode::SERVICE_UNAVAILABLE,
+        "Hetzner auto-provision must fail closed until it has secure secret delivery: {body}"
     );
-    assert_eq!(body["region"], "eu-central-1");
+    assert_eq!(
+        body["error"],
+        "failed to auto-provision shared VM: VM provisioner failed: managed shared VM provisioning for provider 'hetzner' is disabled because it would embed live credentials in user-data"
+    );
+    assert_eq!(
+        setup.vm_provisioner.create_call_count(),
+        0,
+        "fail-closed provider admission must run before any provider mutation"
+    );
 
     let autos = setup
         .vm_inventory_repo
         .list_active(Some("eu-central-1"))
         .await
         .unwrap();
-    assert_eq!(
-        autos.len(),
-        1,
-        "empty Hetzner region should auto-provision one shared VM"
-    );
-    assert_eq!(
-        autos[0].provider, "hetzner",
-        "region-to-provider mapping must select Hetzner for eu-central-1"
+    assert!(
+        autos.is_empty(),
+        "failed provisioning must not register a VM"
     );
 }
 

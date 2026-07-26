@@ -2,7 +2,9 @@ use chrono::Utc;
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::models::algolia_import_job::AlgoliaImportErrorCode;
+use crate::models::algolia_import_job::{
+    AlgoliaImportCreatePlacement, AlgoliaImportErrorCode, AlgoliaImportTargetBinding,
+};
 use crate::services::flapjack_proxy::{FlapjackEngineRequirements, ProxyError};
 
 use super::reconciliation_test_support::{harness, job, response, vm, FixedVmRepo};
@@ -54,6 +56,69 @@ async fn admission_compatibility_decision_is_typed_and_exhaustive() {
             .check_engine_admission_compatibility("https://node-1.example", &strict_requirements(),)
             .await,
         Err(AlgoliaImportErrorCode::EngineUpgradeRequired)
+    );
+}
+
+#[test]
+fn create_submit_request_uses_prepared_physical_target_uid() {
+    let now = Utc::now();
+    let vm_id = Uuid::new_v4();
+    let persisted_job = job(now, vm_id);
+    let request = crate::services::algolia_import::AlgoliaImportAdmissionRequest::new(
+        AlgoliaImportTargetBinding::create(persisted_job.customer_id, "products_next", "us-east-1"),
+        Some(AlgoliaImportCreatePlacement {
+            vm_id,
+            physical_uid: "private-physical-uid".to_string(),
+        }),
+        "app-id".to_string(),
+        "source-key".to_string(),
+        "products".to_string(),
+        "idem-create".to_string(),
+    );
+
+    let payload = request
+        .submit_request(&persisted_job)
+        .expect("create job has a prepared physical UID")
+        .into_payload();
+
+    assert_eq!(
+        payload.as_json(),
+        r#"{"appId":"app-id","apiKey":"source-key","sourceIndex":"products","targetIndex":"private-physical-uid","overwrite":false}"#
+    );
+}
+
+#[test]
+fn replace_submit_request_uses_authenticated_physical_target_uid() {
+    let now = Utc::now();
+    let vm_id = Uuid::new_v4();
+    let mut persisted_job = job(now, vm_id);
+    persisted_job.destination_kind =
+        crate::models::algolia_import_job::AlgoliaImportDestinationKind::Replace;
+    persisted_job.logical_target = "products".to_string();
+    persisted_job.physical_uid = Some("authenticated-physical-uid".to_string());
+    let request = crate::services::algolia_import::AlgoliaImportAdmissionRequest::new(
+        AlgoliaImportTargetBinding::replace(
+            persisted_job.customer_id,
+            "products",
+            "us-east-1",
+            persisted_job.lifecycle_generation,
+            "authenticated-physical-uid",
+        ),
+        None,
+        "app-id".to_string(),
+        "source-key".to_string(),
+        "algolia-products".to_string(),
+        "idem-replace".to_string(),
+    );
+
+    let payload = request
+        .submit_request(&persisted_job)
+        .expect("replace job has an authenticated physical UID")
+        .into_payload();
+
+    assert_eq!(
+        payload.as_json(),
+        r#"{"appId":"app-id","apiKey":"source-key","sourceIndex":"algolia-products","targetIndex":"authenticated-physical-uid","overwrite":true}"#
     );
 }
 

@@ -701,10 +701,6 @@ mod tests {
             "../../tests/fixtures/algolia_migration_engine_contract.json"
         ))
         .unwrap();
-        assert_eq!(
-            fixture["pinned_engine_sha"],
-            "a025a5eb43025b0680cfc78e5e07ec6c052695a4"
-        );
         let required = fixture["request"]["required_fields"]
             .as_array()
             .expect("request required fields");

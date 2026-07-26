@@ -6611,6 +6611,463 @@
         }
       }
     },
+    "/migration/algolia/destination-eligibility": {
+      "post": {
+        "tags": [
+          "Migration"
+        ],
+        "operationId": "check_algolia_destination_eligibility",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlgoliaDestinationEligibilityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Signed destination-eligibility envelope for the requested phase",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlgoliaDestinationEligibilityResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid, tampered, expired, or wrong-phase eligibility envelope, or unsupported destination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Eligibility envelope minted for another customer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Migration admission disabled or backpressured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/migration/algolia/jobs": {
+      "get": {
+        "tags": [
+          "Migration"
+        ],
+        "summary": "Tenant-scoped retained list. Reads are never gated by the migration\nexposure flag or backpressure — only admission is.",
+        "operationId": "list_algolia_import_jobs",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size; clamped to a default of 50 and a maximum of 200",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque signed keyset cursor returned as `nextCursor` by a previous page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One newest-first page of the caller's retained import jobs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAlgoliaImportJobPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Tampered, expired, or cross-customer list cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Migration"
+        ],
+        "operationId": "create_algolia_import_job",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAlgoliaImportJobRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Import job accepted (also returned for an idempotent replay); Location header carries the retained job path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAlgoliaImportJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid credentials, missing source, or tampered/stale eligibility envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Source key lacks the required ACL or the replace target is not owned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Destination conflict or a changed request under an existing idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Migration admission disabled or repository backpressured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/migration/algolia/jobs/{id}": {
+      "get": {
+        "tags": [
+          "Migration"
+        ],
+        "summary": "Tenant-scoped retained get. Returns an identical `404` for both a missing id\nand one owned by another customer, so ownership is not observable.",
+        "operationId": "get_algolia_import_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Retained import job id owned by the calling customer",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested retained import job",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAlgoliaImportJob"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such job, or the job is owned by another customer (indistinguishable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/migration/algolia/jobs/{id}/cancel": {
+      "post": {
+        "tags": [
+          "Migration"
+        ],
+        "operationId": "cancel_algolia_import_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Retained import job id owned by the calling customer",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelAlgoliaImportJobRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Cancel request was already recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAlgoliaImportJob"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Cancel accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAlgoliaImportJob"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such job, or the job is owned by another customer (indistinguishable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Job state cannot be cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/migration/algolia/jobs/{id}/resume": {
+      "post": {
+        "tags": [
+          "Migration"
+        ],
+        "operationId": "resume_algolia_import_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Retained import job id owned by the calling customer",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResumeAlgoliaImportJobRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Resume request was already recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAlgoliaImportJob"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Resume accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAlgoliaImportJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid credentials or source no longer exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Source key lacks the required ACL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such job, or the job is owned by another customer (indistinguishable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Job state cannot be resumed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Migration resume disabled or repository backpressured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/migration/algolia/list-indexes": {
       "post": {
         "tags": [
@@ -7006,6 +7463,113 @@
           }
         }
       },
+      "AlgoliaDestinationEligibilityRequest": {
+        "type": "object",
+        "required": [
+          "phase",
+          "mode",
+          "target"
+        ],
+        "properties": {
+          "eligibilityToken": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Provider-phase envelope replayed by the `target` phase. Absent in the\n`provider` phase, which mints (never consumes) an eligibility envelope."
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AlgoliaImportDestinationKind"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/AlgoliaEligibilityPhase"
+          },
+          "target": {
+            "$ref": "#/components/schemas/AlgoliaDestinationEligibilityTargetRequest"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AlgoliaDestinationEligibilityResponse": {
+        "type": "object",
+        "required": [
+          "phase",
+          "mode",
+          "provider",
+          "target",
+          "eligibilityToken",
+          "expiresAt"
+        ],
+        "properties": {
+          "eligibilityToken": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AlgoliaImportDestinationKind"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/AlgoliaEligibilityPhase"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/components/schemas/AlgoliaDestinationEligibilityTargetResponse"
+          }
+        }
+      },
+      "AlgoliaDestinationEligibilityTargetRequest": {
+        "type": "object",
+        "required": [
+          "region",
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AlgoliaDestinationEligibilityTargetResponse": {
+        "type": "object",
+        "required": [
+          "kind",
+          "region",
+          "name"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/AlgoliaImportDestinationKind"
+          },
+          "name": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          }
+        }
+      },
+      "AlgoliaEligibilityPhase": {
+        "type": "string",
+        "enum": [
+          "provider",
+          "target"
+        ]
+      },
+      "AlgoliaImportDestinationKind": {
+        "type": "string",
+        "enum": [
+          "create",
+          "replace"
+        ]
+      },
       "AlgoliaImportErrorCode": {
         "type": "string",
         "enum": [
@@ -7029,6 +7593,95 @@
           "not_resumable",
           "internal"
         ]
+      },
+      "AlgoliaImportJobStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "validating_source",
+          "copying_configuration",
+          "copying_documents",
+          "verifying",
+          "promoting",
+          "cancelling",
+          "cancelled",
+          "resuming",
+          "completed",
+          "completed_with_warnings",
+          "failed",
+          "interrupted"
+        ]
+      },
+      "AlgoliaImportPublicationDisposition": {
+        "type": "string",
+        "enum": [
+          "not_started",
+          "unchanged",
+          "promoted",
+          "unknown"
+        ]
+      },
+      "AlgoliaImportSummary": {
+        "type": "object",
+        "required": [
+          "documentsExpected",
+          "documentsImported",
+          "documentsRejected",
+          "settingsApplied",
+          "settingsUnsupported",
+          "synonymsExpected",
+          "synonymsImported",
+          "synonymsRejected",
+          "rulesExpected",
+          "rulesImported",
+          "rulesRejected"
+        ],
+        "properties": {
+          "documentsExpected": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "documentsImported": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "documentsRejected": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "rulesExpected": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "rulesImported": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "rulesRejected": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "settingsApplied": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "settingsUnsupported": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "synonymsExpected": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "synonymsImported": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "synonymsRejected": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
       },
       "AlgoliaIndexMetadata": {
         "type": "object",
@@ -7371,6 +8024,10 @@
         },
         "additionalProperties": false
       },
+      "CancelAlgoliaImportJobRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
       "ChangePasswordRequest": {
         "type": "object",
         "required": [
@@ -7385,6 +8042,46 @@
             "type": "string"
           }
         }
+      },
+      "CreateAlgoliaImportJobRequest": {
+        "type": "object",
+        "required": [
+          "mode",
+          "appId",
+          "apiKey",
+          "sourceName",
+          "target"
+        ],
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          },
+          "appId": {
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AlgoliaImportDestinationKind"
+          },
+          "sourceName": {
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/components/schemas/CreateAlgoliaImportJobTargetRequest"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateAlgoliaImportJobTargetRequest": {
+        "type": "object",
+        "required": [
+          "eligibilityToken"
+        ],
+        "properties": {
+          "eligibilityToken": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       },
       "CreateApiKeyRequest": {
         "type": "object",
@@ -8452,6 +9149,149 @@
           }
         }
       },
+      "PublicAlgoliaImportDestination": {
+        "type": "object",
+        "required": [
+          "kind",
+          "target",
+          "region"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/AlgoliaImportDestinationKind"
+          },
+          "region": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          }
+        }
+      },
+      "PublicAlgoliaImportError": {
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/AlgoliaImportErrorCode"
+          }
+        }
+      },
+      "PublicAlgoliaImportJob": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "mode",
+          "destination",
+          "source",
+          "summary",
+          "resumable",
+          "resumeCount",
+          "publicationDisposition",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "cancelRequestedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/PublicAlgoliaImportDestination"
+          },
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PublicAlgoliaImportError"
+              }
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AlgoliaImportDestinationKind"
+          },
+          "publicationDisposition": {
+            "$ref": "#/components/schemas/AlgoliaImportPublicationDisposition"
+          },
+          "resumable": {
+            "type": "boolean"
+          },
+          "resumeCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "resumeDeadline": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resumeProvenance": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "$ref": "#/components/schemas/PublicAlgoliaImportSource"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AlgoliaImportJobStatus"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/AlgoliaImportSummary"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        }
+      },
+      "PublicAlgoliaImportJobPage": {
+        "type": "object",
+        "required": [
+          "jobs"
+        ],
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicAlgoliaImportJob"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Opaque signed cursor for the next page, or null when the last page has\nbeen returned."
+          }
+        }
+      },
+      "PublicAlgoliaImportSource": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "PublicInfrastructureOverall": {
         "type": "object",
         "required": [
@@ -8631,6 +9471,18 @@
             "type": "string"
           }
         }
+      },
+      "ResumeAlgoliaImportJobRequest": {
+        "type": "object",
+        "required": [
+          "apiKey"
+        ],
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       },
       "RulesSearchRequest": {
         "type": "object",

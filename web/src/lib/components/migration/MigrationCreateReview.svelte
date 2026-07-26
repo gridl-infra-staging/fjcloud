@@ -54,10 +54,12 @@
 			<dd class="text-sm text-flapjack-ink">
 				{#if isReplace}
 					Replace the existing destination index. Primary index records, settings, synonyms, and
-					rules are imported; replica indices are not copied.
+					rules are imported. Algolia replicas are reconstructed as Flapjack virtual replicas. If
+					one cannot be reconstructed, the imported primary remains in place.
 				{:else}
 					Create a new destination index. Primary index records, settings, synonyms, and rules are
-					imported; replica indices are not copied.
+					imported. Algolia replicas are reconstructed as Flapjack virtual replicas. If one cannot
+					be reconstructed, the imported primary remains in place.
 				{/if}
 			</dd>
 		</div>

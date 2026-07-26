@@ -3,7 +3,7 @@ use super::super::support::{
     get_json, post_job_action, seed_replace_resumable_retained_job_without_target,
     seed_resumable_retained_job, seed_resumable_retained_job_with_status,
     seed_retained_job_with_internals, seed_retained_job_with_status, serialized_job_row,
-    setup_algolia_cloud_job_lifecycle_app, status_generation_checkpoint_count,
+    setup_algolia_cloud_job_lifecycle_app, status_generation_checkpoint_count, JobLifecycleState,
 };
 
 #[tokio::test]
@@ -54,10 +54,14 @@ async fn algolia_cloud_job_resume_accepts_failed_and_interrupted_then_replays_re
         );
         assert_eq!(accepted_body["status"], "resuming");
         let after = status_generation_checkpoint_count(&db.pool, id).await;
-        assert_eq!(after.0, "resuming");
-        assert_eq!(after.1, before.1 + 1);
-        assert!(after.2.is_none());
-        assert_eq!(after.3, before.3);
+        assert_eq!(after.status, "resuming");
+        assert_eq!(after.lifecycle_generation, before.lifecycle_generation);
+        assert_eq!(
+            after.resume_intent_generation,
+            before.resume_intent_generation + 1
+        );
+        assert!(after.resume_checkpoint.is_none());
+        assert_eq!(after.resume_count, before.resume_count);
 
         let (replay_status, _headers, replay_body) = post_job_action(
             &app,
@@ -145,14 +149,16 @@ async fn algolia_cloud_job_resume_requires_fresh_non_empty_api_key_before_source
         AlgoliaImportErrorCode::InvalidCredentials.as_str()
     );
     assert!(source_service.inspect_requests().is_empty());
+    let expected = JobLifecycleState {
+        status: "failed".to_string(),
+        lifecycle_generation: 1,
+        resume_intent_generation: 0,
+        resume_checkpoint: Some("opaque-checkpoint-secret".to_string()),
+        resume_count: 0,
+    };
     assert_eq!(
         status_generation_checkpoint_count(&db.pool, id).await,
-        (
-            "failed".to_string(),
-            0,
-            Some("opaque-checkpoint-secret".to_string()),
-            0
-        )
+        expected
     );
 }
 
@@ -196,7 +202,7 @@ async fn algolia_cloud_job_resume_missing_and_foreign_return_identical_404_witho
     assert_eq!(
         status_generation_checkpoint_count(&db.pool, foreign_id)
             .await
-            .0,
+            .status,
         "failed"
     );
 }
@@ -239,7 +245,9 @@ async fn algolia_cloud_job_resume_non_resumable_states_and_elapsed_deadline_retu
         assert_eq!(response_status, StatusCode::CONFLICT, "status={status:?}");
         assert_eq!(body["code"], AlgoliaImportErrorCode::NotResumable.as_str());
         assert_eq!(
-            status_generation_checkpoint_count(&db.pool, id).await.0,
+            status_generation_checkpoint_count(&db.pool, id)
+                .await
+                .status,
             status.as_str()
         );
     }
@@ -267,7 +275,7 @@ async fn algolia_cloud_job_resume_non_resumable_states_and_elapsed_deadline_retu
     assert_eq!(
         status_generation_checkpoint_count(&db.pool, elapsed)
             .await
-            .0,
+            .status,
         "failed"
     );
 }
@@ -611,7 +619,7 @@ async fn algolia_cloud_job_resume_repository_backpressure_is_retryable_503_and_r
     assert_eq!(
         status_generation_checkpoint_count(&db.pool, resume_id)
             .await
-            .0,
+            .status,
         "failed"
     );
 
@@ -693,4 +701,52 @@ async fn algolia_cloud_job_resume_exposure_disabled_returns_retryable_503_but_ca
     assert_eq!(cancel_body["status"], "cancelling");
     assert_eq!(cancel_body["resumable"], false);
     assert!(source_service.inspect_requests().is_empty());
+}
+
+/// Stage 3 non-resumable specimen: a completed, acknowledged, promoted job that
+/// advertises resumable=false must refuse resume with 409/not_resumable, never
+/// inspect the source, mutate no lifecycle generation or checkpoint, and still
+/// report resumable=false on a subsequent public GET.
+#[tokio::test]
+async fn algolia_cloud_job_resume_refused_specimen_makes_no_source_call_or_mutation_and_stays_non_resumable(
+) {
+    let db = connect_and_migrate_required("algolia_route_resume_refused_specimen").await;
+    let source_service = FakeAlgoliaSourceLister::with_inspect([]);
+    let (app, jwt, customer_id) =
+        setup_algolia_cloud_job_lifecycle_app(db.pool.clone(), true, source_service.clone()).await;
+    let id = seed_retained_job_with_status(
+        &db.pool,
+        customer_id,
+        "resume-refused-specimen",
+        "resume-refused-specimen",
+        AlgoliaImportJobStatus::Completed,
+    )
+    .await;
+    let before = status_generation_checkpoint_count(&db.pool, id).await;
+
+    let (status, headers, body) = post_job_action(
+        &app,
+        &jwt,
+        &format!("/migration/algolia/jobs/{id}/resume"),
+        json!({ "apiKey": "fresh-refused-key" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
+    assert_eq!(body["code"], AlgoliaImportErrorCode::NotResumable.as_str());
+    assert!(headers.get(http::header::LOCATION).is_none());
+    assert!(
+        source_service.inspect_requests().is_empty(),
+        "a refused resume must not inspect the source"
+    );
+    assert_eq!(
+        status_generation_checkpoint_count(&db.pool, id).await,
+        before,
+        "a refused resume must not mutate lifecycle generation or checkpoint"
+    );
+
+    let (get_status, get_body) =
+        get_json(&app, &jwt, &format!("/migration/algolia/jobs/{id}")).await;
+    assert_eq!(get_status, StatusCode::OK);
+    assert_eq!(get_body["resumable"], false);
 }

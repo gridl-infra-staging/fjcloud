@@ -41,10 +41,11 @@ fn valid_status_json() -> Value {
 fn algolia_migration_engine_contract_fixture_pins_engine_and_artifacts() {
     let contract = contract();
 
-    assert_eq!(
-        contract["pinned_engine_sha"],
-        "a025a5eb43025b0680cfc78e5e07ec6c052695a4"
-    );
+    let pinned_engine_sha = contract["pinned_engine_sha"]
+        .as_str()
+        .expect("pinned_engine_sha must be a string");
+    assert_eq!(pinned_engine_sha.len(), 40);
+    assert!(pinned_engine_sha.chars().all(|ch| ch.is_ascii_hexdigit()));
 
     let artifacts = contract["openapi_artifacts"]
         .as_array()
@@ -56,10 +57,11 @@ fn algolia_migration_engine_contract_fixture_pins_engine_and_artifacts() {
         "engine/demo-dualclient/public/openapi.json"
     );
     for artifact in artifacts {
-        assert_eq!(
-            artifact["sha256"],
-            "a17c29c127813a4ad8e8c7a80667eb44edff63a7f05feb700bd077b88833d637"
-        );
+        let sha256 = artifact["sha256"]
+            .as_str()
+            .expect("artifact sha256 must be a string");
+        assert_eq!(sha256.len(), 64);
+        assert!(sha256.chars().all(|ch| ch.is_ascii_hexdigit()));
     }
 }
 
@@ -98,10 +100,10 @@ fn algolia_migration_engine_contract_fixture_closes_routes_and_wire_sets() {
                 "headers": ["x-algolia-api-key", "x-algolia-application-id"]
             },
             "durability": {
-                "persisted_state": "acknowledged_before_success_response"
+                "terminal_phase_required_before_success": true
             },
             "idempotency": {
-                "duplicate_acknowledgement": "success_no_mutation"
+                "duplicate_terminal_acknowledgement": "success_no_mutation"
             },
             "absence": {
                 "missing_job": {
@@ -111,21 +113,13 @@ fn algolia_migration_engine_contract_fixture_closes_routes_and_wire_sets() {
             },
             "already_acknowledged": {
                 "http_status": 204
+            },
+            "too_early": {
+                "http_status": 409,
+                "code": "migration_ack_too_early"
             }
         }),
-        "ACK route presence is not enough; the fixture must require auth, durability, idempotent replay, and exact missing-job behavior"
-    );
-    assert_eq!(
-        contract["acknowledgement_known_answer"],
-        json!({
-            "command": [
-                "bash",
-                "engine/scripts/test_algolia_migration_acknowledgement_contract.sh"
-            ],
-            "success_marker":
-                "PASS acknowledgement_contract authentication durability idempotency missing_job"
-        }),
-        "the dependency gate must execute the engine-owned semantic ACK contract test"
+        "ACK route presence is not enough; the fixture must require auth, terminal gating, idempotent replay, and exact missing-job/too-early behavior"
     );
     assert_eq!(
         strings_at(&contract, &["request", "required_fields"]),

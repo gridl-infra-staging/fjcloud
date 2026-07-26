@@ -257,8 +257,42 @@ impl PgAlgoliaImportJobRepo {
         .map_err(repo_error)?;
         match latest_target {
             Some(value) => Ok(value),
-            None => self.current_customer_storage_bytes(tx, customer_id).await,
+            None => {
+                match self
+                    .current_migration_target_storage_bytes(tx, customer_id, target)
+                    .await?
+                {
+                    Some(value) => Ok(value),
+                    None => self.current_customer_storage_bytes(tx, customer_id).await,
+                }
+            }
         }
+    }
+
+    async fn current_migration_target_storage_bytes(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        customer_id: Uuid,
+        target: &str,
+    ) -> Result<Option<i64>, RepoError> {
+        sqlx::query_scalar(
+            "SELECT source_size_bytes
+             FROM algolia_import_jobs
+             WHERE customer_id = $1
+               AND logical_target = $2
+               AND status IN ('completed', 'completed_with_warnings')
+               AND publication_disposition = 'promoted'
+               AND engine_ack_state = 'acknowledged'
+               AND erased_at IS NULL
+               AND source_size_bytes >= 0
+             ORDER BY terminal_at DESC NULLS LAST, updated_at DESC, id DESC
+             LIMIT 1",
+        )
+        .bind(customer_id)
+        .bind(target)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(repo_error)
     }
 
     async fn node_active_reservations_for_update(

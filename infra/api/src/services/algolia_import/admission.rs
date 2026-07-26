@@ -16,9 +16,7 @@ use crate::repos::{
     PgAlgoliaImportJobRepo, RepoError, VmInventoryRepo,
 };
 use crate::services::alerting::{Alert, AlertService, AlertSeverity};
-use crate::services::algolia_source::{
-    AlgoliaSourceError, AlgoliaSourceInspectRequest, AlgoliaSourceLister,
-};
+use crate::services::algolia_source::AlgoliaSourceError;
 use crate::services::flapjack_proxy::{FlapjackEngineRequirements, FlapjackRuntimeIdentityReason};
 
 use super::{
@@ -80,17 +78,23 @@ impl AlgoliaImportService {
         decision
     }
 
-    pub async fn admit_and_submit(
+    pub async fn admit_inspected_and_submit(
         &self,
         request: AlgoliaImportAdmissionRequest,
+        source: AlgoliaImportSource,
         pool: &PgPool,
-        source_lister: &(dyn AlgoliaSourceLister + Send + Sync),
         vm_repo: &(dyn VmInventoryRepo + Send + Sync),
         alert_service: &(dyn AlertService + Send + Sync),
     ) -> Result<AlgoliaImportAdmissionOutcome, AlgoliaImportAdmissionError> {
         let job_repo = PgAlgoliaImportJobRepo::new(pool.clone());
-        self.admit_and_submit_with_repo(request, &job_repo, source_lister, vm_repo, alert_service)
-            .await
+        self.admit_inspected_and_submit_with_repo(
+            request,
+            source,
+            &job_repo,
+            vm_repo,
+            alert_service,
+        )
+        .await
     }
 
     /// Credential-free replay probe for the route: returns the retained job when
@@ -112,19 +116,30 @@ impl AlgoliaImportService {
             .map_err(AlgoliaImportAdmissionError::Admission)
     }
 
-    /// Credential-submit orchestration seam over an explicit repository. Kept
-    /// public so failure-injection tests can drive the full admit → guard →
-    /// send → linkage path against a wrapping repository that forces a specific
-    /// repository outcome (e.g. a linkage failure after engine acceptance).
-    pub async fn admit_and_submit_with_repo(
+    /// Pre-inspected credential-submit seam over an explicit repository. Kept
+    /// public so failure-injection tests can force a repository outcome after
+    /// source inspection without duplicating admission or submission logic.
+    pub async fn admit_inspected_and_submit_with_repo(
         &self,
         request: AlgoliaImportAdmissionRequest,
+        source: AlgoliaImportSource,
         job_repo: &(dyn AlgoliaImportJobRepo + Send + Sync),
-        source_lister: &(dyn AlgoliaSourceLister + Send + Sync),
         vm_repo: &(dyn VmInventoryRepo + Send + Sync),
         alert_service: &(dyn AlertService + Send + Sync),
     ) -> Result<AlgoliaImportAdmissionOutcome, AlgoliaImportAdmissionError> {
-        let outcome = Self::admit_job(&request, job_repo, source_lister).await?;
+        let outcome = Self::admit_inspected_job(&request, job_repo, source).await?;
+        self.submit_admitted_job(request, job_repo, vm_repo, alert_service, outcome)
+            .await
+    }
+
+    async fn submit_admitted_job(
+        &self,
+        request: AlgoliaImportAdmissionRequest,
+        job_repo: &(dyn AlgoliaImportJobRepo + Send + Sync),
+        vm_repo: &(dyn VmInventoryRepo + Send + Sync),
+        alert_service: &(dyn AlertService + Send + Sync),
+        outcome: AlgoliaImportDispatchAdmissionOutcome,
+    ) -> Result<AlgoliaImportAdmissionOutcome, AlgoliaImportAdmissionError> {
         let job = match outcome {
             AlgoliaImportDispatchAdmissionOutcome::Replay(job) => {
                 return Ok(AlgoliaImportAdmissionOutcome::Replay(job));
@@ -153,7 +168,7 @@ impl AlgoliaImportService {
                 return Ok(AlgoliaImportAdmissionOutcome::New(job));
             }
         };
-        let submit_request = request.submit_request(&job);
+        let submit_request = request.submit_request(&job)?;
         let submit_result = self.submit(target, submit_request).await;
         let release_result = job_repo.release_dispatch_guard(guard).await;
         if release_result.is_err() {
@@ -194,38 +209,41 @@ impl AlgoliaImportService {
         }
     }
 
-    async fn admit_job(
+    async fn find_dispatch_replay_in_repo(
         request: &AlgoliaImportAdmissionRequest,
         job_repo: &(dyn AlgoliaImportJobRepo + Send + Sync),
-        source_lister: &(dyn AlgoliaSourceLister + Send + Sync),
-    ) -> Result<AlgoliaImportDispatchAdmissionOutcome, AlgoliaImportAdmissionError> {
-        // A retained job never reuses the temporary key. A replay against a
-        // deleted customer is refused rather than submitted again.
-        if let Some(existing) = job_repo
+    ) -> Result<Option<AlgoliaImportJob>, AlgoliaImportAdmissionError> {
+        job_repo
             .find_active_dispatch_replay(
                 request.customer_id(),
                 &request.idempotency_key,
                 &request.replay_identity(),
             )
             .await
-            .map_err(AlgoliaImportAdmissionError::Admission)?
-        {
-            return Ok(AlgoliaImportDispatchAdmissionOutcome::Replay(existing));
-        }
-        let source = source_lister
-            .inspect_source(AlgoliaSourceInspectRequest {
-                app_id: request.app_id.clone(),
-                // Keep every temporary-key copy under zeroizing ownership.
-                api_key: request.api_key.clone(),
-                source_name: request.source_name.clone(),
-            })
-            .await
-            .map_err(AlgoliaImportAdmissionError::Source)?;
+            .map_err(AlgoliaImportAdmissionError::Admission)
+    }
+
+    async fn admit_new_inspected_job(
+        request: &AlgoliaImportAdmissionRequest,
+        job_repo: &(dyn AlgoliaImportJobRepo + Send + Sync),
+        source: AlgoliaImportSource,
+    ) -> Result<AlgoliaImportDispatchAdmissionOutcome, AlgoliaImportAdmissionError> {
         let admission = request.dispatch_admission(source)?;
         job_repo
             .admit_dispatch(admission)
             .await
             .map_err(AlgoliaImportAdmissionError::Admission)
+    }
+
+    async fn admit_inspected_job(
+        request: &AlgoliaImportAdmissionRequest,
+        job_repo: &(dyn AlgoliaImportJobRepo + Send + Sync),
+        source: AlgoliaImportSource,
+    ) -> Result<AlgoliaImportDispatchAdmissionOutcome, AlgoliaImportAdmissionError> {
+        if let Some(existing) = Self::find_dispatch_replay_in_repo(request, job_repo).await? {
+            return Ok(AlgoliaImportDispatchAdmissionOutcome::Replay(existing));
+        }
+        Self::admit_new_inspected_job(request, job_repo, source).await
     }
 
     pub(crate) async fn resolve_engine_target(
@@ -380,16 +398,29 @@ impl AlgoliaImportAdmissionRequest {
         }
     }
 
-    fn submit_request(&self, job: &AlgoliaImportJob) -> AlgoliaImportSubmitRequest {
-        AlgoliaImportSubmitRequest::new(
+    pub(crate) fn submit_request(
+        &self,
+        job: &AlgoliaImportJob,
+    ) -> Result<AlgoliaImportSubmitRequest, AlgoliaImportAdmissionError> {
+        let target_index = match job.destination_kind {
+            AlgoliaImportDestinationKind::Create => job
+                .physical_uid
+                .clone()
+                .ok_or(AlgoliaImportAdmissionError::PreparedCreateTargetMissing)?,
+            AlgoliaImportDestinationKind::Replace => job
+                .physical_uid
+                .clone()
+                .ok_or(AlgoliaImportAdmissionError::AuthenticatedReplaceTargetMissing)?,
+        };
+        Ok(AlgoliaImportSubmitRequest::new(
             self.app_id.clone(),
             // Hand the credential to the submit request as a zeroizing clone so
             // it is never widened into an ordinary `String`.
             self.api_key.clone(),
             self.source_name.clone(),
-            Some(job.logical_target.clone()),
+            Some(target_index),
             job.destination_kind == AlgoliaImportDestinationKind::Replace,
-        )
+        ))
     }
 }
 
@@ -417,6 +448,8 @@ pub enum AlgoliaImportAdmissionError {
     Refused(AlgoliaImportErrorCode),
     #[error("prepared create target is missing")]
     PreparedCreateTargetMissing,
+    #[error("authenticated replace target is missing")]
+    AuthenticatedReplaceTargetMissing,
     #[error(transparent)]
     Repository(RepoError),
 }

@@ -1,8 +1,7 @@
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
-use http_body_util::BodyExt;
+use std::collections::BTreeSet;
 use std::path::PathBuf;
-use tower::ServiceExt;
+use std::time::Duration;
+use tokio::sync::oneshot;
 use utoipa::OpenApi;
 
 use api::models::AlgoliaImportErrorCode;
@@ -10,6 +9,9 @@ use api::openapi::ApiDoc;
 
 const REGENERATE_OPENAPI_ARTIFACT_COMMAND: &str =
     "(cd infra && UPDATE_OPENAPI_ARTIFACT=1 cargo test -p api openapi_spec_matches_committed_artifact -- --nocapture)";
+const OPENAPI_OPERATION_METHODS: [&str; 8] = [
+    "get", "put", "post", "delete", "options", "head", "patch", "trace",
+];
 
 fn openapi_artifact_path() -> PathBuf {
     let api_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -55,6 +57,83 @@ fn response_schema_ref<'a>(
         "{operation_ptr}/responses/{status}/content/application~1json/schema/$ref"
     ))
     .and_then(|value| value.as_str())
+}
+
+fn scalar_api_reference_json(html: &str) -> serde_json::Value {
+    let id_index = html
+        .find(r#"id="api-reference""#)
+        .expect("Scalar HTML must include api-reference JSON script");
+    let script_body_start = html[id_index..]
+        .find('>')
+        .map(|offset| id_index + offset + 1)
+        .expect("api-reference script must have an opening tag");
+    let script_body_end = html[script_body_start..]
+        .find("</script>")
+        .map(|offset| script_body_start + offset)
+        .expect("api-reference script must have a closing tag");
+
+    serde_json::from_str(html[script_body_start..script_body_end].trim())
+        .expect("api-reference script body must be valid OpenAPI JSON")
+}
+
+fn migration_http_operations(spec: &serde_json::Value) -> BTreeSet<(String, String)> {
+    let paths = spec
+        .get("paths")
+        .and_then(|value| value.as_object())
+        .expect("OpenAPI spec must contain object-valued paths");
+    let mut operations = BTreeSet::new();
+    for (path, path_item) in paths {
+        if !path.starts_with("/migration/algolia/") {
+            continue;
+        }
+        let methods = path_item
+            .as_object()
+            .unwrap_or_else(|| panic!("OpenAPI path item for {path} must be an object"));
+        for method in OPENAPI_OPERATION_METHODS {
+            if methods.contains_key(method) {
+                operations.insert((method.to_ascii_uppercase(), path.clone()));
+            }
+        }
+    }
+    operations
+}
+
+#[test]
+fn migration_http_operations_counts_all_openapi_operation_methods() {
+    let spec = serde_json::json!({
+        "paths": {
+            "/migration/algolia/jobs": {
+                "get": {},
+                "put": {},
+                "post": {},
+                "delete": {},
+                "options": {},
+                "head": {},
+                "patch": {},
+                "trace": {},
+                "parameters": []
+            },
+            "/migration/other/jobs": {
+                "trace": {}
+            }
+        }
+    });
+
+    let operations = migration_http_operations(&spec);
+
+    assert_eq!(
+        operations,
+        BTreeSet::from([
+            ("DELETE".to_string(), "/migration/algolia/jobs".to_string()),
+            ("GET".to_string(), "/migration/algolia/jobs".to_string()),
+            ("HEAD".to_string(), "/migration/algolia/jobs".to_string()),
+            ("OPTIONS".to_string(), "/migration/algolia/jobs".to_string()),
+            ("PATCH".to_string(), "/migration/algolia/jobs".to_string()),
+            ("POST".to_string(), "/migration/algolia/jobs".to_string()),
+            ("PUT".to_string(), "/migration/algolia/jobs".to_string()),
+            ("TRACE".to_string(), "/migration/algolia/jobs".to_string()),
+        ])
+    );
 }
 
 #[test]
@@ -243,7 +322,7 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
     .map(|code| serde_json::json!(code.as_str()))
     .collect::<Vec<_>>();
     assert_eq!(code_values, &expected_codes);
-    for absent_path in [
+    for mounted_path in [
         "/paths/~1migration~1algolia~1destination-eligibility/post",
         "/paths/~1migration~1algolia~1jobs/post",
         "/paths/~1migration~1algolia~1jobs/get",
@@ -252,8 +331,8 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
         "/paths/~1migration~1algolia~1jobs~1{id}~1resume/post",
     ] {
         assert!(
-            spec.pointer(absent_path).is_none(),
-            "{absent_path} must stay absent until F11 activation"
+            spec.pointer(mounted_path).is_some(),
+            "{mounted_path} must remain documented after route activation"
         );
     }
     let required = spec
@@ -486,25 +565,103 @@ fn openapi_spec_generates_valid_json() {
 }
 
 #[tokio::test]
-async fn docs_endpoint_returns_200() {
-    let app = crate::common::test_app();
+async fn openapi_docs_route_serves_exact_migration_contract_over_http() {
+    let app = crate::common::TestStateBuilder::new().build_app();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind ephemeral loopback listener for /docs test");
+    let docs_url = format!(
+        "http://{}/docs",
+        listener
+            .local_addr()
+            .expect("bound listener must expose local address")
+    );
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    let server_task = tokio::spawn(async move {
+        axum::serve(listener, app)
+            .with_graceful_shutdown(async {
+                let _ = shutdown_rx.await;
+            })
+            .await
+    });
 
-    let req = Request::builder().uri("/docs").body(Body::empty()).unwrap();
-
-    let resp = app.oneshot(req).await.unwrap();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .expect("build bounded reqwest client");
+    let response = tokio::time::timeout(Duration::from_secs(3), client.get(docs_url).send())
+        .await
+        .expect("GET /docs must not hang")
+        .expect("GET /docs must complete over loopback");
     assert_eq!(
-        resp.status(),
-        StatusCode::OK,
-        "GET /docs/ should return 200 with Scalar UI"
+        response.status(),
+        reqwest::StatusCode::OK,
+        "GET /docs must return the Scalar UI"
     );
 
-    // Verify response contains HTML content (Scalar renders an HTML page)
-    let body = resp.into_body().collect().await.unwrap().to_bytes();
-    let html = String::from_utf8_lossy(&body);
-    assert!(
-        html.contains("</html>") || html.contains("scalar"),
-        "response should contain HTML from Scalar UI"
+    let html = tokio::time::timeout(Duration::from_secs(3), response.text())
+        .await
+        .expect("reading /docs response body must not hang")
+        .expect("GET /docs body must be readable");
+    let served_spec = scalar_api_reference_json(&html);
+    let expected_spec =
+        serde_json::to_value(ApiDoc::openapi()).expect("ApiDoc must serialize to JSON");
+    assert_eq!(
+        served_spec, expected_spec,
+        "/docs must serve the canonical ApiDoc document"
     );
+
+    let operations = migration_http_operations(&served_spec);
+    let expected_operations = BTreeSet::from([
+        (
+            "GET".to_string(),
+            "/migration/algolia/availability".to_string(),
+        ),
+        (
+            "POST".to_string(),
+            "/migration/algolia/list-indexes".to_string(),
+        ),
+        (
+            "POST".to_string(),
+            "/migration/algolia/destination-eligibility".to_string(),
+        ),
+        ("POST".to_string(), "/migration/algolia/jobs".to_string()),
+        ("GET".to_string(), "/migration/algolia/jobs".to_string()),
+        (
+            "GET".to_string(),
+            "/migration/algolia/jobs/{id}".to_string(),
+        ),
+        (
+            "POST".to_string(),
+            "/migration/algolia/jobs/{id}/cancel".to_string(),
+        ),
+        (
+            "POST".to_string(),
+            "/migration/algolia/jobs/{id}/resume".to_string(),
+        ),
+    ]);
+    let existing_operations = BTreeSet::from([
+        (
+            "GET".to_string(),
+            "/migration/algolia/availability".to_string(),
+        ),
+        (
+            "POST".to_string(),
+            "/migration/algolia/list-indexes".to_string(),
+        ),
+    ]);
+    assert_eq!(operations.len(), 8);
+    assert_eq!(operations, expected_operations);
+    assert_eq!(operations.difference(&existing_operations).count(), 6);
+
+    shutdown_tx
+        .send(())
+        .expect("server shutdown receiver must still be live");
+    let server_result = tokio::time::timeout(Duration::from_secs(3), server_task)
+        .await
+        .expect("server task must stop after graceful shutdown")
+        .expect("server task must not panic");
+    server_result.expect("server must exit without transport error");
 }
 
 // ===========================================================================

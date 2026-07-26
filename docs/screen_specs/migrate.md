@@ -84,10 +84,13 @@ Algolia credentials.
   client-searchable over loaded pages.
 - Each row shows name, record count, source size, updated date, optional last
   build seconds, and primary/replica type.
-- Replica migration copy is not normative until an engine translation owner
-  proves the exact replica contract. The UI may label `Primary` or
-  `Replica of <primary>` from the source DTO but must not claim replica topology
-  behavior.
+- Primary rows can be selected for import. Replica rows remain disabled, keep
+  the source `Replica of <primary>` label, and direct customers to import the
+  primary instead.
+- Importing the primary imports primary index records, settings, synonyms, and
+  rules. Algolia standard and virtual replicas are reconstructed as Flapjack
+  virtual replicas. If one replica reconstruction fails, the imported primary
+  remains in place.
 
 ### Destination
 
@@ -106,6 +109,10 @@ Algolia credentials.
 ### Review And Start
 
 - Review shows exact source, destination, scope, and quota/admission summary.
+- The Scope row communicates the same bounded replica consequence in create and
+  replace modes: primary index records, settings, synonyms, and rules are
+  imported; Algolia replicas are reconstructed as Flapjack virtual replicas; if
+  one cannot be reconstructed, the imported primary remains in place.
 - Start sends one `ApiClient.createAlgoliaImportJob(request, idempotencyKey)`
   call through the existing client, disables duplicate submit immediately, reuses
   the same idempotency key for retries of the same intent, and creates a new key
@@ -173,6 +180,12 @@ Algolia credentials.
       App ID/key to `listAlgoliaSourceIndexes` and never persists either value.
 - [ ] Given loaded sources, source rows render exact metadata and client-side
       search/pagination behavior without refetching for search.
+- [ ] Given loaded sources include a replica, the replica source row is disabled,
+      labels the source as `Replica of <primary>`, tells customers to import the
+      primary, states that Algolia replicas are reconstructed as Flapjack virtual
+      replicas, and states that a failed reconstruction leaves the imported
+      primary in place; existing proof:
+      `web/src/lib/components/migration/MigrationCreateFlowDestination.test.ts:295-319`.
 - [ ] Given a selected source, the exact source name remains visible and the
       destination proposal is valid, editable, deterministic, and advisory only.
 - [ ] Given target eligibility is stale, expired, or bound to an old source,
@@ -180,6 +193,16 @@ Algolia credentials.
       until refresh.
 - [ ] Given review submit is activated twice, exactly one create request is
       emitted for that intent and the stable idempotency key is reused on retry.
+- [ ] Given create-mode review renders, the Scope row states the exact create
+      consequence copy for primary import, Flapjack virtual replica
+      reconstruction, and primary preservation after failed reconstruction;
+      existing proof:
+      `web/src/lib/components/migration/MigrationCreateFlowDestination.test.ts:320-352`.
+- [ ] Given replace-mode review renders, the Scope row states the exact replace
+      consequence copy for primary import, Flapjack virtual replica
+      reconstruction, and primary preservation after failed reconstruction;
+      existing proof:
+      `web/src/lib/components/migration/MigrationCreateFlowDestination.test.ts:693-712`.
 - [ ] Given any credential canary, it appears only in the two live inputs and
       credential-bearing request bodies.
 
@@ -206,10 +229,8 @@ Algolia credentials.
 
 ## Current Implementation Gaps
 
-- Current: replica topology copy is not specified.
-  Target: exact replica behavior only after a bounded engine translation owner
-  is cited and tested.
-  Evidence: `docs/design/2026_07_18_batch_10_algolia_migration_workflow.md`.
+- None for the bounded replica-copy contract. Route activation, async warning
+  transport, and resume behavior remain owned by separate lanes.
 
 ## Automated Coverage
 
@@ -228,7 +249,10 @@ Algolia credentials.
 - Dormant create component proof:
   `web/src/lib/components/migration/MigrationCreateFlow.test.ts`;
   `web/src/lib/components/migration/MigrationCreateFlowProvider.test.ts`;
-  `web/src/lib/components/migration/MigrationCreateFlowDestination.test.ts`;
+  `web/src/lib/components/migration/MigrationCreateFlowDestination.test.ts`
+  covers disabled replica source rows and the exact source/create/replace
+  consequence copy for Flapjack virtual replicas at lines 295-319, 320-352, and
+  693-712;
   `web/src/lib/components/migration/MigrationAdmission.test.ts`;
   `web/src/lib/components/migration/RecentImports.test.ts`;
   `web/src/lib/components/migration/ImportJobDetail.test.ts`.

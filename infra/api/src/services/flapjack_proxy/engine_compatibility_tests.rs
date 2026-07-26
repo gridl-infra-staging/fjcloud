@@ -279,6 +279,37 @@ async fn flapjack_engine_compatibility_classifies_non_success_health_as_runtime_
     );
 }
 
+#[tokio::test]
+async fn flapjack_engine_compatibility_accepts_loopback_legacy_health_with_artifact_identity() {
+    let http = Arc::new(MockCompatibilityHttpClient::default());
+    http.push_health(json!({"status": "ok", "version": "1.0.10"}));
+    let proxy = FlapjackProxy::with_http_client(http, Arc::new(MockNodeSecretManager::new()));
+    let requirements = FlapjackEngineRequirements::new(
+        Some("1.0.10"),
+        Some("abc123"),
+        Some("build-1"),
+        Some("sha-1"),
+        None,
+    );
+
+    let result = proxy
+        .check_engine_compatibility("http://127.0.0.1:7799", &requirements)
+        .await;
+
+    assert_eq!(result.reason, FlapjackRuntimeIdentityReason::Match);
+}
+
+#[tokio::test]
+async fn flapjack_engine_compatibility_rejects_remote_legacy_health_without_exact_identity() {
+    let reason = classify_health(
+        strict_requirements(),
+        json!({"status": "ok", "version": "1.0.10"}),
+    )
+    .await;
+
+    assert_eq!(reason, FlapjackRuntimeIdentityReason::LegacyMalformedHealth);
+}
+
 #[test]
 fn flapjack_engine_compatibility_env_requirements_use_stage_one_contract_names() {
     let configured = HashMap::from([

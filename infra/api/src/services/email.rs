@@ -279,6 +279,15 @@ fn formatted_sender_identity(from_name: &str, from_address: &str) -> String {
     format!("{from_name} <{from_address}>")
 }
 
+fn map_send_email_error<R: std::fmt::Debug>(
+    error: aws_sdk_sesv2::error::SdkError<aws_sdk_sesv2::operation::send_email::SendEmailError, R>,
+) -> EmailError {
+    EmailError::DeliveryFailed(format!(
+        "SES SendEmail failed: {}",
+        aws_sdk_sesv2::error::DisplayErrorContext(&error)
+    ))
+}
+
 pub struct MockEmailService {
     sent_emails: Arc<Mutex<Vec<SentEmail>>>,
     app_base_url: String,
@@ -438,10 +447,7 @@ impl SesEmailService {
                 })?;
             request = request.email_tags(tag);
         }
-        request
-            .send()
-            .await
-            .map_err(|e| EmailError::DeliveryFailed(e.to_string()))?;
+        request.send().await.map_err(map_send_email_error)?;
 
         Ok(BroadcastDeliveryStatus::Sent)
     }
@@ -763,6 +769,9 @@ impl EmailService for SesEmailService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use aws_sdk_sesv2::error::{ConnectorError, SdkError};
+    use aws_sdk_sesv2::operation::send_email::SendEmailError;
+    use std::io;
 
     #[test]
     fn quota_warning_email_html_escapes_unknown_metric_label() {
@@ -799,5 +808,35 @@ mod tests {
         assert!(
             validate_recipient_email("victim@example.com\r\nBcc: attacker@example.com").is_err()
         );
+    }
+
+    #[test]
+    fn ses_send_error_mapping_preserves_nested_dispatch_context() {
+        let error = SdkError::<SendEmailError, ()>::dispatch_failure(ConnectorError::io(
+            io::Error::new(io::ErrorKind::TimedOut, "ses-connect-timeout").into(),
+        ));
+        let mapped = map_send_email_error(error);
+        let EmailError::DeliveryFailed(message) = mapped else {
+            panic!("SES send errors should map to delivery failures");
+        };
+        assert!(
+            message.contains("SES SendEmail failed"),
+            "mapped error should preserve SES operation context: {message}"
+        );
+        assert!(
+            message.contains("ses-connect-timeout"),
+            "mapped error should preserve nested connector context: {message}"
+        );
+        for forbidden in [
+            "recipient@example.com",
+            "Authorization: Bearer secret-token",
+            "fj_live_secret_api_key",
+            "Sensitive message body",
+        ] {
+            assert!(
+                !message.contains(forbidden),
+                "mapped error should not include forbidden sentinel {forbidden}: {message}"
+            );
+        }
     }
 }

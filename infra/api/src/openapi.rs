@@ -125,6 +125,12 @@ pub const BEARER_SCHEME_NAME: &str = "bearer_jwt";
         // Stage 5 — Algolia migration
         crate::routes::migration::algolia_availability,
         crate::routes::migration::list_algolia_indexes,
+        crate::routes::migration::check_algolia_destination_eligibility,
+        crate::routes::migration::create_algolia_import_job,
+        crate::routes::migration::list_algolia_import_jobs,
+        crate::routes::migration::get_algolia_import_job,
+        crate::routes::migration::cancel_algolia_import_job,
+        crate::routes::migration::resume_algolia_import_job,
     ),
     components(schemas(
         crate::routes::auth::RegisterRequest,

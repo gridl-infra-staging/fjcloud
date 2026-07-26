@@ -375,18 +375,41 @@ pub(super) async fn seed_replace_resumable_retained_job_without_target(
     id
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct JobLifecycleState {
+    pub status: String,
+    pub lifecycle_generation: i64,
+    pub resume_intent_generation: i64,
+    pub resume_checkpoint: Option<String>,
+    pub resume_count: i64,
+}
+
 pub(super) async fn status_generation_checkpoint_count(
     pool: &PgPool,
     id: Uuid,
-) -> (String, i64, Option<String>, i64) {
-    sqlx::query_as(
-        "SELECT status, resume_intent_generation, resume_checkpoint, resume_count
+) -> JobLifecycleState {
+    let (
+        status,
+        lifecycle_generation,
+        resume_intent_generation,
+        resume_checkpoint,
+        resume_count,
+    ) = sqlx::query_as(
+        "SELECT status, lifecycle_generation, resume_intent_generation, resume_checkpoint, resume_count
          FROM algolia_import_jobs WHERE id = $1",
     )
     .bind(id)
     .fetch_one(pool)
     .await
-    .expect("read lifecycle state")
+    .expect("read lifecycle state");
+
+    JobLifecycleState {
+        status,
+        lifecycle_generation,
+        resume_intent_generation,
+        resume_checkpoint,
+        resume_count,
+    }
 }
 
 pub(super) async fn serialized_job_row(pool: &PgPool, id: Uuid) -> String {

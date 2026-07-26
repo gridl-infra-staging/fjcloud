@@ -2,6 +2,8 @@ use crate::provisioner::region_map::RegionConfig;
 
 use super::AlgoliaImportErrorCode;
 
+const LOCAL_INTEGRATION_PROVIDER: &str = "local";
+
 pub fn validate_algolia_create_provider(
     config: &RegionConfig,
     region: &str,
@@ -36,7 +38,7 @@ pub struct AlgoliaReplaceTargetFacts {
 
 impl AlgoliaReplaceTargetFacts {
     pub fn validate(&self) -> Result<(), AlgoliaImportErrorCode> {
-        if self.provider != "aws" {
+        if !matches!(self.provider.as_str(), "aws" | LOCAL_INTEGRATION_PROVIDER) {
             return Err(AlgoliaImportErrorCode::MigrationProviderUnsupported);
         }
         if self.service_type != "flapjack" {

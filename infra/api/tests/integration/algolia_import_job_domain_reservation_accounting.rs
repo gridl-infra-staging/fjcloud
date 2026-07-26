@@ -183,6 +183,53 @@ async fn insert_replace_target_on_vm(
     .expect("insert tenant");
 }
 
+async fn insert_target_storage_record(pool: &PgPool, customer_id: Uuid, target: &str, value: i64) {
+    sqlx::query(
+        "INSERT INTO usage_records
+         (idempotency_key, customer_id, tenant_id, region, node_id,
+          event_type, value, recorded_at, flapjack_ts)
+         VALUES ($1, $2, $3, 'us-east-1', 'node-reservation-test',
+                 'storage_bytes', $4, NOW(), NOW())",
+    )
+    .bind(format!("storage-{customer_id}-{target}-{value}"))
+    .bind(customer_id)
+    .bind(target)
+    .bind(value)
+    .execute(pool)
+    .await
+    .expect("insert target storage usage record");
+}
+
+async fn insert_customer_storage_daily(pool: &PgPool, customer_id: Uuid, value: i64) {
+    sqlx::query(
+        "INSERT INTO usage_daily (customer_id, date, region, storage_bytes_avg)
+         VALUES ($1, CURRENT_DATE, 'us-east-1', $2)",
+    )
+    .bind(customer_id)
+    .bind(value)
+    .execute(pool)
+    .await
+    .expect("insert customer storage daily usage");
+}
+
+async fn mark_import_promoted_and_acknowledged(pool: &PgPool, job_id: Uuid) {
+    sqlx::query(
+        "UPDATE algolia_import_jobs
+         SET dispatch_intent_state = 'committed',
+             engine_job_id = $2,
+             status = 'completed',
+             publication_disposition = 'promoted',
+             engine_ack_state = 'acknowledged',
+             terminal_at = NOW()
+         WHERE id = $1",
+    )
+    .bind(job_id)
+    .bind(Uuid::new_v4())
+    .execute(pool)
+    .await
+    .expect("mark import job promoted and acknowledged");
+}
+
 async fn reservation_tuple(pool: &PgPool, job_id: Uuid) -> (i64, i64, i64) {
     sqlx::query_as(
         "SELECT reserved_index_count, reserved_customer_storage_bytes,
@@ -505,6 +552,89 @@ async fn dispatch_admitted_replace_reservation_uses_final_key_metadata() {
 
     assert_eq!(reservation_tuple(&db.pool, job.id).await, (0, 700, 3_700));
     assert_eq!(active_reservation_count(&db.pool).await, 1);
+}
+
+#[tokio::test]
+async fn dispatch_replace_reservation_uses_target_storage_record_not_customer_total() {
+    let Some(db) = connect_and_migrate("algolia_reserve_replace_target_record").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer = Uuid::new_v4();
+    insert_replace_target_sized(
+        &db.pool,
+        customer,
+        "products",
+        9_000,
+        json!({ "max_indexes": 10, "max_storage_bytes": 20_000 }),
+        10_000,
+        1_000,
+    )
+    .await;
+    insert_target_storage_record(&db.pool, customer, "products", 1_000).await;
+
+    let admitted = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Replace(replace_job_sized(
+            customer,
+            "products",
+            "dispatch-replace-target-storage-record",
+            1_700,
+        )))
+        .await
+        .expect("dispatch replace admission uses target storage instead of customer total");
+    let AlgoliaImportDispatchAdmissionOutcome::New(job) = admitted else {
+        panic!("first dispatch replace admission must create a retained reservation");
+    };
+
+    assert_eq!(reservation_tuple(&db.pool, job.id).await, (0, 700, 3_700));
+}
+
+#[tokio::test]
+async fn dispatch_replace_reservation_uses_prior_migration_size_before_customer_total() {
+    let Some(db) = connect_and_migrate("algolia_reserve_replace_prior_import").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer = Uuid::new_v4();
+    insert_customer(&db.pool, customer).await;
+    let prior_import = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Create(create_job_sized(
+            customer,
+            "products",
+            "prior-create-for-rerun",
+            1_000,
+        )))
+        .await
+        .expect("admit prior create import");
+    let AlgoliaImportDispatchAdmissionOutcome::New(prior_import) = prior_import else {
+        panic!("first prior create admission must create a retained reservation");
+    };
+    mark_import_promoted_and_acknowledged(&db.pool, prior_import.id).await;
+    let vm_id = insert_vm(&db.pool, 10_000, 1_000).await;
+    insert_replace_target_on_vm(
+        &db.pool,
+        customer,
+        "products",
+        vm_id,
+        json!({ "max_indexes": 10, "max_storage_bytes": 20_000 }),
+    )
+    .await;
+    insert_customer_storage_daily(&db.pool, customer, 9_000).await;
+
+    let admitted = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Replace(replace_job_sized(
+            customer,
+            "products",
+            "dispatch-replace-prior-import-size",
+            1_700,
+        )))
+        .await
+        .expect("dispatch replace admission uses prior import size before customer total");
+    let AlgoliaImportDispatchAdmissionOutcome::New(job) = admitted else {
+        panic!("first dispatch replace admission must create a retained reservation");
+    };
+
+    assert_eq!(reservation_tuple(&db.pool, job.id).await, (0, 700, 3_700));
 }
 
 #[tokio::test]

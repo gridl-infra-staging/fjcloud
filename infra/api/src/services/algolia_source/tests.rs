@@ -174,7 +174,7 @@ async fn algolia_cloud_discovery_credentials_are_redacted_and_never_enter_cursor
         .await
         .unwrap();
 
-    let debug_request = format!("{:?}", &client.requests()[0]);
+    let debug_request = format!("{:?}", client.requests()[0]);
     assert!(debug_request.contains("app_id: \"[REDACTED]\""));
     assert!(debug_request.contains("api_key: \"[REDACTED]\""));
     assert!(!debug_request.contains(APP_ID));

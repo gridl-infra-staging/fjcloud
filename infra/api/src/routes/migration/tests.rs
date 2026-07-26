@@ -19,7 +19,7 @@ mod compute_availability_tests {
             capabilities(true, false, true),
         );
 
-        assert_eq!(response.available, true);
+        assert!(response.available);
         assert_eq!(response.reason, None);
         assert_eq!(response.message, "Algolia migration is available.");
         assert_eq!(response.capabilities, capabilities(true, false, true));
@@ -61,7 +61,7 @@ mod compute_availability_tests {
             capabilities(true, false, false),
         );
 
-        assert_eq!(response.available, true);
+        assert!(response.available);
         assert_eq!(response.capabilities, capabilities(true, false, false));
     }
 
@@ -73,8 +73,8 @@ mod compute_availability_tests {
             capabilities(true, true, true),
         );
 
-        assert_eq!(response.available, true);
-        assert_eq!(response.capabilities.resume, false);
+        assert!(response.available);
+        assert!(!response.capabilities.resume);
     }
 }
 

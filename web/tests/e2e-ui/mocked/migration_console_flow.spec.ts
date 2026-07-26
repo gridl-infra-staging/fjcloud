@@ -43,7 +43,7 @@ test('available migration create flow starts an import and renders retained job 
 	await expect(review).toContainText('source_products');
 	await expect(review).toContainText('source_products in us-east-1');
 	await expect(review).toContainText(
-		'Create a new destination index. Primary index records, settings, synonyms, and rules are imported; replica indices are not copied.'
+		'Create a new destination index. Primary index records, settings, synonyms, and rules are imported. Algolia replicas are reconstructed as Flapjack virtual replicas. If one cannot be reconstructed, the imported primary remains in place.'
 	);
 	await expect(review).toContainText('Imports available');
 

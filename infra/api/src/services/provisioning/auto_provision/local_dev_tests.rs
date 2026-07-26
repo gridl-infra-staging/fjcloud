@@ -1,4 +1,5 @@
 //! Local-dev shared VM provisioning tests.
+#![allow(clippy::await_holding_lock)]
 
 use super::tests::{clear_local_dev_topology_env, EnvVarGuard, InMemoryVmRepo, LOCAL_DEV_ENV_LOCK};
 use super::*;

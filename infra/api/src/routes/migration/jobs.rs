@@ -214,6 +214,15 @@ pub async fn create_algolia_import_job(
             Json(body),
         ));
     }
+    let inspected_source = state
+        .algolia_source_service
+        .inspect_source(AlgoliaSourceInspectRequest {
+            app_id: request.app_id.clone(),
+            api_key: zeroize::Zeroizing::new(request.api_key.clone()),
+            source_name: request.source_name.clone(),
+        })
+        .await
+        .map_err(map_algolia_source_error)?;
     let create_target = match target_binding.mode() {
         AlgoliaImportDestinationKind::Create => Some(
             crate::routes::indexes::lifecycle::prepare_algolia_create_target(
@@ -229,7 +238,7 @@ pub async fn create_algolia_import_job(
     };
     let outcome = state
         .algolia_import_service
-        .admit_and_submit(
+        .admit_inspected_and_submit(
             AlgoliaImportAdmissionRequest::new(
                 target_binding,
                 create_target,
@@ -238,8 +247,8 @@ pub async fn create_algolia_import_job(
                 request.source_name,
                 idempotency_key,
             ),
+            inspected_source,
             &state.pool,
-            state.algolia_source_service.as_ref(),
             state.vm_inventory_repo.as_ref(),
             state.alert_service.as_ref(),
         )
@@ -267,6 +276,9 @@ fn map_submit_admission_error(error: AlgoliaImportAdmissionError) -> ApiError {
         }
         AlgoliaImportAdmissionError::PreparedCreateTargetMissing => {
             ApiError::Internal("prepared create target missing".into())
+        }
+        AlgoliaImportAdmissionError::AuthenticatedReplaceTargetMissing => {
+            ApiError::Internal("authenticated replace target missing".into())
         }
         AlgoliaImportAdmissionError::Repository(error) => ApiError::from(error),
     }

@@ -1,5 +1,52 @@
 # Flapjack Cloud (fjcloud) — Roadmap
 
+**Last updated:** 2026-07-26 — reconciliation against `origin/main` after the
+local correctness wave. Merged on `origin/main`: metering partial-write
+accounting, billing overflow guards, customer-infrastructure browser privacy
+proof, aggregation exact-value KATs, and API correctness hardening. Flapjack's
+async replacement and durable
+status-outcome work are also merged, clearing the engine side of the migration
+consumer gate. **A3C remains in flight and owns the real-Algolia
+create/replace/idempotency/cancel/resume-refusal proof; do not upgrade the
+Fjcloud migration row to certified until its receipt lands.** This revision
+supersedes the 2026-07-25 header below wherever they conflict.
+
+## Current corrections to historical planned rows
+
+The long-form rows below retain dated investigation history. The following
+2026-07-26 corrections are authoritative wherever that history conflicts:
+
+- **Engine exposure:** E1's transport switch and design contract are merged but
+  inert/default-off. The remaining owner is a staging-fleet TLS proof followed
+  by removal of public tcp/7700; it is not a new endpoint-switch implementation.
+- **Production data plane:** a non-vacuous production signup → provision →
+  ingest → exact-search → zero-residue-cleanup proof has run. The open work is
+  recurring proof freshness and release-candidate ownership, not proving that
+  the data plane has literally never served a request.
+- **Public-release verdict:** the next historical verdict owner is
+  `chats/icg/jul23_11am_8_rc_verdict_launch_anchor.md`, gated by a discharged
+  §1 receipt. Do not revive the abandoned `jul16_10am_8` owner.
+- **Closeout debt:** the five closeout artifacts now exist:
+  `chatting/jul20_fjcloud_console_closeout.md`,
+  `chatting/jul20_9pm_console_prep_closeout.md`,
+  `chatting/jul21_10pm_fjcloud_reliability_closeout.md`,
+  `chatting/jul22_engine_exposure_tls_closeout.md`, and
+  `chatting/jul23_11am_launch_security_autoheal_closeout.md`. The remaining
+  work is residual-lane reconciliation, registry cleanup, and successor
+  execution; do not re-author those closeouts.
+- **`jul23_11am` successors:** its administrative closeout exists and E1
+  shipped. The surviving work is the gated RC owner, TLS live flip/removal,
+  replacement timeline UI recovery, and enabled autorepair proof. These are
+  re-homed in
+  `chats/icg/jul26_12am_0_local_migration_and_scale_closure_orchestration.md`;
+  do not dispatch the stale monolithic descriptions below.
+- **Algolia migration:** F10 catalog finalization and its consumer surface are
+  merged. A3C is the active correctness-proof producer. F10C privacy scrub must
+  be re-homed on fresh post-A3C `main`. File-disjoint L1K SES cause
+  preservation is re-homed immediately by
+  `chats/icg/jul26_12am_4_l1k_ses_cause_preservation_recovery.md`. Neither
+  stopped worker may be resumed or merged wholesale.
+
 **Last updated:** 2026-07-25 — reconciliation against `origin/main` after the `jul24_pm` Wave-1 migration/ingest/reliability batch and the `jul25_am` recovery lanes. **This revision supersedes the 2026-07-24 header below wherever they conflict.** Merged and code-verified on `main`: **W1** Algolia migration surface activation (`146a69f33`), **W2** local real-pipeline harness (`7756f157b`), **W3** billing/pricing exact-cent correctness (`9b380f04f`), **A2** migration console UX (`a8f806224`), **E1** engine transport switch (`13015c14f`), **N1** closeout/deregister sweep (`7e78a4b8d`), and `jul25_am_1` node-secret lookup probe (`aa72f95fa`). **C1** aggregation-correctness KATs is in review (not yet merged).
 
 **Correction to the 2026-07-24 engine-exposure narrative (item 2 below):** E1 DID ship the control-plane→engine transport switch — `engine_base_url()` / `engine_data_plane_tls_enabled()` in `services/provisioning/auto_provision.rs`, the design doc `docs/design/engine_data_plane_transport.md`, and the `FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED` env var (registered in `docs/env-vars.md`) — **inert by default**. The prior claims that "the endpoint switch L10 never dispatched" and "`docs/design/engine_data_plane_transport.md` is absent" are **superseded and false as written**. The engine-exposure P0 remains OPEN because the switch defaults off (customers still get cleartext `http://…:7700` in effect), but the residual gap is now only the **parked staging-TLS-fleet proof that flips the switch**, not authoring the switch itself.

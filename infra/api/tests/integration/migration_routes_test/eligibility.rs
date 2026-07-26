@@ -348,6 +348,39 @@ async fn algolia_cloud_job_eligibility_target_accepts_owned_healthy_replace_targ
 }
 
 #[tokio::test]
+async fn algolia_migration_created_shared_deployment_is_immediately_healthy() {
+    let Some(db) = connect_and_migrate("algolia_eligibility_created_deployment_health").await
+    else {
+        return;
+    };
+    let customer_id = Uuid::new_v4();
+    insert_active_customer(&db.pool, customer_id, 1).await;
+    let vm: api::models::vm_inventory::VmInventory = sqlx::query_as(
+        "INSERT INTO vm_inventory
+         (id, region, provider, hostname, flapjack_url, status, capacity, current_load)
+         VALUES ($1, 'us-east-1', 'local', $2, 'http://127.0.0.1:7799', 'active',
+                 $3::jsonb, $4::jsonb)
+         RETURNING *",
+    )
+    .bind(Uuid::new_v4())
+    .bind("local-migration-created.flapjack.test")
+    .bind(json!({ "disk_bytes": 10_000_000_000_i64 }))
+    .bind(json!({ "disk_bytes": 0_i64 }))
+    .fetch_one(&db.pool)
+    .await
+    .expect("seed local integration VM");
+
+    let deployment = PgDeploymentRepo::new(db.pool.clone())
+        .create_running_shared_deployment(customer_id, "us-east-1", &vm)
+        .await
+        .expect("create migration shared deployment");
+
+    assert_eq!(deployment.vm_provider, "local");
+    assert_eq!(deployment.status, "running");
+    assert_eq!(deployment.health_status, "healthy");
+}
+
+#[tokio::test]
 async fn algolia_cloud_job_eligibility_target_rejects_missing_replace_target_without_source_call() {
     let Some(db) = connect_and_migrate("algolia_eligibility_replace_route_missing").await else {
         return;

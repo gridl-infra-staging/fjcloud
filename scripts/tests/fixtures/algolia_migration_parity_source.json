@@ -1,0 +1,24 @@
+[
+  {
+    "objectID": "doc-1",
+    "title": "Alpha",
+    "price": 100,
+    "tags": ["x", "y"],
+    "_geoloc": {
+      "lat": 40.0,
+      "lng": -73.0
+    }
+  },
+  {
+    "objectID": "doc-2",
+    "title": "Beta",
+    "price": 250,
+    "tags": ["y"]
+  },
+  {
+    "objectID": "doc-3",
+    "title": "Gamma",
+    "price": 0,
+    "tags": []
+  }
+]

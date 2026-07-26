@@ -19,7 +19,7 @@ use api::repos::{
     AlgoliaImportReconciliationWriteOutcome, AlgoliaImportResumeOutcome, AlgoliaLifecycleError,
     CatalogLifecycleTargetGuard, CatalogLifecycleTargetIdentity, CustomerRepo,
     DestinationEligibilityError, DestinationEligibilitySnapshot, PgAlgoliaImportJobRepo,
-    PgCustomerRepo, RepoError, VmInventoryRepo,
+    PgCustomerRepo, PgDeploymentRepo, RepoError, VmInventoryRepo,
 };
 use api::routes::migration::ListAlgoliaIndexesRequest;
 use api::secrets::mock::MockNodeSecretManager;
@@ -48,7 +48,7 @@ use tower::ServiceExt;
 use tracing_subscriber::prelude::*;
 use uuid::Uuid;
 
-use crate::common::flapjack_proxy_test_support::MockFlapjackHttpClient;
+use crate::common::flapjack_proxy_test_support::{test_flapjack_uid, MockFlapjackHttpClient};
 use crate::common::integration_helpers::tracing_test_lock;
 use crate::common::support::pg_schema_harness::{
     connect_and_migrate, insert_active_customer, DbHarness,

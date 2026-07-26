@@ -2797,6 +2797,13 @@ fn algolia_replace_accepts_eligible_aws_target() {
 }
 
 #[test]
+fn algolia_replace_accepts_local_integration_target() {
+    let mut facts = eligible_replace_facts();
+    facts.provider = "local".into();
+    assert!(facts.validate().is_ok());
+}
+
+#[test]
 fn algolia_replace_rejects_hetzner_provider() {
     let mut facts = eligible_replace_facts();
     facts.provider = "hetzner".into();
@@ -2807,8 +2814,8 @@ fn algolia_replace_rejects_hetzner_provider() {
 }
 
 #[test]
-fn algolia_replace_rejects_gcp_oci_bare_metal_local_unknown_providers() {
-    for provider in ["gcp", "oci", "bare-metal", "local", "unknown", ""] {
+fn algolia_replace_rejects_gcp_oci_bare_metal_unknown_providers() {
+    for provider in ["gcp", "oci", "bare-metal", "unknown", ""] {
         let mut facts = eligible_replace_facts();
         facts.provider = provider.into();
         assert_eq!(

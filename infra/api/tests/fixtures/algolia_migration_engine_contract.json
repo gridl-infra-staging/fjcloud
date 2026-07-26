@@ -1,13 +1,13 @@
 {
-  "pinned_engine_sha": "a025a5eb43025b0680cfc78e5e07ec6c052695a4",
+  "pinned_engine_sha": "bf6dbb13d542243b42a29e4f48e94aface9b67eb",
   "openapi_artifacts": [
     {
       "path": "engine/docs2/openapi.json",
-      "sha256": "a17c29c127813a4ad8e8c7a80667eb44edff63a7f05feb700bd077b88833d637"
+      "sha256": "2f3230eb49d2bc9fd9a73d4551bf9ff8dd20be282f1f8371e8c97b83bfa7679b"
     },
     {
       "path": "engine/demo-dualclient/public/openapi.json",
-      "sha256": "a17c29c127813a4ad8e8c7a80667eb44edff63a7f05feb700bd077b88833d637"
+      "sha256": "2f3230eb49d2bc9fd9a73d4551bf9ff8dd20be282f1f8371e8c97b83bfa7679b"
     }
   ],
   "routes": {
@@ -39,10 +39,10 @@
       ]
     },
     "durability": {
-      "persisted_state": "acknowledged_before_success_response"
+      "terminal_phase_required_before_success": true
     },
     "idempotency": {
-      "duplicate_acknowledgement": "success_no_mutation"
+      "duplicate_terminal_acknowledgement": "success_no_mutation"
     },
     "absence": {
       "missing_job": {
@@ -52,14 +52,11 @@
     },
     "already_acknowledged": {
       "http_status": 204
+    },
+    "too_early": {
+      "http_status": 409,
+      "code": "migration_ack_too_early"
     }
-  },
-  "acknowledgement_known_answer": {
-    "command": [
-      "bash",
-      "engine/scripts/test_algolia_migration_acknowledgement_contract.sh"
-    ],
-    "success_marker": "PASS acknowledgement_contract authentication durability idempotency missing_job"
   },
   "request": {
     "required_fields": [

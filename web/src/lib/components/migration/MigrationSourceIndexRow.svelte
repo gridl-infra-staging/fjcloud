@@ -45,8 +45,8 @@
 			</span>
 			{#if replica}
 				<span class="block text-xs text-flapjack-ink/70">
-					The primary index is imported, replica indices are not copied, and alternate sort orders
-					built on replicas do not carry over.
+					Import the primary index instead. Its Algolia replicas are reconstructed as Flapjack
+					virtual replicas. If one cannot be reconstructed, the imported primary remains in place.
 				</span>
 			{/if}
 		</span>

@@ -292,7 +292,7 @@ describe('MigrationCreateFlow - destination name proposal', () => {
 		expect(validateIndexName(proposal)).toBeNull();
 	});
 
-	it('disables replica selection in v1 and renders the exact consequence copy', async () => {
+	it('keeps replica source rows disabled and directs customers to import the primary whose replicas are reconstructed as Flapjack virtual replicas', async () => {
 		const listAlgoliaSourceIndexes = vi
 			.fn()
 			.mockResolvedValue(
@@ -311,7 +311,11 @@ describe('MigrationCreateFlow - destination name proposal', () => {
 
 		expect(replicaInput).toBeDisabled();
 		expect(replicaRow).toHaveTextContent(
-			'The primary index is imported, replica indices are not copied, and alternate sort orders built on replicas do not carry over.'
+			'Import the primary index instead. Its Algolia replicas are reconstructed as Flapjack virtual replicas. If one cannot be reconstructed, the imported primary remains in place.'
+		);
+		expect(replicaRow).not.toHaveTextContent('replica indices are not copied');
+		expect(replicaRow).not.toHaveTextContent(
+			'alternate sort orders built on replicas do not carry over'
 		);
 	});
 });
@@ -341,6 +345,10 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 		expect(review).toHaveTextContent('source_products');
 		expect(review).toHaveTextContent('us-east-1');
 		expect(review).toHaveTextContent('Create a new destination index');
+		expect(review).toHaveTextContent(
+			'Create a new destination index. Primary index records, settings, synonyms, and rules are imported. Algolia replicas are reconstructed as Flapjack virtual replicas. If one cannot be reconstructed, the imported primary remains in place.'
+		);
+		expect(review).not.toHaveTextContent('replica indices are not copied');
 		expect(review).toHaveTextContent('Imports available');
 		expect(review.textContent).not.toMatch(/\d+%/);
 	});
@@ -697,6 +705,10 @@ describe('MigrationCreateFlow - replace target eligibility and start', () => {
 		expect(review).toHaveTextContent('existing_products');
 		expect(review).toHaveTextContent('us-west-2');
 		expect(review).toHaveTextContent(/replace/i);
+		expect(review).toHaveTextContent(
+			'Replace the existing destination index. Primary index records, settings, synonyms, and rules are imported. Algolia replicas are reconstructed as Flapjack virtual replicas. If one cannot be reconstructed, the imported primary remains in place.'
+		);
+		expect(review).not.toHaveTextContent('replica indices are not copied');
 		// The editable create-destination slug must never appear in replace mode;
 		// only the exact-typing confirmation field is shown.
 		expect(screen.queryByLabelText(/^destination index name$/i)).not.toBeInTheDocument();

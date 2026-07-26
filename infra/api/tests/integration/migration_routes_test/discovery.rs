@@ -523,31 +523,35 @@ async fn algolia_cloud_job_routes_are_mounted_but_admission_stays_disabled_befor
     }
 }
 
-/// The future eligibility/create/list/get operations must have complete utoipa
-/// contracts that resolve their full schema cascade — but only in a test-only
-/// generated document. F11 owns wiring them into the served `ApiDoc`, so the
-/// same operations must stay absent from `api::openapi::ApiDoc` until then.
+fn assert_schema_exists(spec: &serde_json::Value, schema: &str) {
+    assert!(
+        spec.pointer(&format!("/components/schemas/{schema}"))
+            .is_some(),
+        "served contract must register schema {schema}"
+    );
+}
+
+fn assert_schema_property_absent(spec: &serde_json::Value, schema: &str, property: &str) {
+    assert_schema_exists(spec, schema);
+    assert!(
+        spec.pointer(&format!(
+            "/components/schemas/{schema}/properties/{property}"
+        ))
+        .is_none(),
+        "served {schema} schema must not expose sensitive property {property}"
+    );
+}
+
+/// The eligibility/create/list/get operations must be registered in the served
+/// `ApiDoc` with their full schema cascade and privacy-sensitive fields absent.
 #[test]
-fn algolia_cloud_job_future_contract_is_generated_but_stays_unserved() {
+fn algolia_cloud_job_contract_is_served_with_schema_and_privacy_guards() {
     use utoipa::OpenApi;
 
-    #[derive(OpenApi)]
-    #[openapi(paths(
-        api::routes::migration::check_algolia_destination_eligibility,
-        api::routes::migration::create_algolia_import_job,
-        api::routes::migration::list_algolia_import_jobs,
-        api::routes::migration::get_algolia_import_job,
-        api::routes::migration::cancel_algolia_import_job,
-        api::routes::migration::resume_algolia_import_job,
-    ))]
-    struct FutureMigrationApiDoc;
-
-    let generated = serde_json::to_value(FutureMigrationApiDoc::openapi())
-        .expect("test-only migration contract must serialize");
     let served = serde_json::to_value(api::openapi::ApiDoc::openapi())
         .expect("served ApiDoc must serialize");
 
-    let future_ops = [
+    let served_ops = [
         ("/migration/algolia/destination-eligibility", "post"),
         ("/migration/algolia/jobs", "post"),
         ("/migration/algolia/jobs", "get"),
@@ -555,20 +559,17 @@ fn algolia_cloud_job_future_contract_is_generated_but_stays_unserved() {
         ("/migration/algolia/jobs/{id}/cancel", "post"),
         ("/migration/algolia/jobs/{id}/resume", "post"),
     ];
-    for (path, method) in future_ops {
+    assert_eq!(served_ops.len(), 6);
+    for (path, method) in served_ops {
         let pointer = format!("/paths/{}/{method}", path.replace('/', "~1"));
         assert!(
-            generated.pointer(&pointer).is_some(),
-            "test-only generated contract must document {method} {path}"
-        );
-        assert!(
-            served.pointer(&pointer).is_none(),
-            "{method} {path} must stay absent from the served ApiDoc until F11 activation"
+            served.pointer(&pointer).is_some(),
+            "served contract must document {method} {path}"
         );
     }
 
     // Every schema in the DTO cascade must resolve, proving the ToSchema derives
-    // reach the F3 domain enums the public job body embeds.
+    // reach the domain enums the public job body embeds.
     for schema in [
         "AlgoliaDestinationEligibilityRequest",
         "AlgoliaDestinationEligibilityResponse",
@@ -582,35 +583,10 @@ fn algolia_cloud_job_future_contract_is_generated_but_stays_unserved() {
         "AlgoliaImportDestinationKind",
         "AlgoliaImportErrorCode",
     ] {
-        assert!(
-            generated
-                .pointer(&format!("/components/schemas/{schema}"))
-                .is_some(),
-            "generated contract must register schema {schema}"
-        );
+        assert_schema_exists(&served, schema);
     }
-    assert!(
-        generated
-            .pointer("/components/schemas/PublicAlgoliaImportJob/properties/resumeCheckpoint")
-            .is_none(),
-        "public migration jobs must not expose the internal engine resume checkpoint"
-    );
-    assert!(
-        generated
-            .pointer("/components/schemas/PublicAlgoliaImportJob/properties/warnings")
-            .is_none(),
-        "public migration jobs must not expose raw warning payloads"
-    );
-    assert!(
-        generated
-            .pointer("/components/schemas/PublicAlgoliaImportSource/properties/appId")
-            .is_none(),
-        "public migration source must not expose Algolia App ID"
-    );
-    assert!(
-        generated
-            .pointer("/components/schemas/PublicAlgoliaImportError/properties/message")
-            .is_none(),
-        "public migration errors must not expose producer error messages"
-    );
+    assert_schema_property_absent(&served, "PublicAlgoliaImportJob", "resumeCheckpoint");
+    assert_schema_property_absent(&served, "PublicAlgoliaImportJob", "warnings");
+    assert_schema_property_absent(&served, "PublicAlgoliaImportSource", "appId");
+    assert_schema_property_absent(&served, "PublicAlgoliaImportError", "message");
 }

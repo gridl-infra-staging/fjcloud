@@ -27,9 +27,9 @@ impl PgDeploymentRepo {
         sqlx::query_as::<_, Deployment>(
             "INSERT INTO customer_deployments
              (customer_id, node_id, region, vm_type, vm_provider, ip_address,
-              status, provider_vm_id, hostname, flapjack_url, failure_reason)
+              status, provider_vm_id, hostname, flapjack_url, health_status, failure_reason)
              VALUES ($1, $2, $3, 'shared', $4, '0.0.0.0',
-                     'running', $5, $6, $7, NULL)
+                     'running', $5, $6, $7, 'healthy', NULL)
              RETURNING *",
         )
         .bind(customer_id)

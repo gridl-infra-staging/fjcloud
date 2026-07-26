@@ -522,6 +522,7 @@ impl FlapjackProxy {
         FlapjackEngineCompatibilityResult::new(classify_flapjack_health(
             &response.body,
             requirements,
+            flapjack_base_url_is_loopback(flapjack_base_url),
         ))
     }
 
@@ -568,9 +569,22 @@ fn flapjack_health_url(flapjack_base_url: &str) -> String {
     format!("{}/health", flapjack_base_url.trim_end_matches('/'))
 }
 
+fn flapjack_base_url_is_loopback(flapjack_base_url: &str) -> bool {
+    reqwest::Url::parse(flapjack_base_url)
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_owned))
+        .is_some_and(|host| {
+            host == "localhost"
+                || host
+                    .parse::<std::net::IpAddr>()
+                    .is_ok_and(|ip| ip.is_loopback())
+        })
+}
+
 fn classify_flapjack_health(
     body: &str,
     requirements: &FlapjackEngineRequirements,
+    allow_loopback_legacy_identity: bool,
 ) -> FlapjackRuntimeIdentityReason {
     let Ok(health) = serde_json::from_str::<serde_json::Value>(body) else {
         return FlapjackRuntimeIdentityReason::LegacyMalformedHealth;
@@ -583,7 +597,11 @@ fn classify_flapjack_health(
         .and_then(serde_json::Value::as_object)
         .unwrap_or(health);
 
-    classify_flapjack_identity(requirements, observed_identity(build, health))
+    classify_flapjack_identity(
+        requirements,
+        observed_identity(build, health),
+        allow_loopback_legacy_identity,
+    )
 }
 
 /// Build the observed identity for a parsed health payload.
@@ -676,6 +694,7 @@ impl ObservedRuntimeSecurity {
 fn classify_flapjack_identity(
     requirements: &FlapjackEngineRequirements,
     observed: ObservedFlapjackIdentity<'_>,
+    allow_loopback_legacy_identity: bool,
 ) -> FlapjackRuntimeIdentityReason {
     if observed.version.is_none() {
         return FlapjackRuntimeIdentityReason::LegacyMalformedHealth;
@@ -690,23 +709,17 @@ fn classify_flapjack_identity(
     if observed.dirty == Some(true) {
         return FlapjackRuntimeIdentityReason::DirtyLocalBuild;
     }
-    if requirements.exact_identity_required() && observed.dirty.is_none() {
-        return FlapjackRuntimeIdentityReason::LegacyMalformedHealth;
-    }
-    if missing_required_identity_field(requirements, &observed) {
-        return FlapjackRuntimeIdentityReason::LegacyMalformedHealth;
-    }
     if requirements
         .required_revision
         .as_deref()
-        .is_some_and(|expected| observed.revision != Some(expected))
+        .is_some_and(|expected| observed.revision.is_some_and(|actual| actual != expected))
     {
         return FlapjackRuntimeIdentityReason::RevisionMismatch;
     }
     if requirements
         .required_build_id
         .as_deref()
-        .is_some_and(|expected| observed.build_id != Some(expected))
+        .is_some_and(|expected| observed.build_id.is_some_and(|actual| actual != expected))
     {
         return FlapjackRuntimeIdentityReason::BuildIdMismatch;
     }
@@ -717,23 +730,23 @@ fn classify_flapjack_identity(
     {
         return FlapjackRuntimeIdentityReason::ChecksumMismatch;
     }
+    if missing_required_runtime_identity(requirements, &observed, allow_loopback_legacy_identity) {
+        return FlapjackRuntimeIdentityReason::LegacyMalformedHealth;
+    }
     if !required_capability_present(requirements, observed.capabilities) {
         return FlapjackRuntimeIdentityReason::MissingCapability;
-    }
-    if requirements.exact_identity_required()
-        && !(observed.revision.is_some() && observed.build_id.is_some())
-    {
-        return FlapjackRuntimeIdentityReason::LegacyMalformedHealth;
     }
     FlapjackRuntimeIdentityReason::Match
 }
 
-fn missing_required_identity_field(
+fn missing_required_runtime_identity(
     requirements: &FlapjackEngineRequirements,
     observed: &ObservedFlapjackIdentity<'_>,
+    allow_loopback_legacy_identity: bool,
 ) -> bool {
-    (requirements.required_revision.is_some() && observed.revision.is_none())
-        || (requirements.required_build_id.is_some() && observed.build_id.is_none())
+    let missing_runtime_identity = requirements.exact_identity_required()
+        && (observed.dirty.is_none() || observed.revision.is_none() || observed.build_id.is_none());
+    missing_runtime_identity && !allow_loopback_legacy_identity
 }
 
 fn required_capability_present(

@@ -12,13 +12,17 @@ async fn algolia_cloud_job_create_accepts_create_request_and_idempotent_replay()
             "rev-2",
         )),
     ]);
-    let (app, jwt, _customer_id, flapjack_http) =
+    let (app, jwt, customer_id, flapjack_http) =
         setup_algolia_cloud_job_create_app(db.pool.clone(), source_service.clone()).await;
     let target_token = target_create_eligibility_token(&app, &jwt).await;
     let engine_job_id = Uuid::parse_str("9f11d0a0-4443-44d4-b6c6-1ed71dbeb0fb").unwrap();
-    flapjack_http.expect_sensitive_json_body(
-        r#"{"appId":"TESTAPP123","apiKey":"temporary-create-key","sourceIndex":"source_products","targetIndex":"products","overwrite":false}"#,
-    );
+    flapjack_http.expect_sensitive_json_body(&create_submit_body(
+        "TESTAPP123",
+        "temporary-create-key",
+        "source_products",
+        &test_flapjack_uid(customer_id, "products"),
+        false,
+    ));
     flapjack_http.push_sensitive_json_response(
         202,
         json!({
@@ -104,14 +108,18 @@ async fn algolia_cloud_job_create_retains_ambiguous_job_when_socket_result_is_lo
         Ok(inspected_source("CANARYAPP123", "source_products", "rev-1")),
         Ok(inspected_source("CANARYAPP123", "source_products", "rev-1")),
     ]);
-    let (app, jwt, _customer_id, flapjack_http, alert_service) =
+    let (app, jwt, customer_id, flapjack_http, alert_service) =
         setup_algolia_cloud_job_create_app_with_alerts(db.pool.clone(), source_service.clone())
             .await;
     let target_token = target_create_eligibility_token(&app, &jwt).await;
     let secret_canary = "secret-api-key-canary-lost-socket";
-    flapjack_http.expect_sensitive_json_body(
-        r#"{"appId":"CANARYAPP123","apiKey":"secret-api-key-canary-lost-socket","sourceIndex":"source_products","targetIndex":"products","overwrite":false}"#,
-    );
+    flapjack_http.expect_sensitive_json_body(&create_submit_body(
+        "CANARYAPP123",
+        secret_canary,
+        "source_products",
+        &test_flapjack_uid(customer_id, "products"),
+        false,
+    ));
     flapjack_http.push_error(ProxyError::Timeout);
     let request = create_request_with_app_and_key(
         "CANARYAPP123",
@@ -163,17 +171,20 @@ async fn algolia_cloud_job_create_retains_ambiguous_job_when_linkage_fails_after
 {
     let _env = FlapjackIdentityEnvGuard::compatible();
     let db = connect_and_migrate_required("algolia_create_linkage_fail").await;
-    let source_service = FakeAlgoliaSourceLister::with_inspect([Ok(inspected_source(
-        "CANARYAPP456",
-        "source_products",
-        "rev-1",
-    ))]);
+    let source_service = FakeAlgoliaSourceLister::with_inspect([]);
+    let source = inspected_source("CANARYAPP456", "source_products", "rev-1");
     let harness =
         setup_algolia_cloud_job_create_harness(db.pool.clone(), source_service.clone()).await;
     let secret_canary = "secret-api-key-canary-linkage-fail";
-    harness.flapjack_http.expect_sensitive_json_body(
-        r#"{"appId":"CANARYAPP456","apiKey":"secret-api-key-canary-linkage-fail","sourceIndex":"source_products","targetIndex":"products","overwrite":false}"#,
-    );
+    harness
+        .flapjack_http
+        .expect_sensitive_json_body(&create_submit_body(
+            "CANARYAPP456",
+            secret_canary,
+            "source_products",
+            "algolia-create-linkage-fail",
+            false,
+        ));
     harness.flapjack_http.push_sensitive_json_response(
         202,
         json!({
@@ -203,10 +214,10 @@ async fn algolia_cloud_job_create_retains_ambiguous_job_when_linkage_fails_after
     let outcome = harness
         .state
         .algolia_import_service
-        .admit_and_submit_with_repo(
+        .admit_inspected_and_submit_with_repo(
             request,
+            source,
             &failing_repo,
-            source_service.as_ref(),
             harness.state.vm_inventory_repo.as_ref(),
             harness.alert_service.as_ref(),
         )
@@ -225,7 +236,7 @@ async fn algolia_cloud_job_create_retains_ambiguous_job_when_linkage_fails_after
     // Exactly one credential-bearing send occurred; linkage failure must never
     // trigger an automatic credential replay.
     assert_eq!(harness.flapjack_http.take_sensitive_requests().len(), 1);
-    assert_eq!(source_service.inspect_requests().len(), 1);
+    assert_eq!(source_service.inspect_requests().len(), 0);
     let alerts = harness.alert_service.recorded_alerts();
     assert_eq!(alerts.len(), 1, "one sanitized retention alert must fire");
     assert_eq!(alerts[0].metadata["reason"], "dispatch_linkage_failed");
@@ -249,14 +260,18 @@ async fn algolia_cloud_job_create_hygiene_distinguishes_public_app_id_from_secre
         "source_products",
         "rev-1",
     ))]);
-    let (app, jwt, _customer_id, flapjack_http, alert_service) =
+    let (app, jwt, customer_id, flapjack_http, alert_service) =
         setup_algolia_cloud_job_create_app_with_alerts(db.pool.clone(), source_service.clone())
             .await;
     let target_token = target_create_eligibility_token(&app, &jwt).await;
     let secret_canary = "secret-api-key-canary-success";
-    flapjack_http.expect_sensitive_json_body(
-        r#"{"appId":"PUBLICAPPID789","apiKey":"secret-api-key-canary-success","sourceIndex":"source_products","targetIndex":"products","overwrite":false}"#,
-    );
+    flapjack_http.expect_sensitive_json_body(&create_submit_body(
+        "PUBLICAPPID789",
+        secret_canary,
+        "source_products",
+        &test_flapjack_uid(customer_id, "products"),
+        false,
+    ));
     flapjack_http.push_sensitive_json_response(
         202,
         json!({
@@ -312,9 +327,13 @@ async fn algolia_cloud_job_create_rejects_deleted_customer_create_replay_and_new
     let (app, jwt, customer_id, flapjack_http) =
         setup_algolia_cloud_job_create_app(db.pool.clone(), source_service.clone()).await;
     let target_token = target_create_eligibility_token(&app, &jwt).await;
-    flapjack_http.expect_sensitive_json_body(
-        r#"{"appId":"TESTAPP123","apiKey":"temporary-create-key","sourceIndex":"source_products","targetIndex":"products","overwrite":false}"#,
-    );
+    flapjack_http.expect_sensitive_json_body(&create_submit_body(
+        "TESTAPP123",
+        "temporary-create-key",
+        "source_products",
+        &test_flapjack_uid(customer_id, "products"),
+        false,
+    ));
     flapjack_http.push_sensitive_json_response(
         202,
         json!({
@@ -396,9 +415,13 @@ async fn algolia_cloud_job_create_accepts_replace_request_and_idempotent_replay(
     seed_algolia_replace_target(&db.pool, customer_id, "products").await;
     let target_token = target_replace_eligibility_token(&app, &jwt, "products").await;
     let engine_job_id = Uuid::parse_str("8e447cc1-a0af-4014-a266-ce4a83f43136").unwrap();
-    flapjack_http.expect_sensitive_json_body(
-        r#"{"appId":"TESTAPP123","apiKey":"temporary-replace-key","sourceIndex":"source_products","targetIndex":"products","overwrite":true}"#,
-    );
+    flapjack_http.expect_sensitive_json_body(&create_submit_body(
+        "TESTAPP123",
+        "temporary-replace-key",
+        "source_products",
+        &test_flapjack_uid(customer_id, "products"),
+        true,
+    ));
     flapjack_http.push_sensitive_json_response(
         202,
         json!({
@@ -658,12 +681,16 @@ async fn algolia_cloud_job_create_maps_pinned_capacity_refusal_to_retained_press
         "source_products",
         "rev-1",
     ))]);
-    let (app, jwt, _customer_id, flapjack_http, alert_service) =
+    let (app, jwt, customer_id, flapjack_http, alert_service) =
         setup_algolia_cloud_job_create_app_with_alerts(db.pool.clone(), source_service).await;
     let target_token = target_create_eligibility_token(&app, &jwt).await;
-    flapjack_http.expect_sensitive_json_body(
-        r#"{"appId":"CAPACITYAPP123","apiKey":"capacity-secret-canary","sourceIndex":"source_products","targetIndex":"products","overwrite":false}"#,
-    );
+    flapjack_http.expect_sensitive_json_body(&create_submit_body(
+        "CAPACITYAPP123",
+        "capacity-secret-canary",
+        "source_products",
+        &test_flapjack_uid(customer_id, "products"),
+        false,
+    ));
     flapjack_http.push_sensitive_json_response(
         503,
         json!({
@@ -738,9 +765,13 @@ async fn algolia_cloud_job_create_rejects_deleted_customer_replace_replay_and_ne
         setup_algolia_cloud_job_create_app(db.pool.clone(), source_service.clone()).await;
     seed_algolia_replace_target(&db.pool, customer_id, "products").await;
     let target_token = target_replace_eligibility_token(&app, &jwt, "products").await;
-    flapjack_http.expect_sensitive_json_body(
-        r#"{"appId":"TESTAPP123","apiKey":"temporary-replace-key","sourceIndex":"source_products","targetIndex":"products","overwrite":true}"#,
-    );
+    flapjack_http.expect_sensitive_json_body(&create_submit_body(
+        "TESTAPP123",
+        "temporary-replace-key",
+        "source_products",
+        &test_flapjack_uid(customer_id, "products"),
+        true,
+    ));
     flapjack_http.push_sensitive_json_response(
         202,
         json!({
@@ -833,6 +864,18 @@ fn create_request_with_app_and_key(
         "sourceName": source_name,
         "target": { "eligibilityToken": target_token }
     })
+}
+
+fn create_submit_body(
+    app_id: &str,
+    api_key: &str,
+    source_index: &str,
+    target_index: &str,
+    overwrite: bool,
+) -> String {
+    format!(
+        r#"{{"appId":"{app_id}","apiKey":"{api_key}","sourceIndex":"{source_index}","targetIndex":"{target_index}","overwrite":{overwrite}}}"#
+    )
 }
 
 async fn assert_ambiguous_without_engine_id(pool: &PgPool, id: Uuid) {
@@ -1090,20 +1133,29 @@ async fn algolia_cloud_job_create_unavailable_source_returns_retryable_503() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let response_status = response.status();
+    let retry_after = response
+        .headers()
+        .get(http::header::RETRY_AFTER)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string);
+    let (_, body) = response_json(response).await;
+
     assert_eq!(
-        response
-            .headers()
-            .get(http::header::RETRY_AFTER)
-            .and_then(|value| value.to_str().ok()),
+        response_status,
+        StatusCode::SERVICE_UNAVAILABLE,
+        "body: {body}"
+    );
+    assert_eq!(
+        retry_after.as_deref(),
         Some("30"),
         "create 503 backend_unavailable must carry the bounded Retry-After",
     );
-    let (_, body) = response_json(response).await;
     assert_eq!(
         body["code"],
         AlgoliaImportErrorCode::BackendUnavailable.as_str()
     );
+    assert_eq!(source_service.inspect_requests().len(), 1);
     assert_eq!(count_algolia_import_jobs(&db.pool).await, 0);
 }
 

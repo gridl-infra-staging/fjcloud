@@ -100,16 +100,16 @@
 	let submitIntentBinding = $state<string | null>(null);
 	let submitIntentIdempotencyKey = $state<string | null>(null);
 	let successfulSubmitIntentBinding = $state<string | null>(null);
-		// Distinguishes "not connected yet" from "connected and the account is empty",
-		// which an empty `sources` array alone cannot express.
-		let hasDiscovered = $state(false);
-		// The app id is not secret, so the connected value can be retained to detect
-		// edits. The API key is reduced to a one-way fingerprint instead of keeping a
-		// second raw copy in component state after connect.
-		let connectedAppId = $state('');
-		let connectedApiKeyFingerprint = $state<string | null>(null);
-		let liveApiKeyFingerprint = $state<string | null>(null);
-		let nextApiKeyFingerprintRequestId = 0;
+	// Distinguishes "not connected yet" from "connected and the account is empty",
+	// which an empty `sources` array alone cannot express.
+	let hasDiscovered = $state(false);
+	// The app id is not secret, so the connected value can be retained to detect
+	// edits. The API key is reduced to a one-way fingerprint instead of keeping a
+	// second raw copy in component state after connect.
+	let connectedAppId = $state('');
+	let connectedApiKeyFingerprint = $state<string | null>(null);
+	let liveApiKeyFingerprint = $state<string | null>(null);
+	let nextApiKeyFingerprintRequestId = 0;
 	// All volatile connection state belongs to the provider eligibility envelope
 	// that made credential entry possible. A refreshed token, expiry, provider,
 	// or region starts a new envelope and cannot inherit credentials or cursors.
@@ -139,10 +139,10 @@
 	// the customer is no longer pointing at, and replaying the cursor would append
 	// another application's page onto this one's list, so treat it as disconnected
 	// until the customer reconnects.
-		const credentialsChanged = $derived(
-			hasDiscovered &&
-				(appId !== connectedAppId || liveApiKeyFingerprint !== connectedApiKeyFingerprint)
-		);
+	const credentialsChanged = $derived(
+		hasDiscovered &&
+			(appId !== connectedAppId || liveApiKeyFingerprint !== connectedApiKeyFingerprint)
+	);
 	const hasConnected = $derived(sources.length > 0 && !credentialsChanged);
 	const canStartReconnect = $derived(hasDiscovered && !credentialsChanged);
 	const replaceDestination = $derived(
@@ -258,19 +258,19 @@
 		destinationErrorMessage?.focus();
 	}
 
-		function toErrorMessage(error: unknown): string {
-			return error instanceof Error ? error.message : String(error);
-		}
+	function toErrorMessage(error: unknown): string {
+		return error instanceof Error ? error.message : String(error);
+	}
 
-		async function apiKeyFingerprint(value: string): Promise<string> {
-			const digest = await globalThis.crypto.subtle.digest(
-				'SHA-256',
-				new TextEncoder().encode(value)
-			);
-			return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(
-				''
-			);
-		}
+	async function apiKeyFingerprint(value: string): Promise<string> {
+		const digest = await globalThis.crypto.subtle.digest(
+			'SHA-256',
+			new TextEncoder().encode(value)
+		);
+		return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(
+			''
+		);
+	}
 
 	function clearSourceSelection(): void {
 		selectedSourceName = null;
@@ -289,13 +289,13 @@
 		apiKey = '';
 		clearSourceCatalog();
 		discoveryError = null;
-			searchTerm = '';
-			hasDiscovered = false;
-			connectedAppId = '';
-			connectedApiKeyFingerprint = null;
-			liveApiKeyFingerprint = null;
-			clearTargetEligibility();
-		}
+		searchTerm = '';
+		hasDiscovered = false;
+		connectedAppId = '';
+		connectedApiKeyFingerprint = null;
+		liveApiKeyFingerprint = null;
+		clearTargetEligibility();
+	}
 
 	function clearTargetEligibility(): void {
 		targetEligibility = null;
@@ -485,28 +485,28 @@
 		);
 	});
 
-		$effect(() => {
-			return scheduleEligibilityExpiry(targetEligibilityMatchesInputs, updateEligibilityClock);
-		});
+	$effect(() => {
+		return scheduleEligibilityExpiry(targetEligibilityMatchesInputs, updateEligibilityClock);
+	});
 
-		$effect(() => {
-			const requestApiKey = apiKey;
-			const requestId = nextApiKeyFingerprintRequestId + 1;
-			nextApiKeyFingerprintRequestId = requestId;
-			if (requestApiKey === '') {
-				liveApiKeyFingerprint = null;
-				return;
-			}
-			// Any live edit should break the connected-state equality immediately.
+	$effect(() => {
+		const requestApiKey = apiKey;
+		const requestId = nextApiKeyFingerprintRequestId + 1;
+		nextApiKeyFingerprintRequestId = requestId;
+		if (requestApiKey === '') {
 			liveApiKeyFingerprint = null;
-			void apiKeyFingerprint(requestApiKey).then((fingerprint) => {
-				if (nextApiKeyFingerprintRequestId === requestId && apiKey === requestApiKey) {
-					liveApiKeyFingerprint = fingerprint;
-				}
-			});
+			return;
+		}
+		// Any live edit should break the connected-state equality immediately.
+		liveApiKeyFingerprint = null;
+		void apiKeyFingerprint(requestApiKey).then((fingerprint) => {
+			if (nextApiKeyFingerprintRequestId === requestId && apiKey === requestApiKey) {
+				liveApiKeyFingerprint = fingerprint;
+			}
 		});
+	});
 
-		async function loadSourcePage(cursor: string | null): Promise<void> {
+	async function loadSourcePage(cursor: string | null): Promise<void> {
 		const requestProviderEligibilityBinding = currentProviderBinding;
 		if (
 			startsDisabled ||
@@ -519,13 +519,13 @@
 		// while the request is in flight, so reading them again after the await
 		// would stamp the arriving catalog with credentials that did not fetch it —
 		// the guard would then read as connected and hand out a cursor belonging to
-			// the previous application.
-			const requestAppId = appId;
-			const requestApiKey = apiKey;
-			const requestApiKeyFingerprint = apiKeyFingerprint(requestApiKey);
-			const requestId = nextDiscoveryRequestId + 1;
-			nextDiscoveryRequestId = requestId;
-			activeDiscoveryRequest = {
+		// the previous application.
+		const requestAppId = appId;
+		const requestApiKey = apiKey;
+		const requestApiKeyFingerprint = apiKeyFingerprint(requestApiKey);
+		const requestId = nextDiscoveryRequestId + 1;
+		nextDiscoveryRequestId = requestId;
+		activeDiscoveryRequest = {
 			id: requestId,
 			providerEligibilityBinding: requestProviderEligibilityBinding
 		};
@@ -541,14 +541,14 @@
 			}
 			// A first page replaces; a cursor page appends to what is already shown.
 			sources = cursor === null ? page.items : [...sources, ...page.items];
-				if (cursor === null) {
-					clearSourceSelection();
-					// A filter typed against the previous application would hide every row
-					// of the new one and read as an empty account.
-					searchTerm = '';
-					connectedAppId = requestAppId;
-					connectedApiKeyFingerprint = await requestApiKeyFingerprint;
-				}
+			if (cursor === null) {
+				clearSourceSelection();
+				// A filter typed against the previous application would hide every row
+				// of the new one and read as an empty account.
+				searchTerm = '';
+				connectedAppId = requestAppId;
+				connectedApiKeyFingerprint = await requestApiKeyFingerprint;
+			}
 			nextCursor = page.nextCursor;
 			hasDiscovered = true;
 			if (cursor === null && page.items.length > 0) {

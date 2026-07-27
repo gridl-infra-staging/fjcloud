@@ -4,8 +4,9 @@
 	import { enhance } from '$app/forms';
 	import { onMount } from 'svelte';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
-	import { adminBadgeColor, formatBytes, formatDate } from '$lib/format';
+	import { adminBadgeColor, formatDate } from '$lib/format';
 	import { aggregateDiskUtilPercent, capacityDimensions, utilPercent } from '$lib/vm-capacity';
+	import { hostMetricPresentation } from './host_metric_presentation';
 	import type {
 		AdminReplicaEntry,
 		VmHostMetricsResponse,
@@ -195,36 +196,20 @@
 		return `${utilPercent(dimension.used, dimension.total)}%`;
 	}
 
-	function hostMetricsFor(vmId: string): VmHostMetricsResponse | null {
-		return hostMetricsByVmId[vmId] ?? null;
+	function hostDiskLabel(vmId: string): string {
+		return hostMetricPresentation(vmId, hostMetricsByVmId[vmId] ?? null).diskLabel;
 	}
 
-	function hostDiskLabel(metrics: VmHostMetricsResponse | null): string {
-		if (!metrics) return 'No host data';
-		if (
-			metrics.disk_used_bytes === null ||
-			metrics.disk_total_bytes === null ||
-			metrics.disk_total_bytes <= 0
-		) {
-			return '—';
-		}
-		return `${utilPercent(metrics.disk_used_bytes, metrics.disk_total_bytes)}%`;
+	function hostCpuLabel(vmId: string): string {
+		return hostMetricPresentation(vmId, hostMetricsByVmId[vmId] ?? null).cpuLabel;
 	}
 
-	function hostCpuLabel(metrics: VmHostMetricsResponse | null): string {
-		if (!metrics) return 'No host data';
-		return `${metrics.cpu_pct}%`;
+	function hostRamLabel(vmId: string): string {
+		return hostMetricPresentation(vmId, hostMetricsByVmId[vmId] ?? null).ramLabel;
 	}
 
-	function hostRamLabel(metrics: VmHostMetricsResponse | null): string {
-		if (!metrics) return 'No host data';
-		if (metrics.mem_total_bytes <= 0) return '—';
-		return `${utilPercent(metrics.mem_used_bytes, metrics.mem_total_bytes)}%`;
-	}
-
-	function hostNetworkLabel(metrics: VmHostMetricsResponse | null): string {
-		if (!metrics) return 'No host data';
-		return `RX total ${formatBytes(metrics.net_rx_bytes)} / TX total ${formatBytes(metrics.net_tx_bytes)}`;
+	function hostNetworkLabel(vmId: string): string {
+		return hostMetricPresentation(vmId, hostMetricsByVmId[vmId] ?? null).networkLabel;
 	}
 
 	function vmCountLabel(count: number): string {
@@ -389,16 +374,16 @@
 									</td>
 								{/each}
 								<td class="px-4 py-3 text-slate-300" data-testid={`host-disk-${vm.id}`}>
-									{hostDiskLabel(hostMetricsFor(vm.id))}
+									{hostDiskLabel(vm.id)}
 								</td>
 								<td class="px-4 py-3 text-slate-300" data-testid={`host-cpu-${vm.id}`}>
-									{hostCpuLabel(hostMetricsFor(vm.id))}
+									{hostCpuLabel(vm.id)}
 								</td>
 								<td class="px-4 py-3 text-slate-300" data-testid={`host-ram-${vm.id}`}>
-									{hostRamLabel(hostMetricsFor(vm.id))}
+									{hostRamLabel(vm.id)}
 								</td>
 								<td class="px-4 py-3 text-slate-300" data-testid={`host-net-${vm.id}`}>
-									{hostNetworkLabel(hostMetricsFor(vm.id))}
+									{hostNetworkLabel(vm.id)}
 								</td>
 								<td
 									class="px-4 py-3 text-xs text-slate-300"

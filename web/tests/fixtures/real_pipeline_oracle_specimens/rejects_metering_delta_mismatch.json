@@ -1,0 +1,98 @@
+{
+	"schema_version": 1,
+	"provenance": {
+		"run_id": "real_pipeline_20260726T041000Z_12345",
+		"locality": "local",
+		"stack_mode": "booted",
+		"pipeline_verdict": "LOCAL_REAL_PIPELINE_STATUS: PASS reason=verified",
+		"probe_started_at": "2026-07-26T04:10:00Z",
+		"generated_at": "2026-07-26T04:15:00Z"
+	},
+	"metering": {
+		"customer_id": "cust_local_primary",
+		"index_name": "demo-shared-free",
+		"flapjack_uid": "custlocalprimary_demo-shared-free",
+		"region": "iad",
+		"target_date": "2026-07-26",
+		"expected_search_requests": 8,
+		"expected_write_operations": 5,
+		"pre_search_requests": 12,
+		"pre_write_operations": 4,
+		"post_search_requests": 20,
+		"post_write_operations": 9,
+		"usage_daily": {
+			"customer_id": "cust_local_primary",
+			"region": "iad",
+			"target_date": "2026-07-26",
+			"search_requests": 7,
+			"write_operations": 5,
+			"rows_affected": 1,
+			"aggregated_at": "2026-07-26T04:14:00Z"
+		}
+	},
+	"topology": {
+		"selected_vm_id": "vm_region_1",
+		"vms": [
+			{
+				"id": "vm_region_1",
+				"region": "iad",
+				"provider": "local",
+				"hostname": "local-iad-1",
+				"flapjack_url": "http://127.0.0.1:7701",
+				"capacity": {
+					"memory_bytes": 8589934592,
+					"disk_bytes": 107374182400,
+					"index_slots": 8
+				},
+				"current_load": {
+					"memory_bytes": 2147483648,
+					"disk_bytes": 32212254720,
+					"index_slots": 2
+				},
+				"status": "running",
+				"tenant_count": 1,
+				"index_count": 2,
+				"health": "healthy",
+				"created_at": "2026-07-26T04:00:00Z",
+				"updated_at": "2026-07-26T04:13:00Z"
+			}
+		],
+		"regions": [
+			{
+				"region": "iad",
+				"vm_count": 1,
+				"healthy_count": 1,
+				"unhealthy_count": 0,
+				"unknown_count": 0,
+				"tenant_count": 1,
+				"index_count": 2
+			}
+		],
+		"totals": {
+			"vm_count": 1,
+			"healthy_count": 1,
+			"unhealthy_count": 0,
+			"unknown_count": 0,
+			"tenant_count": 1,
+			"index_count": 2
+		}
+	},
+	"host_metrics": {
+		"max_sample_age_seconds": 120,
+		"samples": [
+			{
+				"id": "metric_vm_region_1",
+				"vm_id": "vm_region_1",
+				"collected_at": "2026-07-26T04:14:30Z",
+				"cpu_pct": 18.5,
+				"mem_used_bytes": 2147483648,
+				"mem_total_bytes": 8589934592,
+				"disk_used_bytes": 32212254720,
+				"disk_total_bytes": 107374182400,
+				"net_rx_bytes": 4096,
+				"net_tx_bytes": 8192,
+				"created_at": "2026-07-26T04:14:31Z"
+			}
+		]
+	}
+}

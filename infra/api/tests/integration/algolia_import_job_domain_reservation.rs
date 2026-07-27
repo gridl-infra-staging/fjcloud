@@ -1005,7 +1005,8 @@ fn terminal_completed_state(engine_job_id: Uuid) -> AlgoliaImportJobState {
         resumable: false,
         resume_count: 0,
         summary: AlgoliaImportSummary::default(),
-        warnings: json!([]),
+        terminal_outcome_observed: false,
+        warnings: Vec::new(),
         error_code: None,
         error_message: None,
     }
@@ -1028,7 +1029,8 @@ fn active_engine_state(
         resumable: false,
         resume_count: 0,
         summary: AlgoliaImportSummary::default(),
-        warnings: json!([]),
+        terminal_outcome_observed: false,
+        warnings: Vec::new(),
         error_code: None,
         error_message: None,
     }
@@ -1138,7 +1140,8 @@ async fn resumable_failure_state_retains_reservation_through_update() {
         resumable: true,
         resume_count: 0,
         summary: AlgoliaImportSummary::default(),
-        warnings: json!([]),
+        terminal_outcome_observed: false,
+        warnings: Vec::new(),
         error_code: Some(AlgoliaImportErrorCode::BackendUnavailable),
         error_message: Some("transient backend error".into()),
     };
@@ -1190,7 +1193,8 @@ async fn resumed_job_does_not_create_second_reservation() {
         resumable: true,
         resume_count: 0,
         summary: AlgoliaImportSummary::default(),
-        warnings: json!([]),
+        terminal_outcome_observed: false,
+        warnings: Vec::new(),
         error_code: Some(AlgoliaImportErrorCode::BackendUnavailable),
         error_message: Some("transient".into()),
     };

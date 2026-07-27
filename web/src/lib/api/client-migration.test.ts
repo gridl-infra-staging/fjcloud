@@ -5,6 +5,7 @@ import type {
 	AlgoliaDestinationEligibilityResponse,
 	AlgoliaIndexMetadata,
 	AlgoliaMigrationAvailabilityResponse,
+	AlgoliaImportWarning,
 	AlgoliaSourceListResponse,
 	CancelAlgoliaImportJobRequest,
 	CreateAlgoliaImportJobRequest,
@@ -123,6 +124,8 @@ function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 			rulesImported: 6,
 			rulesRejected: 1
 		},
+		terminalOutcomeObserved: false,
+		warnings: [],
 		error: null,
 		cancelRequestedAt: null,
 		resumeProvenance: 'engine_checkpoint',
@@ -377,9 +380,19 @@ describe('ApiClient - migration availability', () => {
 	});
 
 	it('returns the canonical public job fields without deriving lifecycle values locally', async () => {
+		const warning: AlgoliaImportWarning = {
+			code: 'unsupported_synonym_type',
+			message: 'Skipped one synonym',
+			resource: 'synonyms',
+			pageIndex: 2,
+			itemIndex: 5,
+			jsonPath: '$.synonyms[5]'
+		};
 		const expected = publicJob({
 			status: 'completed_with_warnings',
 			error: { code: 'incompatible_data' },
+			terminalOutcomeObserved: true,
+			warnings: [warning],
 			resumable: false,
 			resumeProvenance: null,
 			resumeDeadline: null,
@@ -390,35 +403,6 @@ describe('ApiClient - migration availability', () => {
 		const result = await client.getAlgoliaImportJob('11111111-1111-1111-1111-111111111111');
 
 		expect(result).toEqual(expected);
-		expect(result).toMatchObject({
-			id: '11111111-1111-1111-1111-111111111111',
-			status: 'completed_with_warnings',
-			mode: 'create',
-			destination: { kind: 'create', target: 'fj_products', region: 'us-east-1' },
-			source: { name: 'source_products' },
-			error: { code: 'incompatible_data' },
-			cancelRequestedAt: null,
-			resumeProvenance: null,
-			resumeDeadline: null,
-			resumable: false,
-			resumeCount: 2,
-			publicationDisposition: 'promoted',
-			createdAt: '2026-07-18T10:00:00Z',
-			updatedAt: '2026-07-18T10:05:00Z'
-		});
-		expect(result.summary).toEqual({
-			documentsExpected: 17,
-			documentsImported: 13,
-			documentsRejected: 4,
-			settingsApplied: 1,
-			settingsUnsupported: 2,
-			synonymsExpected: 5,
-			synonymsImported: 3,
-			synonymsRejected: 2,
-			rulesExpected: 7,
-			rulesImported: 6,
-			rulesRejected: 1
-		});
 	});
 
 	it('exposes every migration request and response type through the canonical API barrel', () => {

@@ -2,7 +2,8 @@ use uuid::Uuid;
 
 use crate::models::algolia_import_job::{
     AlgoliaImportDestinationKind, AlgoliaImportJobStatus, AlgoliaImportPublicationDisposition,
-    AlgoliaImportSummary, AlgoliaImportTerminalFact,
+    AlgoliaImportSummary, AlgoliaImportTerminalDetails, AlgoliaImportTerminalFact,
+    AlgoliaImportWarning,
 };
 
 use super::{
@@ -73,7 +74,7 @@ impl AlgoliaImportService {
 
         let observed_status = cloud_status_for_phase(response.phase);
         reject_phase_rewind(cursor.status, observed_status, response.disposition)?;
-        let summary = merge_export_progress(&cursor.summary, response.export_progress)?;
+        let summary = merge_export_progress(&cursor.summary, response.export_progress.clone())?;
 
         match response.disposition {
             AsyncMigrationDisposition::Running => Ok(AlgoliaImportStatusObservation::Running(
@@ -84,25 +85,28 @@ impl AlgoliaImportService {
             )),
             AsyncMigrationDisposition::Succeeded => terminal_observation(
                 cursor.engine_job_id,
-                AlgoliaImportJobStatus::Completed,
                 AlgoliaImportPublicationDisposition::Promoted,
-                summary,
+                successful_terminal_status(&response),
+                apply_success_terminal_outcome(summary, &response)?,
                 response
                     .terminal_at
                     .expect("terminal response is validated"),
+                successful_terminal_outcome_observed(&response),
+                response.warnings.unwrap_or_default(),
             ),
             AsyncMigrationDisposition::Cancelled => terminal_observation(
                 cursor.engine_job_id,
-                AlgoliaImportJobStatus::Cancelled,
                 AlgoliaImportPublicationDisposition::Unchanged,
+                AlgoliaImportJobStatus::Cancelled,
                 summary,
                 response
                     .terminal_at
                     .expect("terminal response is validated"),
+                false,
+                Vec::new(),
             ),
             AsyncMigrationDisposition::Failed => terminal_observation(
                 cursor.engine_job_id,
-                AlgoliaImportJobStatus::Failed,
                 match cursor.destination_kind {
                     AlgoliaImportDestinationKind::Create => {
                         AlgoliaImportPublicationDisposition::NotStarted
@@ -111,10 +115,13 @@ impl AlgoliaImportService {
                         AlgoliaImportPublicationDisposition::Unchanged
                     }
                 },
+                AlgoliaImportJobStatus::Failed,
                 summary,
                 response
                     .terminal_at
                     .expect("terminal response is validated"),
+                false,
+                Vec::new(),
             ),
         }
     }
@@ -199,20 +206,63 @@ fn merge_export_progress(
 
 fn terminal_observation(
     engine_job_id: Uuid,
-    status: AlgoliaImportJobStatus,
     publication_disposition: AlgoliaImportPublicationDisposition,
+    status: AlgoliaImportJobStatus,
     summary: AlgoliaImportSummary,
     terminal_at: chrono::DateTime<chrono::Utc>,
+    terminal_outcome_observed: bool,
+    warnings: Vec<AlgoliaImportWarning>,
 ) -> Result<AlgoliaImportStatusObservation, AlgoliaImportStatusObservationError> {
     AlgoliaImportTerminalFact::new(
         engine_job_id,
         status,
         publication_disposition,
-        summary,
         terminal_at,
-        None,
-        None,
+        AlgoliaImportTerminalDetails {
+            summary,
+            terminal_outcome_observed,
+            warnings,
+            error_code: None,
+            error_message: None,
+        },
     )
     .map(AlgoliaImportStatusObservation::Terminal)
     .map_err(|_| AlgoliaImportStatusObservationError::InvalidTerminalFact)
+}
+
+fn successful_terminal_status(response: &AsyncMigrationStatusResponse) -> AlgoliaImportJobStatus {
+    if response
+        .warnings
+        .as_ref()
+        .is_some_and(|warnings| !warnings.is_empty())
+    {
+        AlgoliaImportJobStatus::CompletedWithWarnings
+    } else {
+        AlgoliaImportJobStatus::Completed
+    }
+}
+
+fn successful_terminal_outcome_observed(response: &AsyncMigrationStatusResponse) -> bool {
+    response.settings_applied.is_some()
+        && response.synonyms_imported.is_some()
+        && response.rules_imported.is_some()
+}
+
+fn apply_success_terminal_outcome(
+    mut summary: AlgoliaImportSummary,
+    response: &AsyncMigrationStatusResponse,
+) -> Result<AlgoliaImportSummary, AlgoliaImportStatusObservationError> {
+    let (Some(settings_applied), Some(synonyms_imported), Some(rules_imported)) = (
+        response.settings_applied,
+        response.synonyms_imported.as_ref(),
+        response.rules_imported.as_ref(),
+    ) else {
+        return Ok(summary);
+    };
+    summary.settings_applied = i64::from(settings_applied);
+    summary.synonyms_imported = i64::try_from(synonyms_imported.imported)
+        .map_err(|_| AlgoliaImportStatusObservationError::ProgressOutOfRange)?;
+    summary.rules_imported = i64::try_from(rules_imported.imported)
+        .map_err(|_| AlgoliaImportStatusObservationError::ProgressOutOfRange)?;
+    Ok(summary)
 }

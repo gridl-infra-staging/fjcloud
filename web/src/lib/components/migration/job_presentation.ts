@@ -1,4 +1,5 @@
 import type {
+	AlgoliaImportWarning,
 	AlgoliaImportJobStatus,
 	AlgoliaMigrationCapabilities,
 	PublicAlgoliaImportError,
@@ -13,12 +14,24 @@ export type AlgoliaImportStatusPresentation = {
 	terminal: boolean;
 };
 
-export type AlgoliaImportSummaryRow = {
-	label: 'Documents' | 'Settings' | 'Synonyms' | 'Rules';
-	imported: number;
-	expected: number;
-	rejected: number;
-};
+export type AlgoliaImportSummaryRow =
+	| {
+			kind: 'documents';
+			label: 'Documents';
+			imported: number;
+			expected: number;
+			rejected: number;
+	  }
+	| {
+			kind: 'settings';
+			label: 'Settings';
+			applied: boolean;
+	  }
+	| {
+			kind: 'imported';
+			label: 'Synonyms' | 'Rules';
+			imported: number;
+	  };
 
 export type AlgoliaImportAdmission =
 	| { admitted: true }
@@ -145,6 +158,15 @@ const STATUS_PRESENTATION: Record<AlgoliaImportJobStatus, AlgoliaImportStatusPre
 };
 
 const ADMITTED: AlgoliaImportAdmission = { admitted: true };
+const NO_JOB_ACTIONS: AlgoliaImportActionPresentation = {
+	canViewIndex: false,
+	canTestSearch: false,
+	canCancel: false,
+	canResume: false,
+	canStartNewImport: false,
+	canEnterRetryKey: false,
+	retryCopy: null
+};
 
 const ERROR_COPY: Record<PublicAlgoliaImportError['code'], string> = {
 	invalid_credentials: 'Algolia credentials were rejected. Reconnect with a valid key.',
@@ -184,32 +206,39 @@ export function describeAlgoliaImportError(error: PublicAlgoliaImportError | nul
 
 export function algoliaImportSummaryRows(job: PublicAlgoliaImportJob): AlgoliaImportSummaryRow[] {
 	const { summary } = job;
-	return [
+	const rows: AlgoliaImportSummaryRow[] = [
 		{
+			kind: 'documents',
 			label: 'Documents',
 			imported: summary.documentsImported,
 			expected: summary.documentsExpected,
 			rejected: summary.documentsRejected
-		},
-		{
-			label: 'Settings',
-			imported: summary.settingsApplied,
-			expected: summary.settingsApplied + summary.settingsUnsupported,
-			rejected: summary.settingsUnsupported
-		},
-		{
-			label: 'Synonyms',
-			imported: summary.synonymsImported,
-			expected: summary.synonymsExpected,
-			rejected: summary.synonymsRejected
-		},
-		{
-			label: 'Rules',
-			imported: summary.rulesImported,
-			expected: summary.rulesExpected,
-			rejected: summary.rulesRejected
 		}
 	];
+	const hasObservedTerminalOutcome =
+		job.terminalOutcomeObserved &&
+		(job.status === 'completed' || job.status === 'completed_with_warnings');
+	if (!hasObservedTerminalOutcome) {
+		return rows;
+	}
+	rows.push(
+		{
+			kind: 'settings',
+			label: 'Settings',
+			applied: summary.settingsApplied > 0
+		},
+		{
+			kind: 'imported',
+			label: 'Synonyms',
+			imported: summary.synonymsImported
+		},
+		{
+			kind: 'imported',
+			label: 'Rules',
+			imported: summary.rulesImported
+		}
+	);
+	return rows;
 }
 
 export function describeAlgoliaImportPublicationDisposition(
@@ -304,6 +333,9 @@ export function describeAlgoliaImportJobActions(
 		};
 	}
 	if (job.publicationDisposition === 'unknown') {
+		if (capabilities?.resume !== true) {
+			return NO_JOB_ACTIONS;
+		}
 		return {
 			canViewIndex: false,
 			canTestSearch: false,
@@ -324,6 +356,9 @@ export function describeAlgoliaImportJobActions(
 			canEnterRetryKey: false,
 			retryCopy: null
 		};
+	}
+	if (capabilities?.resume !== true) {
+		return NO_JOB_ACTIONS;
 	}
 	const admissionPresentation = describeAlgoliaImportAdmission(admission);
 	if (admissionPresentation.disablesStarts) {
@@ -353,11 +388,23 @@ export function describeAlgoliaImportJobActions(
 }
 
 export function algoliaImportCompatibilityWarning(job: PublicAlgoliaImportJob): string | null {
-	const rejectedRows = algoliaImportSummaryRows(job).filter((row) => row.rejected > 0);
-	if (rejectedRows.length === 0) {
+	if (
+		job.status !== 'completed_with_warnings' ||
+		!job.terminalOutcomeObserved ||
+		job.warnings.length === 0
+	) {
 		return null;
 	}
-	return `${formatRejectedRows(rejectedRows)} could not be imported.`;
+	const visibleWarnings = job.warnings.slice(0, MAX_VISIBLE_WARNING_DETAILS);
+	const details = visibleWarnings.map(formatImportWarning);
+	const hiddenCount = job.warnings.length - visibleWarnings.length;
+	if (hiddenCount > 0) {
+		details.push(`and ${hiddenCount} more ${pluralize('warning', hiddenCount)}`);
+	}
+	return `Import completed with ${job.warnings.length} compatibility ${pluralize(
+		'warning',
+		job.warnings.length
+	)}: ${details.join('; ')}.`;
 }
 
 export function algoliaImportIndexHref(target: string): `/console/indexes/${string}` {
@@ -368,24 +415,39 @@ export function algoliaImportSearchHref(target: string): `/console/indexes/${str
 	return `${algoliaImportIndexHref(target)}?tab=search`;
 }
 
-function formatRejectedRows(rows: AlgoliaImportSummaryRow[]): string {
-	const parts = rows.map((row) => `${row.rejected} ${singularize(row.label, row.rejected)}`);
-	if (parts.length === 1) {
-		return parts[0];
+const MAX_VISIBLE_WARNING_DETAILS = 3;
+const MAX_WARNING_FIELD_LENGTH = 80;
+
+function formatImportWarning(warning: AlgoliaImportWarning): string {
+	const locations: string[] = [];
+	if (warning.pageIndex !== null) {
+		locations.push(`page ${warning.pageIndex}`);
 	}
-	if (parts.length === 2) {
-		return `${parts[0]} and ${parts[1]}`;
+	if (warning.itemIndex !== null) {
+		locations.push(`item ${warning.itemIndex}`);
 	}
-	return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
+	if (warning.jsonPath !== '') {
+		locations.push(`path ${boundedWarningField(warning.jsonPath, '$')}`);
+	}
+	const location = locations.length === 0 ? '' : ` (${locations.join(', ')})`;
+	return `${warningIdentifier(warning.resource, 'configuration')} — ${warningIdentifier(
+		warning.code,
+		'compatibility warning'
+	)}${location}`;
 }
 
-function singularize(label: AlgoliaImportSummaryRow['label'], count: number): string {
-	const lower = label.toLowerCase();
-	if (count !== 1) {
-		return lower;
-	}
-	if (label === 'Synonyms') {
-		return 'synonym';
-	}
-	return lower.slice(0, -1);
+function warningIdentifier(value: string, fallback: string): string {
+	const humanized = value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+	return boundedWarningField(humanized, fallback);
+}
+
+function boundedWarningField(value: string, fallback: string): string {
+	const presentValue = value === '' ? fallback : value;
+	return presentValue.length <= MAX_WARNING_FIELD_LENGTH
+		? presentValue
+		: `${presentValue.slice(0, MAX_WARNING_FIELD_LENGTH - 1)}…`;
+}
+
+function pluralize(noun: string, count: number): string {
+	return count === 1 ? noun : `${noun}s`;
 }

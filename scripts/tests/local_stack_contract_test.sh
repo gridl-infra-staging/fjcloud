@@ -26,6 +26,16 @@ runtime_identity_reason_with_mock_curl() {
     rm -rf "$tmp_dir"
 }
 
+runtime_identity_reason_for_local_owner_with_mock_curl() {
+    local owned_runtime="$1" response="$2" base_url="${3:-http://flapjack.test}" tmp_dir
+    tmp_dir="$(mktemp -d)"; mkdir -p "$tmp_dir/bin"
+    printf '#!/usr/bin/env bash\nprintf '\''%%s'\'' '\''%s'\''\n' "$response" > "$tmp_dir/bin/curl"
+    chmod +x "$tmp_dir/bin/curl"
+    PATH="$tmp_dir/bin:$PATH" flapjack_runtime_identity_reason \
+        "$base_url" "$owned_runtime"
+    rm -rf "$tmp_dir"
+}
+
 fleet_identity_reason_with_mock_curl() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"; mkdir -p "$tmp_dir/bin"
@@ -120,6 +130,11 @@ assert_eq "$(runtime_identity_reason_with_mock_curl "$missing_capability_health"
     "runtime missing the required engine capability should be rejected"
 assert_eq "$(runtime_identity_reason_with_mock_curl "$legacy_health")" "legacy_malformed_health" \
     "legacy version-only health should be rejected with the malformed legacy reason"
+current_public_health='{"status":"ok","version":"1.0.10","build":{"schemaVersion":1,"version":"1.0.10","profile":"debug","capabilities":{"preview_events_v1":true}},"capabilities":{"preview_events_v1":true}}'
+assert_eq "$(runtime_identity_reason_for_local_owner_with_mock_curl "1" "$current_public_health")" "match" \
+    "a wrapper-owned receipt-validated runtime should accept the current public Flapjack health contract"
+assert_eq "$(runtime_identity_reason_for_local_owner_with_mock_curl "0" "$current_public_health")" "legacy_malformed_health" \
+    "a pre-existing runtime should still require exact identity fields in health"
 assert_eq "$(fleet_identity_reason_with_mock_curl http://match-one http://match-two)" "match" \
     "all-match fleets should classify as match"
 assert_eq "$(fleet_identity_reason_with_mock_curl http://match-one http://drifted)" "mixed_fleet" \

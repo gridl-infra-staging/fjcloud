@@ -288,7 +288,7 @@ describe('Migrate page server', () => {
 				eligibilityToken: 'provider-token',
 				expiresAt: '2099-07-18T10:15:00Z'
 			}
-			});
+		});
 	});
 
 	it('providerEligibility action rejects malformed JSON payloads with a 400 action failure', async () => {
@@ -337,8 +337,8 @@ describe('Migrate page server', () => {
 			expect(serialized).not.toContain('algolia_app_id_canary');
 			expect(serialized).not.toContain('algolia_api_key_canary');
 			expect(serialized).not.toContain('idem-key-canary');
-			}
-		});
+		}
+	});
 
 	it('createImportJob action rejects malformed JSON payloads before calling the API client', async () => {
 		const result = await actions.createImportJob({

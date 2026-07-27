@@ -41,7 +41,10 @@
 	);
 	const cooldownActive = $derived(cooldownUntil !== null && currentTime < cooldownUntil);
 	const refreshDisabled = $derived(
-		refreshInFlight || refreshPending || cooldownActive || (infrastructure === null && error === null)
+		refreshInFlight ||
+			refreshPending ||
+			cooldownActive ||
+			(infrastructure === null && error === null)
 	);
 
 	$effect(() => {

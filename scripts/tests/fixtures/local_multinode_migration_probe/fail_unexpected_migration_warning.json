@@ -1,0 +1,221 @@
+{
+    "schema_version": 1,
+    "repo_sha": "0123456789abcdef0123456789abcdef01234567",
+    "flapjack_identity": {
+        "binary_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "source_revision": "89abcdef0123456789abcdef0123456789abcdef"
+    },
+    "topology": {
+        "standalone": {
+            "peer_count": 0,
+            "docker": false
+        },
+        "ha": {
+            "peer_count": 1,
+            "docker": false
+        }
+    },
+    "branch_denominator": [
+        "node_local_create",
+        "node_local_overwrite",
+        "ha_create_refusal",
+        "ha_overwrite_refusal",
+        "parity",
+        "cleanup"
+    ],
+    "node_local_create": {
+        "http_status": 202,
+        "response": {
+            "disposition": "succeeded",
+            "terminal_at": "2026-07-26T00:00:00Z",
+            "settings": true,
+            "synonyms": {
+                "imported": 0
+            },
+            "rules": {
+                "imported": 0
+            },
+            "objects": {
+                "imported": 2
+            },
+            "warnings": [
+                {
+                    "code": "PersistedNoBehaviorSetting",
+                    "message": "Source setting is preserved for compatibility but has no Flapjack behavior.",
+                    "resource": "Settings",
+                    "jsonPath": "$.attributesToHighlight"
+                },
+                {
+                    "code": "PersistedNoBehaviorSetting",
+                    "message": "Source setting is preserved for compatibility but has no Flapjack behavior.",
+                    "resource": "Settings",
+                    "jsonPath": "$.attributesToSnippet"
+                },
+                {
+                    "code": "PersistedNoBehaviorSetting",
+                    "message": "Source setting is preserved for compatibility but has no Flapjack behavior.",
+                    "resource": "Settings",
+                    "jsonPath": "$.highlightPreTag"
+                },
+                {
+                    "code": "PersistedNoBehaviorSetting",
+                    "message": "Source setting is preserved for compatibility but has no Flapjack behavior.",
+                    "resource": "Settings",
+                    "jsonPath": "$.highlightPostTag"
+                },
+                {
+                    "code": "PersistedNoBehaviorSetting",
+                    "message": "Source setting is preserved for compatibility but has no Flapjack behavior.",
+                    "resource": "Settings",
+                    "jsonPath": "$.hitsPerPage"
+                },
+                {
+                    "code": "PersistedNoBehaviorSetting",
+                    "message": "Source setting is preserved for compatibility but has no Flapjack behavior.",
+                    "resource": "Settings",
+                    "jsonPath": "$.optionalWords"
+                },
+                {
+                    "code": "ReadOnlySourceField",
+                    "message": "Source field is read-only in Flapjack and is not applied during migration.",
+                    "resource": "Settings",
+                    "jsonPath": "$.synonyms"
+                },
+                {
+                    "code": "ReadOnlySourceField",
+                    "message": "Source field is read-only in Flapjack and is not applied during migration.",
+                    "resource": "Settings",
+                    "jsonPath": "$.version"
+                },
+                {
+                    "code": "ReplicaTopologyNotMigrated",
+                    "message": "Replica topology contains an entry that cannot be translated, such as a malformed, self-referential, or colliding replica.",
+                    "resource": "Settings",
+                    "jsonPath": "$.replicas.0"
+                }
+            ]
+        },
+        "source_objects": [
+            {
+                "objectID": "doc-1",
+                "title": "Quartz adapter",
+                "category": "hardware"
+            },
+            {
+                "objectID": "doc-2",
+                "title": "Velvet compass",
+                "category": "navigation"
+            }
+        ],
+        "target_objects": [
+            {
+                "objectID": "doc-1",
+                "title": "Quartz adapter",
+                "category": "hardware"
+            },
+            {
+                "objectID": "doc-2",
+                "title": "Velvet compass",
+                "category": "navigation"
+            }
+        ],
+        "parity": {
+            "count_source": 2,
+            "count_migrated": 2,
+            "only_in_source": [],
+            "only_in_migrated": [],
+            "field_mismatches": []
+        }
+    },
+    "node_local_overwrite": {
+        "http_status": 202,
+        "response": {
+            "disposition": "succeeded",
+            "terminal_at": "2026-07-26T00:00:00Z",
+            "settings": true,
+            "synonyms": {
+                "imported": 0
+            },
+            "rules": {
+                "imported": 0
+            },
+            "objects": {
+                "imported": 3
+            }
+        },
+        "source_objects": [
+            {
+                "objectID": "doc-1",
+                "title": "Quartz adapter",
+                "category": "hardware",
+                "revision": "replacement"
+            },
+            {
+                "objectID": "doc-2",
+                "title": "Velvet compass revised",
+                "category": "navigation",
+                "revision": "replacement"
+            },
+            {
+                "objectID": "doc-4",
+                "title": "Ivory beacon",
+                "category": "navigation",
+                "revision": "replacement"
+            }
+        ],
+        "target_objects": [
+            {
+                "objectID": "doc-1",
+                "title": "Quartz adapter",
+                "category": "hardware",
+                "revision": "replacement"
+            },
+            {
+                "objectID": "doc-2",
+                "title": "Velvet compass revised",
+                "category": "navigation",
+                "revision": "replacement"
+            },
+            {
+                "objectID": "doc-4",
+                "title": "Ivory beacon",
+                "category": "navigation",
+                "revision": "replacement"
+            }
+        ],
+        "parity": {
+            "count_source": 3,
+            "count_migrated": 3,
+            "only_in_source": [],
+            "only_in_migrated": [],
+            "field_mismatches": []
+        },
+        "stale_destination_object_ids": []
+    },
+    "ha_create_refusal": {
+        "peer_count": 1,
+        "http_status": 503,
+        "response": {
+            "message": "Algolia migration import is unavailable on HA clusters until MIG-7 supplies a costed convergence protocol.",
+            "status": 503,
+            "code": "migration_ha_unsupported"
+        }
+    },
+    "ha_overwrite_refusal": {
+        "peer_count": 1,
+        "http_status": 503,
+        "response": {
+            "message": "Algolia migration import is unavailable on HA clusters until MIG-7 supplies a costed convergence protocol.",
+            "status": 503,
+            "code": "migration_ha_unsupported"
+        }
+    },
+    "cleanup": {
+        "algolia_indexes": 0,
+        "flapjack_indexes": 0,
+        "algolia_keys": 0,
+        "local_stack": 0,
+        "runtime_files": 0
+    },
+    "indeterminate": false
+}

@@ -134,6 +134,23 @@ impl AlgoliaImportService {
             .await
             .map_err(AlgoliaImportEngineError::from_proxy)
     }
+
+    pub async fn privacy_scrub(
+        &self,
+        target: EngineTarget,
+        erasure_handle: uuid::Uuid,
+    ) -> Result<crate::services::flapjack_proxy::FlapjackHttpResponse, AlgoliaImportEngineError>
+    {
+        self.proxy
+            .privacy_scrub_algolia_migration(
+                &target.flapjack_url,
+                &target.node_id,
+                &target.region,
+                erasure_handle,
+            )
+            .await
+            .map_err(AlgoliaImportEngineError::from_proxy)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -631,7 +648,8 @@ mod tests {
     fn terminal_fact_accepts_only_canonical_terminal_pairs() {
         use crate::models::algolia_import_job::{
             AlgoliaImportErrorCode, AlgoliaImportJobStatus, AlgoliaImportPublicationDisposition,
-            AlgoliaImportSummary, AlgoliaImportTerminalFact,
+            AlgoliaImportSummary, AlgoliaImportTerminalDetails, AlgoliaImportTerminalFact,
+            AlgoliaImportWarning,
         };
         use AlgoliaImportJobStatus::{
             Cancelled, Completed, CompletedWithWarnings, Failed, Interrupted,
@@ -662,14 +680,33 @@ mod tests {
                 };
                 let terminal_at = "2026-07-22T00:00:02Z".parse().unwrap();
                 let engine_job_id = uuid::Uuid::new_v4();
+                let warnings = if status == CompletedWithWarnings {
+                    vec![AlgoliaImportWarning {
+                        code: "terminal_warning".to_string(),
+                        message: "Terminal warning".to_string(),
+                        resource: "job".to_string(),
+                        page_index: None,
+                        item_index: None,
+                        json_path: "$".to_string(),
+                    }]
+                } else {
+                    Vec::new()
+                };
                 let result = AlgoliaImportTerminalFact::new(
                     engine_job_id,
                     status,
                     disposition,
-                    summary.clone(),
                     terminal_at,
-                    Some(AlgoliaImportErrorCode::BackendUnavailable),
-                    Some("sanitized terminal detail".to_string()),
+                    AlgoliaImportTerminalDetails {
+                        summary: summary.clone(),
+                        terminal_outcome_observed: matches!(
+                            status,
+                            Completed | CompletedWithWarnings
+                        ),
+                        warnings,
+                        error_code: Some(AlgoliaImportErrorCode::BackendUnavailable),
+                        error_message: Some("sanitized terminal detail".to_string()),
+                    },
                 );
                 assert_eq!(
                     result.is_ok(),
@@ -701,6 +738,10 @@ mod tests {
             "../../tests/fixtures/algolia_migration_engine_contract.json"
         ))
         .unwrap();
+        // The pinned engine SHA is owned canonically by the fixture itself and by
+        // scripts/update_algolia_migration_engine_contract.sh --check. This unit test
+        // asserts only the reservation-bound submit-field contract, so it must not
+        // duplicate (and drift against) the SHA pin.
         let required = fixture["request"]["required_fields"]
             .as_array()
             .expect("request required fields");

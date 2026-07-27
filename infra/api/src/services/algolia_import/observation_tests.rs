@@ -46,6 +46,28 @@ fn response(
     .unwrap()
 }
 
+fn successful_terminal_response(
+    settings_applied: bool,
+    synonyms_imported: u64,
+    rules_imported: u64,
+    warnings: serde_json::Value,
+) -> AsyncMigrationStatusResponse {
+    serde_json::from_value(json!({
+        "jobId": ENGINE_JOB_ID,
+        "phase": "activating",
+        "disposition": "succeeded",
+        "createdAt": "2026-07-22T00:00:00Z",
+        "updatedAt": "2026-07-22T00:00:01Z",
+        "exportProgress": {"completed": 12, "total": 20},
+        "terminalAt": "2026-07-22T00:00:02Z",
+        "settingsApplied": settings_applied,
+        "synonymsImported": {"imported": synonyms_imported},
+        "rulesImported": {"imported": rules_imported},
+        "warnings": warnings,
+    }))
+    .unwrap()
+}
+
 #[test]
 fn status_observation_maps_every_running_phase_to_the_canonical_cloud_sequence() {
     let cases = [
@@ -149,6 +171,144 @@ fn status_observation_maps_only_the_pinned_terminal_outcomes() {
 }
 
 #[test]
+fn status_observation_maps_success_terminal_outcome_counts_exactly() {
+    let cases = [(true, 0, 0, 1), (false, 9, 4, 0)];
+
+    for (settings_applied, synonyms_imported, rules_imported, expected_settings) in cases {
+        let previous = AlgoliaImportSummary {
+            documents_expected: 20,
+            documents_imported: 12,
+            documents_rejected: 3,
+            settings_unsupported: 2,
+            synonyms_expected: 30,
+            synonyms_rejected: 5,
+            rules_expected: 40,
+            rules_rejected: 6,
+            ..Default::default()
+        };
+        let observed = AlgoliaImportService::map_status_observation(
+            &cursor(
+                AlgoliaImportDestinationKind::Replace,
+                AlgoliaImportJobStatus::Promoting,
+                previous.clone(),
+            ),
+            successful_terminal_response(
+                settings_applied,
+                synonyms_imported,
+                rules_imported,
+                json!([]),
+            ),
+        )
+        .unwrap();
+        let AlgoliaImportStatusObservation::Terminal(fact) = observed else {
+            panic!("successful terminal response must produce a terminal fact");
+        };
+        assert_eq!(fact.status, AlgoliaImportJobStatus::Completed);
+        assert!(fact.terminal_outcome_observed);
+        assert_eq!(fact.summary.documents_expected, previous.documents_expected);
+        assert_eq!(fact.summary.documents_imported, previous.documents_imported);
+        assert_eq!(fact.summary.documents_rejected, previous.documents_rejected);
+        assert_eq!(fact.summary.settings_applied, expected_settings);
+        assert_eq!(
+            fact.summary.settings_unsupported,
+            previous.settings_unsupported
+        );
+        assert_eq!(fact.summary.synonyms_expected, previous.synonyms_expected);
+        assert_eq!(fact.summary.synonyms_imported, synonyms_imported as i64);
+        assert_eq!(fact.summary.synonyms_rejected, previous.synonyms_rejected);
+        assert_eq!(fact.summary.rules_expected, previous.rules_expected);
+        assert_eq!(fact.summary.rules_imported, rules_imported as i64);
+        assert_eq!(fact.summary.rules_rejected, previous.rules_rejected);
+        assert!(fact.warnings.is_empty());
+    }
+}
+
+#[test]
+fn status_observation_maps_structured_warnings_to_completed_with_warnings() {
+    let observed = AlgoliaImportService::map_status_observation(
+        &cursor(
+            AlgoliaImportDestinationKind::Replace,
+            AlgoliaImportJobStatus::Promoting,
+            AlgoliaImportSummary::default(),
+        ),
+        successful_terminal_response(
+            true,
+            2,
+            3,
+            json!([{
+                "code": "unsupported_synonym_type",
+                "message": "Skipped one synonym",
+                "resource": "synonyms",
+                "pageIndex": 2,
+                "itemIndex": 5,
+                "jsonPath": "$.synonyms[5]"
+            }]),
+        ),
+    )
+    .unwrap();
+    let AlgoliaImportStatusObservation::Terminal(fact) = observed else {
+        panic!("warning terminal response must produce a terminal fact");
+    };
+
+    assert_eq!(fact.status, AlgoliaImportJobStatus::CompletedWithWarnings);
+    assert!(fact.terminal_outcome_observed);
+    assert_eq!(fact.summary.settings_applied, 1);
+    assert_eq!(fact.summary.synonyms_imported, 2);
+    assert_eq!(fact.summary.rules_imported, 3);
+    assert_eq!(fact.warnings.len(), 1);
+    assert_eq!(fact.warnings[0].code, "unsupported_synonym_type");
+    assert_eq!(fact.warnings[0].json_path, "$.synonyms[5]");
+}
+
+#[test]
+fn status_observation_non_success_paths_do_not_mutate_terminal_outcome_fields() {
+    let previous = AlgoliaImportSummary {
+        documents_expected: 20,
+        documents_imported: 10,
+        settings_applied: 7,
+        synonyms_imported: 8,
+        rules_imported: 9,
+        ..Default::default()
+    };
+    let current = cursor(
+        AlgoliaImportDestinationKind::Replace,
+        AlgoliaImportJobStatus::CopyingDocuments,
+        previous.clone(),
+    );
+
+    let running = AlgoliaImportService::map_status_observation(
+        &current,
+        response(AsyncMigrationPhase::Preparing, "running", 12, 20),
+    )
+    .expect("running observation maps");
+    let AlgoliaImportStatusObservation::Running(running) = running else {
+        panic!("running response must stay nonterminal");
+    };
+    assert_eq!(running.summary.settings_applied, previous.settings_applied);
+    assert_eq!(
+        running.summary.synonyms_imported,
+        previous.synonyms_imported
+    );
+    assert_eq!(running.summary.rules_imported, previous.rules_imported);
+
+    for disposition in ["failed", "cancelled"] {
+        let terminal = AlgoliaImportService::map_status_observation(
+            &current,
+            response(AsyncMigrationPhase::Preparing, disposition, 12, 20),
+        )
+        .expect("non-success terminal observation maps");
+        let AlgoliaImportStatusObservation::Terminal(fact) = terminal else {
+            panic!("{disposition} response must produce a terminal fact");
+        };
+        assert!(!fact.terminal_outcome_observed);
+        assert!(fact.warnings.is_empty());
+        assert_eq!(fact.summary.settings_applied, previous.settings_applied);
+        assert_eq!(fact.summary.synonyms_imported, previous.synonyms_imported);
+        assert_eq!(fact.summary.rules_imported, previous.rules_imported);
+    }
+}
+
+#[test]
 fn status_observation_keeps_cancelling_running_and_closes_terminal_race_matrix() {
     let previous = AlgoliaImportSummary {
         documents_expected: 20,
@@ -209,10 +369,14 @@ fn status_observation_keeps_cancelling_running_and_closes_terminal_race_matrix()
                 Uuid::parse_str(ENGINE_JOB_ID).unwrap(),
                 AlgoliaImportJobStatus::Cancelled,
                 invalid_publication,
-                AlgoliaImportSummary::default(),
                 "2026-07-22T00:00:02Z".parse().unwrap(),
-                None,
-                None,
+                crate::models::algolia_import_job::AlgoliaImportTerminalDetails {
+                    summary: AlgoliaImportSummary::default(),
+                    terminal_outcome_observed: false,
+                    warnings: Vec::new(),
+                    error_code: None,
+                    error_message: None,
+                },
             )
             .is_err()
         );

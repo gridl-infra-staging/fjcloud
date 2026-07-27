@@ -85,9 +85,7 @@ function renderMigratePage(
 	});
 }
 
-function recentImportJob(
-	overrides: Partial<PublicAlgoliaImportJob> = {}
-): PublicAlgoliaImportJob {
+function recentImportJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgoliaImportJob {
 	return {
 		id: 'job_123',
 		status: 'copying_documents',
@@ -114,6 +112,8 @@ function recentImportJob(
 		resumable: false,
 		resumeCount: 0,
 		publicationDisposition: 'not_started',
+		terminalOutcomeObserved: false,
+		warnings: [],
 		createdAt: '2026-07-18T10:00:00Z',
 		updatedAt: '2026-07-18T10:05:00Z',
 		...overrides

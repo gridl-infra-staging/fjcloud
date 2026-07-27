@@ -1,0 +1,14 @@
+[
+  {
+    "objectID": "create-doc-1",
+    "title": "Quartz adapter",
+    "category": "hardware",
+    "revision": "create"
+  },
+  {
+    "objectID": "create-doc-2",
+    "title": "Velvet compass",
+    "category": "navigation",
+    "revision": "create"
+  }
+]

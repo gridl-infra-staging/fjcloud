@@ -358,6 +358,8 @@ function importJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 			rulesImported: 6,
 			rulesRejected: 1
 		},
+		terminalOutcomeObserved: false,
+		warnings: [],
 		error: null,
 		cancelRequestedAt: null,
 		resumeProvenance: null,

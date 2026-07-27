@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "receipt_type": "f10c_cloud_privacy_scrub_dependency",
+  "fjcloud_sha": "2f7046a6161c23705c5dd85ca78e4b4d6f4d8a7a",
+  "engine_contract": {
+    "fixture_path": "infra/api/tests/fixtures/algolia_migration_engine_contract.json",
+    "pinned_engine_sha": "320132fcd12a71d441d70a30c34ce66c64f21d46",
+    "f10e_receipt_path": "engine/docs2/4_EVIDENCE/privacy_scrub_transport_receipt.json",
+    "f10e_receipt_sha": "c14fd322842c42cf2527616a69f708257194a9ef",
+    "privacy_scrub_known_answer_success_marker": "  [PASS] privacy scrub transport receipt validates the reviewed merge baseline"
+  },
+  "writer_denominator": {
+    "fixture_path": "scripts/tests/fixtures/catalog_lifecycle_writers.json",
+    "hard_erasure_writer_count": 4
+  },
+  "cloud_worker_dependency": {
+    "fixture_path": "scripts/tests/fixtures/catalog_lifecycle_acceptance_oracles.json",
+    "dependency_id": "cloud_erased_tombstone_scrub_worker",
+    "status": "available",
+    "reason": "privacy_scrub_worker_available",
+    "remaining_dependency_id": "deterministic_source_boundary_controls",
+    "remaining_dependency_status": "action_required",
+    "remaining_dependency_reason": "privacy_boundary_control_unavailable"
+  },
+  "replay_outcomes": {
+    "duplicate_delivery": "passing",
+    "response_loss": "passing",
+    "worker_restart": "passing",
+    "ack_replay": "passing"
+  },
+  "durable_ack_count": 1,
+  "residue_counts": {
+    "handle_mappings": 0,
+    "active_claims": 0,
+    "active_reservations": 0,
+    "vm_retirement_blockers": 0,
+    "uncompacted_scrub_handles": 0
+  },
+  "command_results": [
+    {
+      "command": "FLAPJACK_DEV_DIR=<detached-worktree> FJCLOUD_ALGOLIA_MIGRATION_ENGINE_PINNED_SHA_FOR_TEST=320132fcd12a71d441d70a30c34ce66c64f21d46 bash scripts/update_algolia_migration_engine_contract.sh --check",
+      "result": "passing",
+      "evidence": "Algolia migration engine contract is current; privacy scrub known-answer marker was present"
+    },
+    {
+      "command": "bash scripts/tests/update_algolia_migration_engine_contract_test.sh",
+      "result": "passing",
+      "passed_count": 1,
+      "evidence": "PASS update_algolia_migration_engine_contract_test"
+    },
+    {
+      "command": "cd infra && cargo test -p api --test platform algolia_migration_engine_contract_test::",
+      "result": "passing",
+      "passed_count": 6,
+      "failed_count": 0,
+      "filtered_out_count": 1561
+    },
+    {
+      "command": "psql <verified-local-url> -Atc 'SELECT 1'",
+      "result": "passing",
+      "evidence": "1"
+    },
+    {
+      "command": "cd infra && DATABASE_URL=<verified-local-url> cargo test -p api --no-fail-fast services::algolia_import::reconciliation_postgres_tests:: -- --nocapture",
+      "result": "passing",
+      "passed_count": 10,
+      "failed_count": 0,
+      "filtered_out_count": 842,
+      "skip_marker_absent": "SKIP: DATABASE_URL not set"
+    },
+    {
+      "command": "cd infra && cargo test -p api --test platform catalog_lifecycle_leases::",
+      "result": "passing",
+      "passed_count": 126,
+      "failed_count": 0,
+      "filtered_out_count": 1441
+    },
+    {
+      "command": "bash scripts/tests/algolia_import_catalog_live_probe_test.sh",
+      "result": "passing",
+      "passed_count": 191,
+      "failed_count": 0
+    }
+  ]
+}

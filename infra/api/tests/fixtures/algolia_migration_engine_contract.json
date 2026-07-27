@@ -1,13 +1,13 @@
 {
-  "pinned_engine_sha": "bf6dbb13d542243b42a29e4f48e94aface9b67eb",
+  "pinned_engine_sha": "320132fcd12a71d441d70a30c34ce66c64f21d46",
   "openapi_artifacts": [
     {
       "path": "engine/docs2/openapi.json",
-      "sha256": "2f3230eb49d2bc9fd9a73d4551bf9ff8dd20be282f1f8371e8c97b83bfa7679b"
+      "sha256": "5047642dfb4e7cb419105450fcf3c37570812d62ec186225545fa42906bfe07e"
     },
     {
       "path": "engine/demo-dualclient/public/openapi.json",
-      "sha256": "2f3230eb49d2bc9fd9a73d4551bf9ff8dd20be282f1f8371e8c97b83bfa7679b"
+      "sha256": "5047642dfb4e7cb419105450fcf3c37570812d62ec186225545fa42906bfe07e"
     }
   ],
   "routes": {
@@ -31,32 +31,115 @@
     }
   },
   "acknowledgement_contract": {
+    "operation_id": "acknowledge_algolia_migration",
     "authentication": {
       "required": true,
-      "headers": [
-        "x-algolia-api-key",
-        "x-algolia-application-id"
-      ]
+      "security_scheme": "api_key"
     },
-    "durability": {
-      "terminal_phase_required_before_success": true
+    "request": {
+      "path_parameters": [
+        "job_id"
+      ],
+      "body": "none"
     },
-    "idempotency": {
-      "duplicate_terminal_acknowledgement": "success_no_mutation"
-    },
-    "absence": {
+    "engine_behavior": "idempotent_no_op_terminal_receipt",
+    "responses": {
+      "success": {
+        "http_status": 204,
+        "description": "Terminal migration acknowledged"
+      },
+      "invalid_uuid": {
+        "http_status": 400,
+        "description": "Invalid migration job UUID"
+      },
       "missing_job": {
         "http_status": 404,
-        "code": "migration_job_not_found"
+        "description": "No durable migration phase record is currently retained for the UUID"
+      },
+      "too_early": {
+        "http_status": 409,
+        "description": "migration_ack_too_early"
+      },
+      "read_failure": {
+        "http_status": 500,
+        "description": "Migration status record could not be read"
+      }
+    }
+  },
+  "privacy_scrub_contract": {
+    "route": {
+      "method": "POST",
+      "path": "/1/migrations/privacy-scrub",
+      "operation_id": "submit_privacy_scrub",
+      "security_scheme": "private_migration"
+    },
+    "request": {
+      "required_fields": [
+        "expectedGeneration",
+        "scrubId",
+        "tenant"
+      ],
+      "optional_fields": [
+        "objectIDs",
+        "ruleIDs",
+        "synonymIDs"
+      ],
+      "property_types": {
+        "expectedGeneration": { "type": "string" },
+        "objectIDs": { "type": "array", "items": "string" },
+        "ruleIDs": { "type": "array", "items": "string" },
+        "scrubId": { "type": "string" },
+        "synonymIDs": { "type": "array", "items": "string" },
+        "tenant": { "type": "string" }
       }
     },
-    "already_acknowledged": {
-      "http_status": 204
+    "ack": {
+      "http_status": 202,
+      "schema": "PrivacyScrubAck",
+      "required_fields": [
+        "disposition",
+        "scrubId"
+      ],
+      "optional_fields": [],
+      "property_types": {
+        "disposition": { "type": "string" },
+        "scrubId": { "type": "string" }
+      }
     },
-    "too_early": {
-      "http_status": 409,
-      "code": "migration_ack_too_early"
+    "receipt": {
+      "path": "engine/docs2/4_EVIDENCE/privacy_scrub_transport_receipt.json",
+      "validated_head_sha": "c14fd322842c42cf2527616a69f708257194a9ef",
+      "scrub_implementation_sha": "674f243579e2f31ce15a00c8f79d8a98842c7659",
+      "boundary_variants": [
+        "PreIntent",
+        "PostIntent",
+        "EngineCommit",
+        "PreAck",
+        "ResponseLoss",
+        "Restart",
+        "AckReplay"
+      ],
+      "auth_negative_cases": [
+        "missing credentials",
+        "wrong credentials",
+        "incomplete app material",
+        "ordinary admin credentials"
+      ],
+      "exact_absence_resource_classes": [
+        "objectIDs",
+        "synonymIDs",
+        "ruleIDs"
+      ]
     }
+  },
+  "privacy_scrub_known_answer": {
+    "command": [
+      "bash",
+      "scripts/update_algolia_migration_engine_contract.sh",
+      "--check"
+    ],
+    "working_directory": ".",
+    "success_marker": "privacy-scrub transport receipt: PASS"
   },
   "request": {
     "required_fields": [
@@ -79,8 +162,83 @@
     ],
     "optional_fields": [
       "exportProgress",
-      "terminalAt"
+      "rulesImported",
+      "settingsApplied",
+      "synonymsImported",
+      "terminalAt",
+      "warnings"
     ]
+  },
+  "status_outcome": {
+    "fields": [
+      "rulesImported",
+      "settingsApplied",
+      "synonymsImported",
+      "warnings"
+    ],
+    "settingsApplied": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "synonymsImported": {
+      "ref": "#/components/schemas/MigrateCount",
+      "nullable": true
+    },
+    "rulesImported": {
+      "ref": "#/components/schemas/MigrateCount",
+      "nullable": true
+    },
+    "warnings": {
+      "type": "array",
+      "items_ref": "#/components/schemas/MigrateWarning"
+    }
+  },
+  "count": {
+    "required_fields": [
+      "imported"
+    ],
+    "optional_fields": [],
+    "field_types": {
+      "imported": [
+        "integer"
+      ]
+    }
+  },
+  "warning": {
+    "required_fields": [
+      "code",
+      "jsonPath",
+      "message",
+      "resource"
+    ],
+    "optional_fields": [
+      "itemIndex",
+      "pageIndex"
+    ],
+    "field_types": {
+      "code": [
+        "string"
+      ],
+      "itemIndex": [
+        "integer",
+        "null"
+      ],
+      "jsonPath": [
+        "string"
+      ],
+      "message": [
+        "string"
+      ],
+      "pageIndex": [
+        "integer",
+        "null"
+      ],
+      "resource": [
+        "string"
+      ]
+    }
   },
   "progress": {
     "required_fields": [
@@ -116,6 +274,77 @@
     },
     "cancel_too_late": {
       "http_status": 409
+    }
+  },
+  "status_outcome": {
+    "fields": [
+      "rulesImported",
+      "settingsApplied",
+      "synonymsImported",
+      "warnings"
+    ],
+    "settingsApplied": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "synonymsImported": {
+      "ref": "#/components/schemas/MigrateCount",
+      "nullable": true
+    },
+    "rulesImported": {
+      "ref": "#/components/schemas/MigrateCount",
+      "nullable": true
+    },
+    "warnings": {
+      "type": "array",
+      "items_ref": "#/components/schemas/MigrateWarning"
+    }
+  },
+  "count": {
+    "required_fields": [
+      "imported"
+    ],
+    "optional_fields": [],
+    "field_types": {
+      "imported": [
+        "integer"
+      ]
+    }
+  },
+  "warning": {
+    "required_fields": [
+      "code",
+      "jsonPath",
+      "message",
+      "resource"
+    ],
+    "optional_fields": [
+      "itemIndex",
+      "pageIndex"
+    ],
+    "field_types": {
+      "code": [
+        "string"
+      ],
+      "itemIndex": [
+        "integer",
+        "null"
+      ],
+      "jsonPath": [
+        "string"
+      ],
+      "message": [
+        "string"
+      ],
+      "pageIndex": [
+        "integer",
+        "null"
+      ],
+      "resource": [
+        "string"
+      ]
     }
   }
 }

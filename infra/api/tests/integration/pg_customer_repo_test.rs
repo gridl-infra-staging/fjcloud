@@ -175,7 +175,7 @@ async fn fetch_retained_evidence_snapshot(
                     resume_count, documents_expected, documents_imported, documents_rejected, \
                     settings_applied, settings_unsupported, synonyms_expected, \
                     synonyms_imported, synonyms_rejected, rules_expected, rules_imported, \
-                    rules_rejected, warnings, error_code, error_message, status, \
+                    rules_rejected, terminal_outcome_observed, warnings, error_code, error_message, status, \
                     publication_disposition, engine_ack_state, terminal_at, cleanup_phase, \
                     created_at, updated_at \
              FROM algolia_import_jobs WHERE customer_id = $1",
@@ -346,7 +346,7 @@ async fn seed_queued_import_job(pool: &PgPool, customer_id: Uuid, lifecycle_gene
              canonical_fingerprint, source_size_bytes, documents_expected, warnings) \
          VALUES ($1, 'queued_target', 'QUEUE01', 'create', 'queued_target', 'us-east-1', \
                  'queued_source', $2, $3, 'fingerprint-queued', 1024, 10, \
-                 '[\"queued warning\"]'::jsonb)",
+                 '[{\"code\":\"queued_warning\",\"message\":\"Queued warning\",\"resource\":\"job\",\"pageIndex\":null,\"itemIndex\":null,\"jsonPath\":\"$\"}]'::jsonb)",
     )
     .bind(customer_id)
     .bind(lifecycle_generation)
@@ -414,7 +414,7 @@ async fn seed_failed_resumable_import_job(
                  $2, $3, 'physical-failed', 'failed_source', $4, 'committed', $5, $6, \
                  'fingerprint-failed', 'route-failed', 4096, TRUE, 3, 'checkpoint-failed', \
                  NOW() + INTERVAL '1 hour', NOW(), TRUE, 2, 30, 12, 1, 4, 2, 6, 3, 1, \
-                 5, 2, 1, '[\"retryable warning\"]'::jsonb, 'internal', \
+                 5, 2, 1, '[{\"code\":\"retryable_warning\",\"message\":\"Retryable warning\",\"resource\":\"job\",\"pageIndex\":null,\"itemIndex\":null,\"jsonPath\":\"$\"}]'::jsonb, 'internal', \
                  'retained failure details', 'failed', 'unchanged', 'pending')",
     )
     .bind(customer_id)
@@ -442,12 +442,12 @@ async fn seed_acknowledged_terminal_import_job(
              source_name, engine_job_id, dispatch_intent_state, lifecycle_generation, \
              idempotency_key, canonical_fingerprint, routing_identity, source_size_bytes, \
              documents_expected, documents_imported, settings_applied, synonyms_expected, \
-             synonyms_imported, rules_expected, rules_imported, warnings, status, \
-             publication_disposition, engine_ack_state, terminal_at) \
+             synonyms_imported, rules_expected, rules_imported, terminal_outcome_observed, \
+             warnings, status, publication_disposition, engine_ack_state, terminal_at) \
          VALUES ($1, 'completed_target', 'DONE001', 'replace', 'completed_target', 'us-east-1', \
                  $2, $3, 'physical-completed', 'completed_source', $4, 'committed', $5, $6, \
-                 'fingerprint-completed', 'route-completed', 8192, 40, 40, 7, 8, 8, 9, 9, \
-                 '[\"terminal warning\"]'::jsonb, 'completed_with_warnings', 'promoted', \
+                 'fingerprint-completed', 'route-completed', 8192, 40, 40, 7, 8, 8, 9, 9, TRUE, \
+                 '[{\"code\":\"terminal_warning\",\"message\":\"Terminal warning\",\"resource\":\"job\",\"pageIndex\":null,\"itemIndex\":null,\"jsonPath\":\"$\"}]'::jsonb, 'completed_with_warnings', 'promoted', \
                  'acknowledged', NOW())",
     )
     .bind(customer_id)
@@ -2562,7 +2562,7 @@ fn hard_delete_algolia_tombstone_matrix_cases() -> Vec<AlgoliaHardDeleteMatrixCa
             error_code: None,
             terminal_at: true,
             expected_cleanup_phase: AlgoliaImportTombstoneCleanupPhase::ExactTargetAbsenceRequired,
-            expected_engine_ack_state: AlgoliaImportEngineAckState::OutboxPending,
+            expected_engine_ack_state: AlgoliaImportEngineAckState::Pending,
         },
         AlgoliaHardDeleteMatrixCase {
             name: "failed_resumable_with_lease",
@@ -2748,10 +2748,14 @@ async fn seed_algolia_hard_delete_matrix_case(
     let source_name = format!("PII_MATRIX_SOURCE_{}", case.name);
     let idempotency_key = format!("PII_MATRIX_IDEMPOTENCY_{}_{}", ordinal, Uuid::new_v4());
     let canonical_fingerprint = format!("PII_MATRIX_FINGERPRINT_{}", case.name);
-    let warnings = serde_json::json!([
-        format!("PII_MATRIX_WARNING_{}", case.name),
-        format!("PII_MATRIX_OBJECT_{}", case.name),
-    ]);
+    let warnings = serde_json::json!([{
+        "code": format!("PII_MATRIX_WARNING_{}", case.name),
+        "message": format!("PII_MATRIX_OBJECT_{}", case.name),
+        "resource": "job",
+        "pageIndex": null,
+        "itemIndex": null,
+        "jsonPath": "$"
+    }]);
 
     if let Some(destination_vm_id) = destination_vm_id {
         insert_vm_with_id(
@@ -2775,12 +2779,12 @@ async fn seed_algolia_hard_delete_matrix_case(
           resume_status_observed_at, resumable, resume_count, documents_expected,
           documents_imported, documents_rejected, settings_applied, settings_unsupported,
           synonyms_expected, synonyms_imported, synonyms_rejected, rules_expected,
-          rules_imported, rules_rejected, warnings, error_code, error_message, status,
-          publication_disposition, engine_ack_state, terminal_at)
+          rules_imported, rules_rejected, terminal_outcome_observed, warnings, error_code,
+          error_message, status, publication_disposition, engine_ack_state, terminal_at)
          VALUES ($1, $2, $3, $4, $2, $5, $6, $7, $8, $9, $10, $11, $12,
                  $13, $14, $15, 4096, 1, 2048, 512, $16, $17, $18, $19,
                  $20, $21, $22, $23, $24, $25, 31, 17, 2, 5, 1, 7, 6, 1,
-                 9, 8, 1, $26, $27, $28, $29, $30, $31, $32)
+                 9, 8, 1, $26, $27, $28, $29, $30, $31, $32, $33)
          RETURNING id",
     )
     .bind(customer_id)
@@ -2808,6 +2812,10 @@ async fn seed_algolia_hard_delete_matrix_case(
     .bind(resume_status_observed_at)
     .bind(case.resumable)
     .bind(if case.resume_metadata { 1_i64 } else { 0_i64 })
+    .bind(matches!(
+        case.status,
+        "completed" | "completed_with_warnings"
+    ))
     .bind(warnings)
     .bind(case.error_code)
     .bind(error_message)
@@ -2872,6 +2880,7 @@ fn assert_algolia_matrix_pii_columns_are_null(tombstone: &serde_json::Value) {
         "rules_expected",
         "rules_imported",
         "rules_rejected",
+        "terminal_outcome_observed",
         "warnings",
         "error_code",
         "error_message",

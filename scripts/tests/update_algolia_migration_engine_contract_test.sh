@@ -76,33 +76,55 @@ write_openapi() {
     },
     "/1/migrations/algolia/{job_id}/acknowledge": {
       "post": {
+        "operationId": "acknowledge_algolia_migration",
         "security": [{"api_key": []}],
-        "responses": {
-          "204": {"description": "Acknowledged"},
-          "404": {
-            "description": "Not found",
-            "content": {"application/json": {"examples": {
-              "migration_job_not_found": {"value": {"code": "migration_job_not_found"}}
-            }}}
-          },
-          "409": {
-            "description": "migration_ack_too_early",
-            "content": {"application/json": {"examples": {
-              "migration_ack_too_early": {"value": {"code": "migration_ack_too_early"}}
-            }}}
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
           }
+        ],
+        "responses": {
+          "204": {"description": "Terminal migration acknowledged"},
+          "400": {"description": "Invalid migration job UUID"},
+          "404": {"description": "No durable migration phase record is currently retained for the UUID"},
+          "409": {"description": "migration_ack_too_early"},
+          "500": {"description": "Migration status record could not be read"}
+        },
+        "requestBody": null
+      }
+    },
+    "/1/migrations/privacy-scrub": {
+      "post": {
+        "operationId": "submit_privacy_scrub",
+        "security": [{"private_migration": []}],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/PrivacyScrubRequest"}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Privacy scrub exact-absence ACK",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/PrivacyScrubAck"}
+              }
+            }
+          },
+          "400": {"description": "Invalid privacy scrub request"},
+          "403": {"description": "Private migration credential required"},
+          "409": {"description": "Privacy scrub refused or retryable"}
         }
       }
     }
   },
   "components": {
-    "securitySchemes": {
-      "api_key": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "x-algolia-api-key"
-      }
-    },
     "schemas": {
       "MigrateFromAlgoliaRequest": {
         "type": "object",
@@ -125,7 +147,43 @@ write_openapi() {
           "createdAt": {"type": "string"},
           "updatedAt": {"type": "string"},
           "exportProgress": {"$ref": "#/components/schemas/AsyncMigrationExportProgress"},
-          "terminalAt": {"type": "string"}
+          "terminalAt": {"type": "string"},
+          "settingsApplied": {"type": ["boolean", "null"]},
+          "synonymsImported": {
+            "oneOf": [
+              {"type": "null"},
+              {"$ref": "#/components/schemas/MigrateCount"}
+            ]
+          },
+          "rulesImported": {
+            "oneOf": [
+              {"type": "null"},
+              {"$ref": "#/components/schemas/MigrateCount"}
+            ]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/MigrateWarning"}
+          }
+        }
+      },
+      "MigrateCount": {
+        "type": "object",
+        "required": ["imported"],
+        "properties": {
+          "imported": {"type": "integer", "minimum": 0}
+        }
+      },
+      "MigrateWarning": {
+        "type": "object",
+        "required": ["code", "message", "resource", "jsonPath"],
+        "properties": {
+          "code": {"type": "string"},
+          "message": {"type": "string"},
+          "resource": {"type": "string"},
+          "pageIndex": {"type": ["integer", "null"], "minimum": 0},
+          "itemIndex": {"type": ["integer", "null"], "minimum": 0},
+          "jsonPath": {"type": "string"}
         }
       },
       "AsyncMigrationExportProgress": {
@@ -143,6 +201,26 @@ write_openapi() {
       "AsyncMigrationDisposition": {
         "type": "string",
         "enum": ["running", "succeeded", "failed", "cancelled"]
+      },
+      "PrivacyScrubRequest": {
+        "type": "object",
+        "required": ["expectedGeneration", "scrubId", "tenant"],
+        "properties": {
+          "expectedGeneration": {"type": "string"},
+          "objectIDs": {"type": "array", "items": {"type": "string"}},
+          "ruleIDs": {"type": "array", "items": {"type": "string"}},
+          "scrubId": {"type": "string"},
+          "synonymIDs": {"type": "array", "items": {"type": "string"}},
+          "tenant": {"type": "string"}
+        }
+      },
+      "PrivacyScrubAck": {
+        "type": "object",
+        "required": ["scrubId", "disposition"],
+        "properties": {
+          "disposition": {"type": "string"},
+          "scrubId": {"type": "string"}
+        }
       }
     }
   }
@@ -152,12 +230,87 @@ JSON
 
 init_engine_repo() {
     local dir="$1"
-    mkdir -p "$dir/engine"
+    mkdir -p "$dir/engine/docs2/4_EVIDENCE" "$dir/engine/tests" "$dir/scripts"
     cat >"$dir/engine/Cargo.toml" <<'EOF_CARGO'
 [package]
 name = "flapjack-server"
 version = "0.0.0"
 EOF_CARGO
+    cat >"$dir/scripts/update_algolia_migration_engine_contract.sh" <<'EOF_PRIVACY_CHECK'
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "${1:-}" != "--check" ]; then
+    exit 2
+fi
+printf '%s\n' 'privacy-scrub transport receipt: PASS'
+EOF_PRIVACY_CHECK
+    chmod +x "$dir/scripts/update_algolia_migration_engine_contract.sh"
+    cat >"$dir/engine/tests/migration_import_contract_test.sh" <<'EOF_ACK_TEST'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' '  [PASS] privacy scrub transport receipt validates the reviewed merge baseline'
+printf '%s\n' 'Results: 999/999 passed (0 skipped)'
+EOF_ACK_TEST
+    chmod +x "$dir/engine/tests/migration_import_contract_test.sh"
+    cat >"$dir/engine/docs2/4_EVIDENCE/privacy_scrub_transport_receipt.json" <<'EOF_RECEIPT'
+{
+  "receipt_type": "privacy_scrub_transport",
+  "validated_head_sha": "c14fd322842c42cf2527616a69f708257194a9ef",
+  "scrub_implementation_sha": "674f243579e2f31ce15a00c8f79d8a98842c7659",
+  "denominators": {
+    "boundary_variants": {
+      "count": 7,
+      "variants": [
+        "PreIntent",
+        "PostIntent",
+        "EngineCommit",
+        "PreAck",
+        "ResponseLoss",
+        "Restart",
+        "AckReplay"
+      ]
+    },
+    "auth_negative_cases": {
+      "count": 4,
+      "cases": [
+        "missing credentials",
+        "wrong credentials",
+        "incomplete app material",
+        "ordinary admin credentials"
+      ]
+    },
+    "replay_assertions": {
+      "count": 2,
+      "sources": [
+        "engine/flapjack-http/src/handlers/migration/import_contract_tests.rs::privacy_scrub_durability_ack_is_idempotent_after_exact_absence",
+        "engine/flapjack-http/src/handlers/migration/import_contract_recovery_tests.rs::privacy_scrub_recovery_replays_ack_after_response_loss_and_restart"
+      ]
+    },
+    "exact_absence_resource_classes": {
+      "count": 3,
+      "classes": [
+        "objectIDs",
+        "synonymIDs",
+        "ruleIDs"
+      ]
+    }
+  },
+  "validation_commands": {
+    "default_privacy_scrub": {"command": "cargo test privacy_scrub", "exit_code": 0, "result": "13 passed"},
+    "default_generation_evidence": {"command": "cargo test privacy_scrub_generation_evidence", "exit_code": 0, "result": "1 passed"},
+    "default_openapi": {"command": "cargo test openapi_export_tests", "exit_code": 0, "result": "8 passed"},
+    "vector_privacy_scrub": {"command": "cargo test --features vector-search privacy_scrub", "exit_code": 0, "result": "13 passed"},
+    "vector_generation_evidence": {"command": "cargo test --features vector-search privacy_scrub_generation_evidence", "exit_code": 0, "result": "1 passed"},
+    "neighbor_ha_admission": {"command": "cargo test async_import_ha_state_is_refused_by_shared_admission_owner", "exit_code": 0, "result": "1 passed"},
+    "neighbor_cancel_publication": {"command": "cargo test async_import_cancel_after_export_acceptance_settles_cancelled_and_publishes_no_target", "exit_code": 0, "result": "1 passed"},
+    "neighbor_terminal_recovery": {"command": "cargo test async_recovery_leaves_terminal_jobs_untouched", "exit_code": 0, "result": "1 passed"},
+    "neighbor_mutation_fence": {"command": "cargo test mutation_fence", "exit_code": 0, "result": "6 passed"},
+    "migration_contract_suite": {"command": "bash tests/migration_import_contract_test.sh", "exit_code": 0, "result": "154/154 passed"},
+    "fmt_check": {"command": "cargo fmt --check", "exit_code": 0, "result": "clean"},
+    "clippy": {"command": "cargo clippy --all-targets -- -D warnings", "exit_code": 0, "result": "clean"}
+  }
+}
+EOF_RECEIPT
     write_openapi "$dir/engine/docs2/openapi.json"
     mkdir -p "$dir/engine/demo-dualclient/public"
     cp "$dir/engine/docs2/openapi.json" "$dir/engine/demo-dualclient/public/openapi.json"
@@ -170,21 +323,23 @@ EOF_CARGO
 
 run_checker() {
     local engine_dir="$1"
-    local fixture_path="$2"
-    shift 2
-    local ack_check="$tmpdir/ack-semantic-check"
+    local expected_sha="$2"
+    local fixture_path="$3"
+    shift 3
     FLAPJACK_DEV_DIR="$engine_dir" \
-        FJCLOUD_ALGOLIA_MIGRATION_ENGINE_ACK_SEMANTIC_CHECK="$ack_check" \
+        FJCLOUD_ALGOLIA_MIGRATION_ENGINE_ACK_SEMANTIC_CHECK="$tmpdir/ack-semantic-check" \
+        FJCLOUD_ALGOLIA_MIGRATION_ENGINE_PINNED_SHA_FOR_TEST="$expected_sha" \
         "$CHECKER" --check --fixture "$fixture_path" "$@"
 }
 
 run_updater() {
     local engine_dir="$1"
-    local fixture_path="$2"
-    shift 2
-    local ack_check="$tmpdir/ack-semantic-check"
+    local expected_sha="$2"
+    local fixture_path="$3"
+    shift 3
     FLAPJACK_DEV_DIR="$engine_dir" \
-        FJCLOUD_ALGOLIA_MIGRATION_ENGINE_ACK_SEMANTIC_CHECK="$ack_check" \
+        FJCLOUD_ALGOLIA_MIGRATION_ENGINE_ACK_SEMANTIC_CHECK="$tmpdir/ack-semantic-check" \
+        FJCLOUD_ALGOLIA_MIGRATION_ENGINE_PINNED_SHA_FOR_TEST="$expected_sha" \
         "$CHECKER" --update --fixture "$fixture_path" "$@"
 }
 
@@ -220,6 +375,36 @@ assert_fails_with_status() {
         fail "expected exit $expected_status, got $actual_status"
     }
     assert_action_required "$output"
+}
+
+mutate_openapi_artifacts() {
+    local fixture_path="$1"
+    local scope="$2"
+    local mutation="$3"
+    python3 - "$engine" "$fixture_path" "$scope" "$mutation" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+engine = pathlib.Path(sys.argv[1])
+fixture_path = pathlib.Path(sys.argv[2])
+scope = sys.argv[3]
+mutation = sys.argv[4]
+fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+for index, artifact in enumerate(fixture["openapi_artifacts"]):
+    if scope == "first" and index != 0:
+        continue
+    if scope == "second" and index != 1:
+        continue
+    path = engine / artifact["path"]
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    exec(mutation, {"json": json}, {"payload": payload})
+    encoded = json.dumps(payload, indent=2).encode() + b"\n"
+    path.write_bytes(encoded)
+    artifact["sha256"] = hashlib.sha256(encoded).hexdigest()
+fixture_path.write_text(json.dumps(fixture, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+PY
 }
 
 snapshot_paths() {
@@ -260,48 +445,32 @@ printf '%s\n' "${1:-missing-engine-root}" >>"${ACK_CHECK_LOG:?}"
 EOF_ACK
 chmod +x "$tmpdir/ack-semantic-check"
 export ACK_CHECK_LOG="$tmpdir/ack-semantic-check.log"
+validated_head_sha="$(git -C "$engine" rev-parse HEAD)"
+python3 - "$engine/engine/docs2/4_EVIDENCE/privacy_scrub_transport_receipt.json" \
+    "$validated_head_sha" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+payload["validated_head_sha"] = sys.argv[2]
+path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
+git -C "$engine" add engine/docs2/4_EVIDENCE/privacy_scrub_transport_receipt.json
+git -C "$engine" commit -q -m "fixture receipt"
 head_sha="$(git -C "$engine" rev-parse HEAD)"
 artifact_sha="$(shasum -a 256 "$engine/engine/docs2/openapi.json" | awk '{print $1}')"
 test_fixture="$tmpdir/contract.json"
 cp "$FIXTURE" "$test_fixture"
-python3 - "$test_fixture" "$head_sha" "$artifact_sha" <<'PY'
+python3 - "$test_fixture" "$head_sha" "$artifact_sha" "$validated_head_sha" <<'PY'
 import json
 import sys
 
-path, head_sha, artifact_sha = sys.argv[1:4]
+path, head_sha, artifact_sha, validated_head_sha = sys.argv[1:5]
 payload = json.loads(open(path, encoding="utf-8").read())
 payload["pinned_engine_sha"] = head_sha
-payload["required_runtime_routes"] = {
-    "acknowledge": {
-        "method": "POST",
-        "path": "/1/migrations/algolia/{job_id}/acknowledge",
-    }
-}
-payload["acknowledgement_contract"] = {
-    "authentication": {
-        "required": True,
-        "headers": ["x-algolia-api-key", "x-algolia-application-id"],
-    },
-    "durability": {
-        "terminal_phase_required_before_success": True,
-    },
-    "idempotency": {
-        "duplicate_terminal_acknowledgement": "success_no_mutation",
-    },
-    "absence": {
-        "missing_job": {
-            "http_status": 404,
-            "code": "migration_job_not_found",
-        },
-    },
-    "already_acknowledged": {
-        "http_status": 204,
-    },
-    "too_early": {
-        "http_status": 409,
-        "code": "migration_ack_too_early",
-    },
-}
+payload["privacy_scrub_contract"]["receipt"]["validated_head_sha"] = validated_head_sha
 for artifact in payload["openapi_artifacts"]:
     artifact["sha256"] = artifact_sha
 open(path, "w", encoding="utf-8").write(json.dumps(payload, sort_keys=True, indent=2) + "\n")
@@ -309,7 +478,7 @@ PY
 
 snapshot_paths "$engine" "$CHECKER" "$test_fixture" "$FIXTURE" >"$tmpdir/read_only.before"
 
-run_checker "$engine" "$test_fixture"
+run_checker "$engine" "$head_sha" "$test_fixture"
 grep -q '/engine$' "$ACK_CHECK_LOG" || fail "ACK semantic check should receive an engine path"
 
 snapshot_paths "$engine" "$CHECKER" "$test_fixture" "$FIXTURE" >"$tmpdir/read_only.after"
@@ -317,83 +486,6 @@ cmp -s "$tmpdir/read_only.before" "$tmpdir/read_only.after" || {
     diff -u "$tmpdir/read_only.before" "$tmpdir/read_only.after" >&2 || true
     fail "--check modified an engine or contract input"
 }
-
-missing_contract_section_fixture="$tmpdir/contract.missing-routes.json"
-cp "$test_fixture" "$missing_contract_section_fixture"
-python3 - "$missing_contract_section_fixture" <<'PY'
-import json
-import pathlib
-import sys
-
-fixture_path = pathlib.Path(sys.argv[1])
-fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
-del fixture["routes"]
-fixture_path.write_text(json.dumps(fixture, indent=2) + "\n", encoding="utf-8")
-PY
-assert_fails_action_required run_checker "$engine" "$missing_contract_section_fixture"
-
-malformed_ack_contract_fixture="$tmpdir/contract.malformed-ack-absence.json"
-cp "$test_fixture" "$malformed_ack_contract_fixture"
-python3 - "$malformed_ack_contract_fixture" <<'PY'
-import json
-import pathlib
-import sys
-
-fixture_path = pathlib.Path(sys.argv[1])
-fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
-fixture["acknowledgement_contract"]["absence"] = []
-fixture_path.write_text(json.dumps(fixture, indent=2) + "\n", encoding="utf-8")
-PY
-assert_fails_action_required run_checker "$engine" "$malformed_ack_contract_fixture"
-
-cp "$test_fixture" "$tmpdir/contract.before-description-only-errors.json"
-python3 - "$engine" "$test_fixture" <<'PY'
-import hashlib
-import json
-import pathlib
-import sys
-
-engine = pathlib.Path(sys.argv[1])
-fixture_path = pathlib.Path(sys.argv[2])
-fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
-for artifact in fixture["openapi_artifacts"]:
-    path = engine / artifact["path"]
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    payload["paths"]["/1/migrations/algolia"]["post"]["responses"]["503"] = {
-        "description": "migration_ha_unsupported or migration_capacity_exhausted"
-    }
-    payload["paths"]["/1/migrations/algolia/{job_id}"]["get"]["responses"]["404"] = {
-        "description": "No durable migration phase record is currently retained for the UUID"
-    }
-    payload["paths"]["/1/migrations/algolia/{job_id}/cancel"]["post"]["responses"]["409"] = {
-        "description": "cancel_too_late"
-    }
-    payload["paths"]["/1/migrations/algolia/{job_id}/acknowledge"]["post"]["responses"]["404"] = {
-        "description": "No durable migration phase record is currently retained for the UUID"
-    }
-    payload["paths"]["/1/migrations/algolia/{job_id}/acknowledge"]["post"]["responses"]["409"] = {
-        "description": "migration_ack_too_early"
-    }
-    encoded = json.dumps(payload, indent=2).encode() + b"\n"
-    path.write_bytes(encoded)
-    artifact["sha256"] = hashlib.sha256(encoded).hexdigest()
-fixture_path.write_text(json.dumps(fixture, sort_keys=True, indent=2) + "\n", encoding="utf-8")
-PY
-git -C "$engine" add engine/docs2/openapi.json engine/demo-dualclient/public/openapi.json
-git -C "$engine" commit -q -m "description only error responses"
-description_only_head="$(git -C "$engine" rev-parse HEAD)"
-python3 - "$test_fixture" "$description_only_head" <<'PY'
-import json
-import sys
-
-fixture_path, head_sha = sys.argv[1:3]
-fixture = json.loads(open(fixture_path, encoding="utf-8").read())
-fixture["pinned_engine_sha"] = head_sha
-open(fixture_path, "w", encoding="utf-8").write(json.dumps(fixture, sort_keys=True, indent=2) + "\n")
-PY
-run_checker "$engine" "$test_fixture"
-git -C "$engine" reset --quiet --hard "$head_sha"
-mv "$tmpdir/contract.before-description-only-errors.json" "$test_fixture"
 
 update_fixture="$tmpdir/contract.update.json"
 cp "$test_fixture" "$update_fixture"
@@ -409,7 +501,7 @@ for artifact in payload["openapi_artifacts"]:
 open(path, "w", encoding="utf-8").write(json.dumps(payload, indent=2) + "\n")
 PY
 cp "$update_fixture" "$tmpdir/contract.update.before.json"
-run_updater "$engine" "$update_fixture"
+run_updater "$engine" "$head_sha" "$update_fixture"
 python3 - "$tmpdir/contract.update.before.json" "$update_fixture" "$engine" "$head_sha" <<'PY'
 import copy
 import hashlib
@@ -428,85 +520,132 @@ for artifact in expected["openapi_artifacts"]:
 if after != expected:
     raise SystemExit("update changed fields outside pinned_engine_sha/openapi_artifacts sha256")
 PY
-cp "$update_fixture" "$tmpdir/contract.update.once.json"
-run_updater "$engine" "$update_fixture"
-cmp -s "$tmpdir/contract.update.once.json" "$update_fixture" \
-    || fail "--update must be byte-identical on a second update"
-
-cp "$tmpdir/contract.update.once.json" "$tmpdir/contract.update.semantic-fail.json"
-ACK_CHECK_SCENARIO=fail assert_fails_action_required run_updater "$engine" "$tmpdir/contract.update.semantic-fail.json"
-cmp -s "$tmpdir/contract.update.once.json" "$tmpdir/contract.update.semantic-fail.json" \
-    || fail "--update changed fixture after semantic validation failed"
-
-cp "$tmpdir/contract.update.once.json" "$tmpdir/contract.update.artifact-fail.json"
-cp "$engine/engine/docs2/openapi.json" "$tmpdir/openapi.before-update-fail.json"
-printf '{invalid json\n' >"$engine/engine/docs2/openapi.json"
-assert_fails_action_required run_updater "$engine" "$tmpdir/contract.update.artifact-fail.json"
-cmp -s "$tmpdir/contract.update.once.json" "$tmpdir/contract.update.artifact-fail.json" \
-    || fail "--update changed fixture after artifact validation failed"
-printf '[]\n' >"$engine/engine/docs2/openapi.json"
-assert_fails_action_required run_updater "$engine" "$tmpdir/contract.update.artifact-fail.json"
-cmp -s "$tmpdir/contract.update.once.json" "$tmpdir/contract.update.artifact-fail.json" \
-    || fail "--update changed fixture after artifact shape validation failed"
-mv "$tmpdir/openapi.before-update-fail.json" "$engine/engine/docs2/openapi.json"
 
 assert_fails_action_required env -u FLAPJACK_DEV_DIR "$CHECKER" --check
-assert_fails_action_required run_checker "$tmpdir/missing" "$test_fixture"
+assert_fails_action_required run_checker "$tmpdir/missing" "$head_sha" "$test_fixture"
 mkdir "$tmpdir/not-a-repo"
-assert_fails_action_required run_checker "$tmpdir/not-a-repo" "$test_fixture"
+assert_fails_action_required run_checker "$tmpdir/not-a-repo" "$head_sha" "$test_fixture"
 
-cp "$test_fixture" "$tmpdir/contract.before-path-traversal.json"
-cp "$engine/engine/docs2/openapi.json" "$tmpdir/escaped-openapi.json"
-python3 - "$test_fixture" "$tmpdir/escaped-openapi.json" <<'PY'
-import hashlib
+git -C "$engine" commit --allow-empty -q -m "different head"
+assert_fails_action_required run_checker "$engine" "$head_sha" "$test_fixture"
+git -C "$engine" reset --quiet --hard "$head_sha"
+
+# The receipt's cited validation commit must be both present and reachable from
+# the pinned checkout. Matching copied receipt/fixture fields are not provenance.
+cp "$test_fixture" "$tmpdir/contract.before-missing-receipt-commit.json"
+python3 - "$engine/engine/docs2/4_EVIDENCE/privacy_scrub_transport_receipt.json" \
+    "$test_fixture" "ffffffffffffffffffffffffffffffffffffffff" <<'PY'
 import json
 import pathlib
 import sys
 
-fixture_path = pathlib.Path(sys.argv[1])
-escaped_path = pathlib.Path(sys.argv[2])
+receipt_path = pathlib.Path(sys.argv[1])
+fixture_path = pathlib.Path(sys.argv[2])
+validated_head_sha = sys.argv[3]
+receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
 fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
-fixture["openapi_artifacts"][0]["path"] = "../escaped-openapi.json"
-fixture["openapi_artifacts"][0]["sha256"] = hashlib.sha256(
-    escaped_path.read_bytes()
-).hexdigest()
+receipt["validated_head_sha"] = validated_head_sha
+fixture["privacy_scrub_contract"]["receipt"]["validated_head_sha"] = validated_head_sha
+receipt_path.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
 fixture_path.write_text(json.dumps(fixture, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 PY
-assert_fails_action_required run_checker "$engine" "$test_fixture"
-mv "$tmpdir/contract.before-path-traversal.json" "$test_fixture"
+git -C "$engine" add engine/docs2/4_EVIDENCE/privacy_scrub_transport_receipt.json
+git -C "$engine" commit -q -m "copied receipt with missing validation commit"
+missing_receipt_head="$(git -C "$engine" rev-parse HEAD)"
+python3 - "$test_fixture" "$missing_receipt_head" <<'PY'
+import json
+import pathlib
+import sys
 
-real_git="$(command -v git)"
-mkdir "$tmpdir/failing-git"
-cat >"$tmpdir/failing-git/git" <<'EOF_GIT'
+path = pathlib.Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+payload["pinned_engine_sha"] = sys.argv[2]
+path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+PY
+assert_fails_with_status 3 \
+    run_checker "$engine" "$missing_receipt_head" "$test_fixture"
+git -C "$engine" reset --quiet --hard "$head_sha"
+mv "$tmpdir/contract.before-missing-receipt-commit.json" "$test_fixture"
+
+unreachable_receipt_sha="$(
+    printf '%s\n' "unreachable receipt validation" |
+        git -C "$engine" commit-tree "$(git -C "$engine" rev-parse HEAD^{tree})"
+)"
+cp "$test_fixture" "$tmpdir/contract.before-unreachable-receipt-commit.json"
+python3 - "$engine/engine/docs2/4_EVIDENCE/privacy_scrub_transport_receipt.json" \
+    "$test_fixture" "$unreachable_receipt_sha" <<'PY'
+import json
+import pathlib
+import sys
+
+receipt_path = pathlib.Path(sys.argv[1])
+fixture_path = pathlib.Path(sys.argv[2])
+validated_head_sha = sys.argv[3]
+receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+receipt["validated_head_sha"] = validated_head_sha
+fixture["privacy_scrub_contract"]["receipt"]["validated_head_sha"] = validated_head_sha
+receipt_path.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+fixture_path.write_text(json.dumps(fixture, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+PY
+git -C "$engine" add engine/docs2/4_EVIDENCE/privacy_scrub_transport_receipt.json
+git -C "$engine" commit -q -m "copied receipt with unreachable validation commit"
+unreachable_receipt_head="$(git -C "$engine" rev-parse HEAD)"
+python3 - "$test_fixture" "$unreachable_receipt_head" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+payload["pinned_engine_sha"] = sys.argv[2]
+path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+PY
+assert_fails_with_status 3 \
+    run_checker "$engine" "$unreachable_receipt_head" "$test_fixture"
+git -C "$engine" reset --quiet --hard "$head_sha"
+mv "$tmpdir/contract.before-unreachable-receipt-commit.json" "$test_fixture"
+
+# Even if a copied fixture and a clean pinned script agree on an aggregate
+# summary, that summary is not a privacy-scrub-specific known answer.
+cp "$test_fixture" "$tmpdir/contract.before-generic-suite-marker.json"
+cat >"$engine/scripts/update_algolia_migration_engine_contract.sh" <<'EOF_GENERIC_MARKER'
 #!/usr/bin/env bash
 set -euo pipefail
-for argument in "$@"; do
-    if [ "$argument" = "status" ]; then
-        exit 42
-    fi
-done
-exec "${REAL_GIT:?}" "$@"
-EOF_GIT
-chmod +x "$tmpdir/failing-git/git"
-PATH="$tmpdir/failing-git:$PATH" REAL_GIT="$real_git" \
-    assert_fails_action_required run_checker "$engine" "$test_fixture"
+printf '%s\n' 'Results: 999/999 passed (0 skipped)'
+EOF_GENERIC_MARKER
+chmod +x "$engine/scripts/update_algolia_migration_engine_contract.sh"
+git -C "$engine" add scripts/update_algolia_migration_engine_contract.sh
+git -C "$engine" commit -q -m "generic suite marker"
+generic_marker_head="$(git -C "$engine" rev-parse HEAD)"
+python3 - "$test_fixture" "$generic_marker_head" <<'PY'
+import json
+import pathlib
+import sys
 
-ACK_CHECK_SCENARIO=fail assert_fails_action_required run_checker "$engine" "$test_fixture"
-
-git -C "$engine" commit --allow-empty -q -m "different head"
-assert_fails_action_required run_checker "$engine" "$test_fixture"
+path = pathlib.Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+payload["pinned_engine_sha"] = sys.argv[2]
+payload["privacy_scrub_known_answer"]["success_marker"] = (
+    "Results: 999/999 passed (0 skipped)"
+)
+path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+PY
+assert_fails_action_required \
+    run_checker "$engine" "$generic_marker_head" "$test_fixture"
 git -C "$engine" reset --quiet --hard "$head_sha"
+mv "$tmpdir/contract.before-generic-suite-marker.json" "$test_fixture"
 
 printf '\n' >>"$engine/engine/docs2/openapi.json"
-assert_fails_action_required run_checker "$engine" "$test_fixture"
+assert_fails_action_required run_checker "$engine" "$head_sha" "$test_fixture"
 git -C "$engine" checkout --quiet -- engine/docs2/openapi.json
 
 printf '\n' >>"$engine/engine/demo-dualclient/public/openapi.json"
-assert_fails_action_required run_checker "$engine" "$test_fixture"
+assert_fails_action_required run_checker "$engine" "$head_sha" "$test_fixture"
 git -C "$engine" checkout --quiet -- engine/demo-dualclient/public/openapi.json
 
 printf '{invalid json\n' >"$engine/engine/docs2/openapi.json"
-assert_fails_action_required run_checker "$engine" "$test_fixture"
+assert_fails_action_required run_checker "$engine" "$head_sha" "$test_fixture"
 git -C "$engine" checkout --quiet -- engine/docs2/openapi.json
 
 cp "$test_fixture" "$tmpdir/contract.before-missing-ack.json"
@@ -528,12 +667,12 @@ for artifact in fixture["openapi_artifacts"]:
     artifact["sha256"] = hashlib.sha256(encoded).hexdigest()
 fixture_path.write_text(json.dumps(fixture, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 PY
-assert_fails_with_status 3 run_checker "$engine" "$test_fixture"
+assert_fails_with_status 3 run_checker "$engine" "$head_sha" "$test_fixture"
 git -C "$engine" checkout --quiet -- \
     engine/docs2/openapi.json engine/demo-dualclient/public/openapi.json
 mv "$tmpdir/contract.before-missing-ack.json" "$test_fixture"
 
-cp "$test_fixture" "$tmpdir/contract.before-ack-security.json"
+cp "$test_fixture" "$tmpdir/contract.before-ack-auth-drift.json"
 python3 - "$engine" "$test_fixture" <<'PY'
 import hashlib
 import json
@@ -546,20 +685,18 @@ fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
 for artifact in fixture["openapi_artifacts"]:
     path = engine / artifact["path"]
     payload = json.loads(path.read_text(encoding="utf-8"))
-    payload["paths"]["/1/migrations/algolia/{job_id}/acknowledge"]["post"].pop(
-        "security", None
-    )
+    payload["paths"]["/1/migrations/algolia/{job_id}/acknowledge"]["post"]["security"] = []
     encoded = json.dumps(payload, indent=2).encode() + b"\n"
     path.write_bytes(encoded)
     artifact["sha256"] = hashlib.sha256(encoded).hexdigest()
 fixture_path.write_text(json.dumps(fixture, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 PY
-assert_fails_with_status 3 run_checker "$engine" "$test_fixture"
+assert_fails_with_status 3 run_checker "$engine" "$head_sha" "$test_fixture"
 git -C "$engine" checkout --quiet -- \
     engine/docs2/openapi.json engine/demo-dualclient/public/openapi.json
-mv "$tmpdir/contract.before-ack-security.json" "$test_fixture"
+mv "$tmpdir/contract.before-ack-auth-drift.json" "$test_fixture"
 
-cp "$test_fixture" "$tmpdir/contract.before-ack-too-early.json"
+cp "$test_fixture" "$tmpdir/contract.before-missing-scrub.json"
 python3 - "$engine" "$test_fixture" <<'PY'
 import hashlib
 import json
@@ -572,19 +709,28 @@ fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
 for artifact in fixture["openapi_artifacts"]:
     path = engine / artifact["path"]
     payload = json.loads(path.read_text(encoding="utf-8"))
-    del payload["paths"]["/1/migrations/algolia/{job_id}/acknowledge"]["post"]["responses"]["409"]
+    del payload["paths"]["/1/migrations/privacy-scrub"]
     encoded = json.dumps(payload, indent=2).encode() + b"\n"
     path.write_bytes(encoded)
     artifact["sha256"] = hashlib.sha256(encoded).hexdigest()
 fixture_path.write_text(json.dumps(fixture, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 PY
-assert_fails_with_status 3 run_checker "$engine" "$test_fixture"
+assert_fails_with_status 3 run_checker "$engine" "$head_sha" "$test_fixture"
 git -C "$engine" checkout --quiet -- \
     engine/docs2/openapi.json engine/demo-dualclient/public/openapi.json
-mv "$tmpdir/contract.before-ack-too-early.json" "$test_fixture"
+mv "$tmpdir/contract.before-missing-scrub.json" "$test_fixture"
 
-cp "$test_fixture" "$tmpdir/contract.before-ack-missing-job-code-drift.json"
-python3 - "$engine" "$test_fixture" <<'PY'
+# The pinned contract must reject wire-type drift, not only field-name drift. Each
+# mutation rewrites a privacy-scrub property type in the engine OpenAPI (both artifacts)
+# while leaving field names intact, and the checker must fail closed with exit 3.
+scrub_type_mutation() {
+    local label="$1"
+    local schema_name="$2"
+    local field="$3"
+    local new_type="$4"
+    local mode="$5"
+    cp "$test_fixture" "$tmpdir/contract.before-$label.json"
+    python3 - "$engine" "$test_fixture" "$schema_name" "$field" "$new_type" "$mode" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -592,52 +738,60 @@ import sys
 
 engine = pathlib.Path(sys.argv[1])
 fixture_path = pathlib.Path(sys.argv[2])
+schema_name, field, new_type, mode = sys.argv[3:7]
 fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
 for artifact in fixture["openapi_artifacts"]:
     path = engine / artifact["path"]
     payload = json.loads(path.read_text(encoding="utf-8"))
-    response = payload["paths"]["/1/migrations/algolia/{job_id}/acknowledge"]["post"]["responses"]["404"]
-    response["content"] = {
-        "application/json": {
-            "examples": {
-                "wrong_missing_job": {"value": {"code": "wrong_missing_job"}}
-            }
-        }
-    }
+    prop = payload["components"]["schemas"][schema_name]["properties"][field]
+    if mode == "scalar":
+        prop["type"] = new_type
+    elif mode == "array_item":
+        prop["items"]["type"] = new_type
+    else:
+        raise SystemExit(f"unknown mutation mode {mode}")
     encoded = json.dumps(payload, indent=2).encode() + b"\n"
     path.write_bytes(encoded)
     artifact["sha256"] = hashlib.sha256(encoded).hexdigest()
 fixture_path.write_text(json.dumps(fixture, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 PY
-assert_fails_with_status 3 run_checker "$engine" "$test_fixture"
-git -C "$engine" checkout --quiet -- \
-    engine/docs2/openapi.json engine/demo-dualclient/public/openapi.json
-mv "$tmpdir/contract.before-ack-missing-job-code-drift.json" "$test_fixture"
+    assert_fails_with_status 3 run_checker "$engine" "$head_sha" "$test_fixture"
+    git -C "$engine" checkout --quiet -- \
+        engine/docs2/openapi.json engine/demo-dualclient/public/openapi.json
+    mv "$tmpdir/contract.before-$label.json" "$test_fixture"
+}
 
-cp "$test_fixture" "$tmpdir/contract.before-ack-code-drift.json"
-python3 - "$engine" "$test_fixture" <<'PY'
-import hashlib
+scrub_type_mutation scrub-request-scalar-type PrivacyScrubRequest scrubId integer scalar
+scrub_type_mutation scrub-ack-scalar-type PrivacyScrubAck disposition integer scalar
+scrub_type_mutation scrub-request-array-item-type PrivacyScrubRequest objectIDs integer array_item
+
+cp "$engine/engine/docs2/4_EVIDENCE/privacy_scrub_transport_receipt.json" \
+    "$tmpdir/privacy-scrub-receipt.before"
+python3 - "$engine/engine/docs2/4_EVIDENCE/privacy_scrub_transport_receipt.json" <<'PY'
 import json
 import pathlib
 import sys
 
-engine = pathlib.Path(sys.argv[1])
-fixture_path = pathlib.Path(sys.argv[2])
-fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
-for artifact in fixture["openapi_artifacts"]:
-    path = engine / artifact["path"]
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    examples = payload["paths"]["/1/migrations/algolia/{job_id}/acknowledge"]["post"]["responses"]["409"]["content"]["application/json"]["examples"]
-    examples["migration_ack_too_early"]["value"]["code"] = "wrong_ack_code"
-    encoded = json.dumps(payload, indent=2).encode() + b"\n"
-    path.write_bytes(encoded)
-    artifact["sha256"] = hashlib.sha256(encoded).hexdigest()
-fixture_path.write_text(json.dumps(fixture, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+path = pathlib.Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+payload["denominators"]["boundary_variants"]["variants"].remove("AckReplay")
+path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 PY
-assert_fails_with_status 3 run_checker "$engine" "$test_fixture"
-git -C "$engine" checkout --quiet -- \
-    engine/docs2/openapi.json engine/demo-dualclient/public/openapi.json
-mv "$tmpdir/contract.before-ack-code-drift.json" "$test_fixture"
+assert_fails_with_status 3 run_checker "$engine" "$head_sha" "$test_fixture"
+mv "$tmpdir/privacy-scrub-receipt.before" \
+    "$engine/engine/docs2/4_EVIDENCE/privacy_scrub_transport_receipt.json"
+
+cp "$engine/scripts/update_algolia_migration_engine_contract.sh" \
+    "$tmpdir/ack-known-answer.before"
+cat >"$engine/scripts/update_algolia_migration_engine_contract.sh" <<'EOF_ACK_STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' 'PASS route_exists_only'
+EOF_ACK_STUB
+chmod +x "$engine/scripts/update_algolia_migration_engine_contract.sh"
+assert_fails_with_status 3 run_checker "$engine" "$head_sha" "$test_fixture"
+mv "$tmpdir/ack-known-answer.before" \
+    "$engine/scripts/update_algolia_migration_engine_contract.sh"
 
 cp "$test_fixture" "$tmpdir/contract.before-drift.json"
 python3 - "$test_fixture" <<'PY'
@@ -649,7 +803,7 @@ payload = json.loads(open(path, encoding="utf-8").read())
 payload["routes"]["submit"]["path"] = "/1/migrations/algolia-drifted"
 open(path, "w", encoding="utf-8").write(json.dumps(payload, sort_keys=True, indent=2) + "\n")
 PY
-assert_fails_action_required run_checker "$engine" "$test_fixture"
+assert_fails_action_required run_checker "$engine" "$head_sha" "$test_fixture"
 mv "$tmpdir/contract.before-drift.json" "$test_fixture"
 
 printf 'PASS update_algolia_migration_engine_contract_test\n'

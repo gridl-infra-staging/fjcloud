@@ -3,9 +3,15 @@ import { cleanup, render, screen, within } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
 import {
 	FLEET_FIXTURES,
+	REAL_PIPELINE_ORACLE,
 	REPLICA_FIXTURES,
 	VM_FIXTURES,
-	makeDeployment
+	assertOracleCapacityRows,
+	cellText,
+	fleetPageData as pageData,
+	makeHostMetrics,
+	makeDeployment,
+	replicaCellLines
 } from './admin_fleet_fixtures';
 
 // Mock SvelteKit modules before importing components
@@ -25,75 +31,7 @@ vi.mock('$env/dynamic/private', () => ({
 	env: new Proxy({}, { get: (_target, prop) => process.env[prop as string] })
 }));
 
-import type {
-	AdminFleetDeployment,
-	AdminReplicaEntry,
-	HealthCheckResponse,
-	VmHostMetricsResponse,
-	VmInventoryItem
-} from '$lib/admin-client';
-
-type FleetPageRenderData = {
-	environment: string;
-	isAuthenticated: boolean;
-	fleet: AdminFleetDeployment[];
-	fleetAvailable: boolean;
-	vms: VmInventoryItem[];
-	vmCapacityAvailable: boolean;
-	hostMetricsByVmId: Record<string, VmHostMetricsResponse | null>;
-	replicas: AdminReplicaEntry[];
-	replicaPlacementAvailable: boolean;
-};
-
-function pageData(overrides: Partial<FleetPageRenderData> = {}): FleetPageRenderData {
-	return {
-		environment: 'test',
-		isAuthenticated: true,
-		fleet: [],
-		fleetAvailable: true,
-		vms: [],
-		vmCapacityAvailable: true,
-		hostMetricsByVmId: {},
-		replicas: [],
-		replicaPlacementAvailable: true,
-		...overrides
-	};
-}
-
-function makeHostMetrics(overrides: Partial<VmHostMetricsResponse> = {}): VmHostMetricsResponse {
-	return {
-		id: 'metrics-aaaaaaaa-0001-0000-0000-000000000001',
-		vm_id: 'vm-aaaaaaaa-0001-0000-0000-000000000001',
-		collected_at: '2026-02-21T10:00:00Z',
-		cpu_pct: 12.5,
-		mem_used_bytes: 3,
-		mem_total_bytes: 4,
-		disk_used_bytes: 25,
-		disk_total_bytes: 100,
-		net_rx_bytes: 1024,
-		net_tx_bytes: 2048,
-		created_at: '2026-02-21T10:00:01Z',
-		...overrides
-	};
-}
-
-// Collects the exact per-line text of a replica placement cell. The multi-role
-// branch renders one <div> per fact; the single-line branches ("No replicas",
-// "Replica placement unavailable") render bare text with no child divs.
-// Normalizing to an array of trimmed lines lets tests assert the complete cell
-// output with exact equality, so an incorrect count (`Primary: 10`), extra role
-// text, or a suffixed region label fails instead of passing a substring match.
-function replicaCellLines(cell: HTMLElement): string[] {
-	const divs = cell.querySelectorAll('div');
-	if (divs.length > 0) {
-		return Array.from(divs, (div) => (div.textContent ?? '').replace(/\s+/g, ' ').trim());
-	}
-	return [(cell.textContent ?? '').replace(/\s+/g, ' ').trim()];
-}
-
-function cellText(cell: HTMLElement): string {
-	return (cell.textContent ?? '').replace(/\s+/g, ' ').trim();
-}
+import type { AdminFleetDeployment, HealthCheckResponse } from '$lib/admin-client';
 
 beforeEach(() => {
 	process.env.ADMIN_KEY = 'test-admin-key';
@@ -102,9 +40,249 @@ beforeEach(() => {
 afterEach(() => {
 	cleanup();
 	delete process.env.ADMIN_KEY;
+	vi.useRealTimers();
 });
 
 describe('Fleet dashboard', () => {
+	it('pins the parsed real-pipeline oracle inventory and selected host sample', () => {
+		expect(REAL_PIPELINE_ORACLE.topology.selected_vm_id).toBe(
+			'00000000-0000-4000-8000-000000000304'
+		);
+		expect(REAL_PIPELINE_ORACLE.host_metrics.max_sample_age_seconds).toBe(120);
+		expect(REAL_PIPELINE_ORACLE.host_metrics.samples).toEqual([
+			{
+				id: '00000000-0000-4000-8000-000000000901',
+				vm_id: '00000000-0000-4000-8000-000000000304',
+				collected_at: '2026-07-26T21:00:08.731966Z',
+				cpu_pct: 41,
+				mem_used_bytes: 82_353_897_472,
+				mem_total_bytes: 137_438_953_472,
+				disk_used_bytes: 1_719_669_354_496,
+				disk_total_bytes: 1_995_165_736_960,
+				net_rx_bytes: 467_977_527_935,
+				net_tx_bytes: 44_460_517_340,
+				created_at: '2026-07-26T21:00:08.732613Z'
+			}
+		]);
+		expect(
+			REAL_PIPELINE_ORACLE.topology.vms.map(
+				({ id, hostname, health, index_count, provider, status, capacity, current_load }) => ({
+					id,
+					hostname,
+					health,
+					index_count,
+					provider,
+					status,
+					capacity,
+					current_load
+				})
+			)
+		).toEqual([
+			{
+				id: '00000000-0000-4000-8000-000000000301',
+				hostname: 'redacted-vm-1',
+				health: 'unknown',
+				index_count: 0,
+				provider: 'local',
+				status: 'active',
+				capacity: {
+					cpu_weight: 4,
+					disk_bytes: 107_374_182_400,
+					indexing_rps: 200,
+					mem_rss_bytes: 8_589_934_592,
+					query_rps: 500
+				},
+				current_load: {
+					cpu_weight: 0,
+					disk_bytes: 0,
+					indexing_rps: 0,
+					mem_rss_bytes: 0,
+					query_rps: 0
+				}
+			},
+			{
+				id: '00000000-0000-4000-8000-000000000302',
+				hostname: 'redacted-vm-2',
+				health: 'unknown',
+				index_count: 1,
+				provider: 'local',
+				status: 'active',
+				capacity: {
+					cpu_weight: 4,
+					disk_bytes: 107_374_182_400,
+					indexing_rps: 200,
+					mem_rss_bytes: 8_589_934_592,
+					query_rps: 500
+				},
+				current_load: {
+					cpu_weight: 0,
+					disk_bytes: 0,
+					indexing_rps: 0,
+					mem_rss_bytes: 0,
+					query_rps: 0
+				}
+			},
+			{
+				id: '00000000-0000-4000-8000-000000000303',
+				hostname: 'redacted-vm-3',
+				health: 'healthy',
+				index_count: 1,
+				provider: 'local',
+				status: 'active',
+				capacity: {
+					cpu_weight: 4,
+					disk_bytes: 107_374_182_400,
+					indexing_rps: 200,
+					mem_rss_bytes: 8_589_934_592,
+					query_rps: 500
+				},
+				current_load: {
+					cpu_weight: 0,
+					disk_bytes: 0,
+					indexing_rps: 0,
+					mem_rss_bytes: 0,
+					query_rps: 0
+				}
+			},
+			{
+				id: '00000000-0000-4000-8000-000000000304',
+				hostname: 'redacted-vm-4',
+				health: 'unhealthy',
+				index_count: 533,
+				provider: 'local',
+				status: 'active',
+				capacity: {
+					cpu_weight: 4,
+					disk_bytes: 107_374_182_400,
+					indexing_rps: 200,
+					mem_rss_bytes: 8_589_934_592,
+					query_rps: 500
+				},
+				current_load: {
+					cpu_weight: 0,
+					disk_bytes: 0,
+					indexing_rps: 0,
+					mem_rss_bytes: 0,
+					query_rps: 0
+				}
+			}
+		]);
+	});
+
+	it('renders every oracle VM capacity row and selected host sample exactly', async () => {
+		const FleetPage = (await import('./+page.svelte')).default;
+		const selectedVmId = REAL_PIPELINE_ORACLE.topology.selected_vm_id;
+		const selectedSample = REAL_PIPELINE_ORACLE.host_metrics.samples[0];
+		vi.useFakeTimers();
+		vi.setSystemTime(REAL_PIPELINE_ORACLE.provenance.generated_at);
+
+		render(FleetPage, {
+			data: pageData({
+				vms: REAL_PIPELINE_ORACLE.topology.vms,
+				hostMetricsByVmId: { [selectedVmId]: selectedSample }
+			}),
+			form: null
+		});
+
+		assertOracleCapacityRows(REAL_PIPELINE_ORACLE.topology.vms);
+		expect(cellText(screen.getByTestId(`host-disk-${selectedVmId}`))).toBe('86%');
+		expect(cellText(screen.getByTestId(`host-cpu-${selectedVmId}`))).toBe('41%');
+		expect(cellText(screen.getByTestId(`host-ram-${selectedVmId}`))).toBe('60%');
+		expect(cellText(screen.getByTestId(`host-net-${selectedVmId}`))).toBe(
+			'RX total 435.8 GB / TX total 41.4 GB'
+		);
+	});
+
+	it('has fail-capable oracle health and index-count assertions', async () => {
+		const FleetPage = (await import('./+page.svelte')).default;
+		const selectedVmId = REAL_PIPELINE_ORACLE.topology.selected_vm_id;
+		const withHealthFlip = REAL_PIPELINE_ORACLE.topology.vms.map((vm) =>
+			vm.id === selectedVmId ? { ...vm, health: 'healthy' as const } : vm
+		);
+
+		render(FleetPage, {
+			data: pageData({ vms: withHealthFlip }),
+			form: null
+		});
+		expect(() => assertOracleCapacityRows(REAL_PIPELINE_ORACLE.topology.vms)).toThrow();
+
+		cleanup();
+		const withIndexCountOffByOne = REAL_PIPELINE_ORACLE.topology.vms.map((vm) =>
+			vm.id === selectedVmId ? { ...vm, index_count: vm.index_count + 1 } : vm
+		);
+		render(FleetPage, {
+			data: pageData({ vms: withIndexCountOffByOne }),
+			form: null
+		});
+		expect(() => assertOracleCapacityRows(REAL_PIPELINE_ORACLE.topology.vms)).toThrow();
+	});
+
+	it('fails closed for an oracle host sample older than the 120-second freshness limit', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(REAL_PIPELINE_ORACLE.provenance.generated_at);
+		const FleetPage = (await import('./+page.svelte')).default;
+		const selectedVmId = REAL_PIPELINE_ORACLE.topology.selected_vm_id;
+		const staleSample = {
+			...REAL_PIPELINE_ORACLE.host_metrics.samples[0],
+			collected_at: new Date(
+				Date.parse(REAL_PIPELINE_ORACLE.provenance.generated_at) -
+					(REAL_PIPELINE_ORACLE.host_metrics.max_sample_age_seconds + 1) * 1_000
+			).toISOString()
+		};
+
+		render(FleetPage, {
+			data: pageData({
+				vms: REAL_PIPELINE_ORACLE.topology.vms,
+				hostMetricsByVmId: { [selectedVmId]: staleSample }
+			}),
+			form: null
+		});
+
+		for (const metric of ['disk', 'cpu', 'ram', 'net']) {
+			expect(cellText(screen.getByTestId(`host-${metric}-${selectedVmId}`))).toBe(
+				'Stale host data'
+			);
+		}
+	});
+
+	it('renders a distinct missing state when the selected oracle host sample is absent', async () => {
+		const FleetPage = (await import('./+page.svelte')).default;
+		const selectedVmId = REAL_PIPELINE_ORACLE.topology.selected_vm_id;
+
+		render(FleetPage, {
+			data: pageData({
+				vms: REAL_PIPELINE_ORACLE.topology.vms,
+				hostMetricsByVmId: { [selectedVmId]: null }
+			}),
+			form: null
+		});
+
+		for (const metric of ['disk', 'cpu', 'ram', 'net']) {
+			expect(cellText(screen.getByTestId(`host-${metric}-${selectedVmId}`))).toBe('No host data');
+		}
+	});
+
+	it('fails closed when the oracle host sample body belongs to another VM', async () => {
+		const FleetPage = (await import('./+page.svelte')).default;
+		const selectedVmId = REAL_PIPELINE_ORACLE.topology.selected_vm_id;
+		const mismatchedSample = {
+			...REAL_PIPELINE_ORACLE.host_metrics.samples[0],
+			vm_id: REAL_PIPELINE_ORACLE.topology.vms[0].id
+		};
+
+		render(FleetPage, {
+			data: pageData({
+				vms: REAL_PIPELINE_ORACLE.topology.vms,
+				hostMetricsByVmId: { [selectedVmId]: mismatchedSample }
+			}),
+			form: null
+		});
+
+		for (const metric of ['disk', 'cpu', 'ram', 'net']) {
+			expect(cellText(screen.getByTestId(`host-${metric}-${selectedVmId}`))).toBe('No host data');
+		}
+	});
+
 	it('renders summary cards with correct counts', async () => {
 		const FleetPage = (await import('./+page.svelte')).default;
 
@@ -302,6 +480,8 @@ describe('Fleet dashboard', () => {
 	it('renders exact real host metrics beside proxy capacity values', async () => {
 		const FleetPage = (await import('./+page.svelte')).default;
 		const vm = VM_FIXTURES[0];
+		vi.useFakeTimers();
+		vi.setSystemTime('2026-02-21T10:00:30Z');
 
 		render(FleetPage, {
 			data: pageData({
@@ -325,6 +505,8 @@ describe('Fleet dashboard', () => {
 
 	it('renders deterministic host metric absence and invalid-total states', async () => {
 		const FleetPage = (await import('./+page.svelte')).default;
+		vi.useFakeTimers();
+		vi.setSystemTime('2026-02-21T10:00:30Z');
 		const [
 			nullSampleVm,
 			nullDiskVm,

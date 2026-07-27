@@ -62,6 +62,8 @@ function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 		resumable: false,
 		resumeCount: 0,
 		publicationDisposition: 'not_started',
+		terminalOutcomeObserved: false,
+		warnings: [],
 		createdAt: '2026-07-18T10:00:00Z',
 		updatedAt: '2026-07-18T10:05:00Z',
 		...overrides
@@ -82,7 +84,7 @@ afterEach(() => {
 });
 
 describe('[jobId] job detail page presentation', () => {
-	it('renders exact running status, phase, and summary counts from load data', () => {
+	it('renders running document progress without premature terminal outcome rows', () => {
 		renderJobPage(publicJob({ status: 'copying_documents' }), RUNNING_CAPABILITIES);
 
 		expect(screen.getByTestId('migration-job-status')).toHaveTextContent('Copying documents');
@@ -93,20 +95,9 @@ describe('[jobId] job detail page presentation', () => {
 		expect(documents).toHaveTextContent('17 expected');
 		expect(documents).toHaveTextContent('4 rejected');
 
-		const settings = screen.getByTestId('migration-summary-settings');
-		expect(settings).toHaveTextContent('2 imported');
-		expect(settings).toHaveTextContent('3 expected');
-		expect(settings).toHaveTextContent('1 rejected');
-
-		const synonyms = screen.getByTestId('migration-summary-synonyms');
-		expect(synonyms).toHaveTextContent('3 imported');
-		expect(synonyms).toHaveTextContent('5 expected');
-		expect(synonyms).toHaveTextContent('2 rejected');
-
-		const rules = screen.getByTestId('migration-summary-rules');
-		expect(rules).toHaveTextContent('6 imported');
-		expect(rules).toHaveTextContent('7 expected');
-		expect(rules).toHaveTextContent('1 rejected');
+		expect(screen.queryByTestId('migration-summary-settings')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('migration-summary-synonyms')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('migration-summary-rules')).not.toBeInTheDocument();
 	});
 
 	it('renders the typed failure message and no cancel control for a failed job', () => {
@@ -168,7 +159,10 @@ describe('[jobId] job detail live refresh', () => {
 
 	it('stops reloading once the page is destroyed', async () => {
 		vi.useFakeTimers();
-		const { unmount } = renderJobPage(publicJob({ status: 'copying_documents' }), RUNNING_CAPABILITIES);
+		const { unmount } = renderJobPage(
+			publicJob({ status: 'copying_documents' }),
+			RUNNING_CAPABILITIES
+		);
 
 		await vi.advanceTimersByTimeAsync(4000);
 		expect(invalidateAllMock).toHaveBeenCalledTimes(1);
@@ -240,7 +234,11 @@ describe('[jobId] job detail actions', () => {
 		deserializeMock.mockReturnValue({ type: 'success', status: 200, data: { job: resumableJob } });
 		invalidateAllMock.mockResolvedValue(undefined);
 
-		const { container } = renderJobPage(resumableJob, { cancel: false, resume: true, replace: false });
+		const { container } = renderJobPage(resumableJob, {
+			cancel: false,
+			resume: true,
+			replace: false
+		});
 
 		const apiKeyInput = screen.getByLabelText(/algolia api key/i);
 		await fireEvent.input(apiKeyInput, { target: { value: 'resume-secret-key-canary-0007' } });

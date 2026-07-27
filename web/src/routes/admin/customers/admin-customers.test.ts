@@ -98,13 +98,13 @@ describe('Admin customer detail', () => {
 		await expect(
 			load(
 				authenticatedDetailLoadContext({
-				fetch: async () =>
-					new Response(JSON.stringify({ error: 'customer not found' }), {
-						status: 404,
-						headers: { 'content-type': 'application/json' }
-					}),
-				params: { id: 'missing-customer' },
-				depends: vi.fn()
+					fetch: async () =>
+						new Response(JSON.stringify({ error: 'customer not found' }), {
+							status: 404,
+							headers: { 'content-type': 'application/json' }
+						}),
+					params: { id: 'missing-customer' },
+					depends: vi.fn()
 				})
 			)
 		).rejects.toMatchObject({
@@ -118,13 +118,13 @@ describe('Admin customer detail', () => {
 		await expect(
 			load(
 				authenticatedDetailLoadContext({
-				fetch: async () =>
-					new Response(JSON.stringify({ error: 'tenant service unavailable' }), {
-						status: 500,
-						headers: { 'content-type': 'application/json' }
-					}),
-				params: { id: 'broken-customer' },
-				depends: vi.fn()
+					fetch: async () =>
+						new Response(JSON.stringify({ error: 'tenant service unavailable' }), {
+							status: 500,
+							headers: { 'content-type': 'application/json' }
+						}),
+					params: { id: 'broken-customer' },
+					depends: vi.fn()
 				})
 			)
 		).rejects.toMatchObject({
@@ -144,44 +144,39 @@ describe('Admin customer detail', () => {
 				headers: { 'content-type': 'application/json' }
 			});
 
-		const result = await load(authenticatedDetailLoadContext({
-			fetch: async (input: string | URL | Request) => {
-				const url =
-					typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+		const result = await load(
+			authenticatedDetailLoadContext({
+				fetch: async (input: string | URL | Request) => {
+					const url =
+						typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
 
-				if (url.includes(`/admin/tenants/${tenantId}/deployments`)) {
-					return new Response('deployment service unavailable', { status: 503 });
-				}
-
-				if (url.includes(`/admin/tenants/${tenantId}/invoices`)) {
-					return new Response('invoice service unavailable', { status: 503 });
-				}
-
-				if (url.includes(`/admin/tenants/${tenantId}/indexes`)) {
-					return json(DETAIL_FIXTURE.indexes);
-				}
-
-				if (url.includes(`/admin/tenants/${tenantId}/usage`)) {
-					return json(DETAIL_FIXTURE.usage);
-				}
-
-				if (url.includes(`/admin/tenants/${tenantId}/rate-card`)) {
-					return json(DETAIL_FIXTURE.rateCard);
-				}
-
-				if (url.includes(`/admin/tenants/${tenantId}/quotas`)) {
-					return json(DETAIL_FIXTURE.quotas);
-				}
-
-				if (url.includes(`/admin/tenants/${tenantId}`)) {
-					return json(DETAIL_FIXTURE.tenant);
-				}
-
-				return new Response('not found', { status: 404 });
-			},
-			params: { id: tenantId },
-			depends: vi.fn()
-		}));
+					if (url.includes(`/admin/tenants/${tenantId}/deployments`)) {
+						return new Response('deployment service unavailable', { status: 503 });
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/invoices`)) {
+						return new Response('invoice service unavailable', { status: 503 });
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/indexes`)) {
+						return json(DETAIL_FIXTURE.indexes);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/usage`)) {
+						return json(DETAIL_FIXTURE.usage);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/rate-card`)) {
+						return json(DETAIL_FIXTURE.rateCard);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/quotas`)) {
+						return json(DETAIL_FIXTURE.quotas);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}`)) {
+						return json(DETAIL_FIXTURE.tenant);
+					}
+					return new Response('not found', { status: 404 });
+				},
+				params: { id: tenantId },
+				depends: vi.fn()
+			})
+		);
 
 		expect((result as { deployments: null }).deployments).toBeNull();
 		expect((result as { invoices: null }).invoices).toBeNull();
@@ -203,52 +198,54 @@ describe('Admin customer detail', () => {
 				headers: { 'content-type': 'application/json' }
 			});
 
-		const result = await load(authenticatedDetailLoadContext({
-			fetch: async (input: string | URL | Request) => {
-				const url =
-					typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-				requestedUrls.push(url);
+		const result = await load(
+			authenticatedDetailLoadContext({
+				fetch: async (input: string | URL | Request) => {
+					const url =
+						typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+					requestedUrls.push(url);
 
-				if (url.includes(indexesPath)) {
-					return json([
-						{
-							name: 'alpha',
-							region: 'us-east-1',
-							endpoint: 'https://alpha.flapjack.test',
-							entries: 0,
-							data_size_bytes: 0,
-							status: 'running',
-							tier: 'active',
-							created_at: '2026-04-01T00:00:00Z'
-						}
-					]);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}/deployments`)) {
-					return json(DETAIL_FIXTURE.deployments);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}/usage`)) {
-					return json(DETAIL_FIXTURE.usage);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}/invoices`)) {
-					return json(DETAIL_FIXTURE.invoices);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}/rate-card`)) {
-					return json(DETAIL_FIXTURE.rateCard);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}/quotas`)) {
-					return json(DETAIL_FIXTURE.quotas);
-				}
-				if (url.includes(`/admin/customers/${tenantId}/audit`)) {
-					return json(POPULATED_AUDIT_FIXTURE_ROWS);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}`)) {
-					return json(DETAIL_FIXTURE.tenant);
-				}
-				return new Response('not found', { status: 404 });
-			},
-			params: { id: tenantId },
-			depends: vi.fn()
-		}));
+					if (url.includes(indexesPath)) {
+						return json([
+							{
+								name: 'alpha',
+								region: 'us-east-1',
+								endpoint: 'https://alpha.flapjack.test',
+								entries: 0,
+								data_size_bytes: 0,
+								status: 'running',
+								tier: 'active',
+								created_at: '2026-04-01T00:00:00Z'
+							}
+						]);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/deployments`)) {
+						return json(DETAIL_FIXTURE.deployments);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/usage`)) {
+						return json(DETAIL_FIXTURE.usage);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/invoices`)) {
+						return json(DETAIL_FIXTURE.invoices);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/rate-card`)) {
+						return json(DETAIL_FIXTURE.rateCard);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/quotas`)) {
+						return json(DETAIL_FIXTURE.quotas);
+					}
+					if (url.includes(`/admin/customers/${tenantId}/audit`)) {
+						return json(POPULATED_AUDIT_FIXTURE_ROWS);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}`)) {
+						return json(DETAIL_FIXTURE.tenant);
+					}
+					return new Response('not found', { status: 404 });
+				},
+				params: { id: tenantId },
+				depends: vi.fn()
+			})
+		);
 
 		expect(requestedUrls.some((url) => url.includes(indexesPath))).toBe(true);
 		expect((result as { indexes: unknown }).indexes).toEqual([
@@ -268,81 +265,85 @@ describe('Admin customer detail', () => {
 			});
 
 		const requestedUrls: string[] = [];
-		const successful = await load(authenticatedDetailLoadContext({
-			fetch: async (input: string | URL | Request) => {
-				const url =
-					typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-				requestedUrls.push(url);
+		const successful = await load(
+			authenticatedDetailLoadContext({
+				fetch: async (input: string | URL | Request) => {
+					const url =
+						typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+					requestedUrls.push(url);
 
-				if (url.includes(auditPath)) {
-					return json(POPULATED_AUDIT_FIXTURE_ROWS);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}/usage`)) {
-					return json(DETAIL_FIXTURE.usage);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}/indexes`)) {
-					return json(DETAIL_FIXTURE.indexes);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}/rate-card`)) {
-					return json(DETAIL_FIXTURE.rateCard);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}/quotas`)) {
-					return json(DETAIL_FIXTURE.quotas);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}/deployments`)) {
-					return json(DETAIL_FIXTURE.deployments);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}/invoices`)) {
-					return json(DETAIL_FIXTURE.invoices);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}`)) {
-					return json(DETAIL_FIXTURE.tenant);
-				}
-				return new Response('not found', { status: 404 });
-			},
-			params: { id: tenantId },
-			depends: vi.fn()
-		}));
+					if (url.includes(auditPath)) {
+						return json(POPULATED_AUDIT_FIXTURE_ROWS);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/usage`)) {
+						return json(DETAIL_FIXTURE.usage);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/indexes`)) {
+						return json(DETAIL_FIXTURE.indexes);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/rate-card`)) {
+						return json(DETAIL_FIXTURE.rateCard);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/quotas`)) {
+						return json(DETAIL_FIXTURE.quotas);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/deployments`)) {
+						return json(DETAIL_FIXTURE.deployments);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/invoices`)) {
+						return json(DETAIL_FIXTURE.invoices);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}`)) {
+						return json(DETAIL_FIXTURE.tenant);
+					}
+					return new Response('not found', { status: 404 });
+				},
+				params: { id: tenantId },
+				depends: vi.fn()
+			})
+		);
 
 		expect(requestedUrls.some((url) => url.includes(auditPath))).toBe(true);
 		expect((successful as { audit: typeof POPULATED_AUDIT_FIXTURE_ROWS }).audit).toEqual(
 			POPULATED_AUDIT_FIXTURE_ROWS
 		);
 
-		const withAuditFailure = await load(authenticatedDetailLoadContext({
-			fetch: async (input: string | URL | Request) => {
-				const url =
-					typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+		const withAuditFailure = await load(
+			authenticatedDetailLoadContext({
+				fetch: async (input: string | URL | Request) => {
+					const url =
+						typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
 
-				if (url.includes(auditPath)) {
-					return new Response('audit service unavailable', { status: 503 });
-				}
-				if (url.includes(`/admin/tenants/${tenantId}/usage`)) {
-					return json(DETAIL_FIXTURE.usage);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}/indexes`)) {
-					return json(DETAIL_FIXTURE.indexes);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}/rate-card`)) {
-					return json(DETAIL_FIXTURE.rateCard);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}/quotas`)) {
-					return json(DETAIL_FIXTURE.quotas);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}/deployments`)) {
-					return json(DETAIL_FIXTURE.deployments);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}/invoices`)) {
-					return json(DETAIL_FIXTURE.invoices);
-				}
-				if (url.includes(`/admin/tenants/${tenantId}`)) {
-					return json(DETAIL_FIXTURE.tenant);
-				}
-				return new Response('not found', { status: 404 });
-			},
-			params: { id: tenantId },
-			depends: vi.fn()
-		}));
+					if (url.includes(auditPath)) {
+						return new Response('audit service unavailable', { status: 503 });
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/usage`)) {
+						return json(DETAIL_FIXTURE.usage);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/indexes`)) {
+						return json(DETAIL_FIXTURE.indexes);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/rate-card`)) {
+						return json(DETAIL_FIXTURE.rateCard);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/quotas`)) {
+						return json(DETAIL_FIXTURE.quotas);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/deployments`)) {
+						return json(DETAIL_FIXTURE.deployments);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}/invoices`)) {
+						return json(DETAIL_FIXTURE.invoices);
+					}
+					if (url.includes(`/admin/tenants/${tenantId}`)) {
+						return json(DETAIL_FIXTURE.tenant);
+					}
+					return new Response('not found', { status: 404 });
+				},
+				params: { id: tenantId },
+				depends: vi.fn()
+			})
+		);
 
 		expect((withAuditFailure as { audit: null }).audit).toBeNull();
 		expect((withAuditFailure as { tenant: { id: string } }).tenant.id).toBe(tenantId);

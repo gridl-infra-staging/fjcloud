@@ -294,11 +294,17 @@ mod tests {
                 health: PublicRegionHealth::Operational,
                 utilization: None,
                 vm_count: 2,
+                healthy_count: 2,
+                unhealthy_count: 0,
+                unknown_count: 0,
             }],
             overall: PublicInfrastructureOverall {
                 availability_pct: Some(100.0),
                 total_regions: 1,
                 total_vms: 2,
+                healthy_count: 2,
+                unhealthy_count: 0,
+                unknown_count: 0,
             },
         }
     }

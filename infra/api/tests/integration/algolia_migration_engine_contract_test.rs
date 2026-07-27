@@ -37,15 +37,46 @@ fn valid_status_json() -> Value {
     })
 }
 
+fn successful_terminal_status_with_outcome() -> Value {
+    serde_json::json!({
+        "jobId": "9f11d0a0-4443-44d4-b6c6-1ed71dbeb0fb",
+        "phase": "activating",
+        "disposition": "succeeded",
+        "createdAt": "2026-07-22T00:00:00Z",
+        "updatedAt": "2026-07-22T00:00:01Z",
+        "terminalAt": "2026-07-22T00:00:02Z",
+        "settingsApplied": true,
+        "synonymsImported": {"imported": 3},
+        "rulesImported": {"imported": 6},
+        "warnings": [{
+            "code": "unsupported_synonym_type",
+            "message": "Skipped one synonym",
+            "resource": "synonyms",
+            "pageIndex": 2,
+            "itemIndex": 5,
+            "jsonPath": "$.synonyms[5]"
+        }]
+    })
+}
+
 #[test]
 fn algolia_migration_engine_contract_fixture_pins_engine_and_artifacts() {
     let contract = contract();
-
     let pinned_engine_sha = contract["pinned_engine_sha"]
         .as_str()
         .expect("pinned_engine_sha must be a string");
-    assert_eq!(pinned_engine_sha.len(), 40);
-    assert!(pinned_engine_sha.chars().all(|ch| ch.is_ascii_hexdigit()));
+
+    assert_eq!(
+        pinned_engine_sha.len(),
+        40,
+        "the fixture must carry one 40-character pinned engine SHA"
+    );
+    assert!(
+        pinned_engine_sha
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase()),
+        "the pinned engine SHA must be lowercase hex"
+    );
 
     let artifacts = contract["openapi_artifacts"]
         .as_array()
@@ -56,13 +87,29 @@ fn algolia_migration_engine_contract_fixture_pins_engine_and_artifacts() {
         artifacts[1]["path"],
         "engine/demo-dualclient/public/openapi.json"
     );
-    for artifact in artifacts {
-        let sha256 = artifact["sha256"]
-            .as_str()
-            .expect("artifact sha256 must be a string");
-        assert_eq!(sha256.len(), 64);
-        assert!(sha256.chars().all(|ch| ch.is_ascii_hexdigit()));
+    let first_sha256 = artifacts[0]["sha256"]
+        .as_str()
+        .expect("first OpenAPI artifact sha256 must be a string");
+    let second_sha256 = artifacts[1]["sha256"]
+        .as_str()
+        .expect("second OpenAPI artifact sha256 must be a string");
+    for checksum in [first_sha256, second_sha256] {
+        assert_eq!(
+            checksum.len(),
+            64,
+            "each OpenAPI artifact checksum must be a 64-character sha256"
+        );
+        assert!(
+            checksum
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase()),
+            "artifact checksum must be lowercase hex"
+        );
     }
+    assert_eq!(
+        first_sha256, second_sha256,
+        "the duplicated OpenAPI artifacts must stay byte-identical"
+    );
 }
 
 #[test]
@@ -95,31 +142,54 @@ fn algolia_migration_engine_contract_fixture_closes_routes_and_wire_sets() {
     assert_eq!(
         contract["acknowledgement_contract"],
         json!({
+            "operation_id": "acknowledge_algolia_migration",
             "authentication": {
                 "required": true,
-                "headers": ["x-algolia-api-key", "x-algolia-application-id"]
+                "security_scheme": "api_key"
             },
-            "durability": {
-                "terminal_phase_required_before_success": true
+            "request": {
+                "path_parameters": ["job_id"],
+                "body": "none"
             },
-            "idempotency": {
-                "duplicate_terminal_acknowledgement": "success_no_mutation"
-            },
-            "absence": {
+            "engine_behavior": "idempotent_no_op_terminal_receipt",
+            "responses": {
+                "success": {
+                    "http_status": 204,
+                    "description": "Terminal migration acknowledged"
+                },
+                "invalid_uuid": {
+                    "http_status": 400,
+                    "description": "Invalid migration job UUID"
+                },
                 "missing_job": {
                     "http_status": 404,
-                    "code": "migration_job_not_found"
+                    "description": "No durable migration phase record is currently retained for the UUID"
+                },
+                "too_early": {
+                    "http_status": 409,
+                    "description": "migration_ack_too_early"
+                },
+                "read_failure": {
+                    "http_status": 500,
+                    "description": "Migration status record could not be read"
                 }
             },
-            "already_acknowledged": {
-                "http_status": 204
-            },
-            "too_early": {
-                "http_status": 409,
-                "code": "migration_ack_too_early"
-            }
         }),
-        "ACK route presence is not enough; the fixture must require auth, terminal gating, idempotent replay, and exact missing-job/too-early behavior"
+        "ACK route presence is not enough; the fixture must pin the authenticated no-op receipt semantics that the merged engine publishes"
+    );
+    assert_eq!(
+        contract["privacy_scrub_known_answer"],
+        json!({
+            "command": [
+                "bash",
+                "scripts/update_algolia_migration_engine_contract.sh",
+                "--check"
+            ],
+            "working_directory": ".",
+            "success_marker":
+                "privacy-scrub transport receipt: PASS"
+        }),
+        "the dependency gate must execute the engine-owned privacy-scrub proof without pinning the unrelated whole-suite count"
     );
     assert_eq!(
         strings_at(&contract, &["request", "required_fields"]),
@@ -135,7 +205,66 @@ fn algolia_migration_engine_contract_fixture_closes_routes_and_wire_sets() {
     );
     assert_eq!(
         strings_at(&contract, &["status", "optional_fields"]),
-        ["exportProgress", "terminalAt"]
+        [
+            "exportProgress",
+            "rulesImported",
+            "settingsApplied",
+            "synonymsImported",
+            "terminalAt",
+            "warnings"
+        ]
+    );
+    assert_eq!(
+        contract["status_outcome"],
+        json!({
+            "fields": [
+                "rulesImported",
+                "settingsApplied",
+                "synonymsImported",
+                "warnings"
+            ],
+            "settingsApplied": {
+                "type": ["boolean", "null"]
+            },
+            "synonymsImported": {
+                "ref": "#/components/schemas/MigrateCount",
+                "nullable": true
+            },
+            "rulesImported": {
+                "ref": "#/components/schemas/MigrateCount",
+                "nullable": true
+            },
+            "warnings": {
+                "type": "array",
+                "items_ref": "#/components/schemas/MigrateWarning"
+            }
+        }),
+        "fixture must preserve current-main terminal-only outcome fields"
+    );
+    assert_eq!(
+        contract["count"],
+        json!({
+            "required_fields": ["imported"],
+            "optional_fields": [],
+            "field_types": {
+                "imported": ["integer"]
+            }
+        })
+    );
+    assert_eq!(
+        contract["warning"],
+        json!({
+            "required_fields": ["code", "jsonPath", "message", "resource"],
+            "optional_fields": ["itemIndex", "pageIndex"],
+            "field_types": {
+                "code": ["string"],
+                "itemIndex": ["integer", "null"],
+                "jsonPath": ["string"],
+                "message": ["string"],
+                "pageIndex": ["integer", "null"],
+                "resource": ["string"]
+            }
+        })
     );
     assert_eq!(
         strings_at(&contract, &["progress", "required_fields"]),
@@ -148,35 +277,88 @@ fn algolia_migration_engine_contract_fixture_closes_routes_and_wire_sets() {
 }
 
 #[test]
-fn algolia_migration_engine_contract_fixture_has_no_privacy_scrub_transport() {
+fn algolia_migration_engine_contract_fixture_pins_authenticated_privacy_scrub_transport() {
     let contract = contract();
-    let expected_routes = json!({
-        "submit": {
-            "method": "POST",
-            "path": "/1/migrations/algolia"
-        },
-        "status": {
-            "method": "GET",
-            "path": "/1/migrations/algolia/{job_id}"
-        },
-        "cancel": {
-            "method": "POST",
-            "path": "/1/migrations/algolia/{job_id}/cancel"
-        }
-    });
 
     assert_eq!(
-        contract["routes"], expected_routes,
-        "the pinned migration-family route set must remain submit, status, and cancel only"
+        contract["privacy_scrub_contract"]["route"],
+        json!({
+            "method": "POST",
+            "path": "/1/migrations/privacy-scrub",
+            "operation_id": "submit_privacy_scrub",
+            "security_scheme": "private_migration"
+        }),
+        "fixture must pin the authenticated private scrub transport route"
     );
-
-    let normalized_routes = contract["routes"].to_string().to_ascii_lowercase();
-    for forbidden in ["scrub", "tombstone", "erase", "delete"] {
-        assert!(
-            !normalized_routes.contains(forbidden),
-            "the pinned migration-family route set must not claim a {forbidden} transport"
-        );
-    }
+    assert_eq!(
+        strings_at(
+            &contract,
+            &["privacy_scrub_contract", "request", "required_fields"]
+        ),
+        ["expectedGeneration", "scrubId", "tenant"]
+    );
+    assert_eq!(
+        strings_at(
+            &contract,
+            &["privacy_scrub_contract", "request", "optional_fields"]
+        ),
+        ["objectIDs", "ruleIDs", "synonymIDs"]
+    );
+    assert_eq!(
+        contract["privacy_scrub_contract"]["request"]["property_types"],
+        json!({
+            "expectedGeneration": { "type": "string" },
+            "objectIDs": { "type": "array", "items": "string" },
+            "ruleIDs": { "type": "array", "items": "string" },
+            "scrubId": { "type": "string" },
+            "synonymIDs": { "type": "array", "items": "string" },
+            "tenant": { "type": "string" }
+        }),
+        "scrub request must pin each field's wire type, including array item types"
+    );
+    assert_eq!(
+        contract["privacy_scrub_contract"]["ack"],
+        json!({
+            "http_status": 202,
+            "schema": "PrivacyScrubAck",
+            "required_fields": ["disposition", "scrubId"],
+            "optional_fields": [],
+            "property_types": {
+                "disposition": { "type": "string" },
+                "scrubId": { "type": "string" }
+            }
+        }),
+        "scrub delivery must close over the engine ACK response shape and wire types"
+    );
+    assert_eq!(
+        contract["privacy_scrub_contract"]["receipt"],
+        json!({
+            "path": "engine/docs2/4_EVIDENCE/privacy_scrub_transport_receipt.json",
+            "validated_head_sha": "c14fd322842c42cf2527616a69f708257194a9ef",
+            "scrub_implementation_sha": "674f243579e2f31ce15a00c8f79d8a98842c7659",
+            "boundary_variants": [
+                "PreIntent",
+                "PostIntent",
+                "EngineCommit",
+                "PreAck",
+                "ResponseLoss",
+                "Restart",
+                "AckReplay"
+            ],
+            "auth_negative_cases": [
+                "missing credentials",
+                "wrong credentials",
+                "incomplete app material",
+                "ordinary admin credentials"
+            ],
+            "exact_absence_resource_classes": [
+                "objectIDs",
+                "synonymIDs",
+                "ruleIDs"
+            ]
+        }),
+        "fixture must carry the F10E receipt denominator that cloud replay tests consume"
+    );
 }
 
 #[test]
@@ -274,4 +456,109 @@ fn algolia_migration_engine_contract_fixture_covers_all_typed_status_arms() {
     let decoded: AsyncMigrationStatusResponse =
         serde_json::from_value(without_progress).expect("optional progress may be absent");
     assert_eq!(decoded.export_progress, None);
+
+    let decoded: AsyncMigrationStatusResponse =
+        serde_json::from_value(successful_terminal_status_with_outcome())
+            .expect("successful terminal outcome should decode");
+    assert_eq!(decoded.settings_applied, Some(true));
+    assert_eq!(decoded.synonyms_imported.unwrap().imported, 3);
+    assert_eq!(decoded.rules_imported.unwrap().imported, 6);
+    assert_eq!(decoded.warnings.unwrap().len(), 1);
+}
+
+#[test]
+fn algolia_migration_engine_contract_fixture_enforces_terminal_outcome_legality() {
+    let contract = contract();
+    let phases = strings_at(&contract, &["enums", "phase"]);
+    let dispositions = strings_at(&contract, &["enums", "disposition"]);
+
+    for phase in &phases {
+        for disposition in &dispositions {
+            let is_terminal = *disposition != "running";
+            let mut response = valid_status_json();
+            response["phase"] = serde_json::json!(phase);
+            response["disposition"] = serde_json::json!(disposition);
+            if is_terminal {
+                response["terminalAt"] = serde_json::json!("2026-07-22T00:00:02Z");
+            }
+            let result = serde_json::from_value::<AsyncMigrationStatusResponse>(response);
+            if *disposition == "succeeded" && *phase != "activating" {
+                assert!(
+                    result.is_err(),
+                    "succeeded must require activating phase, got {phase}"
+                );
+            } else if *disposition == "running" {
+                assert!(
+                    result.is_ok(),
+                    "running+{phase} must decode (resume=false: non-terminal is valid in-flight)"
+                );
+                assert_eq!(result.unwrap().terminal_at, None);
+            } else {
+                assert!(
+                    result.is_ok(),
+                    "terminal disposition {disposition}+{phase} must decode"
+                );
+                assert!(
+                    result.unwrap().terminal_at.is_some(),
+                    "terminal disposition must carry terminalAt"
+                );
+            }
+        }
+    }
+
+    let mut running_with_terminal = valid_status_json();
+    running_with_terminal["terminalAt"] = serde_json::json!("2026-07-22T00:00:02Z");
+    assert!(
+        serde_json::from_value::<AsyncMigrationStatusResponse>(running_with_terminal).is_err(),
+        "running disposition must reject terminalAt (resume=false: terminal is final)"
+    );
+}
+
+#[test]
+fn algolia_migration_engine_contract_fixture_closes_top_level_schema() {
+    let contract = contract();
+    let keys: Vec<&str> = contract
+        .as_object()
+        .expect("fixture must be an object")
+        .keys()
+        .map(String::as_str)
+        .collect();
+
+    let expected_keys = [
+        "acknowledgement_contract",
+        "count",
+        "enums",
+        "errors",
+        "openapi_artifacts",
+        "pinned_engine_sha",
+        "privacy_scrub_contract",
+        "privacy_scrub_known_answer",
+        "progress",
+        "request",
+        "required_runtime_routes",
+        "routes",
+        "status",
+        "status_outcome",
+        "warning",
+    ];
+    let mut sorted_keys = keys.clone();
+    sorted_keys.sort_unstable();
+    assert_eq!(
+        sorted_keys, expected_keys,
+        "fixture top-level keys must be exactly the closed set; unknown growth is rejected"
+    );
+}
+
+#[test]
+fn algolia_migration_engine_contract_privacy_scrub_rejects_wrong_auth_scheme() {
+    let contract = contract();
+    assert_eq!(
+        contract["privacy_scrub_contract"]["route"]["security_scheme"], "private_migration",
+        "privacy scrub must use private_migration, not api_key or public"
+    );
+    assert_ne!(
+        contract["privacy_scrub_contract"]["route"]["security_scheme"],
+        contract["acknowledgement_contract"]["authentication"]["security_scheme"],
+        "privacy scrub auth must differ from the public terminal ACK auth scheme"
+    );
 }

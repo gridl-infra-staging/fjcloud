@@ -1,7 +1,8 @@
 use api::models::algolia_import_job::{
     AlgoliaImportDispatchIntentState, AlgoliaImportEngineAckState, AlgoliaImportErrorCode,
     AlgoliaImportJob, AlgoliaImportJobState, AlgoliaImportJobStatus,
-    AlgoliaImportPublicationDisposition, AlgoliaImportSummary, EngineResumeMirror,
+    AlgoliaImportPublicationDisposition, AlgoliaImportSummary, AlgoliaImportWarning,
+    EngineResumeMirror,
 };
 use api::repos::{
     AlgoliaImportJobRepo, AlgoliaImportReconciliationWriteOutcome,
@@ -229,7 +230,8 @@ fn admitted_state(status: AlgoliaImportJobStatus) -> AlgoliaImportJobState {
         resumable: false,
         resume_count: 0,
         summary: AlgoliaImportSummary::default(),
-        warnings: json!([]),
+        terminal_outcome_observed: false,
+        warnings: Vec::new(),
         error_code: None,
         error_message: None,
     }
@@ -398,7 +400,21 @@ fn normal_forward_target(mut from: AlgoliaImportJobState) -> AlgoliaImportJobSta
         from.publication_disposition = AlgoliaImportPublicationDisposition::Promoted;
         from.engine_ack_state = AlgoliaImportEngineAckState::OutboxPending;
     }
+    if from.status == CompletedWithWarnings {
+        from.warnings = vec![terminal_warning()];
+    }
     from
+}
+
+fn terminal_warning() -> AlgoliaImportWarning {
+    AlgoliaImportWarning {
+        code: "terminal_warning".to_string(),
+        message: "Terminal warning".to_string(),
+        resource: "job".to_string(),
+        page_index: None,
+        item_index: None,
+        json_path: "$".to_string(),
+    }
 }
 
 fn terminal_state(
@@ -412,6 +428,10 @@ fn terminal_state(
     state.publication_disposition = publication_disposition;
     state.engine_ack_state = AlgoliaImportEngineAckState::OutboxPending;
     state.retryable = false;
+    if status == AlgoliaImportJobStatus::CompletedWithWarnings {
+        state.terminal_outcome_observed = true;
+        state.warnings = vec![terminal_warning()];
+    }
     state.error_code = match status {
         Failed => Some(AlgoliaImportErrorCode::BackendUnavailable),
         Interrupted => Some(AlgoliaImportErrorCode::Interrupted),
@@ -557,6 +577,10 @@ fn algolia_import_job_domain_transition_owner_accepts_only_declared_edges() {
         if matches!(to_status, Completed | CompletedWithWarnings) {
             to.publication_disposition = AlgoliaImportPublicationDisposition::Promoted;
             to.engine_ack_state = AlgoliaImportEngineAckState::OutboxPending;
+        }
+        if to_status == CompletedWithWarnings {
+            to.terminal_outcome_observed = true;
+            to.warnings = vec![terminal_warning()];
         }
         assert_transition(from, to, true, "normal forward edge");
     }
@@ -1694,10 +1718,10 @@ async fn erased_tombstone_ack_release_compacts_exactly_once() {
     };
     let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
 
-    let (_eligible_id, eligible_handle, eligible_before) = seed_schema_056_tombstone(
+    let (eligible_id, _eligible_handle, eligible_before) = seed_schema_056_tombstone(
         &db.pool,
-        "exact_target_absent",
-        AlgoliaImportEngineAckState::OutboxPending,
+        "exact_target_absence_required",
+        AlgoliaImportEngineAckState::Pending,
         AlgoliaImportPublicationDisposition::Unchanged,
         false,
     )
@@ -1748,32 +1772,32 @@ async fn erased_tombstone_ack_release_compacts_exactly_once() {
     let stale_public_before = serialized_import_job_row(&db.pool, stale_public.id).await;
 
     let acknowledged = repo
-        .mark_engine_acknowledged(eligible_before["id"].as_str().unwrap().parse().unwrap())
+        .mark_engine_acknowledged(eligible_id)
         .await
         .expect("acknowledge eligible erased tombstone");
     assert_eq!(
         acknowledged.engine_ack_state,
         AlgoliaImportEngineAckState::Acknowledged
     );
-    let after_first = serialized_import_job_row_by_erasure_handle(&db.pool, eligible_handle).await;
+    let after_first = serialized_import_job_row(&db.pool, eligible_id).await;
     assert_eq!(after_first["engine_ack_state"], json!("acknowledged"));
+    assert_eq!(after_first["cleanup_phase"], json!("exact_target_absent"));
+    assert_eq!(after_first["erasure_handle"], serde_json::Value::Null);
     assert!(after_first["tombstone_compacted_at"].is_string());
     for field in [
         "id",
-        "erasure_handle",
         "engine_job_id",
         "destination_vm_id",
         "publication_disposition",
-        "cleanup_phase",
         "erased_at",
     ] {
         assert_eq!(after_first[field], eligible_before[field], "{field}");
     }
 
-    repo.mark_engine_acknowledged(after_first["id"].as_str().unwrap().parse().unwrap())
+    repo.mark_engine_acknowledged(eligible_id)
         .await
         .expect("replay acknowledged tombstone");
-    let after_replay = serialized_import_job_row_by_erasure_handle(&db.pool, eligible_handle).await;
+    let after_replay = serialized_import_job_row(&db.pool, eligible_id).await;
     assert_eq!(after_replay, after_first);
 
     for (id, handle, before, context) in [

@@ -2,8 +2,8 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use super::{
-    AlgoliaImportDestinationKind, AlgoliaImportDispatchIntentState, AlgoliaImportEngineAckState,
-    AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportJobStatus,
+    canonical_persisted_warnings, AlgoliaImportDestinationKind, AlgoliaImportDispatchIntentState,
+    AlgoliaImportEngineAckState, AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportJobStatus,
     AlgoliaImportPublicationDisposition, AlgoliaImportSummary,
 };
 
@@ -52,6 +52,7 @@ pub(crate) struct AlgoliaImportJobRow {
     pub rules_expected: i64,
     pub rules_imported: i64,
     pub rules_rejected: i64,
+    pub terminal_outcome_observed: bool,
     pub warnings: serde_json::Value,
     pub error_code: Option<String>,
     pub error_message: Option<String>,
@@ -65,6 +66,7 @@ pub(crate) struct AlgoliaImportJobRow {
 
 impl From<AlgoliaImportJobRow> for AlgoliaImportJob {
     fn from(row: AlgoliaImportJobRow) -> Self {
+        let warnings = canonical_persisted_warnings(row.terminal_outcome_observed, row.warnings);
         let summary = AlgoliaImportSummary {
             documents_expected: row.documents_expected,
             documents_imported: row.documents_imported,
@@ -112,7 +114,8 @@ impl From<AlgoliaImportJobRow> for AlgoliaImportJob {
             resumable: row.resumable,
             resume_count: row.resume_count,
             summary,
-            warnings: row.warnings,
+            terminal_outcome_observed: row.terminal_outcome_observed,
+            warnings,
             error_code: row.error_code.as_deref().map(parse_error_code),
             error_message: row.error_message,
             status: parse_status(&row.status),

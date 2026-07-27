@@ -19,7 +19,6 @@ fn assert_public_job_history_contract(body: &serde_json::Value) {
         "resumeCheckpoint",
         "engineJobId",
         "workerLeaseExpiresAt",
-        "warnings",
     ] {
         assert!(
             body.get(forbidden).is_none(),
@@ -41,7 +40,6 @@ fn assert_public_job_history_contract(body: &serde_json::Value) {
         "routing-secret-id",
         "idem-secret-get",
         "secret-fingerprint",
-        "raw-warning-canary",
         "raw producer error canary",
     ] {
         assert!(
@@ -49,6 +47,8 @@ fn assert_public_job_history_contract(body: &serde_json::Value) {
             "leaked internal value {secret}"
         );
     }
+    assert_eq!(body["terminalOutcomeObserved"], json!(false));
+    assert_eq!(body["warnings"], json!([]));
 }
 
 #[tokio::test]

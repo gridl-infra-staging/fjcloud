@@ -1,6 +1,8 @@
+use uuid::Uuid;
+
 use crate::services::algolia_import::{AlgoliaImportSubmitPayload, AsyncMigrationStatusResponse};
 
-use super::{FlapjackProxy, ProxyError};
+use super::{FlapjackHttpResponse, FlapjackProxy, ProxyError};
 
 impl FlapjackProxy {
     pub(crate) async fn submit_algolia_migration(
@@ -109,5 +111,39 @@ impl FlapjackProxy {
             .send_authenticated_request(reqwest::Method::POST, url, api_key, None)
             .await?;
         Self::check_response_status(resp.status, &resp.body)
+    }
+
+    pub async fn privacy_scrub_algolia_migration(
+        &self,
+        flapjack_url: &str,
+        node_id: &str,
+        region: &str,
+        erasure_handle: Uuid,
+    ) -> Result<FlapjackHttpResponse, ProxyError> {
+        let api_key = self.get_admin_key(node_id, region).await?;
+        let url = format!(
+            "{}/1/migrations/privacy-scrub",
+            flapjack_url.trim_end_matches('/')
+        );
+        let body = serde_json::json!({
+            "scrubId": erasure_handle,
+            "tenant": format!("erased-{erasure_handle}"),
+            "expectedGeneration": "erased-tombstone-v1",
+            "objectIDs": [],
+            "synonymIDs": [],
+            "ruleIDs": []
+        })
+        .to_string();
+
+        let resp = self
+            .send_authenticated_sensitive_request(reqwest::Method::POST, &url, &api_key, &body)
+            .await?;
+        if resp.status != 202 {
+            return Err(ProxyError::FlapjackError {
+                status: resp.status,
+                message: resp.body,
+            });
+        }
+        Ok(resp)
     }
 }

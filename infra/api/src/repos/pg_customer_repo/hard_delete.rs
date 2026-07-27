@@ -93,6 +93,8 @@ async fn scrub_algolia_jobs(
     tx: &mut Transaction<'_, Postgres>,
     customer_id: Uuid,
 ) -> Result<Vec<AlgoliaSealScrubWork>, RepoError> {
+    // A public terminal ACK only confirms delivery of the terminal job outcome. Hard
+    // erasure starts a distinct ACK lifecycle that proves the exact target is absent.
     let rows = sqlx::query_as::<_, SealScrubWorkRow>(
         "UPDATE algolia_import_jobs
          SET customer_id = NULL, tenant_id = NULL, algolia_app_id = NULL,
@@ -110,10 +112,17 @@ async fn scrub_algolia_jobs(
              documents_rejected = NULL, settings_applied = NULL,
              settings_unsupported = NULL, synonyms_expected = NULL,
              synonyms_imported = NULL, synonyms_rejected = NULL, rules_expected = NULL,
-             rules_imported = NULL, rules_rejected = NULL, warnings = NULL,
+             rules_imported = NULL, rules_rejected = NULL,
+             terminal_outcome_observed = NULL, warnings = NULL,
              error_code = NULL, error_message = NULL, status = NULL,
              terminal_at = NULL,
              erasure_handle = gen_random_uuid(),
+             engine_ack_state = CASE
+                 WHEN engine_ack_state <> 'seal_acknowledged'
+                      AND dispatch_intent_state IN ('committed', 'ambiguous')
+                     THEN 'pending'
+                 ELSE engine_ack_state
+             END,
              cleanup_phase = CASE
                  WHEN engine_ack_state = 'seal_acknowledged'
                      THEN 'engine_disposition_required'

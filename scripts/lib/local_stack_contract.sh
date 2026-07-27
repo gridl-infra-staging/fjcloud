@@ -131,14 +131,23 @@ print("match")
 PY
 }
 
-# Fetch runtime `/health` and classify it. Thin URL wrapper over the shared
-# flapjack_classify_health_json comparison.
+# Fetch runtime `/health` and classify it. A runtime started and owned by the
+# current wrapper has already had its exact source receipt and executable bytes
+# validated before launch, so its public health response only needs to prove the
+# version/capability contract. Pre-existing and remote runtimes must continue to
+# carry exact identity in health because this process does not own their launch.
 flapjack_runtime_identity_reason() {
-    local flapjack_base_url="$1" body
+    local flapjack_base_url="$1" locally_owned="${2:-0}" body
     body="$(curl -fsS -m 10 "${flapjack_base_url%/}/health" 2>/dev/null)" || {
         printf 'runtime_unreachable\n'
         return 0
     }
+    if [ "$locally_owned" = "1" ]; then
+        FJCLOUD_FLAPJACK_REQUIRED_REVISION="" \
+            FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID="" \
+            flapjack_classify_health_json "$body"
+        return
+    fi
     flapjack_classify_health_json "$body"
 }
 

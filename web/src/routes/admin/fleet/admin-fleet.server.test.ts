@@ -1,12 +1,28 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isActionFailure } from '@sveltejs/kit';
 import type { ActionFailure } from '@sveltejs/kit';
 import type { VmHostMetricsResponse } from '$lib/admin-client';
+import { parseRealPipelineOracle } from '../../../../tests/fixtures/real_pipeline_oracle';
 import { FLEET_FIXTURES, REPLICA_FIXTURES, VM_FIXTURES } from './admin_fleet_fixtures';
 
 vi.mock('$env/dynamic/private', () => ({
 	env: new Proxy({}, { get: (_target, prop) => process.env[prop as string] })
 }));
+
+const REAL_PIPELINE_ORACLE = parseRealPipelineOracle(
+	JSON.parse(
+		readFileSync(
+			join(
+				process.cwd(),
+				'..',
+				'docs/runbooks/evidence/local-real-pipeline-oracle/2026_07_26_stage_03/oracle_redacted.json'
+			),
+			'utf8'
+		)
+	)
+);
 
 const HOST_METRICS_FIXTURE: VmHostMetricsResponse = {
 	id: 'metrics-aaaaaaaa-0001-0000-0000-000000000001',
@@ -45,6 +61,94 @@ afterEach(() => {
 });
 
 describe('Fleet page server load', () => {
+	it('loads oracle inventory and attributes its selected host sample by VM id', async () => {
+		const { load } = await import('./+page.server');
+		const selectedVmId = REAL_PIPELINE_ORACLE.topology.selected_vm_id;
+		const selectedSample = REAL_PIPELINE_ORACLE.host_metrics.samples[0];
+		const capturedPaths: string[] = [];
+		const mockFetch = async (input: string | URL | Request) => {
+			const path = requestPath(input);
+			capturedPaths.push(path);
+			if (path.includes('/admin/fleet')) {
+				return new Response(JSON.stringify(FLEET_FIXTURES), { status: 200 });
+			}
+			if (path.includes('/admin/replicas')) {
+				return new Response(JSON.stringify(REPLICA_FIXTURES), { status: 200 });
+			}
+			if (path.endsWith('/admin/vms')) {
+				return new Response(JSON.stringify(REAL_PIPELINE_ORACLE.topology.vms), { status: 200 });
+			}
+			if (path.endsWith(`/admin/vms/${selectedVmId}/host-metrics`)) {
+				return new Response(JSON.stringify(selectedSample), { status: 200 });
+			}
+			if (path.includes('/admin/vms/') && path.endsWith('/host-metrics')) {
+				return new Response(JSON.stringify(null), { status: 200 });
+			}
+			return new Response(JSON.stringify([]), { status: 200 });
+		};
+
+		const result = await load({
+			fetch: mockFetch,
+			depends: () => {}
+		} as never);
+
+		expect(result!.fleet).toEqual(FLEET_FIXTURES);
+		expect(result!.fleetAvailable).toBe(true);
+		expect(result!.vms).toEqual(REAL_PIPELINE_ORACLE.topology.vms);
+		expect(result!.vmCapacityAvailable).toBe(true);
+		expect(result!.replicas).toEqual(REPLICA_FIXTURES);
+		expect(result!.replicaPlacementAvailable).toBe(true);
+		expect(result!.hostMetricsByVmId[selectedVmId]).toEqual(selectedSample);
+		expect(Object.keys(result!.hostMetricsByVmId).sort()).toEqual(
+			REAL_PIPELINE_ORACLE.topology.vms.map((vm) => vm.id).sort()
+		);
+		for (const vm of REAL_PIPELINE_ORACLE.topology.vms) {
+			expect(countRequests(capturedPaths, `/admin/vms/${vm.id}/host-metrics`)).toBe(1);
+		}
+	});
+
+	it('rejects an oracle host response whose body VM differs from the requested selected VM', async () => {
+		const { load } = await import('./+page.server');
+		const selectedVmId = REAL_PIPELINE_ORACLE.topology.selected_vm_id;
+		const mismatchedSample = {
+			...REAL_PIPELINE_ORACLE.host_metrics.samples[0],
+			vm_id: REAL_PIPELINE_ORACLE.topology.vms[0].id
+		};
+		const mockFetch = async (input: string | URL | Request) => {
+			const path = requestPath(input);
+			if (path.includes('/admin/fleet')) {
+				return new Response(JSON.stringify(FLEET_FIXTURES), { status: 200 });
+			}
+			if (path.includes('/admin/replicas')) {
+				return new Response(JSON.stringify(REPLICA_FIXTURES), { status: 200 });
+			}
+			if (path.endsWith('/admin/vms')) {
+				return new Response(JSON.stringify(REAL_PIPELINE_ORACLE.topology.vms), { status: 200 });
+			}
+			if (path.endsWith(`/admin/vms/${selectedVmId}/host-metrics`)) {
+				return new Response(JSON.stringify(mismatchedSample), { status: 200 });
+			}
+			if (path.includes('/admin/vms/') && path.endsWith('/host-metrics')) {
+				return new Response(JSON.stringify(null), { status: 200 });
+			}
+			return new Response(JSON.stringify([]), { status: 200 });
+		};
+
+		const result = await load({
+			fetch: mockFetch,
+			depends: () => {}
+		} as never);
+
+		expect(result!.fleet).toEqual(FLEET_FIXTURES);
+		expect(result!.fleetAvailable).toBe(true);
+		expect(result!.vms).toEqual(REAL_PIPELINE_ORACLE.topology.vms);
+		expect(result!.vmCapacityAvailable).toBe(true);
+		expect(result!.replicas).toEqual(REPLICA_FIXTURES);
+		expect(result!.replicaPlacementAvailable).toBe(true);
+		expect(result!.hostMetricsByVmId[selectedVmId]).toBeNull();
+		expect(Object.values(result!.hostMetricsByVmId)).not.toContainEqual(mismatchedSample);
+	});
+
 	it('loads fleet and VM data via admin client', async () => {
 		const { load } = await import('./+page.server');
 

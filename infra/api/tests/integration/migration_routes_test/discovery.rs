@@ -542,6 +542,17 @@ fn assert_schema_property_absent(spec: &serde_json::Value, schema: &str, propert
     );
 }
 
+fn assert_schema_property_exists(spec: &serde_json::Value, schema: &str, property: &str) {
+    assert_schema_exists(spec, schema);
+    assert!(
+        spec.pointer(&format!(
+            "/components/schemas/{schema}/properties/{property}"
+        ))
+        .is_some(),
+        "served {schema} schema must expose property {property}"
+    );
+}
+
 /// The eligibility/create/list/get operations must be registered in the served
 /// `ApiDoc` with their full schema cascade and privacy-sensitive fields absent.
 #[test]
@@ -580,13 +591,15 @@ fn algolia_cloud_job_contract_is_served_with_schema_and_privacy_guards() {
         "PublicAlgoliaImportJobPage",
         "AlgoliaImportJobStatus",
         "AlgoliaImportSummary",
+        "AlgoliaImportWarning",
         "AlgoliaImportDestinationKind",
         "AlgoliaImportErrorCode",
     ] {
         assert_schema_exists(&served, schema);
     }
+    assert_schema_property_exists(&served, "PublicAlgoliaImportJob", "terminalOutcomeObserved");
+    assert_schema_property_exists(&served, "PublicAlgoliaImportJob", "warnings");
     assert_schema_property_absent(&served, "PublicAlgoliaImportJob", "resumeCheckpoint");
-    assert_schema_property_absent(&served, "PublicAlgoliaImportJob", "warnings");
     assert_schema_property_absent(&served, "PublicAlgoliaImportSource", "appId");
     assert_schema_property_absent(&served, "PublicAlgoliaImportError", "message");
 }

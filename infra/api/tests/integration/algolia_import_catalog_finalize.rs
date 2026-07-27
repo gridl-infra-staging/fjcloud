@@ -1,8 +1,8 @@
 use api::models::algolia_import_job::{
     AlgoliaImportDispatchIntentState, AlgoliaImportEngineAckState, AlgoliaImportErrorCode,
     AlgoliaImportJob, AlgoliaImportJobState, AlgoliaImportJobStatus,
-    AlgoliaImportPublicationDisposition, AlgoliaImportSummary, AlgoliaImportTerminalFact,
-    EngineResumeMirror,
+    AlgoliaImportPublicationDisposition, AlgoliaImportSummary, AlgoliaImportTerminalDetails,
+    AlgoliaImportTerminalFact, AlgoliaImportWarning, EngineResumeMirror,
 };
 use api::repos::{
     AlgoliaImportEngineAckOutcome, AlgoliaImportJobAdmissionError, AlgoliaImportJobRepo,
@@ -505,14 +505,22 @@ fn terminal_fact(
         engine_job_id,
         status,
         disposition,
-        AlgoliaImportSummary {
-            documents_expected: 10,
-            documents_imported: 10,
-            ..Default::default()
-        },
         terminal_at,
-        (status == AlgoliaImportJobStatus::Failed).then_some(AlgoliaImportErrorCode::Internal),
-        None,
+        AlgoliaImportTerminalDetails {
+            summary: AlgoliaImportSummary {
+                documents_expected: 10,
+                documents_imported: 10,
+                ..Default::default()
+            },
+            terminal_outcome_observed: matches!(
+                status,
+                AlgoliaImportJobStatus::Completed | AlgoliaImportJobStatus::CompletedWithWarnings
+            ),
+            warnings: terminal_warnings(status),
+            error_code: (status == AlgoliaImportJobStatus::Failed)
+                .then_some(AlgoliaImportErrorCode::Internal),
+            error_message: None,
+        },
     )
     .expect("terminal fact fixture")
 }
@@ -535,18 +543,40 @@ fn matrix_terminal_fact(
         engine_job_id,
         status,
         disposition,
-        AlgoliaImportSummary {
-            documents_expected: 20,
-            documents_imported: 18,
-            documents_rejected: 2,
-            settings_applied: 3,
-            ..Default::default()
-        },
         terminal_at,
-        terminal_error_code(status),
-        terminal_error_code(status).map(|code| format!("sanitized {}", code.as_str())),
+        AlgoliaImportTerminalDetails {
+            summary: AlgoliaImportSummary {
+                documents_expected: 20,
+                documents_imported: 18,
+                documents_rejected: 2,
+                settings_applied: 3,
+                ..Default::default()
+            },
+            terminal_outcome_observed: matches!(
+                status,
+                AlgoliaImportJobStatus::Completed | AlgoliaImportJobStatus::CompletedWithWarnings
+            ),
+            warnings: terminal_warnings(status),
+            error_code: terminal_error_code(status),
+            error_message: terminal_error_code(status)
+                .map(|code| format!("sanitized {}", code.as_str())),
+        },
     )
     .expect("matrix terminal fact fixture")
+}
+
+fn terminal_warnings(status: AlgoliaImportJobStatus) -> Vec<AlgoliaImportWarning> {
+    if status != AlgoliaImportJobStatus::CompletedWithWarnings {
+        return Vec::new();
+    }
+    vec![AlgoliaImportWarning {
+        code: "terminal_warning".to_string(),
+        message: "Terminal warning".to_string(),
+        resource: "job".to_string(),
+        page_index: None,
+        item_index: None,
+        json_path: "$".to_string(),
+    }]
 }
 
 async fn has_active_reservation(pool: &PgPool, job_id: Uuid) -> bool {

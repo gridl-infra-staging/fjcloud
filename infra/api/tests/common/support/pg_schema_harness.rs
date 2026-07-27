@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 
+use std::borrow::Cow;
+
+use sqlx::migrate::{MigrateError, Migrator};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -50,6 +53,46 @@ impl Drop for DbHarness {
 }
 
 pub async fn connect_and_migrate(schema_prefix: &str) -> Option<DbHarness> {
+    let harness = connect_without_migrations(schema_prefix).await?;
+
+    sqlx::migrate!("../migrations")
+        .run(&harness.pool)
+        .await
+        .expect("run migrations");
+    Some(harness)
+}
+
+pub async fn connect_and_migrate_through(
+    schema_prefix: &str,
+    max_version: i64,
+) -> Option<DbHarness> {
+    let harness = connect_without_migrations(schema_prefix).await?;
+    migrate_through_version(&harness.pool, max_version)
+        .await
+        .expect("run migrations through requested version");
+    Some(harness)
+}
+
+pub async fn migrate_through_version(pool: &PgPool, max_version: i64) -> Result<(), MigrateError> {
+    let all_migrations = sqlx::migrate!("../migrations");
+    assert!(
+        all_migrations.version_exists(max_version),
+        "migration version {max_version} must exist"
+    );
+    let migrator = Migrator {
+        migrations: Cow::Owned(
+            all_migrations
+                .iter()
+                .filter(|migration| migration.version <= max_version)
+                .cloned()
+                .collect(),
+        ),
+        ..Migrator::DEFAULT
+    };
+    migrator.run(pool).await
+}
+
+pub async fn connect_without_migrations(schema_prefix: &str) -> Option<DbHarness> {
     let url = match std::env::var("DATABASE_URL") {
         Ok(url) => url,
         Err(_) => {
@@ -82,11 +125,6 @@ pub async fn connect_and_migrate(schema_prefix: &str) -> Option<DbHarness> {
         .fetch_one(&pool)
         .await
         .expect("capture isolated test connection PID");
-
-    sqlx::migrate!("../migrations")
-        .run(&pool)
-        .await
-        .expect("run migrations");
 
     Some(DbHarness {
         pool,
@@ -170,6 +208,18 @@ pub async fn insert_active_customer(pool: &PgPool, customer_id: Uuid, generation
 #[cfg(test)]
 mod tests {
     use super::{isolated_schema_name, quote_pg_identifier};
+
+    #[test]
+    fn embedded_migration_versions_are_unique() {
+        let mut versions = std::collections::BTreeSet::new();
+        for migration in sqlx::migrate!("../migrations").iter() {
+            assert!(
+                versions.insert(migration.version),
+                "migration version {} is declared more than once",
+                migration.version
+            );
+        }
+    }
 
     #[test]
     fn quote_pg_identifier_escapes_embedded_quotes() {

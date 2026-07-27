@@ -177,6 +177,15 @@ export interface AlgoliaImportSummary {
 	rulesRejected: number;
 }
 
+export interface AlgoliaImportWarning {
+	code: string;
+	message: string;
+	resource: string;
+	pageIndex: number | null;
+	itemIndex: number | null;
+	jsonPath: string;
+}
+
 export interface PublicAlgoliaImportJob {
 	id: string;
 	status: AlgoliaImportJobStatus;
@@ -184,6 +193,8 @@ export interface PublicAlgoliaImportJob {
 	destination: PublicAlgoliaImportDestination;
 	source: PublicAlgoliaImportSource;
 	summary: AlgoliaImportSummary;
+	terminalOutcomeObserved: boolean;
+	warnings: AlgoliaImportWarning[];
 	error: PublicAlgoliaImportError | null;
 	cancelRequestedAt: string | null;
 	resumeProvenance: string | null;

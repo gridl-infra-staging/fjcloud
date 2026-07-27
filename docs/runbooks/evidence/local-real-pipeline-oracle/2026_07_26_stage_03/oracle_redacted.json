@@ -1,0 +1,210 @@
+{
+  "host_metrics": {
+    "max_sample_age_seconds": 120,
+    "samples": [
+      {
+        "collected_at": "2026-07-26T21:00:08.731966Z",
+        "cpu_pct": 41.0,
+        "created_at": "2026-07-26T21:00:08.732613Z",
+        "disk_total_bytes": 1995165736960,
+        "disk_used_bytes": 1719669354496,
+        "id": "00000000-0000-4000-8000-000000000901",
+        "mem_total_bytes": 137438953472,
+        "mem_used_bytes": 82353897472,
+        "net_rx_bytes": 467977527935,
+        "net_tx_bytes": 44460517340,
+        "vm_id": "00000000-0000-4000-8000-000000000304"
+      }
+    ]
+  },
+  "metering": {
+    "customer_id": "00000000-0000-4000-8000-000000000101",
+    "expected_search_requests": 8,
+    "expected_write_operations": 6,
+    "flapjack_uid": "00000000-0000-4000-8000-000000000201",
+    "index_name": "redacted-index",
+    "post_search_requests": 9,
+    "post_write_operations": 11,
+    "pre_search_requests": 1,
+    "pre_write_operations": 5,
+    "region": "us-east-1",
+    "target_date": "2026-07-26",
+    "usage_daily": {
+      "aggregated_at": "2026-07-26T21:00:07.745501Z",
+      "customer_id": "00000000-0000-4000-8000-000000000101",
+      "region": "us-east-1",
+      "rows_affected": 1,
+      "search_requests": 8,
+      "target_date": "2026-07-26",
+      "write_operations": 6
+    }
+  },
+  "provenance": {
+    "generated_at": "2026-07-26T21:00:11.185277Z",
+    "locality": "local",
+    "pipeline_verdict": "LOCAL_REAL_PIPELINE_STATUS: PASS reason=verified",
+    "probe_started_at": "2026-07-26T20:59:30.580799Z",
+    "run_id": "local-real-pipeline-2026_07_26T20_59_30_580799Z-89354",
+    "stack_mode": "booted"
+  },
+  "schema_version": 1,
+  "topology": {
+    "regions": [
+      {
+        "healthy_count": 0,
+        "index_count": 0,
+        "region": "e2e-admin-vm-timeline-local",
+        "tenant_count": 0,
+        "unhealthy_count": 0,
+        "unknown_count": 1,
+        "vm_count": 1
+      },
+      {
+        "healthy_count": 0,
+        "index_count": 1,
+        "region": "eu-central-1",
+        "tenant_count": 1,
+        "unhealthy_count": 0,
+        "unknown_count": 1,
+        "vm_count": 1
+      },
+      {
+        "healthy_count": 1,
+        "index_count": 1,
+        "region": "eu-west-1",
+        "tenant_count": 1,
+        "unhealthy_count": 0,
+        "unknown_count": 0,
+        "vm_count": 1
+      },
+      {
+        "healthy_count": 0,
+        "index_count": 533,
+        "region": "us-east-1",
+        "tenant_count": 331,
+        "unhealthy_count": 1,
+        "unknown_count": 0,
+        "vm_count": 1
+      }
+    ],
+    "selected_vm_id": "00000000-0000-4000-8000-000000000304",
+    "totals": {
+      "healthy_count": 1,
+      "index_count": 535,
+      "tenant_count": 333,
+      "unhealthy_count": 1,
+      "unknown_count": 2,
+      "vm_count": 4
+    },
+    "vms": [
+      {
+        "capacity": {
+          "cpu_weight": 4.0,
+          "disk_bytes": 107374182400,
+          "indexing_rps": 200.0,
+          "mem_rss_bytes": 8589934592,
+          "query_rps": 500.0
+        },
+        "created_at": "2026-02-22T10:03:00Z",
+        "current_load": {
+          "cpu_weight": 0.0,
+          "disk_bytes": 0,
+          "indexing_rps": 0.0,
+          "mem_rss_bytes": 0,
+          "query_rps": 0.0
+        },
+        "flapjack_url": "http://127.0.0.1:17700",
+        "health": "unknown",
+        "hostname": "redacted-vm-1",
+        "id": "00000000-0000-4000-8000-000000000301",
+        "index_count": 0,
+        "provider": "local",
+        "region": "e2e-admin-vm-timeline-local",
+        "status": "active",
+        "tenant_count": 0,
+        "updated_at": "2026-07-26T16:52:26.511994Z"
+      },
+      {
+        "capacity": {
+          "cpu_weight": 4.0,
+          "disk_bytes": 107374182400,
+          "indexing_rps": 200.0,
+          "mem_rss_bytes": 8589934592,
+          "query_rps": 500.0
+        },
+        "created_at": "2026-05-22T19:33:54.383068Z",
+        "current_load": {
+          "cpu_weight": 0.0,
+          "disk_bytes": 0,
+          "indexing_rps": 0.0,
+          "mem_rss_bytes": 0,
+          "query_rps": 0.0
+        },
+        "flapjack_url": "http://127.0.0.1:17701",
+        "health": "unknown",
+        "hostname": "redacted-vm-2",
+        "id": "00000000-0000-4000-8000-000000000302",
+        "index_count": 1,
+        "provider": "local",
+        "region": "eu-central-1",
+        "status": "active",
+        "tenant_count": 1,
+        "updated_at": "2026-07-26T20:59:22.278652Z"
+      },
+      {
+        "capacity": {
+          "cpu_weight": 4.0,
+          "disk_bytes": 107374182400,
+          "indexing_rps": 200.0,
+          "mem_rss_bytes": 8589934592,
+          "query_rps": 500.0
+        },
+        "created_at": "2026-05-22T19:33:54.383068Z",
+        "current_load": {
+          "cpu_weight": 0.0,
+          "disk_bytes": 0,
+          "indexing_rps": 0.0,
+          "mem_rss_bytes": 0,
+          "query_rps": 0.0
+        },
+        "flapjack_url": "http://127.0.0.1:17702",
+        "health": "healthy",
+        "hostname": "redacted-vm-3",
+        "id": "00000000-0000-4000-8000-000000000303",
+        "index_count": 1,
+        "provider": "local",
+        "region": "eu-west-1",
+        "status": "active",
+        "tenant_count": 1,
+        "updated_at": "2026-07-26T20:59:22.278652Z"
+      },
+      {
+        "capacity": {
+          "cpu_weight": 4.0,
+          "disk_bytes": 107374182400,
+          "indexing_rps": 200.0,
+          "mem_rss_bytes": 8589934592,
+          "query_rps": 500.0
+        },
+        "created_at": "2026-05-22T19:33:54.383068Z",
+        "current_load": {
+          "cpu_weight": 0.0,
+          "disk_bytes": 0,
+          "indexing_rps": 0.0,
+          "mem_rss_bytes": 0,
+          "query_rps": 0.0
+        },
+        "flapjack_url": "http://127.0.0.1:17703",
+        "health": "unhealthy",
+        "hostname": "redacted-vm-4",
+        "id": "00000000-0000-4000-8000-000000000304",
+        "index_count": 533,
+        "provider": "local",
+        "region": "us-east-1",
+        "status": "active",
+        "tenant_count": 331,
+        "updated_at": "2026-07-26T20:59:22.278652Z"
+      }
+    ]
+  }
+}

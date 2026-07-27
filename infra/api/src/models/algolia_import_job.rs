@@ -8,6 +8,7 @@ mod provider;
 mod row;
 mod state;
 mod target_binding;
+mod terminal;
 
 pub use provider::{
     algolia_eligible_regions, validate_algolia_create_provider, AlgoliaReplaceTargetFacts,
@@ -15,6 +16,17 @@ pub use provider::{
 pub(crate) use row::AlgoliaImportJobRow;
 pub use state::AlgoliaImportJobState;
 pub use target_binding::AlgoliaImportTargetBinding;
+pub(crate) use terminal::{canonical_persisted_warnings, validate_algolia_import_warnings};
+pub use terminal::{
+    AlgoliaImportPublicationDisposition, AlgoliaImportSummary, AlgoliaImportTerminalDetails,
+    AlgoliaImportTerminalFact, AlgoliaImportWarning,
+};
+#[cfg(test)]
+pub(crate) use terminal::{
+    MAX_ALGOLIA_IMPORT_WARNINGS, MAX_ALGOLIA_IMPORT_WARNING_CODE_BYTES,
+    MAX_ALGOLIA_IMPORT_WARNING_JSON_PATH_BYTES, MAX_ALGOLIA_IMPORT_WARNING_MESSAGE_BYTES,
+    MAX_ALGOLIA_IMPORT_WARNING_RESOURCE_BYTES,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
@@ -129,26 +141,6 @@ impl EngineResumeMirror {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum AlgoliaImportPublicationDisposition {
-    NotStarted,
-    Unchanged,
-    Promoted,
-    Unknown,
-}
-
-impl AlgoliaImportPublicationDisposition {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::NotStarted => "not_started",
-            Self::Unchanged => "unchanged",
-            Self::Promoted => "promoted",
-            Self::Unknown => "unknown",
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AlgoliaImportEngineAckState {
@@ -189,42 +181,6 @@ pub struct AlgoliaSealScrubWork {
     pub cleanup_phase: AlgoliaImportTombstoneCleanupPhase,
     pub publication_disposition: AlgoliaImportPublicationDisposition,
     pub engine_ack_state: AlgoliaImportEngineAckState,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AlgoliaImportTerminalFact {
-    pub engine_job_id: Uuid,
-    pub status: AlgoliaImportJobStatus,
-    pub publication_disposition: AlgoliaImportPublicationDisposition,
-    pub summary: AlgoliaImportSummary,
-    pub error_code: Option<AlgoliaImportErrorCode>,
-    pub error_message: Option<String>,
-    pub terminal_at: DateTime<Utc>,
-}
-
-impl AlgoliaImportTerminalFact {
-    pub fn new(
-        engine_job_id: Uuid,
-        status: AlgoliaImportJobStatus,
-        publication_disposition: AlgoliaImportPublicationDisposition,
-        summary: AlgoliaImportSummary,
-        terminal_at: DateTime<Utc>,
-        error_code: Option<AlgoliaImportErrorCode>,
-        error_message: Option<String>,
-    ) -> Result<Self, &'static str> {
-        if !status.has_valid_terminal_disposition(publication_disposition) {
-            return Err("terminal fact has an invalid publication disposition");
-        }
-        Ok(Self {
-            engine_job_id,
-            status,
-            publication_disposition,
-            summary,
-            error_code,
-            error_message,
-            terminal_at,
-        })
-    }
 }
 
 impl AlgoliaImportEngineAckState {
@@ -307,22 +263,6 @@ impl AlgoliaImportErrorCode {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct AlgoliaImportSummary {
-    pub documents_expected: i64,
-    pub documents_imported: i64,
-    pub documents_rejected: i64,
-    pub settings_applied: i64,
-    pub settings_unsupported: i64,
-    pub synonyms_expected: i64,
-    pub synonyms_imported: i64,
-    pub synonyms_rejected: i64,
-    pub rules_expected: i64,
-    pub rules_imported: i64,
-    pub rules_rejected: i64,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlgoliaImportJob {
     pub id: Uuid,
@@ -358,7 +298,8 @@ pub struct AlgoliaImportJob {
     pub resumable: bool,
     pub resume_count: i64,
     pub summary: AlgoliaImportSummary,
-    pub warnings: serde_json::Value,
+    pub terminal_outcome_observed: bool,
+    pub warnings: Vec<AlgoliaImportWarning>,
     pub error_code: Option<AlgoliaImportErrorCode>,
     pub error_message: Option<String>,
     pub status: AlgoliaImportJobStatus,
@@ -780,7 +721,6 @@ fn request_fingerprint(source_fingerprint: &str, destination: &AlgoliaImportDest
 mod tests {
     use super::*;
     use chrono::Duration;
-    use serde_json::json;
 
     #[test]
     fn engine_resume_mirror_validates_checkpoint_and_deadline() {
@@ -815,7 +755,8 @@ mod tests {
             resumable: true,
             resume_count: 0,
             summary: AlgoliaImportSummary::default(),
-            warnings: json!([]),
+            terminal_outcome_observed: false,
+            warnings: Vec::new(),
             error_code: Some(AlgoliaImportErrorCode::InvalidCredentials),
             error_message: None,
         };

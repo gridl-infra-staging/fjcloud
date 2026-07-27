@@ -73,6 +73,8 @@ function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 		resumable: true,
 		resumeCount: 0,
 		publicationDisposition: 'unchanged',
+		terminalOutcomeObserved: false,
+		warnings: [],
 		createdAt: '2026-07-18T10:00:00Z',
 		updatedAt: '2026-07-18T10:05:00Z',
 		...overrides

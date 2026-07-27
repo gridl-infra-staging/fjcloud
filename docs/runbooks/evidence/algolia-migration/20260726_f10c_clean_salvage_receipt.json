@@ -1,0 +1,223 @@
+{
+  "version": 1,
+  "receipt_type": "f10c_clean_salvage_final_union",
+  "final_candidate_sha": "734ee85fb04c1346aa0f309cde9150eac7e163fc",
+  "source_provenance": {
+    "immutable_f10c_source_sha": "352e90822756a9a75762f3e1392074508f4e412d",
+    "f10c_intermediate_sha": "25453f81e0571851178f8ca4194dfb1254c2c982",
+    "continuation_base_sha": "549a0215884a7da38618fbd145d35c711a7eef95",
+    "integrated_origin_main_sha": "f0aa1c25de74374db46d2a7400b779e790321c1a",
+    "excluded_l1k_sha": "393a41c5cd798e730cdf6feda9c8250f9298b227",
+    "f10c_ancestry": {
+      "command": "git merge-base --is-ancestor 352e90822756a9a75762f3e1392074508f4e412d HEAD",
+      "exit_code": 0,
+      "result": "passing"
+    },
+    "l1k_ancestry": {
+      "command": "! git merge-base --is-ancestor 393a41c5cd798e730cdf6feda9c8250f9298b227 HEAD",
+      "exit_code": 0,
+      "result": "passing",
+      "meaning": "L1K is not an ancestor of the final candidate"
+    }
+  },
+  "engine_contract": {
+    "fixture_path": "infra/api/tests/fixtures/algolia_migration_engine_contract.json",
+    "pinned_engine_sha": "320132fcd12a71d441d70a30c34ce66c64f21d46",
+    "updater_owner": "scripts/update_algolia_migration_engine_contract.sh"
+  },
+  "existing_owners": [
+    "PgAlgoliaImportJobRepo::mark_engine_acknowledged",
+    "PgAlgoliaImportJobRepo::gc_retained_terminal_history",
+    "infra/api/src/services/algolia_import/reconciliation_postgres_tests.rs",
+    "scripts/update_algolia_migration_engine_contract.sh",
+    "scripts/tests/fixtures/catalog_lifecycle_acceptance_oracles.json",
+    "scripts/tests/fixtures/catalog_lifecycle_writers.json"
+  ],
+  "red_proof_mutations": [
+    {
+      "mutation": "deliver an erased tombstone twice by removing live-lease duplicate exclusion",
+      "red_evidence": "the live PostgreSQL zero-duplicate assertion failed",
+      "restored_green_owner": "services::algolia_import::reconciliation_postgres_tests::"
+    },
+    {
+      "mutation": "advance the public-job cursor past an older unsent tombstone",
+      "red_evidence": "the live PostgreSQL exact two-ID fairness assertion failed",
+      "restored_green_owner": "services::algolia_import::reconciliation_postgres_tests::"
+    },
+    {
+      "mutation": "acknowledge an erased tombstone before exact-target absence",
+      "red_evidence": "the live PostgreSQL ACK-body bypass allowed acknowledgement and compaction without verified exact-target absence, then failed three zero-compaction assertions",
+      "restored_green_owner": "algolia_import_job_domain_transitions::erased_tombstone_ack_release_compacts_exactly_once"
+    },
+    {
+      "mutation": "compact an erased tombstone before its matching ACK",
+      "red_evidence": "the live PostgreSQL ACK-body bypass failed three zero-compaction assertions",
+      "restored_green_owner": "services::algolia_import::reconciliation_postgres_tests::"
+    },
+    {
+      "mutation": "remove a retained tombstone row before reconciliation truth is preserved",
+      "red_command": "cd infra && DATABASE_URL=<verified-local-url> cargo test -p api --test platform algolia_import_job_domain_transitions::erased_tombstone_terminal_gc_preserves_reconciliation_truth -- --test-threads=1 --nocapture",
+      "red_evidence": "a temporary owner mutation deleting erased rows returned four deleted IDs instead of the single eligible public row; the exact-value assertion failed with 0 passed and 1 failed",
+      "restored_green_evidence": "after immediate mutation reversal, the same command passed 1 test with 0 failed and 1578 filtered out",
+      "restored_green_owner": "algolia_import_job_domain_transitions::erased_tombstone_terminal_gc_preserves_reconciliation_truth"
+    }
+  ],
+  "boundary_proof": {
+    "stage_1_continuation_base_inspection": {
+      "command": "git diff --name-only 549a0215884a7da38618fbd145d35c711a7eef95...HEAD -- infra/api/src/services/email.rs implemented/ docs/runbooks/evidence/ses-coverage-a1",
+      "result": "inspected",
+      "evidence": [
+        "implemented/2026-07-26_closed_roadmap_rows_moved_from_live_ledger.md",
+        "implemented/2026-07-26_truthful_terminal_migration_outcome_in_the_fjcloud_console.md"
+      ],
+      "classification": "both files are inherited from current origin/main, not salvage-lane changes"
+    },
+    "stage_1_broad_pattern_inspection": {
+      "command": "git diff --name-only 549a0215884a7da38618fbd145d35c711a7eef95...HEAD | rg '(^chats/icg/_followups\\.md$|scrai|debbie|deploy|ses|email)'",
+      "result": "inspected",
+      "evidence": [
+        "scripts/tests/lib/local_multinode_migration_cleanup_test_cases.sh",
+        "scripts/tests/lib/local_multinode_migration_live_test_cases.sh"
+      ],
+      "classification": "false positives: the unbounded ses pattern matches the suffix of test_cases"
+    },
+    "lane_exclusive_email_and_history": {
+      "command": "git diff --name-only origin/main...HEAD -- infra/api/src/services/email.rs implemented/ docs/runbooks/evidence/ses-coverage-a1",
+      "result": "passing",
+      "matched_path_count": 0
+    },
+    "lane_exclusive_bounded_pattern": {
+      "command": "git diff --name-only origin/main...HEAD | rg '(^chats/icg/_followups\\.md$|(^|[/_.-])(scrai|debbie|deploy|ses|email)([/_.-]|$))' || true",
+      "result": "passing",
+      "matched_path_count": 0
+    },
+    "owner_inspection": {
+      "command": "git diff --name-status origin/main...HEAD",
+      "result": "passing",
+      "evidence": "no SES/email, implemented-history, scrai, debbie, or deploy path was added; pg_algolia_import_job_scrub.rs extends PgAlgoliaImportJobRepo and introduces no second repository or service owner"
+    }
+  },
+  "command_results": [
+    {
+      "command": "git rev-parse --verify HEAD",
+      "result": "passing",
+      "evidence": "734ee85fb04c1346aa0f309cde9150eac7e163fc"
+    },
+    {
+      "command": "psql <verified-local-url> -Atc 'SELECT 1'",
+      "result": "passing",
+      "passed_count": 1,
+      "evidence": "verified loopback PostgreSQL database fjcloud_dev at 127.0.0.1:5432 returned 1"
+    },
+    {
+      "command": "cd infra && DATABASE_URL=<verified-local-url> cargo test -p api --no-fail-fast services::algolia_import::reconciliation_postgres_tests:: -- --nocapture",
+      "result": "passing",
+      "passed_count": 14,
+      "failed_count": 0,
+      "filtered_out_count": 870,
+      "database_skip_observed": false
+    },
+    {
+      "command": "cd infra && DATABASE_URL=<verified-local-url> cargo test -p api --test platform migration_066_algolia_terminal_outcome_presence_test:: -- --test-threads=1 --nocapture",
+      "result": "passing",
+      "passed_count": 1,
+      "failed_count": 0,
+      "filtered_out_count": 1578
+    },
+    {
+      "command": "cd infra && DATABASE_URL=<verified-local-url> cargo test -p api --test platform algolia_import_job_domain_reservation::erased_tombstone_selector_releases_active_target_reservation -- --test-threads=1 --nocapture",
+      "result": "passing",
+      "passed_count": 1,
+      "failed_count": 0,
+      "filtered_out_count": 1578
+    },
+    {
+      "command": "cd infra && DATABASE_URL=<verified-local-url> cargo test -p api --test platform algolia_import_job_domain_transitions::erased_tombstone_selector_excludes_resume_deadline_claims_idempotently -- --test-threads=1 --nocapture",
+      "result": "passing",
+      "passed_count": 1,
+      "failed_count": 0,
+      "filtered_out_count": 1578
+    },
+    {
+      "command": "cd infra && DATABASE_URL=<verified-local-url> cargo test -p api --test platform algolia_import_job_domain_transitions::erased_tombstone_ack_release_compacts_exactly_once -- --test-threads=1 --nocapture",
+      "result": "passing",
+      "passed_count": 1,
+      "failed_count": 0,
+      "filtered_out_count": 1578
+    },
+    {
+      "command": "cd infra && DATABASE_URL=<verified-local-url> cargo test -p api --test platform algolia_import_job_domain_transitions::erased_tombstone_terminal_gc_preserves_reconciliation_truth -- --test-threads=1 --nocapture",
+      "result": "passing",
+      "passed_count": 1,
+      "failed_count": 0,
+      "filtered_out_count": 1578
+    },
+    {
+      "command": "cd infra && DATABASE_URL=<verified-local-url> cargo test -p api --test platform pg_customer_repo_test::hard_delete_scrubs_algolia_jobs_and_retains_reconciliation_tombstone_matrix -- --test-threads=1 --nocapture",
+      "result": "passing",
+      "passed_count": 1,
+      "failed_count": 0,
+      "filtered_out_count": 1578
+    },
+    {
+      "command": "bash scripts/tests/update_algolia_migration_engine_contract_test.sh",
+      "result": "passing",
+      "passed_count": 1,
+      "evidence": "PASS update_algolia_migration_engine_contract_test"
+    },
+    {
+      "command": "FLAPJACK_DEV_DIR=<pinned-checkout> bash scripts/update_algolia_migration_engine_contract.sh --check",
+      "result": "passing",
+      "passed_count": 2,
+      "evidence": "both engine known-answer filters passed; Algolia migration engine contract is current"
+    },
+    {
+      "command": "cd infra && cargo test -p api --test platform algolia_migration_engine_contract_test::",
+      "result": "passing",
+      "passed_count": 9,
+      "failed_count": 0,
+      "filtered_out_count": 1570
+    },
+    {
+      "command": "cd infra && cargo test -p api --test platform catalog_lifecycle_leases::",
+      "result": "passing",
+      "passed_count": 126,
+      "failed_count": 0,
+      "filtered_out_count": 1453
+    },
+    {
+      "command": "bash scripts/tests/algolia_import_catalog_live_probe_test.sh",
+      "result": "passing",
+      "passed_count": 191,
+      "failed_count": 0
+    },
+    {
+      "command": "cd infra && cargo fmt --all --check",
+      "result": "passing",
+      "passed_count": 1
+    },
+    {
+      "command": "cd infra && cargo clippy -p api --all-targets -- -D warnings",
+      "result": "passing",
+      "passed_count": 1
+    },
+    {
+      "command": "bash scripts/local-ci.sh --fast",
+      "result": "passing",
+      "passed_count": 34,
+      "failed_count": 0,
+      "skipped_count": 0
+    },
+    {
+      "command": "bash scripts/check_evidence_secret_hygiene.sh",
+      "result": "passing",
+      "passed_count": 1,
+      "evidence": "Evidence secret hygiene passed"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passing",
+      "passed_count": 1
+    }
+  ]
+}

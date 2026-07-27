@@ -57,7 +57,7 @@ import type {
 	Synonym,
 	SynonymSearchResponse
 } from '../../src/lib/api/types';
-import { formatBytes, formatNumber, statusLabel } from '../../src/lib/format';
+import { formatBytes, formatDateTime, formatNumber, statusLabel } from '../../src/lib/format';
 import type {
 	AdminRateCard,
 	VmHostMetricsResponse,
@@ -226,6 +226,43 @@ type AdminDeploymentFixture = {
 	id: string;
 	region: string;
 	status: string;
+};
+type AdminVmLifecycleTimelineEventType =
+	| 'detected_dead'
+	| 'replacement_refused'
+	| 'replacement_provisioning'
+	| 'replacement_booted'
+	| 'tenants_replaced'
+	| 'replacement_failed'
+	| 'replacement_completed';
+export type AdminVmLifecycleTimelineEventExpectation = {
+	id: string;
+	vmId: string;
+	eventType: AdminVmLifecycleTimelineEventType;
+	label: string;
+	detail: Record<string, unknown>;
+	createdAt: string;
+	formattedCreatedAt: string;
+	rowTestId: string;
+	expectedDetailText: string[];
+	replacementLink?: {
+		testId: string;
+		href: string;
+		text: string;
+	};
+};
+export type AdminVmLifecycleTimelineFixture = {
+	deadVmId: string;
+	replacementVmId: string;
+	deadHostname: string;
+	replacementHostname: string;
+	events: AdminVmLifecycleTimelineEventExpectation[];
+	expectedGuardrailLabel: 'Guardrail';
+	expectedGuardrailText: 'kill_switch_disabled';
+	expectedReplacementHref: string;
+	expectedReplacementText: string;
+	fixtureMarker: 'admin_vm_timeline';
+	emptyStateCopy: 'No lifecycle events recorded for this VM.';
 };
 
 const FIXTURE_REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -2075,6 +2112,387 @@ RETURNING id::text || '|' || region || '|' || status;
 		throw new Error(`seed admin deployment returned an unexpected row: ${output}`);
 	}
 	return { id, region: returnedRegion, status };
+}
+
+const ADMIN_VM_TIMELINE_DEAD_VM_ID = '00000000-0000-4000-8000-00000000d001';
+const ADMIN_VM_TIMELINE_REPLACEMENT_VM_ID = '00000000-0000-4000-8000-00000000d002';
+const ADMIN_VM_TIMELINE_DEAD_HOSTNAME = 'e2e-admin-vm-timeline-dead.local';
+const ADMIN_VM_TIMELINE_REPLACEMENT_HOSTNAME = 'e2e-admin-vm-timeline-replacement.local';
+const ADMIN_VM_TIMELINE_REGION = 'e2e-admin-vm-timeline-local';
+const ADMIN_VM_TIMELINE_MARKER = 'admin_vm_timeline';
+const ADMIN_VM_TIMELINE_EVENTS: AdminVmLifecycleTimelineEventExpectation[] = [
+	{
+		id: '00000000-0000-4000-8000-00000000d101',
+		vmId: ADMIN_VM_TIMELINE_DEAD_VM_ID,
+		eventType: 'detected_dead',
+		label: 'Detected dead',
+		detail: {
+			e2e_fixture: ADMIN_VM_TIMELINE_MARKER,
+			dead_hostname: ADMIN_VM_TIMELINE_DEAD_HOSTNAME,
+			provider: 'local',
+			provider_vm_id: 'local:e2e-admin-vm-timeline-dead',
+			region: ADMIN_VM_TIMELINE_REGION
+		},
+		createdAt: '2026-02-22T10:00:00Z',
+		formattedCreatedAt: formatDateTime('2026-02-22T10:00:00Z'),
+		rowTestId: 'vm-lifecycle-row-00000000-0000-4000-8000-00000000d101',
+		expectedDetailText: [
+			'Dead hostname',
+			ADMIN_VM_TIMELINE_DEAD_HOSTNAME,
+			'Provider',
+			'local',
+			'Provider VM ID',
+			'local:e2e-admin-vm-timeline-dead',
+			'Region',
+			ADMIN_VM_TIMELINE_REGION
+		]
+	},
+	{
+		id: '00000000-0000-4000-8000-00000000d102',
+		vmId: ADMIN_VM_TIMELINE_DEAD_VM_ID,
+		eventType: 'replacement_refused',
+		label: 'Replacement refused',
+		detail: {
+			e2e_fixture: ADMIN_VM_TIMELINE_MARKER,
+			guardrail: 'kill_switch_disabled',
+			planned_replacement_hostname: ADMIN_VM_TIMELINE_REPLACEMENT_HOSTNAME
+		},
+		createdAt: '2026-02-22T10:01:00Z',
+		formattedCreatedAt: formatDateTime('2026-02-22T10:01:00Z'),
+		rowTestId: 'vm-lifecycle-row-00000000-0000-4000-8000-00000000d102',
+		expectedDetailText: [
+			'Guardrail',
+			'kill_switch_disabled',
+			'Planned replacement hostname',
+			ADMIN_VM_TIMELINE_REPLACEMENT_HOSTNAME
+		]
+	},
+	{
+		id: '00000000-0000-4000-8000-00000000d103',
+		vmId: ADMIN_VM_TIMELINE_DEAD_VM_ID,
+		eventType: 'replacement_provisioning',
+		label: 'Replacement provisioning',
+		detail: {
+			e2e_fixture: ADMIN_VM_TIMELINE_MARKER,
+			dead_hostname: ADMIN_VM_TIMELINE_DEAD_HOSTNAME,
+			provider: 'local',
+			provider_vm_id: 'local:e2e-admin-vm-timeline-replacement',
+			region: ADMIN_VM_TIMELINE_REGION,
+			planned_replacement_hostname: ADMIN_VM_TIMELINE_REPLACEMENT_HOSTNAME
+		},
+		createdAt: '2026-02-22T10:02:00Z',
+		formattedCreatedAt: formatDateTime('2026-02-22T10:02:00Z'),
+		rowTestId: 'vm-lifecycle-row-00000000-0000-4000-8000-00000000d103',
+		expectedDetailText: [
+			'Dead hostname',
+			ADMIN_VM_TIMELINE_DEAD_HOSTNAME,
+			'Provider',
+			'local',
+			'Provider VM ID',
+			'local:e2e-admin-vm-timeline-replacement',
+			'Region',
+			ADMIN_VM_TIMELINE_REGION,
+			'Planned replacement hostname',
+			ADMIN_VM_TIMELINE_REPLACEMENT_HOSTNAME
+		]
+	},
+	{
+		id: '00000000-0000-4000-8000-00000000d104',
+		vmId: ADMIN_VM_TIMELINE_DEAD_VM_ID,
+		eventType: 'replacement_booted',
+		label: 'Replacement booted',
+		detail: {
+			e2e_fixture: ADMIN_VM_TIMELINE_MARKER,
+			replacement_vm_id: ADMIN_VM_TIMELINE_REPLACEMENT_VM_ID,
+			replacement_hostname: ADMIN_VM_TIMELINE_REPLACEMENT_HOSTNAME
+		},
+		createdAt: '2026-02-22T10:03:00Z',
+		formattedCreatedAt: formatDateTime('2026-02-22T10:03:00Z'),
+		rowTestId: 'vm-lifecycle-row-00000000-0000-4000-8000-00000000d104',
+		expectedDetailText: [],
+		replacementLink: {
+			testId: 'vm-lifecycle-replacement-link-00000000-0000-4000-8000-00000000d104',
+			href: `/admin/fleet/${ADMIN_VM_TIMELINE_REPLACEMENT_VM_ID}`,
+			text: ADMIN_VM_TIMELINE_REPLACEMENT_HOSTNAME
+		}
+	},
+	{
+		id: '00000000-0000-4000-8000-00000000d105',
+		vmId: ADMIN_VM_TIMELINE_DEAD_VM_ID,
+		eventType: 'tenants_replaced',
+		label: 'Tenants replaced',
+		detail: {
+			e2e_fixture: ADMIN_VM_TIMELINE_MARKER,
+			replacement_vm_id: ADMIN_VM_TIMELINE_REPLACEMENT_VM_ID,
+			replacement_hostname: ADMIN_VM_TIMELINE_REPLACEMENT_HOSTNAME
+		},
+		createdAt: '2026-02-22T10:04:00Z',
+		formattedCreatedAt: formatDateTime('2026-02-22T10:04:00Z'),
+		rowTestId: 'vm-lifecycle-row-00000000-0000-4000-8000-00000000d105',
+		expectedDetailText: [],
+		replacementLink: {
+			testId: 'vm-lifecycle-replacement-link-00000000-0000-4000-8000-00000000d105',
+			href: `/admin/fleet/${ADMIN_VM_TIMELINE_REPLACEMENT_VM_ID}`,
+			text: ADMIN_VM_TIMELINE_REPLACEMENT_HOSTNAME
+		}
+	},
+	{
+		id: '00000000-0000-4000-8000-00000000d106',
+		vmId: ADMIN_VM_TIMELINE_DEAD_VM_ID,
+		eventType: 'replacement_failed',
+		label: 'Replacement failed',
+		detail: {
+			e2e_fixture: ADMIN_VM_TIMELINE_MARKER,
+			retryable: true,
+			failure_phase: 'provisioning',
+			failure_reason: 'provider returned retryable local quota error'
+		},
+		createdAt: '2026-02-22T10:05:00Z',
+		formattedCreatedAt: formatDateTime('2026-02-22T10:05:00Z'),
+		rowTestId: 'vm-lifecycle-row-00000000-0000-4000-8000-00000000d106',
+		expectedDetailText: [
+			'Failure phase',
+			'provisioning',
+			'Failure reason',
+			'provider returned retryable local quota error'
+		]
+	},
+	{
+		id: '00000000-0000-4000-8000-00000000d107',
+		vmId: ADMIN_VM_TIMELINE_DEAD_VM_ID,
+		eventType: 'replacement_completed',
+		label: 'Replacement completed',
+		detail: {
+			e2e_fixture: ADMIN_VM_TIMELINE_MARKER,
+			replacement_vm_id: ADMIN_VM_TIMELINE_REPLACEMENT_VM_ID,
+			replacement_hostname: ADMIN_VM_TIMELINE_REPLACEMENT_HOSTNAME
+		},
+		createdAt: '2026-02-22T10:06:00Z',
+		formattedCreatedAt: formatDateTime('2026-02-22T10:06:00Z'),
+		rowTestId: 'vm-lifecycle-row-00000000-0000-4000-8000-00000000d107',
+		expectedDetailText: [],
+		replacementLink: {
+			testId: 'vm-lifecycle-replacement-link-00000000-0000-4000-8000-00000000d107',
+			href: `/admin/fleet/${ADMIN_VM_TIMELINE_REPLACEMENT_VM_ID}`,
+			text: ADMIN_VM_TIMELINE_REPLACEMENT_HOSTNAME
+		}
+	}
+];
+
+type ApiVmLifecycleEvent = {
+	id: string;
+	vm_id: string;
+	event_type: AdminVmLifecycleTimelineEventType;
+	detail: Record<string, unknown>;
+	created_at: string;
+};
+
+function assertAdminVmLifecycleEvents(actual: ApiVmLifecycleEvent[], context: string): void {
+	expect(
+		actual.map((event) => ({
+			id: event.id,
+			vm_id: event.vm_id,
+			event_type: event.event_type,
+			detail: event.detail,
+			created_at: event.created_at
+		}))
+	).toEqual(
+		ADMIN_VM_TIMELINE_EVENTS.map((event) => ({
+			id: event.id,
+			vm_id: event.vmId,
+			event_type: event.eventType,
+			detail: event.detail,
+			created_at: event.createdAt
+		}))
+	);
+	if (actual.length !== ADMIN_VM_TIMELINE_EVENTS.length) {
+		throw new Error(`${context} returned ${actual.length} lifecycle events`);
+	}
+}
+
+function parseFixtureJsonRows<T>(output: string, context: string): T {
+	try {
+		return JSON.parse(output) as T;
+	} catch (error) {
+		throw new Error(`${context} returned invalid JSON: ${output}. Error: ${error}`);
+	}
+}
+
+function seedAdminVmLifecycleTimelineSql(): void {
+	const flapjackUrl = requireLoopbackHttpUrl('FLAPJACK_URL', fixtureEnv.flapjackUrl);
+	const quotedCapacity = quoteSqlLiteral(LOCAL_VM_CAPACITY_JSON);
+	const quotedCurrentLoad = quoteSqlLiteral(LOCAL_VM_CURRENT_LOAD_JSON);
+	const eventValues = ADMIN_VM_TIMELINE_EVENTS.map(
+		(event) =>
+			`(${quoteSqlLiteral(event.id)}::uuid, ${quoteSqlLiteral(event.vmId)}::uuid, ${quoteSqlLiteral(
+				event.eventType
+			)}, ${quoteSqlLiteral(JSON.stringify(event.detail))}::jsonb, ${quoteSqlLiteral(
+				event.createdAt
+			)}::timestamptz)`
+	).join(',\n    ');
+
+	runFixtureSql(
+		`
+	DELETE FROM vm_lifecycle_events
+	WHERE vm_id IN (
+	    ${quoteSqlLiteral(ADMIN_VM_TIMELINE_DEAD_VM_ID)}::uuid,
+	    ${quoteSqlLiteral(ADMIN_VM_TIMELINE_REPLACEMENT_VM_ID)}::uuid
+	);
+
+	INSERT INTO vm_inventory (
+	    id,
+	    provider,
+	    hostname,
+    flapjack_url,
+    region,
+    capacity,
+    current_load,
+    status,
+    load_scraped_at,
+    created_at,
+    updated_at
+)
+VALUES
+    (
+        ${quoteSqlLiteral(ADMIN_VM_TIMELINE_DEAD_VM_ID)}::uuid,
+        'local',
+        ${quoteSqlLiteral(ADMIN_VM_TIMELINE_DEAD_HOSTNAME)},
+        ${quoteSqlLiteral(flapjackUrl)},
+        ${quoteSqlLiteral(ADMIN_VM_TIMELINE_REGION)},
+        ${quotedCapacity}::jsonb,
+        ${quotedCurrentLoad}::jsonb,
+        'decommissioned',
+        NOW(),
+        '2026-02-22T09:55:00Z'::timestamptz,
+        NOW()
+    ),
+    (
+        ${quoteSqlLiteral(ADMIN_VM_TIMELINE_REPLACEMENT_VM_ID)}::uuid,
+        'local',
+        ${quoteSqlLiteral(ADMIN_VM_TIMELINE_REPLACEMENT_HOSTNAME)},
+        ${quoteSqlLiteral(flapjackUrl)},
+        ${quoteSqlLiteral(ADMIN_VM_TIMELINE_REGION)},
+        ${quotedCapacity}::jsonb,
+        ${quotedCurrentLoad}::jsonb,
+        'active',
+        NOW(),
+        '2026-02-22T10:03:00Z'::timestamptz,
+        NOW()
+    )
+ON CONFLICT (id) DO UPDATE
+SET provider = EXCLUDED.provider,
+    hostname = EXCLUDED.hostname,
+    flapjack_url = EXCLUDED.flapjack_url,
+    region = EXCLUDED.region,
+    capacity = EXCLUDED.capacity,
+    current_load = EXCLUDED.current_load,
+    status = EXCLUDED.status,
+    load_scraped_at = EXCLUDED.load_scraped_at,
+    updated_at = NOW();
+
+INSERT INTO vm_lifecycle_events (id, vm_id, event_type, detail, created_at)
+VALUES
+    ${eventValues}
+ON CONFLICT (id) DO NOTHING;
+`,
+		'seed admin VM lifecycle timeline'
+	);
+
+	const seededRows = parseFixtureJsonRows<ApiVmLifecycleEvent[]>(
+		runFixtureSql(
+			`
+SELECT COALESCE(
+    jsonb_agg(
+        jsonb_build_object(
+            'id', id::text,
+            'vm_id', vm_id::text,
+            'event_type', event_type,
+            'detail', detail,
+            'created_at', to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+        )
+        ORDER BY created_at ASC, id ASC
+    ),
+    '[]'::jsonb
+)::text
+FROM vm_lifecycle_events
+WHERE id IN (${ADMIN_VM_TIMELINE_EVENTS.map((event) => `${quoteSqlLiteral(event.id)}::uuid`).join(', ')});
+`,
+			'verify admin VM lifecycle timeline rows'
+		),
+		'verify admin VM lifecycle timeline rows'
+	);
+	assertAdminVmLifecycleEvents(seededRows, 'seeded admin VM lifecycle SQL verification');
+}
+
+async function seedAdminVmLifecycleTimelineForFixture(): Promise<AdminVmLifecycleTimelineFixture> {
+	seedAdminVmLifecycleTimelineSql();
+
+	const adminHeaders = { 'x-admin-key': requireAdminApiKey(fixtureEnv.adminKey) };
+	const deadVmResponse = await callJsonApi(
+		fetch,
+		fixtureEnv.apiUrl,
+		'GET',
+		`/admin/vms/${ADMIN_VM_TIMELINE_DEAD_VM_ID}`,
+		adminHeaders
+	);
+	if (!deadVmResponse.ok) {
+		throw new Error(
+			`seedAdminVmLifecycleTimeline /admin/vms/${ADMIN_VM_TIMELINE_DEAD_VM_ID} failed: ${deadVmResponse.status} ${await deadVmResponse.text()}`
+		);
+	}
+	const deadVmDetail = (await deadVmResponse.json()) as {
+		vm: { id: string; hostname: string; status: string };
+	};
+	expect(deadVmDetail.vm).toMatchObject({
+		id: ADMIN_VM_TIMELINE_DEAD_VM_ID,
+		hostname: ADMIN_VM_TIMELINE_DEAD_HOSTNAME,
+		status: 'decommissioned'
+	});
+
+	const deadEventsResponse = await callJsonApi(
+		fetch,
+		fixtureEnv.apiUrl,
+		'GET',
+		`/admin/vms/${ADMIN_VM_TIMELINE_DEAD_VM_ID}/lifecycle-events`,
+		adminHeaders
+	);
+	if (!deadEventsResponse.ok) {
+		throw new Error(
+			`seedAdminVmLifecycleTimeline dead lifecycle API failed: ${deadEventsResponse.status} ${await deadEventsResponse.text()}`
+		);
+	}
+	assertAdminVmLifecycleEvents(
+		(await deadEventsResponse.json()) as ApiVmLifecycleEvent[],
+		'seedAdminVmLifecycleTimeline dead lifecycle API'
+	);
+
+	const replacementEventsResponse = await callJsonApi(
+		fetch,
+		fixtureEnv.apiUrl,
+		'GET',
+		`/admin/vms/${ADMIN_VM_TIMELINE_REPLACEMENT_VM_ID}/lifecycle-events`,
+		adminHeaders
+	);
+	if (!replacementEventsResponse.ok) {
+		throw new Error(
+			`seedAdminVmLifecycleTimeline replacement lifecycle API failed: ${replacementEventsResponse.status} ${await replacementEventsResponse.text()}`
+		);
+	}
+	expect(await replacementEventsResponse.json()).toEqual([]);
+
+	return {
+		deadVmId: ADMIN_VM_TIMELINE_DEAD_VM_ID,
+		replacementVmId: ADMIN_VM_TIMELINE_REPLACEMENT_VM_ID,
+		deadHostname: ADMIN_VM_TIMELINE_DEAD_HOSTNAME,
+		replacementHostname: ADMIN_VM_TIMELINE_REPLACEMENT_HOSTNAME,
+		events: ADMIN_VM_TIMELINE_EVENTS,
+		expectedGuardrailLabel: 'Guardrail',
+		expectedGuardrailText: 'kill_switch_disabled',
+		expectedReplacementHref: `/admin/fleet/${ADMIN_VM_TIMELINE_REPLACEMENT_VM_ID}`,
+		expectedReplacementText: ADMIN_VM_TIMELINE_REPLACEMENT_HOSTNAME,
+		fixtureMarker: ADMIN_VM_TIMELINE_MARKER,
+		emptyStateCopy: 'No lifecycle events recorded for this VM.'
+	};
 }
 
 async function readAdminVmHostMetricsEvidenceForFixture({
@@ -4071,6 +4489,7 @@ type SeedAdminDeploymentFn = (
 	customer: CreatedFixtureUser,
 	options?: { region?: string }
 ) => Promise<AdminDeploymentFixture>;
+type SeedAdminVmLifecycleTimelineFn = () => Promise<AdminVmLifecycleTimelineFixture>;
 type ReadAdminVmHostMetricsEvidenceParams = {
 	region?: string;
 	vmId?: string;
@@ -4213,6 +4632,8 @@ type E2eFixtures = {
 	adminSuspendCustomer: AdminSuspendCustomerFn;
 	/** Seed a real admin-visible deployment row for a disposable customer. */
 	seedAdminDeployment: SeedAdminDeploymentFn;
+	/** Seed the local admin VM autorepair lifecycle browser specimen. */
+	seedAdminVmLifecycleTimeline: SeedAdminVmLifecycleTimelineFn;
 	/** Read raw admin VM host-metrics evidence without formatting browser expectations. */
 	readAdminVmHostMetricsEvidence: ReadAdminVmHostMetricsEvidenceFn;
 	/** Measure horizontal overflow through fixture-owned DOM inspection. */
@@ -4611,6 +5032,10 @@ DELETE FROM vm_inventory WHERE id = ${quoteSqlLiteral(entry.replicaVmId)}::uuid;
 
 	seedAdminDeployment: async ({}, use) => {
 		await use((customer, options) => seedAdminDeploymentForCustomer(customer, options));
+	},
+
+	seedAdminVmLifecycleTimeline: async ({}, use) => {
+		await use(() => seedAdminVmLifecycleTimelineForFixture());
 	},
 
 	readAdminVmHostMetricsEvidence: async ({}, use) => {

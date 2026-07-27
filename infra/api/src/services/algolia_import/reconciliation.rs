@@ -4,14 +4,16 @@ use std::time::Duration as StdDuration;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
+use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::models::algolia_import_job::{AlgoliaImportErrorCode, AlgoliaImportJobState};
+use crate::models::AlgoliaSealScrubWork;
 use crate::repos::{
     AlgoliaImportEngineAckOutcome, AlgoliaImportJobRepo, AlgoliaImportReconciliationClaim,
-    AlgoliaImportReconciliationLease, AlgoliaImportReconciliationWriteOutcome,
-    AlgoliaImportTerminalFinalizationAuthority, AlgoliaImportTerminalFinalizationOutcome,
-    RepoError, VmInventoryRepo,
+    AlgoliaImportReconciliationLease, AlgoliaImportReconciliationWork,
+    AlgoliaImportReconciliationWriteOutcome, AlgoliaImportTerminalFinalizationAuthority,
+    AlgoliaImportTerminalFinalizationOutcome, RepoError, VmInventoryRepo,
 };
 use crate::services::alerting::{Alert, AlertService, AlertSeverity};
 
@@ -150,6 +152,13 @@ enum ClaimObservation {
     TerminalRejected,
 }
 
+#[derive(Deserialize)]
+struct PrivacyScrubAck {
+    #[serde(rename = "scrubId")]
+    scrub_id: Uuid,
+    disposition: String,
+}
+
 impl AlgoliaImportService {
     pub(crate) async fn reconcile_once<S>(
         &self,
@@ -230,6 +239,11 @@ impl AlgoliaImportService {
     where
         S: AlgoliaImportReconciliationStore,
     {
+        if let AlgoliaImportReconciliationWork::ErasedTombstone(scrub_work) = claim.work.clone() {
+            return self
+                .deliver_erased_tombstone_scrub(runtime, &claim, &scrub_work)
+                .await;
+        }
         if claim.job.engine_ack_state
             == crate::models::algolia_import_job::AlgoliaImportEngineAckState::OutboxPending
         {
@@ -287,6 +301,74 @@ impl AlgoliaImportService {
                 .await
             }
         }
+    }
+
+    async fn deliver_erased_tombstone_scrub<S>(
+        &self,
+        runtime: &AlgoliaImportReconciliationRuntime<S>,
+        claim: &AlgoliaImportReconciliationClaim,
+        scrub_work: &AlgoliaSealScrubWork,
+    ) -> Result<ClaimObservation, RepoError>
+    where
+        S: AlgoliaImportReconciliationStore,
+    {
+        let target = match Self::privacy_scrub_target(runtime.vm_repo.as_ref(), scrub_work).await {
+            Ok(target) => target,
+            Err(reason) => {
+                tracing::warn!(
+                    job_id = %claim.job.id,
+                    %reason,
+                    "Algolia import erased-tombstone scrub target is unavailable"
+                );
+                return Ok(ClaimObservation::Persisted);
+            }
+        };
+        let response = match self.privacy_scrub(target, scrub_work.erasure_handle).await {
+            Ok(response) => response,
+            Err(error) => {
+                tracing::warn!(
+                    job_id = %claim.job.id,
+                    %error,
+                    "Algolia import erased-tombstone scrub delivery failed; retained work will retry"
+                );
+                return Ok(ClaimObservation::Persisted);
+            }
+        };
+        if !Self::privacy_scrub_ack_matches(&response.body, scrub_work.erasure_handle) {
+            tracing::warn!(
+                job_id = %claim.job.id,
+                "Algolia import erased-tombstone scrub ACK did not prove exact target absence"
+            );
+            return Ok(ClaimObservation::Persisted);
+        }
+        runtime.store.mark_engine_acknowledged(claim.job.id).await?;
+        Ok(ClaimObservation::TerminalFinalized)
+    }
+
+    async fn privacy_scrub_target(
+        vm_repo: &(dyn VmInventoryRepo + Send + Sync),
+        scrub_work: &AlgoliaSealScrubWork,
+    ) -> Result<EngineTarget, &'static str> {
+        let vm_id = scrub_work
+            .destination_vm_id
+            .ok_or("retained erased tombstone is missing destination VM")?;
+        let vm = vm_repo
+            .get(vm_id)
+            .await
+            .map_err(|_| "retained erased tombstone destination VM is unavailable")?
+            .filter(|vm| vm.status == "active" && !vm.flapjack_url.is_empty())
+            .ok_or("retained erased tombstone destination VM is unavailable")?;
+        let node_secret_id = vm.node_secret_id().to_string();
+        Ok(EngineTarget::new(
+            vm.flapjack_url,
+            node_secret_id,
+            vm.region,
+        ))
+    }
+
+    fn privacy_scrub_ack_matches(body: &str, erasure_handle: Uuid) -> bool {
+        serde_json::from_str::<PrivacyScrubAck>(body)
+            .is_ok_and(|ack| ack.scrub_id == erasure_handle && ack.disposition == "acknowledged")
     }
 
     async fn status_for_claim(

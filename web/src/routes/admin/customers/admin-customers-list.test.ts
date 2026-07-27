@@ -211,29 +211,31 @@ describe('Admin customers list', () => {
 	});
 
 	it('load omits legacy subscription field from list rows', async () => {
-		const result = (await load(authenticatedListLoadContext({
-			fetch: async () =>
-				new Response(
-					JSON.stringify([
-						{
-							id: ACTIVE_CUSTOMER_ID,
-							name: 'Acme Corp',
-							email: 'ops@acme.dev',
-							status: 'active',
-							billing_plan: 'shared',
-							last_accessed_at: '2026-04-20T12:00:00Z',
-							[LEGACY_SUBSCRIPTION_FIELD]: 'active',
-							overdue_invoice_count: 0,
-							billing_health: 'green',
-							index_count: 3,
-							created_at: '2026-04-25T12:00:00Z',
-							updated_at: '2026-04-20T12:00:00Z'
-						}
-					]),
-					{ status: 200, headers: { 'content-type': 'application/json' } }
-				),
-			depends: vi.fn()
-		}))) as { customers: AdminCustomerListItem[] | null };
+		const result = (await load(
+			authenticatedListLoadContext({
+				fetch: async () =>
+					new Response(
+						JSON.stringify([
+							{
+								id: ACTIVE_CUSTOMER_ID,
+								name: 'Acme Corp',
+								email: 'ops@acme.dev',
+								status: 'active',
+								billing_plan: 'shared',
+								last_accessed_at: '2026-04-20T12:00:00Z',
+								[LEGACY_SUBSCRIPTION_FIELD]: 'active',
+								overdue_invoice_count: 0,
+								billing_health: 'green',
+								index_count: 3,
+								created_at: '2026-04-25T12:00:00Z',
+								updated_at: '2026-04-20T12:00:00Z'
+							}
+						]),
+						{ status: 200, headers: { 'content-type': 'application/json' } }
+					),
+				depends: vi.fn()
+			})
+		)) as { customers: AdminCustomerListItem[] | null };
 
 		expect(result.customers).not.toBeNull();
 		expect(result.customers?.[0]).not.toHaveProperty(LEGACY_SUBSCRIPTION_FIELD);

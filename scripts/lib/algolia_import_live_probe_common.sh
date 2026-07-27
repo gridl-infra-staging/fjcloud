@@ -110,6 +110,17 @@ algolia_import_probe_delete_algolia_index() {
     algolia_import_probe_wait_for_algolia_task "$index" "$task_id"
 }
 
+algolia_import_probe_wait_for_algolia_key_absence() {
+    local restricted_key="$1"
+    local attempt
+    for attempt in 1 2 3 4 5; do
+        algolia_request "200 404" GET "/1/keys/$restricted_key" || return 1
+        [ "$HTTP_STATUS" = "404" ] && return 0
+        [ "$attempt" = "5" ] || sleep 1
+    done
+    return 1
+}
+
 algolia_import_probe_obtain_target_envelope() {
     local target_index="$1"
     local payload provider_token

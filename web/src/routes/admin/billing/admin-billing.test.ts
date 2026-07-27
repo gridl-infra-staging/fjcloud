@@ -625,12 +625,8 @@ describe('Billing page server actions', () => {
 		} as never);
 
 		expect(capturedUrls).toHaveLength(2);
-		expect(capturedUrls[0]).toContain(
-			`/admin/invoices/${BULK_FINALIZE_INVOICE_ID_ONE}/finalize`
-		);
-		expect(capturedUrls[1]).toContain(
-			`/admin/invoices/${BULK_FINALIZE_INVOICE_ID_TWO}/finalize`
-		);
+		expect(capturedUrls[0]).toContain(`/admin/invoices/${BULK_FINALIZE_INVOICE_ID_ONE}/finalize`);
+		expect(capturedUrls[1]).toContain(`/admin/invoices/${BULK_FINALIZE_INVOICE_ID_TWO}/finalize`);
 		expect(result).toEqual(
 			expect.objectContaining({
 				success: true,
@@ -729,8 +725,7 @@ describe('Billing page server actions', () => {
 				status: 500,
 				data: expect.objectContaining({
 					success: false,
-					error:
-						`Bulk finalize failed: ${BULK_FINALIZE_INVOICE_ID_ONE}: finalize endpoint unavailable; ${BULK_FINALIZE_INVOICE_ID_TWO}: finalize endpoint unavailable`
+					error: `Bulk finalize failed: ${BULK_FINALIZE_INVOICE_ID_ONE}: finalize endpoint unavailable; ${BULK_FINALIZE_INVOICE_ID_TWO}: finalize endpoint unavailable`
 				})
 			})
 		);
@@ -769,8 +764,7 @@ describe('Billing page server actions', () => {
 			expect.objectContaining({
 				success: false,
 				finalized: 1,
-				error:
-					`Bulk finalize partially failed after finalizing 1 invoice: ${BULK_FINALIZE_INVOICE_ID_TWO}: finalize endpoint unavailable`
+				error: `Bulk finalize partially failed after finalizing 1 invoice: ${BULK_FINALIZE_INVOICE_ID_TWO}: finalize endpoint unavailable`
 			})
 		);
 		expect(result).not.toHaveProperty('status');

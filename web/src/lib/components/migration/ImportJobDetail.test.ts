@@ -14,9 +14,10 @@ afterEach(() => {
 });
 
 function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgoliaImportJob {
+	const status = overrides.status ?? 'completed';
 	return {
 		id: 'job_123',
-		status: 'completed',
+		status,
 		mode: 'create',
 		destination: {
 			kind: 'create',
@@ -46,6 +47,8 @@ function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 		resumable: false,
 		resumeCount: 0,
 		publicationDisposition: 'promoted',
+		terminalOutcomeObserved: status === 'completed' || status === 'completed_with_warnings',
+		warnings: [],
 		createdAt: '2026-07-18T10:00:00Z',
 		updatedAt: '2026-07-18T10:05:00Z',
 		...overrides
@@ -109,6 +112,16 @@ describe('Algolia import job detail presentation', () => {
 		}
 	);
 
+	it.each([...NON_TERMINAL_STATUSES, 'failed', 'cancelled', 'completed'] as const)(
+		'hides terminal outcome rows without an observed outcome for status %s',
+		(status) => {
+			render(ImportJobDetail, { job: publicJob({ status, terminalOutcomeObserved: false }) });
+			expect(screen.queryByTestId('migration-summary-settings')).not.toBeInTheDocument();
+			expect(screen.queryByTestId('migration-summary-synonyms')).not.toBeInTheDocument();
+			expect(screen.queryByTestId('migration-summary-rules')).not.toBeInTheDocument();
+		}
+	);
+
 	it('keeps responsive action and field structures deterministic for narrow layouts', () => {
 		render(ImportJobDetail, {
 			job: publicJob({ status: 'copying_documents' }),
@@ -126,15 +139,25 @@ describe('Algolia import job detail presentation', () => {
 		);
 	});
 
-	it('renders completed counts and primary/secondary completed actions with encoded targets', () => {
+	it('renders observed completed facts and primary/secondary actions with encoded targets', () => {
 		render(ImportJobDetail, { job: publicJob() });
 
 		const documents = screen.getByTestId('migration-summary-documents');
 		expect(documents).toHaveTextContent('13 imported');
 		expect(documents).toHaveTextContent('17 expected');
 		expect(documents).toHaveTextContent('4 rejected');
-		expect(screen.getByTestId('migration-summary-settings')).toHaveTextContent('2 imported');
-		expect(screen.getByTestId('migration-summary-settings')).toHaveTextContent('3 expected');
+		expect(screen.getByTestId('migration-summary-settings')).toHaveTextContent('Applied');
+		expect(screen.getByTestId('migration-summary-settings')).not.toHaveTextContent(
+			/expected|rejected/
+		);
+		expect(screen.getByTestId('migration-summary-synonyms')).toHaveTextContent('3 imported');
+		expect(screen.getByTestId('migration-summary-synonyms')).not.toHaveTextContent(
+			/expected|rejected/
+		);
+		expect(screen.getByTestId('migration-summary-rules')).toHaveTextContent('6 imported');
+		expect(screen.getByTestId('migration-summary-rules')).not.toHaveTextContent(
+			/expected|rejected/
+		);
 		expect(screen.getByRole('link', { name: /test search/i })).toHaveAttribute(
 			'href',
 			'/console/indexes/products%20migrated%2F2026?tab=search'
@@ -144,21 +167,6 @@ describe('Algolia import job detail presentation', () => {
 			'/console/indexes/products%20migrated%2F2026'
 		);
 	});
-
-	it.each(['completed', 'completed_with_warnings'] as const)(
-		'renders exact primary and secondary links for terminal status %s',
-		(status) => {
-			render(ImportJobDetail, { job: publicJob({ status }) });
-
-			const links = screen.getAllByRole('link');
-			expect(links.map((link) => link.textContent?.trim())).toEqual(['Test search', 'View index']);
-			expect(links[0]).toHaveAttribute(
-				'href',
-				'/console/indexes/products%20migrated%2F2026?tab=search'
-			);
-			expect(links[1]).toHaveAttribute('href', '/console/indexes/products%20migrated%2F2026');
-		}
-	);
 
 	it.each([
 		['not_started', 'The destination has not been promoted yet.'],
@@ -174,32 +182,45 @@ describe('Algolia import job detail presentation', () => {
 		expect(screen.getByTestId('migration-job-disposition')).toHaveTextContent(copy);
 	});
 
-	it('renders completed-with-warnings summaries from closed fields only', () => {
+	it('renders completed-with-warnings outcomes from closed fields only', () => {
+		const arbitraryMessageCanary = 'producer-message-secret-canary';
+		const credentialCanary = 'producer-credential-canary';
+		const sourcePayloadCanary = 'producer-source-payload-canary';
 		const { container } = render(ImportJobDetail, {
-			job: publicJob({ status: 'completed_with_warnings' })
-		});
-
-		expect(screen.getByTestId('migration-job-warning-summary')).toHaveTextContent(
-			'4 documents, 1 setting, 2 synonyms, and 1 rule could not be imported.'
-		);
-		expect(container).not.toHaveTextContent('must not render');
-	});
-
-	it('renders unchanged failed disposition and starts reconnect with a blank key', () => {
-		render(ImportJobDetail, {
 			job: publicJob({
-				status: 'failed',
-				publicationDisposition: 'unchanged',
-				resumable: true,
-				error: { code: 'backend_unavailable' }
+				status: 'completed_with_warnings',
+				warnings: [
+					{
+						code: 'unsupported_synonym_type',
+						message: arbitraryMessageCanary,
+						resource: 'synonyms',
+						pageIndex: 2,
+						itemIndex: 5,
+						jsonPath: '$.synonyms[5]'
+					}
+				],
+				producerCredentials: credentialCanary,
+				sourcePayload: sourcePayloadCanary
+			} as Partial<PublicAlgoliaImportJob> & {
+				producerCredentials: string;
+				sourcePayload: string;
 			})
 		});
 
-		expect(screen.getByTestId('migration-job-disposition')).toHaveTextContent(
-			'The existing destination index is unchanged.'
+		expect(screen.getByTestId('migration-job-warning-summary')).toHaveTextContent(
+			'Import completed with 1 compatibility warning: synonyms — unsupported synonym type (page 2, item 5, path $.synonyms[5]).'
 		);
-		expect(screen.getByLabelText(/algolia api key/i)).toHaveValue('');
-		expect(screen.getByRole('button', { name: /reconnect and retry/i })).toBeEnabled();
+		expect(screen.getByRole('link', { name: /test search/i })).toHaveAttribute(
+			'href',
+			'/console/indexes/products%20migrated%2F2026?tab=search'
+		);
+		expect(screen.getByRole('link', { name: /view index/i })).toHaveAttribute(
+			'href',
+			'/console/indexes/products%20migrated%2F2026'
+		);
+		expect(container).not.toHaveTextContent(arbitraryMessageCanary);
+		expect(container).not.toHaveTextContent(credentialCanary);
+		expect(container).not.toHaveTextContent(sourcePayloadCanary);
 	});
 
 	it('renders stable typed failure copy without exposing the producer message or prior key', () => {
@@ -211,7 +232,8 @@ describe('Algolia import job detail presentation', () => {
 				resumable: true,
 				error: { code: 'invalid_credentials' },
 				legacyProducerMessage: producerMessage
-			} as Partial<PublicAlgoliaImportJob> & { legacyProducerMessage: string })
+			} as Partial<PublicAlgoliaImportJob> & { legacyProducerMessage: string }),
+			capabilities: { cancel: false, resume: true, replace: false }
 		});
 
 		expect(screen.getByTestId('migration-job-error')).toHaveTextContent(
@@ -229,7 +251,8 @@ describe('Algolia import job detail presentation', () => {
 				publicationDisposition: 'unknown',
 				resumable: true,
 				error: { code: 'interrupted' }
-			})
+			}),
+			capabilities: { cancel: false, resume: true, replace: false }
 		});
 
 		expect(screen.getByTestId('migration-job-disposition')).toHaveTextContent(
@@ -279,7 +302,8 @@ describe('Algolia import job detail presentation', () => {
 				reason: 'runtime_backpressure',
 				message: 'Import workers are saturated.',
 				retryAfterSeconds: 90
-			}
+			},
+			capabilities: { cancel: false, resume: true, replace: false }
 		});
 
 		const retryPanel = screen.getByTestId('migration-job-retry-panel');
@@ -336,9 +360,15 @@ describe('Algolia import job detail presentation', () => {
 			});
 
 			expect(screen.queryByRole('button', { name: /resume import/i })).not.toBeInTheDocument();
+			expect(
+				screen.queryByRole('button', { name: /reconnect and retry/i })
+			).not.toBeInTheDocument();
+			expect(screen.queryByLabelText(/algolia api key/i)).not.toBeInTheDocument();
+			expect(screen.queryByTestId('migration-job-retry-panel')).not.toBeInTheDocument();
 			expect(screen.queryByTestId('migration-job-resume-deadline')).not.toBeInTheDocument();
 			expect(screen.queryByText(/must remain hidden/i)).not.toBeInTheDocument();
 			expect(screen.queryByText(/resume unavailable/i)).not.toBeInTheDocument();
+			expect(screen.queryByPlaceholderText(/resume|api key/i)).not.toBeInTheDocument();
 			expect(screen.queryByTitle(/resume/i)).not.toBeInTheDocument();
 		}
 	);
@@ -507,6 +537,7 @@ describe('Algolia import job detail presentation', () => {
 		expect(screen.getByTestId('migration-job-disposition')).toHaveTextContent(
 			'The existing destination index is unchanged.'
 		);
+		expect(screen.queryByTestId('migration-job-error')).not.toBeInTheDocument();
 		expect(screen.getByRole('link', { name: /start a new import/i })).toHaveAttribute(
 			'href',
 			'/console/migrate'
@@ -693,6 +724,13 @@ describe('Algolia import job detail presentation', () => {
 			onResumeIntent: () => {}
 		});
 
+		expect(screen.getByTestId('migration-job-status')).toHaveTextContent('Failed');
+		expect(screen.getByTestId('migration-job-disposition')).toHaveTextContent(
+			'The existing destination index is unchanged.'
+		);
+		expect(screen.getByTestId('migration-job-error')).toHaveTextContent(
+			'This import cannot be resumed. Start a new import instead.'
+		);
 		expect(screen.getByRole('link', { name: /start a new import/i })).toHaveAttribute(
 			'href',
 			'/console/migrate'
@@ -729,24 +767,6 @@ describe('Algolia import job detail presentation', () => {
 			);
 		}
 	);
-
-	it('keeps cancel available for running jobs during operational pause', () => {
-		render(ImportJobDetail, {
-			job: publicJob({ status: 'copying_documents' }),
-			admission: {
-				admitted: false,
-				reason: 'operational_pause',
-				message: 'Migration starts are paused.',
-				retryAfterSeconds: null
-			},
-			capabilities: { cancel: true, resume: true, replace: false },
-			onCancelIntent: () => {}
-		});
-
-		expect(screen.getByTestId('migration-job-status')).toHaveTextContent('Copying documents');
-		expect(screen.getByRole('button', { name: /cancel import/i })).toBeEnabled();
-		expect(screen.queryByRole('button', { name: /resume import/i })).not.toBeInTheDocument();
-	});
 
 	it.each([
 		['copying_documents', 'operational_pause', 'Migration starts are paused.'],

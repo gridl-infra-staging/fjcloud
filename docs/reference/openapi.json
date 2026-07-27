@@ -7683,6 +7683,46 @@
           }
         }
       },
+      "AlgoliaImportWarning": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "resource",
+          "jsonPath"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "itemIndex": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "jsonPath": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "pageIndex": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "resource": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "AlgoliaIndexMetadata": {
         "type": "object",
         "required": [
@@ -9188,6 +9228,8 @@
           "destination",
           "source",
           "summary",
+          "terminalOutcomeObserved",
+          "warnings",
           "resumable",
           "resumeCount",
           "publicationDisposition",
@@ -9255,8 +9297,17 @@
           "summary": {
             "$ref": "#/components/schemas/AlgoliaImportSummary"
           },
+          "terminalOutcomeObserved": {
+            "type": "boolean"
+          },
           "updatedAt": {
             "type": "string"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AlgoliaImportWarning"
+            }
           }
         }
       },
@@ -9296,7 +9347,10 @@
         "type": "object",
         "required": [
           "total_regions",
-          "total_vms"
+          "total_vms",
+          "healthy_count",
+          "unhealthy_count",
+          "unknown_count"
         ],
         "properties": {
           "availability_pct": {
@@ -9306,11 +9360,23 @@
             ],
             "format": "double"
           },
+          "healthy_count": {
+            "type": "integer",
+            "minimum": 0
+          },
           "total_regions": {
             "type": "integer",
             "minimum": 0
           },
           "total_vms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unhealthy_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unknown_count": {
             "type": "integer",
             "minimum": 0
           }
@@ -9351,7 +9417,10 @@
           "display_name",
           "provider_location",
           "health",
-          "vm_count"
+          "vm_count",
+          "healthy_count",
+          "unhealthy_count",
+          "unknown_count"
         ],
         "properties": {
           "display_name": {
@@ -9359,6 +9428,10 @@
           },
           "health": {
             "$ref": "#/components/schemas/PublicRegionHealth"
+          },
+          "healthy_count": {
+            "type": "integer",
+            "minimum": 0
           },
           "provider": {
             "type": "string"
@@ -9368,6 +9441,14 @@
           },
           "region": {
             "type": "string"
+          },
+          "unhealthy_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unknown_count": {
+            "type": "integer",
+            "minimum": 0
           },
           "utilization": {
             "oneOf": [

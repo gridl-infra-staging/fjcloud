@@ -14,7 +14,13 @@ const BILLING_SORT_COLLATOR = new Intl.Collator('en', {
 const BILLING_MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 const BILLING_INVOICE_ID_PATTERN =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const BILLING_STATUS_KEYS: BillingStatusKey[] = ['paid', 'draft', 'finalized', 'failed', 'refunded'];
+const BILLING_STATUS_KEYS: BillingStatusKey[] = [
+	'paid',
+	'draft',
+	'finalized',
+	'failed',
+	'refunded'
+];
 
 function parseBillingMonth(monthValue: FormDataEntryValue | null): string | null {
 	if (typeof monthValue !== 'string') return null;

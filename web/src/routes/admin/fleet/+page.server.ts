@@ -16,7 +16,10 @@ async function loadHostMetricsByVmId(
 	vms: VmInventoryItem[]
 ): Promise<Record<string, VmHostMetricsResponse | null>> {
 	const entries = await Promise.all(
-		vms.map(async (vm) => [vm.id, await client.getVmHostMetrics(vm.id).catch(() => null)])
+		vms.map(async (vm) => {
+			const metrics = await client.getVmHostMetrics(vm.id).catch(() => null);
+			return [vm.id, metrics?.vm_id === vm.id ? metrics : null];
+		})
 	);
 	return Object.fromEntries(entries);
 }

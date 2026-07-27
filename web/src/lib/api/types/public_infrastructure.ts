@@ -2,7 +2,13 @@ export type PublicRegionHealth = 'operational' | 'degraded' | 'outage' | 'unknow
 
 export type PublicRegionUtilization = 'green' | 'yellow' | 'red';
 
-export interface PublicRegionInfrastructure {
+export interface PublicTopologyCounts {
+	healthy_count: number;
+	unhealthy_count: number;
+	unknown_count: number;
+}
+
+export interface PublicRegionInfrastructure extends PublicTopologyCounts {
 	region: string;
 	provider: string;
 	display_name: string;
@@ -12,7 +18,7 @@ export interface PublicRegionInfrastructure {
 	vm_count: number;
 }
 
-export interface PublicInfrastructureOverall {
+export interface PublicInfrastructureOverall extends PublicTopologyCounts {
 	availability_pct: number | null;
 	total_regions: number;
 	total_vms: number;

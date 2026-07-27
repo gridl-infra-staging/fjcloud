@@ -9,8 +9,9 @@ use api::models::algolia_import_job::{
     AlgoliaImportEngineAckState, AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportJobState,
     AlgoliaImportJobStatus, AlgoliaImportPublicationDisposition, AlgoliaImportSource,
     AlgoliaImportSourceMetadata, AlgoliaImportSummary, AlgoliaImportTargetBinding,
-    AlgoliaImportTombstoneCleanupPhase, AlgoliaReplaceTargetFacts, AlgoliaSealScrubWork,
-    NewAlgoliaImportJob, NewAlgoliaReplaceImportJob, UNKNOWN_ALGOLIA_SOURCE_SIZE_BYTES,
+    AlgoliaImportTerminalDetails, AlgoliaImportTerminalFact, AlgoliaImportTombstoneCleanupPhase,
+    AlgoliaReplaceTargetFacts, AlgoliaSealScrubWork, NewAlgoliaImportJob,
+    NewAlgoliaReplaceImportJob, UNKNOWN_ALGOLIA_SOURCE_SIZE_BYTES,
 };
 use api::secrets::mock::MockNodeSecretManager;
 use api::services::flapjack_proxy::FlapjackProxy;
@@ -418,6 +419,7 @@ async fn migration_creates_distinct_algolia_import_jobs_contract() {
         "rules_expected",
         "rules_imported",
         "rules_rejected",
+        "terminal_outcome_observed",
         "warnings",
         "error_code",
         "error_message",
@@ -1187,7 +1189,8 @@ async fn generic_state_update_cannot_write_dispatch_intent_or_engine_identity() 
         resumable: false,
         resume_count: 0,
         summary: AlgoliaImportSummary::default(),
-        warnings: json!([]),
+        terminal_outcome_observed: false,
+        warnings: Vec::new(),
         error_code: None,
         error_message: None,
     };
@@ -2427,6 +2430,7 @@ async fn repository_cannot_resurrect_proven_no_dispatch_failure() {
         resumable: false,
         resume_count: failed.resume_count,
         summary: failed.summary,
+        terminal_outcome_observed: false,
         warnings: failed.warnings,
         error_code: failed.error_code,
         error_message: failed.error_message,
@@ -2524,7 +2528,8 @@ async fn repository_owns_idempotency_and_canonical_updates() {
             rules_imported: 2,
             rules_rejected: 0,
         },
-        warnings: json!([{"code": "unsupported_setting"}]),
+        terminal_outcome_observed: false,
+        warnings: Vec::new(),
         error_code: None,
         error_message: None,
     };
@@ -2570,6 +2575,99 @@ async fn repository_owns_idempotency_and_canonical_updates() {
         repo.update_persisted_state(created.id, stale_state).await,
         Err(RepoError::Conflict(_))
     ));
+}
+
+#[tokio::test]
+async fn repository_distinguishes_absent_terminal_outcome_from_real_all_zero_outcome() {
+    let Some(db) = connect_and_migrate("algolia_terminal_outcome_presence").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+
+    let legacy_customer_id = Uuid::new_v4();
+    insert_active_customer(&db.pool, legacy_customer_id, 1).await;
+    let legacy = repo
+        .create(new_job(legacy_customer_id, "legacy-default-counters"))
+        .await
+        .expect("create legacy-shaped job with default counters");
+    assert_eq!(legacy.summary, AlgoliaImportSummary::default());
+    assert!(
+        !legacy.terminal_outcome_observed,
+        "default zero counters are not proof that the terminal producer outcome was observed"
+    );
+    sqlx::query("UPDATE algolia_import_jobs SET warnings = $1 WHERE id = $2")
+        .bind(json!(["legacy unstructured warning"]))
+        .bind(legacy.id)
+        .execute(&db.pool)
+        .await
+        .expect("seed warning JSON accepted before the canonical warning type");
+    let legacy = repo
+        .get(legacy.id)
+        .await
+        .expect("legacy warning shape must not break repository reads")
+        .expect("legacy job retained");
+    assert_eq!(legacy.warnings, Vec::new());
+
+    let terminal_customer_id = Uuid::new_v4();
+    insert_replace_target(&db.pool, terminal_customer_id, "products").await;
+    let admitted = repo
+        .admit_dispatch(AlgoliaImportDispatchAdmission::Replace(replace_request(
+            terminal_customer_id,
+            "products",
+            "real-all-zero",
+        )))
+        .await
+        .expect("admit replacement import");
+    let AlgoliaImportDispatchAdmissionOutcome::New(terminal) = admitted else {
+        panic!("first replacement import admission must be new");
+    };
+    let engine_job_id = Uuid::new_v4();
+    let terminal = repo
+        .record_dispatch_intent_committed(terminal.id, engine_job_id)
+        .await
+        .expect("commit dispatch before terminal finalization");
+    let terminal_at = Utc::now();
+    let fact = AlgoliaImportTerminalFact::new(
+        engine_job_id,
+        AlgoliaImportJobStatus::Completed,
+        AlgoliaImportPublicationDisposition::Promoted,
+        terminal_at,
+        AlgoliaImportTerminalDetails {
+            summary: AlgoliaImportSummary::default(),
+            terminal_outcome_observed: true,
+            warnings: Vec::new(),
+            error_code: None,
+            error_message: None,
+        },
+    )
+    .expect("valid all-zero terminal success fact");
+    let finalized = repo
+        .finalize_terminal_observation(
+            api::repos::AlgoliaImportTerminalFinalizationAuthority::ImmediateCancel {
+                job_id: terminal.id,
+                lifecycle_generation: terminal.lifecycle_generation,
+                engine_job_id,
+            },
+            fact,
+        )
+        .await
+        .expect("finalize terminal success");
+    let api::repos::AlgoliaImportTerminalFinalizationOutcome::Applied(finalized) = finalized else {
+        panic!("terminal finalization should apply");
+    };
+
+    assert_eq!(finalized.summary, AlgoliaImportSummary::default());
+    assert!(
+        finalized.terminal_outcome_observed,
+        "a real all-zero terminal outcome must be distinguishable from legacy absence"
+    );
+    let reloaded = repo
+        .get(finalized.id)
+        .await
+        .expect("reload finalized job")
+        .expect("finalized job retained");
+    assert_eq!(reloaded.summary, AlgoliaImportSummary::default());
+    assert!(reloaded.terminal_outcome_observed);
 }
 
 #[test]
@@ -3133,8 +3231,9 @@ async fn erase_retained_job(pool: &PgPool, id: Uuid) {
             documents_expected = NULL, documents_imported = NULL, documents_rejected = NULL,
             settings_applied = NULL, settings_unsupported = NULL, synonyms_expected = NULL,
             synonyms_imported = NULL, synonyms_rejected = NULL, rules_expected = NULL,
-            rules_imported = NULL, rules_rejected = NULL, warnings = NULL, error_code = NULL,
-            error_message = NULL, status = NULL, terminal_at = NULL
+            rules_imported = NULL, rules_rejected = NULL, terminal_outcome_observed = NULL,
+            warnings = NULL, error_code = NULL, error_message = NULL, status = NULL,
+            terminal_at = NULL
          WHERE id = $1",
     )
     .bind(id)

@@ -27,6 +27,8 @@ source "$SCRIPT_DIR/lib/local_seed_contract.sh"
 source "$SCRIPT_DIR/lib/local_db_access.sh"
 # shellcheck source=process.sh
 source "$SCRIPT_DIR/lib/process.sh"
+# shellcheck source=local_real_pipeline_oracle.sh
+source "$SCRIPT_DIR/lib/local_real_pipeline_oracle.sh"
 
 # --- Tunables ---------------------------------------------------------------
 LRP_API_PORT="${PLAYWRIGHT_API_PORT:-3001}"
@@ -42,6 +44,12 @@ LRP_HTTP_READY_TIMEOUT="${LRP_HTTP_READY_TIMEOUT:-60}"
 # One scrape interval is 30s (start-metering.sh SCRAPE_INTERVAL_SECS); allow
 # more than one interval plus the agent's own cold build.
 LRP_SCRAPE_TIMEOUT="${LRP_SCRAPE_TIMEOUT:-300}"
+LRP_HOST_METRICS_TIMEOUT="${LRP_HOST_METRICS_TIMEOUT:-120}"
+LRP_HOST_METRICS_POLL_INTERVAL="${LRP_HOST_METRICS_POLL_INTERVAL:-2}"
+LRP_HOST_METRICS_INTERVAL_SECS="${LRP_HOST_METRICS_INTERVAL_SECS:-5}"
+LRP_HOST_METRICS_MAX_SAMPLE_AGE_SECONDS="${LRP_HOST_METRICS_MAX_SAMPLE_AGE_SECONDS:-120}"
+LRP_ORACLE_FILE="${LRP_ORACLE_FILE:-$REPO_ROOT/.local/real_pipeline_oracle.json}"
+LRP_NATIVE_PROC_ROOT="${LRP_NATIVE_PROC_ROOT:-/proc}"
 
 # --- Run state (populated as the bracket advances) --------------------------
 LRP_EVIDENCE_FILE=""
@@ -60,6 +68,15 @@ LRP_POST_WRITE=""
 LRP_EXPECTED_SEARCH=""
 LRP_EXPECTED_WRITE=""
 LRP_ROWS_AFFECTED=""
+LRP_SELECTED_VM_ID=""
+LRP_ORACLE_TOPOLOGY_JSON=""
+LRP_ORACLE_HOST_SAMPLE_JSON=""
+LRP_ORACLE_TEMP_FILE=""
+LRP_GENERATED_AT=""
+LRP_RUN_ID=""
+LRP_HOST_PROC_ROOT=""
+LRP_HOST_PROC_COMPAT_ROOT=""
+LRP_HOST_PROC_REFRESH_PID=""
 
 log() { echo "[local-real-pipeline] $*"; }
 
@@ -75,12 +92,84 @@ probe_fail() {
 # EXIT trap: remove the temp evidence file and always tear the stack down.
 pipeline_teardown() {
     local rc=$?
+    if [[ "$LRP_HOST_PROC_REFRESH_PID" =~ ^[0-9]+$ ]] &&
+        kill -0 "$LRP_HOST_PROC_REFRESH_PID" 2>/dev/null; then
+        kill "$LRP_HOST_PROC_REFRESH_PID" 2>/dev/null || true
+        wait "$LRP_HOST_PROC_REFRESH_PID" 2>/dev/null || true
+    fi
+    if [ -n "$LRP_HOST_PROC_COMPAT_ROOT" ]; then
+        rm -f \
+            "$LRP_HOST_PROC_COMPAT_ROOT/meminfo" \
+            "$LRP_HOST_PROC_COMPAT_ROOT/stat" \
+            "$LRP_HOST_PROC_COMPAT_ROOT/net/dev"
+        rmdir "$LRP_HOST_PROC_COMPAT_ROOT/net" 2>/dev/null || true
+        rmdir "$LRP_HOST_PROC_COMPAT_ROOT" 2>/dev/null || true
+    fi
+    if [ -n "$LRP_ORACLE_TEMP_FILE" ] && [ -f "$LRP_ORACLE_TEMP_FILE" ]; then
+        rm -f "$LRP_ORACLE_TEMP_FILE"
+    fi
     if [ -n "$LRP_EVIDENCE_FILE" ] && [ -f "$LRP_EVIDENCE_FILE" ]; then
         rm -f "$LRP_EVIDENCE_FILE"
     fi
     log "Tearing down local stack"
     bash "$SCRIPT_DIR/local-dev-down.sh" 1>&2 || true
     return "$rc"
+}
+
+# Echo the first component of an absolute path that is a symlink (returns 1
+# when none is). Testing only the immediate parent is not enough: `mkdir -p`,
+# `mktemp`, and `mv` all resolve earlier components too, so a symlinked
+# ancestor silently redirects the whole publication out of the selected tree.
+lrp_first_symlinked_path_component() {
+    local path="$1" walked="" component
+    local -a components=()
+    IFS='/' read -r -a components <<<"${path#/}"
+    for component in "${components[@]}"; do
+        [ -n "$component" ] || continue
+        walked="${walked}/${component}"
+        if [ -L "$walked" ]; then
+            printf '%s\n' "$walked"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Single owner of the run's DB clock reads (probe start, host-sample refresh
+# floor, oracle generated_at) so every oracle timestamp shares one source.
+lrp_db_utc_now() {
+    lrp_psql_scalar "SELECT to_char(now() AT TIME ZONE 'UTC','${LRP_UTC_TS_FMT}')"
+}
+
+lrp_prepare_oracle_output() {
+    local parent stale_temp symlinked
+    [ -n "$LRP_ORACLE_FILE" ] && [ "${LRP_ORACLE_FILE#/}" != "$LRP_ORACLE_FILE" ] \
+        || probe_fail env_prep "LRP_ORACLE_FILE must be a non-empty absolute path"
+    parent="$(dirname "$LRP_ORACLE_FILE")"
+    # Checked BEFORE mkdir so a symlinked ancestor is never created through.
+    if symlinked="$(lrp_first_symlinked_path_component "$parent")"; then
+        probe_fail env_prep "oracle output parent component ${symlinked} is a symlink; pass a fully resolved LRP_ORACLE_FILE"
+    fi
+    if [ ! -e "$parent" ]; then
+        mkdir -p "$parent" \
+            || probe_fail env_prep "could not create oracle output parent"
+    fi
+    [ -d "$parent" ] \
+        || probe_fail env_prep "oracle output parent must be a real directory, not a symlink"
+    if [ -L "$LRP_ORACLE_FILE" ]; then
+        probe_fail env_prep "oracle output must not be a symlink"
+    fi
+    if [ -e "$LRP_ORACLE_FILE" ] && [ ! -f "$LRP_ORACLE_FILE" ]; then
+        probe_fail env_prep "oracle output must be absent or a regular file"
+    fi
+    rm -f "$LRP_ORACLE_FILE" \
+        || probe_fail env_prep "could not remove the previous oracle output"
+    for stale_temp in "${LRP_ORACLE_FILE}.tmp."*; do
+        if [ -e "$stale_temp" ] || [ -L "$stale_temp" ]; then
+            rm -f "$stale_temp" \
+                || probe_fail env_prep "could not remove stale oracle temporary file"
+        fi
+    done
 }
 
 # --- Small HTTP / DB helpers ------------------------------------------------
@@ -226,6 +315,9 @@ lrp_prepare_env() {
     load_env_file "$REPO_ROOT/.env.local"
     export FLAPJACK_ADMIN_KEY="${FLAPJACK_ADMIN_KEY:-$DEFAULT_LOCAL_FLAPJACK_ADMIN_KEY}"
     lrp_require_safe_header_value FLAPJACK_ADMIN_KEY "$FLAPJACK_ADMIN_KEY"
+    [ -n "${ADMIN_KEY:-}" ] \
+        || probe_fail env_prep "ADMIN_KEY missing from .env.local; authenticated VM inventory is required"
+    lrp_require_safe_header_value ADMIN_KEY "$ADMIN_KEY"
     [ -n "${DATABASE_URL:-}" ] \
         || probe_fail env_prep "DATABASE_URL missing from .env.local; local Postgres owner must supply it"
     [ -n "${FLAPJACK_REGIONS:-}" ] \
@@ -279,9 +371,11 @@ lrp_assert_flapjack_regions_healthy() {
 # Step 2: resolve the driven customer + physical UID and require exactly one
 # agreeing tenant-map entry.
 lrp_resolve_target() {
-    LRP_CUSTOMER_ID="$(lrp_psql_scalar "SELECT id FROM customers WHERE billing_plan = 'shared' LIMIT 1")"
+    local shared_email_sql
+    shared_email_sql="$(lrp_pg_text_literal "$LOCAL_SEED_SHARED_USER_EMAIL")"
+    LRP_CUSTOMER_ID="$(lrp_psql_scalar "SELECT id FROM customers WHERE email = ${shared_email_sql} AND billing_plan = 'shared'")"
     [ -n "$LRP_CUSTOMER_ID" ] \
-        || probe_fail resolve_target "no shared-plan customer found; seed_local.sh must create one"
+        || probe_fail resolve_target "canonical shared-plan customer ${LOCAL_SEED_SHARED_USER_EMAIL} not found; seed_local.sh must create it"
     local customer_hex
     customer_hex="$(printf '%s' "$LRP_CUSTOMER_ID" | tr -d '-' | tr '[:upper:]' '[:lower:]')"
     LRP_FLAPJACK_UID="${customer_hex}_${LRP_DRIVEN_INDEX_NAME}"
@@ -331,7 +425,7 @@ PY
 # and negative live modes so every evidence document has the same clock source.
 lrp_capture_probe_clock() {
     LRP_TARGET_DATE="$(date -u +%F)"
-    LRP_PROBE_STARTED_AT="$(lrp_psql_scalar "SELECT to_char(now() AT TIME ZONE 'UTC','${LRP_UTC_TS_FMT}')")"
+    LRP_PROBE_STARTED_AT="$(lrp_db_utc_now)"
     [ -n "$LRP_PROBE_STARTED_AT" ] \
         || probe_fail clear_failed "could not read DB clock for probe_started_at"
 }
@@ -369,9 +463,117 @@ lrp_capture_and_clear() {
     lrp_clear_target_scope
 }
 
+# The Rust collector intentionally consumes Linux procfs text. Linux uses the
+# native owner directly; macOS full-mode runs expose the same existing
+# PROC_ROOT contract through a short-lived, host-derived compatibility view.
+lrp_write_darwin_proc_memory() {
+    local root="$1" total_bytes page_size available_pages available_bytes
+    total_bytes="$(sysctl -n hw.memsize 2>/dev/null)" || return 1
+    page_size="$(vm_stat 2>/dev/null |
+        sed -n '1s/.*page size of \([0-9][0-9]*\) bytes.*/\1/p')" || return 1
+    available_pages="$(vm_stat 2>/dev/null | awk '
+        /^Pages (free|inactive|speculative):/ {
+            gsub(/[^0-9]/, "", $NF)
+            total += $NF
+        }
+        END { print total + 0 }
+    ')" || return 1
+    [[ "$total_bytes" =~ ^[0-9]+$ && "$page_size" =~ ^[0-9]+$ &&
+        "$available_pages" =~ ^[0-9]+$ ]] || return 1
+    available_bytes=$((available_pages * page_size))
+    if [ "$available_bytes" -gt "$total_bytes" ]; then
+        available_bytes="$total_bytes"
+    fi
+    {
+        printf 'MemTotal: %s kB\n' "$((total_bytes / 1024))"
+        printf 'MemAvailable: %s kB\n' "$((available_bytes / 1024))"
+    } >"$root/meminfo"
+}
+
+lrp_write_darwin_proc_network() {
+    local root="$1" counters
+    counters="$(netstat -ibn 2>/dev/null | awk '
+        $3 ~ /^<Link#/ && $1 !~ /^lo/ {
+            rx += $7
+            tx += $10
+            interfaces += 1
+        }
+        END {
+            if (interfaces > 0) {
+                printf "%.0f %.0f\n", rx, tx
+            }
+        }
+    ')" || return 1
+    [ -n "$counters" ] || return 1
+    {
+        printf 'Inter-| Receive | Transmit\n'
+        printf ' face |bytes packets errs drop fifo frame compressed multicast|bytes packets errs drop fifo colls carrier compressed\n'
+        printf 'host0: %s 0 0 0 0 0 0 0 %s 0 0 0 0 0 0 0\n' $counters
+    } >"$root/net/dev"
+}
+
+lrp_refresh_darwin_proc_cpu() {
+    local root="$1" cpu_count busy_total=0 idle_total=0 cpu_sum busy_increment
+    cpu_count="$(sysctl -n hw.ncpu 2>/dev/null)" || return 1
+    [[ "$cpu_count" =~ ^[0-9]+$ ]] && [ "$cpu_count" -gt 0 ] || return 1
+    while true; do
+        cpu_sum="$(ps -A -o %cpu= 2>/dev/null |
+            awk '{ total += $1 } END { print total + 0 }')" || return 1
+        busy_increment="$(awk -v total="$cpu_sum" -v cpus="$cpu_count" '
+            BEGIN {
+                busy = int((total / cpus) + 0.5)
+                if (busy < 1) busy = 1
+                if (busy > 99) busy = 99
+                print busy
+            }
+        ')" || return 1
+        busy_total=$((busy_total + busy_increment))
+        idle_total=$((idle_total + 100 - busy_increment))
+        printf 'cpu %s 0 0 %s 0 0 0 0\n' "$busy_total" "$idle_total" \
+            >"$root/stat.tmp"
+        mv "$root/stat.tmp" "$root/stat"
+        sleep 0.1
+    done
+}
+
+lrp_prepare_host_proc_root() {
+    if [ -r "$LRP_NATIVE_PROC_ROOT/meminfo" ] &&
+        [ -r "$LRP_NATIVE_PROC_ROOT/stat" ] &&
+        [ -r "$LRP_NATIVE_PROC_ROOT/net/dev" ]; then
+        LRP_HOST_PROC_ROOT="$LRP_NATIVE_PROC_ROOT"
+        return
+    fi
+    [ "$(uname)" = "Darwin" ] ||
+        probe_fail host_metrics "required procfs inputs are unavailable at $LRP_NATIVE_PROC_ROOT"
+
+    LRP_HOST_PROC_COMPAT_ROOT="$REPO_ROOT/.local/real_pipeline_proc.$$"
+    mkdir -p "$LRP_HOST_PROC_COMPAT_ROOT/net" ||
+        probe_fail host_metrics "could not create the host-metrics compatibility root"
+    lrp_write_darwin_proc_memory "$LRP_HOST_PROC_COMPAT_ROOT" &&
+        lrp_write_darwin_proc_network "$LRP_HOST_PROC_COMPAT_ROOT" ||
+        probe_fail host_metrics "could not derive the macOS host-metrics compatibility snapshot"
+    lrp_refresh_darwin_proc_cpu "$LRP_HOST_PROC_COMPAT_ROOT" &
+    LRP_HOST_PROC_REFRESH_PID=$!
+    local deadline=$((SECONDS + 5))
+    while [ ! -r "$LRP_HOST_PROC_COMPAT_ROOT/stat" ] &&
+        [ "$SECONDS" -lt "$deadline" ]; do
+        sleep 0.1
+    done
+    [ -r "$LRP_HOST_PROC_COMPAT_ROOT/stat" ] &&
+        kill -0 "$LRP_HOST_PROC_REFRESH_PID" 2>/dev/null ||
+        probe_fail host_metrics "macOS host-metrics CPU compatibility refresh did not start"
+    LRP_HOST_PROC_ROOT="$LRP_HOST_PROC_COMPAT_ROOT"
+}
+
 # Step 4: start the agent, await the FIRST (baseline) scrape, then read PRE.
 lrp_start_agent_and_read_pre() {
-    INTERNAL_KEY="${FLAPJACK_ADMIN_KEY}" bash "$SCRIPT_DIR/start-metering.sh" >&2 \
+    lrp_prepare_host_proc_root
+    INTERNAL_KEY="${FLAPJACK_ADMIN_KEY}" \
+    VM_ID="$LRP_SELECTED_VM_ID" \
+    HOST_METRICS_ENABLED=true \
+    HOST_METRICS_INTERVAL_SECS="$LRP_HOST_METRICS_INTERVAL_SECS" \
+    PROC_ROOT="$LRP_HOST_PROC_ROOT" \
+        bash "$SCRIPT_DIR/start-metering.sh" >&2 \
         || probe_fail agent_baseline "start-metering.sh failed to launch the agent"
 
     local deadline ts
@@ -473,14 +675,19 @@ print(values.pop())
 ')" || probe_fail aggregation "could not parse exactly one rows_affected from the aggregation complete event"
 }
 
-# Step 7: stop only the agent, guard against date straddle, aggregate once, and
-# parse the single rows_affected value from the Rust `aggregation complete`
-# event.
+# Step 7: guard against date straddle, aggregate once, capture a publication-
+# fresh host sample while the agent is still alive, then stop only the agent.
 lrp_aggregate() {
-    kill_pid_file "$REPO_ROOT/.local/metering-agent-${LRP_DRIVEN_REGION}.pid" \
-        "metering-agent-${LRP_DRIVEN_REGION}" "metering-agent" "*metering-agent*"
+    local refresh_floor
     lrp_guard_no_date_straddle
     lrp_run_aggregation_job
+    refresh_floor="$(lrp_db_utc_now)"
+    [ -n "$refresh_floor" ] \
+        || probe_fail oracle "could not read DB clock for the host-sample refresh floor"
+    lrp_poll_selected_host_metrics "$refresh_floor"
+    kill_pid_file "$REPO_ROOT/.local/metering-agent-${LRP_DRIVEN_REGION}.pid" \
+        "metering-agent-${LRP_DRIVEN_REGION}" "metering-agent" "*metering-agent*" \
+        || probe_fail agent_stop "could not stop metering-agent-${LRP_DRIVEN_REGION} after refreshing the oracle host sample"
 }
 
 # Step 8: serialize the produced usage_daily row into evidence and classify it.
@@ -546,7 +753,7 @@ PY
 }
 
 lrp_create_evidence_file_and_trap() {
-    LRP_EVIDENCE_FILE="$(mktemp "${TMPDIR:-/tmp}/local_real_pipeline_evidence.XXXXXX.json")" \
+    LRP_EVIDENCE_FILE="$(mktemp "${TMPDIR:-/tmp}/local_real_pipeline_evidence.XXXXXX")" \
         || probe_fail env_prep "could not create evidence temp file"
     trap pipeline_teardown EXIT
 }
@@ -562,14 +769,20 @@ lrp_classify_built_evidence() {
 # Entry point
 # ===========================================================================
 run_full_local_pipeline() {
+    lrp_prepare_oracle_output
     lrp_prepare_env
 
     lrp_create_evidence_file_and_trap
 
     lrp_bring_up_stack
+    lrp_capture_oracle_topology
     lrp_resolve_target
     lrp_capture_and_clear
+    LRP_RUN_ID="local-real-pipeline-${LRP_PROBE_STARTED_AT//[^[:alnum:]]/_}-$$"
     lrp_start_agent_and_read_pre
+    # Early proof that host metrics are flowing; aggregation captures the
+    # publication-fresh sample immediately before the agent is stopped.
+    lrp_poll_selected_host_metrics "$LRP_PROBE_STARTED_AT"
     lrp_drive_traffic
     lrp_await_delta_and_read_post
     lrp_aggregate
@@ -579,13 +792,25 @@ run_full_local_pipeline() {
     log "POST search=${LRP_POST_SEARCH} write=${LRP_POST_WRITE}"
     log "delta=POST-PRE search=${LRP_EXPECTED_SEARCH} write=${LRP_EXPECTED_WRITE} rows_affected=${LRP_ROWS_AFFECTED}"
 
-    # Classify through the probe's real --assert-evidence CLI surface (subprocess)
-    # so the produced evidence passes the same readable-file + arg parsing the
-    # Stage 1 classifier owner enforces, and propagate its exit verdict.
-    lrp_classify_built_evidence
+    # Capture the real classifier token so it cannot become visible as PASS
+    # until every oracle input is joined and the artifact is atomically live.
+    local classifier_output
+    if classifier_output="$(lrp_classify_built_evidence)"; then
+        :
+    elif [[ "$classifier_output" =~ ^LOCAL_REAL_PIPELINE_STATUS:\ FAIL\ reason=[a-z_]+$ ]]; then
+        printf '%s\n' "$classifier_output"
+        return 1
+    else
+        probe_fail classifier "classifier exited without a canonical FAIL token"
+    fi
+    [ "$classifier_output" = "LOCAL_REAL_PIPELINE_STATUS: PASS reason=verified" ] \
+        || probe_fail classifier "classifier did not emit the exact PASS token"
+    lrp_publish_oracle
+    printf '%s\n' "$classifier_output"
 }
 
 run_negative_seeded_local_pipeline() {
+    lrp_prepare_oracle_output
     lrp_prepare_env
     lrp_create_evidence_file_and_trap
 
@@ -603,6 +828,7 @@ run_negative_seeded_local_pipeline() {
 }
 
 run_negative_nodrive_local_pipeline() {
+    lrp_prepare_oracle_output
     lrp_prepare_env
     lrp_create_evidence_file_and_trap
 

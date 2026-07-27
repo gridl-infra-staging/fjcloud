@@ -135,3 +135,13 @@ docs/runbooks/evidence/subprocessor_disclosure/
 .scrai/state.json
 .scrai/summaries.json
 .scrai/dir_summaries.json
+
+# Ephemeral fixture written by scripts/tests/local_ci_gate_set_e_test.sh to
+# force a deliberate `cargo fmt --check` diff and prove the gate catches it.
+# The test names it from mktemp and removes it on an EXIT trap, so it should
+# never persist — but it has been swept into commits twice by `git add -A`
+# running while the test was mid-flight (see the .VMoeOa.rs and .XXXXXX.rs
+# paths in history). Ignoring it makes that impossible. Safe: the test uses
+# git zero times and the gate mechanism is `cargo fmt --check`, which is
+# git-agnostic.
+infra/api/tests/_local_ci_set_e_regression_fixture.*.rs

@@ -27,6 +27,14 @@ struct RegionVmSignal {
     utilization: Option<UtilizationBucket>,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+struct TopologyCounts {
+    vm_count: usize,
+    healthy_count: usize,
+    unhealthy_count: usize,
+    unknown_count: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, utoipa::ToSchema)]
 pub struct PublicRegionInfrastructure {
     pub region: String,
@@ -36,6 +44,9 @@ pub struct PublicRegionInfrastructure {
     pub health: PublicRegionHealth,
     pub utilization: Option<UtilizationBucket>,
     pub vm_count: usize,
+    pub healthy_count: usize,
+    pub unhealthy_count: usize,
+    pub unknown_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, utoipa::ToSchema)]
@@ -43,6 +54,9 @@ pub struct PublicInfrastructureOverall {
     pub availability_pct: Option<f64>,
     pub total_regions: usize,
     pub total_vms: usize,
+    pub healthy_count: usize,
+    pub unhealthy_count: usize,
+    pub unknown_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, utoipa::ToSchema)]
@@ -104,7 +118,7 @@ pub async fn compute_public_infrastructure(
             .map(|(region, entry)| build_region_response(region, entry, &[]))
             .collect::<Vec<_>>();
         return Ok(PublicInfrastructureResponse {
-            overall: build_overall_response(regions.len(), &[]),
+            overall: build_overall_response(&regions),
             regions,
         });
     }
@@ -148,7 +162,6 @@ pub async fn compute_public_infrastructure(
             });
     }
 
-    let mut all_signals = Vec::with_capacity(published_vms.len());
     let regions = available_regions
         .into_iter()
         .map(|(region, entry)| {
@@ -156,13 +169,12 @@ pub async fn compute_public_infrastructure(
                 .get(region.as_str())
                 .map(Vec::as_slice)
                 .unwrap_or(&[]);
-            all_signals.extend_from_slice(signals);
             build_region_response(region, entry, signals)
         })
         .collect::<Vec<_>>();
 
     Ok(PublicInfrastructureResponse {
-        overall: build_overall_response(regions.len(), &all_signals),
+        overall: build_overall_response(&regions),
         regions,
     })
 }
@@ -172,25 +184,43 @@ fn build_region_response(
     entry: &RegionEntry,
     vm_signals: &[RegionVmSignal],
 ) -> PublicRegionInfrastructure {
+    let counts = topology_counts(vm_signals);
     PublicRegionInfrastructure {
         region: region.to_string(),
         provider: entry.provider.clone(),
         display_name: entry.display_name.clone(),
         provider_location: entry.provider_location.clone(),
-        health: region_health(vm_signals),
+        health: region_health(counts),
         utilization: worst_region_utilization(vm_signals),
-        vm_count: vm_signals.len(),
+        vm_count: counts.vm_count,
+        healthy_count: counts.healthy_count,
+        unhealthy_count: counts.unhealthy_count,
+        unknown_count: counts.unknown_count,
     }
 }
 
-fn region_health(vm_signals: &[RegionVmSignal]) -> PublicRegionHealth {
-    if vm_signals.is_empty() {
+fn topology_counts(vm_signals: &[RegionVmSignal]) -> TopologyCounts {
+    let mut counts = TopologyCounts {
+        vm_count: vm_signals.len(),
+        ..TopologyCounts::default()
+    };
+    for signal in vm_signals {
+        match signal.health {
+            VmHealth::Healthy => counts.healthy_count += 1,
+            VmHealth::Unhealthy => counts.unhealthy_count += 1,
+            VmHealth::Unknown => counts.unknown_count += 1,
+        }
+    }
+    counts
+}
+
+fn region_health(counts: TopologyCounts) -> PublicRegionHealth {
+    if counts.vm_count == 0 {
         return PublicRegionHealth::Unknown;
     }
-    let healthy_count = healthy_vm_count(vm_signals);
-    if healthy_count == vm_signals.len() {
+    if counts.healthy_count == counts.vm_count {
         PublicRegionHealth::Operational
-    } else if healthy_count > 0 {
+    } else if counts.healthy_count > 0 {
         PublicRegionHealth::Degraded
     } else {
         PublicRegionHealth::Outage
@@ -220,28 +250,22 @@ fn worst_region_utilization(vm_signals: &[RegionVmSignal]) -> Option<Utilization
         })
 }
 
-fn build_overall_response(
-    total_regions: usize,
-    vm_signals: &[RegionVmSignal],
-) -> PublicInfrastructureOverall {
-    let total_vms = vm_signals.len();
+fn build_overall_response(regions: &[PublicRegionInfrastructure]) -> PublicInfrastructureOverall {
+    let total_vms = regions.iter().map(|region| region.vm_count).sum();
+    let healthy_count = regions.iter().map(|region| region.healthy_count).sum();
     let availability_pct = if total_vms == 0 {
         None
     } else {
-        Some((healthy_vm_count(vm_signals) as f64 / total_vms as f64) * 100.0)
+        Some((healthy_count as f64 / total_vms as f64) * 100.0)
     };
     PublicInfrastructureOverall {
         availability_pct,
-        total_regions,
+        total_regions: regions.len(),
         total_vms,
+        healthy_count,
+        unhealthy_count: regions.iter().map(|region| region.unhealthy_count).sum(),
+        unknown_count: regions.iter().map(|region| region.unknown_count).sum(),
     }
-}
-
-fn healthy_vm_count(vm_signals: &[RegionVmSignal]) -> usize {
-    vm_signals
-        .iter()
-        .filter(|signal| signal.health == VmHealth::Healthy)
-        .count()
 }
 
 #[cfg(test)]
@@ -415,29 +439,64 @@ mod tests {
         );
 
         assert_eq!(
-            build_overall_response(
-                2,
-                &[
-                    signal(VmHealth::Healthy, None),
-                    signal(VmHealth::Healthy, None),
-                    signal(VmHealth::Healthy, None),
-                    signal(VmHealth::Unhealthy, None),
-                ],
-            ),
+            build_overall_response(&regions),
             PublicInfrastructureOverall {
                 availability_pct: Some(75.0),
                 total_regions: 2,
                 total_vms: 4,
+                healthy_count: 3,
+                unhealthy_count: 1,
+                unknown_count: 0,
             }
         );
         assert_eq!(
-            build_overall_response(1, &[]),
+            build_overall_response(&[build_region_response("us-east-1", &region_entry(), &[],)]),
             PublicInfrastructureOverall {
                 availability_pct: None,
                 total_regions: 1,
                 total_vms: 0,
+                healthy_count: 0,
+                unhealthy_count: 0,
+                unknown_count: 0,
             }
         );
+    }
+
+    #[test]
+    fn region_rollup_reconciles_health_counts() {
+        let region = build_region_response(
+            "us-east-1",
+            &region_entry(),
+            &[
+                RegionVmSignal {
+                    health: VmHealth::Healthy,
+                    utilization: None,
+                },
+                RegionVmSignal {
+                    health: VmHealth::Unhealthy,
+                    utilization: None,
+                },
+                RegionVmSignal {
+                    health: VmHealth::Unknown,
+                    utilization: None,
+                },
+            ],
+        );
+
+        assert_eq!(region.vm_count, 3);
+        assert_eq!(region.healthy_count, 1);
+        assert_eq!(region.unhealthy_count, 1);
+        assert_eq!(region.unknown_count, 1);
+        assert_eq!(
+            region.healthy_count + region.unhealthy_count + region.unknown_count,
+            region.vm_count
+        );
+
+        let empty = build_region_response("eu-west-1", &region_entry(), &[]);
+        assert_eq!(empty.vm_count, 0);
+        assert_eq!(empty.healthy_count, 0);
+        assert_eq!(empty.unhealthy_count, 0);
+        assert_eq!(empty.unknown_count, 0);
     }
 
     #[test]
@@ -460,9 +519,12 @@ mod tests {
             BTreeSet::from([
                 "display_name".to_string(),
                 "health".to_string(),
+                "healthy_count".to_string(),
                 "provider".to_string(),
                 "provider_location".to_string(),
                 "region".to_string(),
+                "unknown_count".to_string(),
+                "unhealthy_count".to_string(),
                 "utilization".to_string(),
                 "vm_count".to_string(),
             ])

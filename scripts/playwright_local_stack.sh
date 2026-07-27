@@ -256,7 +256,7 @@ fi
 
 if ! curl -fsS "$API_HEALTH_URL" >/dev/null 2>&1; then require_local_database_url; fi
 ensure_local_flapjack_ready
-flapjack_identity_reason="$(flapjack_runtime_identity_reason "$FLAPJACK_URL")"
+flapjack_identity_reason="$(flapjack_runtime_identity_reason "$FLAPJACK_URL" "$started_flapjack")"
 if [ "$flapjack_identity_reason" != "match" ]; then
 	echo "[playwright_local_stack] ERROR: Flapjack at $FLAPJACK_URL identity rejected ($flapjack_identity_reason); fjcloud requires exact Flapjack engine identity for $FJCLOUD_FLAPJACK_VERSION." >&2
 	echo "[playwright_local_stack] ERROR: stop the exact listener or rebuild the pinned Flapjack checkout before running Playwright." >&2

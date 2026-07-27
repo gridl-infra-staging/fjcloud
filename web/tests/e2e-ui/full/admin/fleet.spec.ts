@@ -130,6 +130,13 @@ function expectedHostMetricCells(
 	];
 }
 
+async function disableVmDetailAutoRefreshIfPresent(page: import('@playwright/test').Page) {
+	const autoRefreshToggle = page.getByTestId('vm-detail-auto-refresh-toggle');
+	if ((await autoRefreshToggle.count()) > 0) {
+		await autoRefreshToggle.uncheck();
+	}
+}
+
 test.describe('Admin fleet overview', () => {
 	test('fleet overview page renders after admin login', async ({ page }) => {
 		// Auth state is pre-loaded from .auth/admin.json
@@ -367,6 +374,86 @@ test.describe('Admin fleet overview', () => {
 		).toBe(true);
 		await page.getByTestId('status-filter').scrollIntoViewIfNeeded();
 		await expect(page.getByTestId('status-filter')).toBeVisible();
+	});
+
+	test.describe('VM lifecycle timeline', () => {
+		test('dead VM detail renders seeded autorepair lifecycle timeline', async ({
+			page,
+			seedAdminVmLifecycleTimeline
+		}) => {
+			const fixture = await seedAdminVmLifecycleTimeline();
+
+			await page.goto(`/admin/fleet/${fixture.deadVmId}`);
+			await disableVmDetailAutoRefreshIfPresent(page);
+
+			await expect(page.getByRole('heading', { name: fixture.deadHostname })).toBeVisible();
+			const vmInfoSection = page.getByTestId('vm-info-section');
+			await expect(vmInfoSection).toBeVisible();
+			await expect(vmInfoSection).toContainText(fixture.deadHostname);
+			await expect(vmInfoSection).toContainText('local');
+
+			const lifecycleSection = page.getByTestId('vm-lifecycle-section');
+			await expect(
+				lifecycleSection.getByRole('heading', { name: 'VM autorepair lifecycle' })
+			).toBeVisible();
+			const lifecycleList = page.getByTestId('vm-lifecycle-list');
+			await expect(lifecycleList).toBeVisible();
+			expect(await lifecycleList.evaluate((element) => element.tagName.toLowerCase())).toBe('ol');
+			const lifecycleRows = lifecycleSection.getByTestId(/^vm-lifecycle-row-/);
+			await expect(lifecycleRows).toHaveCount(fixture.events.length);
+			expect(
+				await lifecycleRows.evaluateAll((rows) =>
+					rows.map((row) => row.getAttribute('data-testid'))
+				)
+			).toEqual(fixture.events.map((event) => event.rowTestId));
+
+			for (const event of fixture.events) {
+				const row = page.getByTestId(event.rowTestId);
+				await expect(row).toBeVisible();
+				await expect(row).toContainText(event.label);
+				const timestamp = row.getByText(event.formattedCreatedAt, { exact: true });
+				await expect(timestamp).toHaveAttribute('datetime', event.createdAt);
+				for (const expectedText of event.expectedDetailText) {
+					await expect(row).toContainText(expectedText);
+				}
+				await expect(row).not.toContainText(fixture.fixtureMarker);
+				await expect(row).not.toContainText('e2e_fixture');
+				await expect(row.getByText('retryable', { exact: true })).toHaveCount(0);
+			}
+
+			const refusedEvent = fixture.events.find(
+				(event) => event.eventType === 'replacement_refused'
+			);
+			expect(refusedEvent, 'fixture must include a replacement refusal event').toBeDefined();
+			const refusedRow = page.getByTestId(refusedEvent!.rowTestId);
+			await expect(refusedRow).toContainText(fixture.expectedGuardrailLabel);
+			await expect(refusedRow).toContainText(fixture.expectedGuardrailText);
+
+			const replacementLinkedEvents = fixture.events.filter((event) => event.replacementLink);
+			expect(
+				replacementLinkedEvents.map((event) => event.eventType),
+				'fixture should expose replacement navigation only for booted, tenants-replaced, and completed rows'
+			).toEqual(['replacement_booted', 'tenants_replaced', 'replacement_completed']);
+			for (const event of replacementLinkedEvents) {
+				const link = page.getByTestId(event.replacementLink!.testId);
+				await expect(link).toHaveAttribute('href', fixture.expectedReplacementHref);
+				await expect(link).toHaveText(fixture.expectedReplacementText);
+			}
+		});
+
+		test('replacement VM detail renders lifecycle empty state', async ({
+			page,
+			seedAdminVmLifecycleTimeline
+		}) => {
+			const fixture = await seedAdminVmLifecycleTimeline();
+
+			await page.goto(`/admin/fleet/${fixture.replacementVmId}`);
+			await disableVmDetailAutoRefreshIfPresent(page);
+
+			await expect(page.getByRole('heading', { name: fixture.replacementHostname })).toBeVisible();
+			await expect(page.getByTestId('vm-info-section')).toContainText(fixture.replacementHostname);
+			await expect(page.getByTestId('vm-lifecycle-empty')).toHaveText(fixture.emptyStateCopy);
+		});
 	});
 
 	test('admin navigation links are all present', async ({ page }) => {

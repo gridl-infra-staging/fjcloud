@@ -6,6 +6,8 @@ mod lifecycle;
 mod reconciliation;
 #[path = "pg_algolia_import_job_reservation.rs"]
 mod reservation;
+#[path = "pg_algolia_import_job_scrub.rs"]
+mod scrub;
 #[path = "pg_algolia_import_job_support.rs"]
 mod support;
 #[cfg(test)]
@@ -101,10 +103,10 @@ impl PgAlgoliaImportJobRepo {
         if current.engine_ack_state == "acknowledged" && current.tombstone_compacted_at.is_some() {
             return Ok(current.outcome());
         }
-        if current.cleanup_phase != "exact_target_absent"
-            || current.engine_ack_state != "outbox_pending"
-            || current.tombstone_compacted_at.is_some()
-        {
+        let can_compact_from_scrub_ack = current.cleanup_phase == "exact_target_absence_required"
+            && current.engine_ack_state == "pending"
+            && current.tombstone_compacted_at.is_none();
+        if !can_compact_from_scrub_ack {
             return Err(RepoError::Conflict(
                 "erased tombstone acknowledgement requires proven exact-target absence".into(),
             ));
@@ -112,12 +114,17 @@ impl PgAlgoliaImportJobRepo {
 
         sqlx::query_as::<_, ErasedTombstoneAckRow>(
             "UPDATE algolia_import_jobs
-             SET engine_ack_state = 'acknowledged',
-                 tombstone_compacted_at = NOW()
+             SET cleanup_phase = 'exact_target_absent',
+                 engine_ack_state = 'acknowledged',
+                 tombstone_compacted_at = NOW(),
+                 erasure_handle = NULL,
+                 worker_claimed_at = NULL,
+                 worker_lease_expires_at = NULL,
+                 updated_at = NOW()
              WHERE id = $1
                AND erased_at IS NOT NULL
-               AND cleanup_phase = 'exact_target_absent'
-               AND engine_ack_state = 'outbox_pending'
+               AND cleanup_phase = 'exact_target_absence_required'
+               AND engine_ack_state = 'pending'
                AND tombstone_compacted_at IS NULL
              RETURNING id, engine_ack_state, cleanup_phase, tombstone_compacted_at",
         )

@@ -17,9 +17,10 @@ use crate::models::algolia_import_job::{
 use crate::models::vm_inventory::{NewVmInventory, VmInventory};
 use crate::repos::{
     AlgoliaImportEngineAckOutcome, AlgoliaImportReconciliationClaim,
-    AlgoliaImportReconciliationLease, AlgoliaImportReconciliationWriteOutcome,
-    AlgoliaImportTerminalFinalizationAuthority, AlgoliaImportTerminalFinalizationOutcome,
-    RepoError, VmDecommissionResult, VmInventoryRepo, VmRetirementAssessment,
+    AlgoliaImportReconciliationLease, AlgoliaImportReconciliationWork,
+    AlgoliaImportReconciliationWriteOutcome, AlgoliaImportTerminalFinalizationAuthority,
+    AlgoliaImportTerminalFinalizationOutcome, RepoError, VmDecommissionResult, VmInventoryRepo,
+    VmRetirementAssessment,
 };
 use crate::secrets::mock::MockNodeSecretManager;
 use crate::secrets::NodeSecretManager;
@@ -116,6 +117,7 @@ impl AlgoliaImportReconciliationStore for FakeReconciliationStore {
                 claimed_at: now,
                 expires_at: lease_expires_at,
             },
+            work: AlgoliaImportReconciliationWork::Import,
             job,
         }])
     }
@@ -132,6 +134,8 @@ impl AlgoliaImportReconciliationStore for FakeReconciliationStore {
             != (state.error_code == Some(AlgoliaImportErrorCode::BackendUnavailable));
         job.status = state.status;
         job.summary = state.summary.clone();
+        job.terminal_outcome_observed = state.terminal_outcome_observed;
+        job.warnings.clone_from(&state.warnings);
         job.retryable = state.retryable;
         job.error_code = state.error_code;
         job.error_message.clone_from(&state.error_message);
@@ -162,6 +166,8 @@ impl AlgoliaImportReconciliationStore for FakeReconciliationStore {
         job.status = fact.status;
         job.publication_disposition = fact.publication_disposition;
         job.summary = fact.summary.clone();
+        job.terminal_outcome_observed = fact.terminal_outcome_observed;
+        job.warnings.clone_from(&fact.warnings);
         job.error_code = fact.error_code;
         job.error_message.clone_from(&fact.error_message);
         job.engine_ack_state = AlgoliaImportEngineAckState::OutboxPending;
@@ -299,7 +305,8 @@ pub(super) fn job(now: DateTime<Utc>, vm_id: Uuid) -> AlgoliaImportJob {
             documents_imported: 10,
             ..Default::default()
         },
-        warnings: json!([]),
+        terminal_outcome_observed: false,
+        warnings: Vec::new(),
         error_code: Some(AlgoliaImportErrorCode::BackendUnavailable),
         error_message: None,
         status: AlgoliaImportJobStatus::CopyingDocuments,

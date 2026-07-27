@@ -15,12 +15,14 @@ use crate::models::algolia_import_job::{
 use crate::models::vm_inventory::VmInventory;
 use crate::repos::algolia_import_job_repo::{
     AlgoliaImportEngineAbsenceProof, AlgoliaImportReconciliationClaim,
-    AlgoliaImportReconciliationLease, AlgoliaImportReconciliationWriteOutcome,
-    AlgoliaImportTerminalFinalizationAuthority, AlgoliaImportTerminalFinalizationOutcome,
-    CatalogLifecycleTargetIdentity,
+    AlgoliaImportReconciliationLease, AlgoliaImportReconciliationWork,
+    AlgoliaImportReconciliationWriteOutcome, AlgoliaImportTerminalFinalizationAuthority,
+    AlgoliaImportTerminalFinalizationOutcome, CatalogLifecycleTargetIdentity,
 };
 use crate::repos::error::RepoError;
 use crate::repos::{PgDeploymentRepo, PgTenantRepo};
+
+use super::scrub::CLAIM_RECONCILIATION_JOBS_SQL;
 
 const MAX_RECONCILIATION_CLAIM_BATCH: i64 = 100;
 
@@ -50,6 +52,12 @@ struct TerminalStatePatch {
     state: AlgoliaImportJobState,
     terminal_at: DateTime<Utc>,
     destination_deployment_id: Option<Uuid>,
+}
+
+#[derive(sqlx::FromRow)]
+struct ClaimedReconciliationRow {
+    id: Uuid,
+    erased: bool,
 }
 
 pub(super) fn validate_state_write(
@@ -98,12 +106,13 @@ pub(super) async fn persist_job_state(
          resume_intent_generation=$7, documents_expected=$8, documents_imported=$9,
          documents_rejected=$10, settings_applied=$11, settings_unsupported=$12,
          synonyms_expected=$13, synonyms_imported=$14, synonyms_rejected=$15,
-         rules_expected=$16, rules_imported=$17, rules_rejected=$18, warnings=$19,
-         error_code=$20, error_message=$21, updated_at=NOW(),
-         resume_checkpoint=$22, resume_status_observed_at=$23,
-         resume_deadline=$24, resumable=$25, resume_count=$26,
-         worker_claimed_at=CASE WHEN $27 THEN NULL ELSE worker_claimed_at END,
-         worker_lease_expires_at=CASE WHEN $27 THEN NULL ELSE worker_lease_expires_at END
+         rules_expected=$16, rules_imported=$17, rules_rejected=$18,
+         terminal_outcome_observed=$19, warnings=$20,
+         error_code=$21, error_message=$22, updated_at=NOW(),
+         resume_checkpoint=$23, resume_status_observed_at=$24,
+         resume_deadline=$25, resumable=$26, resume_count=$27,
+         worker_claimed_at=CASE WHEN $28 THEN NULL ELSE worker_claimed_at END,
+         worker_lease_expires_at=CASE WHEN $28 THEN NULL ELSE worker_lease_expires_at END
          WHERE id=$1
          RETURNING *",
     )
@@ -125,7 +134,8 @@ pub(super) async fn persist_job_state(
     .bind(summary.rules_expected)
     .bind(summary.rules_imported)
     .bind(summary.rules_rejected)
-    .bind(&state.warnings)
+    .bind(state.terminal_outcome_observed)
+    .bind(serde_json::to_value(&state.warnings).expect("serialize Algolia import warnings"))
     .bind(state.error_code.map(AlgoliaImportErrorCode::as_str))
     .bind(&state.error_message)
     .bind(resume_checkpoint)
@@ -178,6 +188,8 @@ impl PgAlgoliaImportJobRepo {
         state.resume_mirror = None;
         state.resumable = false;
         state.summary = AlgoliaImportSummary::default();
+        state.terminal_outcome_observed = false;
+        state.warnings = Vec::new();
         state.error_code = Some(AlgoliaImportErrorCode::Interrupted);
         state.error_message = None;
         validate_transition(&current, &state)?;
@@ -291,6 +303,8 @@ impl PgAlgoliaImportJobRepo {
         state.resume_mirror = None;
         state.resumable = false;
         state.summary = fact.summary.clone();
+        state.terminal_outcome_observed = fact.terminal_outcome_observed;
+        state.warnings = fact.warnings.clone();
         state.error_code = fact.error_code;
         state.error_message = fact.error_message.clone();
         validate_transition(&current, &state)?;
@@ -331,51 +345,52 @@ impl PgAlgoliaImportJobRepo {
                 "reconciliation lease must expire after claim time".into(),
             ));
         }
-        let rows = sqlx::query_as::<_, AlgoliaImportJobRow>(
-            "WITH candidates AS (
-                 SELECT job.id
-                 FROM algolia_import_jobs AS job
-                 JOIN customers AS customer ON customer.id = job.customer_id
-                 WHERE job.erased_at IS NULL
-                   AND customer.status = 'active'
-                   AND customer.lifecycle_generation = job.lifecycle_generation
-                   AND (
-                       (
-                           job.engine_ack_state = 'pending'
-                           AND job.dispatch_intent_state IN ('ambiguous', 'committed')
-                           AND job.engine_job_id IS NOT NULL
-                       )
-                       OR (
-                           job.engine_ack_state = 'outbox_pending'
-                           AND job.dispatch_intent_state = 'committed'
-                           AND job.engine_job_id IS NOT NULL
-                           AND job.terminal_at IS NOT NULL
-                       )
-                   )
-                   AND (job.worker_lease_expires_at IS NULL
-                        OR job.worker_lease_expires_at <= $1)
-                 ORDER BY job.updated_at, job.id
-                 LIMIT $3
-                 FOR UPDATE OF customer, job SKIP LOCKED
-             )
-             UPDATE algolia_import_jobs AS job
-             SET worker_claimed_at = $1, worker_lease_expires_at = $2
-             FROM candidates
-             WHERE job.id = candidates.id
-             RETURNING job.*",
+        let claim_limit = limit.min(MAX_RECONCILIATION_CLAIM_BATCH);
+        let mut tx = self.pool.begin().await.map_err(repo_error)?;
+        let claimed_rows =
+            sqlx::query_as::<_, ClaimedReconciliationRow>(CLAIM_RECONCILIATION_JOBS_SQL)
+                .bind(now)
+                .bind(lease_expires_at)
+                .bind(claim_limit)
+                .fetch_all(&mut *tx)
+                .await
+                .map_err(repo_error)?;
+
+        let public_ids: Vec<_> = claimed_rows
+            .iter()
+            .filter(|row| !row.erased)
+            .map(|row| row.id)
+            .collect();
+        let erased_ids: Vec<_> = claimed_rows
+            .iter()
+            .filter(|row| row.erased)
+            .map(|row| row.id)
+            .collect();
+        let public_rows = sqlx::query_as::<_, AlgoliaImportJobRow>(
+            "SELECT * FROM algolia_import_jobs
+             WHERE id = ANY($1) AND erased_at IS NULL",
         )
-        .bind(now)
-        .bind(lease_expires_at)
-        .bind(limit.min(MAX_RECONCILIATION_CLAIM_BATCH))
-        .fetch_all(&self.pool)
+        .bind(&public_ids)
+        .fetch_all(&mut *tx)
         .await
         .map_err(repo_error)?;
-
-        let mut claims = rows
+        let mut claims = public_rows
             .into_iter()
             .map(AlgoliaImportJob::from)
             .map(AlgoliaImportReconciliationClaim::try_from)
             .collect::<Result<Vec<_>, _>>()?;
+        if !erased_ids.is_empty() {
+            claims.extend(
+                self.claim_erased_tombstone_jobs(&mut tx, &erased_ids)
+                    .await?,
+            );
+        }
+        if claims.len() != claimed_rows.len() {
+            return Err(RepoError::Conflict(
+                "claimed reconciliation batch could not be materialized".into(),
+            ));
+        }
+        tx.commit().await.map_err(repo_error)?;
         claims.sort_by_key(|claim| (claim.job.updated_at, claim.job.id));
         Ok(claims)
     }
@@ -480,8 +495,9 @@ async fn persist_terminal_state(
          settings_applied=$8, settings_unsupported=$9,
          synonyms_expected=$10, synonyms_imported=$11, synonyms_rejected=$12,
          rules_expected=$13, rules_imported=$14, rules_rejected=$15,
-         error_code=$16, error_message=$17, terminal_at=$18,
-         destination_deployment_id=$19,
+         terminal_outcome_observed=$16, warnings=$17,
+         error_code=$18, error_message=$19, terminal_at=$20,
+         destination_deployment_id=$21,
          worker_claimed_at=NULL, worker_lease_expires_at=NULL, updated_at=NOW()
          WHERE id=$1
          RETURNING *",
@@ -501,6 +517,8 @@ async fn persist_terminal_state(
     .bind(summary.rules_expected)
     .bind(summary.rules_imported)
     .bind(summary.rules_rejected)
+    .bind(patch.state.terminal_outcome_observed)
+    .bind(serde_json::to_value(&patch.state.warnings).expect("serialize Algolia import warnings"))
     .bind(patch.state.error_code.map(AlgoliaImportErrorCode::as_str))
     .bind(&patch.state.error_message)
     .bind(patch.terminal_at)
@@ -741,6 +759,8 @@ fn exact_terminal_replay(
     if current.status == fact.status
         && current.publication_disposition == fact.publication_disposition
         && current.summary == fact.summary
+        && current.terminal_outcome_observed == fact.terminal_outcome_observed
+        && current.warnings == fact.warnings
         && current.error_code == fact.error_code
         && current.error_message == fact.error_message
         && current.terminal_at == Some(fact.terminal_at)
@@ -776,6 +796,7 @@ impl TryFrom<AlgoliaImportJob> for AlgoliaImportReconciliationClaim {
                 claimed_at,
                 expires_at,
             },
+            work: AlgoliaImportReconciliationWork::Import,
             job,
         })
     }

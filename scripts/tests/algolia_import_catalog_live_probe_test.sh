@@ -88,11 +88,11 @@ if mutation == "altered_acceptance_oracle":
     payload["oracles"]["block_without_change"]["release_trigger"] = "timer_expiry"
 elif mutation == "privacy_scrub_transport_unavailable":
     payload["privacy_erasure_dependencies"][0]["status"] = "action_required"
+    payload["privacy_erasure_dependencies"][0]["reason"] = "privacy_scrub_transport_unavailable"
 elif mutation == "privacy_scrub_worker_unavailable":
-    payload["privacy_erasure_dependencies"][0]["status"] = "available"
     payload["privacy_erasure_dependencies"][1]["status"] = "action_required"
+    payload["privacy_erasure_dependencies"][1]["reason"] = "privacy_scrub_worker_unavailable"
 elif mutation == "privacy_boundary_control_unavailable":
-    payload["privacy_erasure_dependencies"][0]["status"] = "available"
     payload["privacy_erasure_dependencies"][1]["status"] = "available"
     payload["privacy_erasure_dependencies"][2]["status"] = "action_required"
 
@@ -135,8 +135,9 @@ rmdir "$FJCLOUD_INTEGRATION_PID_DIR" 2>/dev/null || true
   write_fake_command "$WORK_DIR/contract_check.sh" '#!/usr/bin/env bash
 set -euo pipefail
 printf "flapjack_dev_dir=%s args=%s\n" "${FLAPJACK_DEV_DIR:-}" "$*" >> "$CONTRACT_CHECK_LOG"
-[ "${CONTRACT_CHECK_SCENARIO:-success}" = "missing_scrub" ] && exit 2
+[ "${CONTRACT_CHECK_SCENARIO:-success}" = "missing_scrub" ] && exit 3
 [ "${CONTRACT_CHECK_SCENARIO:-success}" = "missing_ack_route" ] && exit 3
+[ "${CONTRACT_CHECK_SCENARIO:-success}" = "missing_receipt" ] && exit 3
 exit 0
 '
   write_fake_command "$WORK_DIR/caller_runner.sh" '#!/usr/bin/env bash
@@ -1277,11 +1278,25 @@ test_required_dependency_and_phase_failures_are_action_required() {
   setup_workspace
   run_probe --phases privacy_erasure
   assert_eq "$RUN_EXIT_CODE" "1" "privacy erasure remains a dependency-gated phase"
+  assert_contains "$RUN_STDOUT" "RESULT|status=ACTION_REQUIRED|reason=privacy_boundary_control_unavailable" \
+    "privacy erasure reports the missing deterministic boundary controls after engine transport and cloud worker are available"
+  assert_contains "$RUN_STDOUT" "DEPENDENCY|phase=privacy_erasure|id=authenticated_engine_seal_privacy_scrub|status=available" \
+    "privacy transport gate names the available merged engine contract"
+  assert_contains "$RUN_STDOUT" "DEPENDENCY|phase=privacy_erasure|id=cloud_erased_tombstone_scrub_worker|status=available" \
+    "cloud scrub worker gate names the verified production reconciliation owner"
+  assert_contains "$RUN_STDOUT" "DEPENDENCY|phase=privacy_erasure|id=deterministic_source_boundary_controls|status=action_required" \
+    "deterministic boundary controls remain the first missing privacy-erasure dependency"
+  assert_eq "$(cat "$WORK_DIR/up.log")" "" "deterministic boundary gate fails before stack start"
+
+  setup_workspace
+  copy_oracle "$DEFAULT_ORACLE" "$WORK_DIR/catalog_lifecycle_acceptance_oracles.json" privacy_scrub_transport_unavailable
+  run_probe --phases privacy_erasure
+  assert_eq "$RUN_EXIT_CODE" "1" "drifted oracle can still model an absent engine scrub transport"
   assert_contains "$RUN_STDOUT" "RESULT|status=ACTION_REQUIRED|reason=privacy_scrub_transport_unavailable" \
-    "privacy erasure reports the missing authenticated scrub transport"
+    "engine dependency reason is stable when the availability bit drifts"
   assert_contains "$RUN_STDOUT" "DEPENDENCY|phase=privacy_erasure|id=authenticated_engine_seal_privacy_scrub|status=action_required" \
-    "privacy transport gate names the missing contract"
-  assert_eq "$(cat "$WORK_DIR/up.log")" "" "privacy transport gate fails before stack start"
+    "drifted engine transport gate names the scrub contract"
+  assert_eq "$(cat "$WORK_DIR/up.log")" "" "drifted privacy transport gate fails before stack start"
 
   setup_workspace
   copy_oracle "$DEFAULT_ORACLE" "$WORK_DIR/catalog_lifecycle_acceptance_oracles.json" privacy_scrub_worker_unavailable
@@ -1305,15 +1320,27 @@ test_required_dependency_and_phase_failures_are_action_required() {
 
   setup_workspace
   CONTRACT_CHECK_SCENARIO=missing_scrub run_probe --phases catalog
-  assert_eq "$RUN_EXIT_CODE" "1" "engine contract mismatch should fail"
-  assert_contains "$RUN_STDOUT" "RESULT|status=ACTION_REQUIRED|reason=flapjack_dev_dir_mismatch" \
-    "engine contract mismatch emits ACTION_REQUIRED"
+  assert_eq "$RUN_EXIT_CODE" "1" "missing engine scrub route should fail"
+  assert_contains "$RUN_STDOUT" "RESULT|status=ACTION_REQUIRED|reason=engine_privacy_scrub_contract_unavailable" \
+    "missing scrub route emits its actionable dependency reason"
+  assert_eq "$(cat "$WORK_DIR/up.log")" "" "missing scrub route fails before stack start"
+  assert_eq "$(cat "$WORK_DIR/caller_runner.log")" "" "missing scrub route fails before caller work"
 
   setup_workspace
   CONTRACT_CHECK_SCENARIO=missing_ack_route run_probe --phases catalog
   assert_eq "$RUN_EXIT_CODE" "1" "missing engine ACK route should fail"
-  assert_contains "$RUN_STDOUT" "RESULT|status=ACTION_REQUIRED|reason=engine_ack_route_unavailable" \
+  assert_contains "$RUN_STDOUT" "RESULT|status=ACTION_REQUIRED|reason=engine_privacy_scrub_contract_unavailable" \
     "missing engine ACK route emits its actionable dependency reason"
+  assert_eq "$(cat "$WORK_DIR/up.log")" "" "missing ACK route fails before stack start"
+  assert_eq "$(cat "$WORK_DIR/caller_runner.log")" "" "missing ACK route fails before caller work"
+
+  setup_workspace
+  CONTRACT_CHECK_SCENARIO=missing_receipt run_probe --phases catalog
+  assert_eq "$RUN_EXIT_CODE" "1" "missing engine privacy scrub receipt should fail"
+  assert_contains "$RUN_STDOUT" "RESULT|status=ACTION_REQUIRED|reason=engine_privacy_scrub_contract_unavailable" \
+    "missing engine receipt emits its actionable dependency reason"
+  assert_eq "$(cat "$WORK_DIR/up.log")" "" "missing receipt fails before stack start"
+  assert_eq "$(cat "$WORK_DIR/caller_runner.log")" "" "missing receipt fails before caller work"
 }
 
 test_fixture_mutations_fail_closed_before_stack_start() {

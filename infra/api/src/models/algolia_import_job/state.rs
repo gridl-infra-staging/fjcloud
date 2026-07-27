@@ -2,9 +2,10 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use super::{
-    AlgoliaImportDispatchIntentState, AlgoliaImportEngineAckState, AlgoliaImportErrorCode,
-    AlgoliaImportJob, AlgoliaImportJobStatus, AlgoliaImportPublicationDisposition,
-    AlgoliaImportSummary, EngineResumeMirror,
+    validate_algolia_import_warnings, AlgoliaImportDispatchIntentState,
+    AlgoliaImportEngineAckState, AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportJobStatus,
+    AlgoliaImportPublicationDisposition, AlgoliaImportSummary, AlgoliaImportWarning,
+    EngineResumeMirror,
 };
 
 #[derive(Debug, Clone)]
@@ -21,7 +22,8 @@ pub struct AlgoliaImportJobState {
     pub resumable: bool,
     pub resume_count: i64,
     pub summary: AlgoliaImportSummary,
-    pub warnings: serde_json::Value,
+    pub terminal_outcome_observed: bool,
+    pub warnings: Vec<AlgoliaImportWarning>,
     pub error_code: Option<AlgoliaImportErrorCode>,
     pub error_message: Option<String>,
 }
@@ -47,6 +49,30 @@ impl AlgoliaImportJobState {
                 .has_valid_terminal_disposition(self.publication_disposition)
         {
             return Err("terminal status has an invalid publication disposition");
+        }
+        if !matches!(
+            self.status,
+            AlgoliaImportJobStatus::Completed | AlgoliaImportJobStatus::CompletedWithWarnings
+        ) && (self.terminal_outcome_observed || !self.warnings.is_empty())
+        {
+            return Err("terminal outcome details require successful terminal status");
+        }
+        validate_algolia_import_warnings(&self.warnings)?;
+        if !self.terminal_outcome_observed && !self.warnings.is_empty() {
+            return Err("terminal warnings require an observed terminal outcome");
+        }
+        if self.status == AlgoliaImportJobStatus::Completed && !self.warnings.is_empty() {
+            return Err("completed status cannot carry terminal warnings");
+        }
+        if self.status == AlgoliaImportJobStatus::CompletedWithWarnings
+            && (!self.terminal_outcome_observed || self.warnings.is_empty())
+        {
+            // Mirror AlgoliaImportTerminalFact::new: a completed-with-warnings
+            // status is only valid when the terminal outcome was observed AND it
+            // carries at least one warning. The generic persisted-state writer
+            // must reject the same shapes the terminal-fact constructor rejects,
+            // otherwise the two validators disagree on the same invariant.
+            return Err("completed-with-warnings status requires observed terminal warnings");
         }
         if self.resumable
             && (!matches!(self.status, Failed | Interrupted)
@@ -124,7 +150,15 @@ impl AlgoliaImportJobState {
         if self.resume_count < previous.resume_count {
             return Err("resume count cannot rewind");
         }
-        if !summary_is_monotonic(&self.summary, &previous.summary) {
+        if previous.terminal_outcome_observed && !self.terminal_outcome_observed {
+            return Err("terminal outcome observation cannot rewind");
+        }
+        if !summary_is_monotonic(
+            &self.summary,
+            self.terminal_outcome_observed,
+            &previous.summary,
+            previous.terminal_outcome_observed,
+        ) {
             return Err("summary progress cannot rewind");
         }
         if is_in_place_update(previous, self)
@@ -171,6 +205,7 @@ impl TryFrom<&AlgoliaImportJob> for AlgoliaImportJobState {
             resumable: job.resumable,
             resume_count: job.resume_count,
             summary: job.summary.clone(),
+            terminal_outcome_observed: job.terminal_outcome_observed,
             warnings: job.warnings.clone(),
             error_code: job.error_code,
             error_message: job.error_message.clone(),
@@ -354,23 +389,32 @@ fn is_resume_accepted_transition(
         && next.error_code.is_none()
 }
 
-fn summary_is_monotonic(next: &AlgoliaImportSummary, previous: &AlgoliaImportSummary) -> bool {
+fn summary_is_monotonic(
+    next: &AlgoliaImportSummary,
+    next_terminal_outcome_observed: bool,
+    previous: &AlgoliaImportSummary,
+    previous_terminal_outcome_observed: bool,
+) -> bool {
+    let first_terminal_observation =
+        next_terminal_outcome_observed && !previous_terminal_outcome_observed;
+    let terminal_counts_are_monotonic = first_terminal_observation
+        || (next.settings_applied >= previous.settings_applied
+            && next.synonyms_imported >= previous.synonyms_imported
+            && next.rules_imported >= previous.rules_imported);
+
     next.documents_expected >= previous.documents_expected
         && next.documents_imported >= previous.documents_imported
         && next.documents_rejected >= previous.documents_rejected
-        && next.settings_applied >= previous.settings_applied
         && next.settings_unsupported >= previous.settings_unsupported
         && next.synonyms_expected >= previous.synonyms_expected
-        && next.synonyms_imported >= previous.synonyms_imported
         && next.synonyms_rejected >= previous.synonyms_rejected
         && next.rules_expected >= previous.rules_expected
-        && next.rules_imported >= previous.rules_imported
         && next.rules_rejected >= previous.rules_rejected
+        && terminal_counts_are_monotonic
 }
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
     use uuid::Uuid;
 
     use super::*;
@@ -401,7 +445,8 @@ mod tests {
                 rules_imported: 0,
                 rules_rejected: 0,
             },
-            warnings: json!([]),
+            terminal_outcome_observed: false,
+            warnings: Vec::new(),
             error_code: None,
             error_message: None,
         }
@@ -414,6 +459,60 @@ mod tests {
         next.publication_disposition = AlgoliaImportPublicationDisposition::Promoted;
         next.engine_ack_state = AlgoliaImportEngineAckState::OutboxPending;
         next.summary.documents_imported = 1;
+
+        assert_eq!(next.validate_transition_from(&previous), Ok(()));
+    }
+
+    #[test]
+    fn unobserved_terminal_counts_cannot_rewind_during_in_place_updates() {
+        let mut previous = linked_state(AlgoliaImportJobStatus::CopyingDocuments);
+        previous.summary.settings_applied = 2;
+        previous.summary.synonyms_imported = 3;
+        previous.summary.rules_imported = 4;
+        let mut next = previous.clone();
+        next.summary.settings_applied = 1;
+        next.summary.synonyms_imported = 2;
+        next.summary.rules_imported = 3;
+
+        assert_eq!(
+            next.validate_transition_from(&previous),
+            Err("summary progress cannot rewind")
+        );
+    }
+
+    #[test]
+    fn completed_with_warnings_requires_observed_terminal_outcome() {
+        // Regression: the generic persisted-state validator must reject a
+        // completed-with-warnings state whose terminal outcome was never
+        // observed, exactly as AlgoliaImportTerminalFact::new does. Before the
+        // fix, validate() only rejected the observed && empty-warnings shape and
+        // silently accepted this un-observed one.
+        let mut state = linked_state(AlgoliaImportJobStatus::CompletedWithWarnings);
+        state.publication_disposition = AlgoliaImportPublicationDisposition::Promoted;
+        state.engine_ack_state = AlgoliaImportEngineAckState::OutboxPending;
+        state.terminal_outcome_observed = false;
+        state.warnings = Vec::new();
+
+        assert_eq!(
+            state.validate(),
+            Err("completed-with-warnings status requires observed terminal warnings")
+        );
+    }
+
+    #[test]
+    fn first_terminal_observation_can_replace_provisional_terminal_counts() {
+        let mut previous = linked_state(AlgoliaImportJobStatus::Promoting);
+        previous.summary.settings_applied = 2;
+        previous.summary.synonyms_imported = 3;
+        previous.summary.rules_imported = 4;
+        let mut next = previous.clone();
+        next.status = AlgoliaImportJobStatus::Completed;
+        next.publication_disposition = AlgoliaImportPublicationDisposition::Promoted;
+        next.engine_ack_state = AlgoliaImportEngineAckState::OutboxPending;
+        next.terminal_outcome_observed = true;
+        next.summary.settings_applied = 0;
+        next.summary.synonyms_imported = 1;
+        next.summary.rules_imported = 2;
 
         assert_eq!(next.validate_transition_from(&previous), Ok(()));
     }

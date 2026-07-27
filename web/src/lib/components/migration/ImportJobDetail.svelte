@@ -177,10 +177,14 @@
 				class="rounded border border-flapjack-ink/20 p-3 text-sm text-flapjack-ink"
 			>
 				<span class="font-medium">{row.label}</span>:
-				{formatNumber(row.imported)} imported · {formatNumber(row.expected)} expected · {formatNumber(
-					row.rejected
-				)}
-				rejected
+				{#if row.kind === 'documents'}
+					{formatNumber(row.imported)} imported · {formatNumber(row.expected)} expected ·
+					{formatNumber(row.rejected)} rejected
+				{:else if row.kind === 'settings'}
+					{row.applied ? 'Applied' : 'Not applied'}
+				{:else}
+					{formatNumber(row.imported)} imported
+				{/if}
 			</div>
 		{/each}
 	</section>

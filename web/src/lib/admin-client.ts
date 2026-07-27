@@ -247,6 +247,23 @@ export interface VmDetail {
 	tenants: VmTenant[];
 }
 
+export type VmLifecycleEventType =
+	| 'detected_dead'
+	| 'replacement_refused'
+	| 'replacement_provisioning'
+	| 'replacement_booted'
+	| 'tenants_replaced'
+	| 'replacement_failed'
+	| 'replacement_completed';
+
+export interface VmLifecycleEvent {
+	id: string;
+	vm_id: string;
+	event_type: VmLifecycleEventType;
+	detail: Record<string, unknown>;
+	created_at: string;
+}
+
 export interface QuotaValues {
 	max_query_rps: number;
 	max_write_rps: number;
@@ -554,17 +571,21 @@ export class AdminClient extends BaseClient {
 	}
 
 	getVmDetail(id: string): Promise<VmDetail> {
-		return this.get<VmDetail>(`/admin/vms/${id}`);
+		return this.get<VmDetail>(`/admin/vms/${pathSegment(id)}`);
+	}
+
+	getVmLifecycleEvents(id: string): Promise<VmLifecycleEvent[]> {
+		return this.get<VmLifecycleEvent[]>(`/admin/vms/${pathSegment(id)}/lifecycle-events`);
 	}
 
 	getVmHostMetrics(id: string): Promise<VmHostMetricsResponse | null> {
-		return this.get<VmHostMetricsResponse | null>(`/admin/vms/${id}/host-metrics`);
+		return this.get<VmHostMetricsResponse | null>(`/admin/vms/${pathSegment(id)}/host-metrics`);
 	}
 
 	/** Kill the local Flapjack process for a VM (POST /admin/vms/{id}/kill).
 	 *  Local-mode only — returns 400 for non-localhost URLs. */
 	killVm(id: string): Promise<KillVmResponse> {
-		return this.post<KillVmResponse>(`/admin/vms/${id}/kill`);
+		return this.post<KillVmResponse>(`/admin/vms/${pathSegment(id)}/kill`);
 	}
 
 	getQuotas(tenantId: string): Promise<TenantQuotasResponse> {

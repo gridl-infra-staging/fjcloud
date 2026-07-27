@@ -807,7 +807,8 @@ import json
 import sys
 
 allowed = {
-    "id", "status", "mode", "destination", "source", "summary", "warnings",
+    "id", "status", "mode", "destination", "source", "summary",
+    "terminalOutcomeObserved", "warnings",
     "error", "cancelRequestedAt", "resumeProvenance", "resumeDeadline",
     "resumable", "resumeCount", "publicationDisposition", "createdAt", "updatedAt",
 }
@@ -843,7 +844,8 @@ import json
 import sys
 
 allowed = {
-    "id", "status", "mode", "destination", "source", "summary", "warnings",
+    "id", "status", "mode", "destination", "source", "summary",
+    "terminalOutcomeObserved", "warnings",
     "error", "cancelRequestedAt", "resumeProvenance", "resumeDeadline",
     "resumable", "resumeCount", "publicationDisposition", "createdAt", "updatedAt",
 }
@@ -880,7 +882,9 @@ PY
 # a privacy signal. Scan the owned database plus API/engine runtime captures.
 secret_canary_match_count() {
     local count=0 db_hits file_hits
-    db_hits="$(db_scalar "SELECT COUNT(*) FROM algolia_import_jobs AS job WHERE erased_at IS NULL AND CAST(job AS text) LIKE '%${DISPOSABLE_KEY}%'; /* probe:secret_leak */")"
+    db_hits="$(
+        db_scalar "SELECT COUNT(*) FROM algolia_import_jobs AS job WHERE erased_at IS NULL AND strpos(CAST(job AS text), '${DISPOSABLE_KEY}') > 0; /* probe:secret_leak */"
+    )"
     [[ "$db_hits" =~ ^[0-9]+$ ]] || db_hits=1
     count=$((count + db_hits))
     if [ -d "$PID_DIR" ] && [ -n "$DISPOSABLE_KEY" ]; then

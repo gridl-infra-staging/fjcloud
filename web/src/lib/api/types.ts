@@ -160,6 +160,7 @@ export type { SecuritySource, SecuritySourcesResponse } from './types/security_s
 export type {
 	PublicRegionHealth,
 	PublicRegionUtilization,
+	PublicTopologyCounts,
 	PublicRegionInfrastructure,
 	PublicInfrastructureOverall,
 	PublicInfrastructureResponse
@@ -211,6 +212,7 @@ export type {
 	PublicAlgoliaImportSource,
 	PublicAlgoliaImportError,
 	AlgoliaImportSummary,
+	AlgoliaImportWarning,
 	PublicAlgoliaImportJob,
 	PublicAlgoliaImportJobPage
 } from './types_algolia_migration';

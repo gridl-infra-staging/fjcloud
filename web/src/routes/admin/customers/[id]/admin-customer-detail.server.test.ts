@@ -139,12 +139,12 @@ describe('load', () => {
 	it('redirects to admin login when the session is missing', async () => {
 		const { load } = await import('./+page.server');
 
-		await expect(load(loadContext(async () => jsonResponse({}), undefined, false))).rejects.toMatchObject(
-			{
-				status: 303,
-				location: '/admin/login'
-			}
-		);
+		await expect(
+			load(loadContext(async () => jsonResponse({}), undefined, false))
+		).rejects.toMatchObject({
+			status: 303,
+			location: '/admin/login'
+		});
 	});
 
 	it('retries transient tenant-detail failures before succeeding', async () => {

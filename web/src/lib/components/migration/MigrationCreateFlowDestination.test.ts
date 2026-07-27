@@ -99,6 +99,8 @@ function importJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 		resumable: false,
 		resumeCount: 0,
 		publicationDisposition: 'not_started',
+		terminalOutcomeObserved: false,
+		warnings: [],
 		createdAt: '2026-07-18T10:00:00Z',
 		updatedAt: '2026-07-18T10:00:00Z',
 		...overrides

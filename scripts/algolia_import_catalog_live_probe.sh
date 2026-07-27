@@ -781,7 +781,7 @@ main() {
         contract_status=$?
         case "$contract_status" in
             2) finish_action_required "flapjack_dev_dir_mismatch" ;;
-            3) finish_action_required "engine_ack_route_unavailable" ;;
+            3) finish_action_required "engine_privacy_scrub_contract_unavailable" ;;
             *) finish_action_required "flapjack_dev_dir_unavailable" ;;
         esac
     }

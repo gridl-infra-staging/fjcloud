@@ -6,8 +6,8 @@ use uuid::Uuid;
 
 use crate::models::algolia_import_job::{AlgoliaImportDestinationKind, AlgoliaImportTerminalFact};
 use crate::models::{
-    AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportJobState, NewAlgoliaImportJob,
-    NewAlgoliaReplaceImportJob,
+    AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportJobState, AlgoliaSealScrubWork,
+    NewAlgoliaImportJob, NewAlgoliaReplaceImportJob,
 };
 use crate::repos::RepoError;
 
@@ -213,6 +213,13 @@ pub struct AlgoliaImportReconciliationLease {
 pub struct AlgoliaImportReconciliationClaim {
     pub job: AlgoliaImportJob,
     pub lease: AlgoliaImportReconciliationLease,
+    pub work: AlgoliaImportReconciliationWork,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AlgoliaImportReconciliationWork {
+    Import,
+    ErasedTombstone(AlgoliaSealScrubWork),
 }
 
 /// Result of a fenced observation write. Losing the lease is an expected race,

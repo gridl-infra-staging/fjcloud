@@ -152,7 +152,7 @@ pub(super) async fn seed_retained_job_with_internals(
          VALUES ($1, $2, $3, 'TESTAPP123', 'create', $3, 'us-east-1', $4,
                  'phys-secret-uid', 'routing-secret-id', 'source_products', $5,
                  'sha256:secret-fingerprint', 4096,
-                 '[{\"rawVendorPayload\":\"raw-warning-canary\"}]'::jsonb,
+                 '[]'::jsonb,
                  'backend_unavailable', 'raw producer error canary',
                  1, 1, 100, 0, $6, $6)",
     )

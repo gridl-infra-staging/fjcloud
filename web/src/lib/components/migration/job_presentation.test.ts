@@ -7,6 +7,7 @@ import type {
 	PublicAlgoliaImportJob
 } from '$lib/api/types';
 import {
+	algoliaImportCompatibilityWarning,
 	algoliaImportSummaryRows,
 	describeAlgoliaImportAdmission,
 	describeAlgoliaImportError,
@@ -104,9 +105,10 @@ const ALL_STATUSES: Array<{
 ];
 
 function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgoliaImportJob {
+	const status = overrides.status ?? 'completed';
 	return {
 		id: 'job_123',
-		status: 'completed',
+		status,
 		mode: 'create',
 		destination: {
 			kind: 'create',
@@ -136,6 +138,8 @@ function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 		resumable: false,
 		resumeCount: 0,
 		publicationDisposition: 'promoted',
+		terminalOutcomeObserved: status === 'completed' || status === 'completed_with_warnings',
+		warnings: [],
 		createdAt: '2026-07-18T10:00:00Z',
 		updatedAt: '2026-07-18T10:05:00Z',
 		...overrides
@@ -181,13 +185,149 @@ describe('Algolia import job presentation seam', () => {
 		expect(describeAlgoliaImportStatus(expected.status)).toEqual(expected);
 	});
 
-	it('summarizes the DTO counts directly instead of deriving fake percentages', () => {
-		expect(algoliaImportSummaryRows(publicJob())).toEqual([
-			{ label: 'Documents', imported: 13, expected: 17, rejected: 4 },
-			{ label: 'Settings', imported: 2, expected: 3, rejected: 1 },
-			{ label: 'Synonyms', imported: 3, expected: 5, rejected: 2 },
-			{ label: 'Rules', imported: 6, expected: 7, rejected: 1 }
+	it.each(['copying_documents', 'failed', 'cancelled', 'completed'] as const)(
+		'renders documents only for %s jobs without an observed terminal outcome',
+		(status) => {
+			const rows = algoliaImportSummaryRows(publicJob({ status, terminalOutcomeObserved: false }));
+
+			expect(rows).toEqual([
+				{ kind: 'documents', label: 'Documents', imported: 13, expected: 17, rejected: 4 }
+			]);
+			expect(JSON.stringify(rows)).not.toMatch(/Settings|Synonyms|Rules/);
+		}
+	);
+
+	it('preserves an observed all-zero terminal outcome without fabricating denominators', () => {
+		expect(
+			algoliaImportSummaryRows(
+				publicJob({
+					summary: {
+						...publicJob().summary,
+						settingsApplied: 0,
+						synonymsImported: 0,
+						rulesImported: 0
+					}
+				})
+			)
+		).toEqual([
+			{ kind: 'documents', label: 'Documents', imported: 13, expected: 17, rejected: 4 },
+			{ kind: 'settings', label: 'Settings', applied: false },
+			{ kind: 'imported', label: 'Synonyms', imported: 0 },
+			{ kind: 'imported', label: 'Rules', imported: 0 }
 		]);
+	});
+
+	it('presents only observed terminal facts for a nonzero outcome', () => {
+		expect(algoliaImportSummaryRows(publicJob())).toEqual([
+			{ kind: 'documents', label: 'Documents', imported: 13, expected: 17, rejected: 4 },
+			{ kind: 'settings', label: 'Settings', applied: true },
+			{ kind: 'imported', label: 'Synonyms', imported: 3 },
+			{ kind: 'imported', label: 'Rules', imported: 6 }
+		]);
+	});
+
+	it('does not infer compatibility warnings from rejected summary counts', () => {
+		expect(algoliaImportCompatibilityWarning(publicJob({ warnings: [] }))).toBeNull();
+	});
+
+	it('does not publish warning payloads before a successful observed terminal outcome', () => {
+		expect(
+			algoliaImportCompatibilityWarning(
+				publicJob({
+					status: 'copying_documents',
+					terminalOutcomeObserved: false,
+					warnings: [
+						{
+							code: 'unsupported_synonym_type',
+							message: 'must not render',
+							resource: 'synonyms',
+							pageIndex: 2,
+							itemIndex: 5,
+							jsonPath: '$.synonyms[5]'
+						}
+					]
+				})
+			)
+		).toBeNull();
+	});
+
+	it('summarizes typed terminal warnings without producer-authored messages', () => {
+		const producerMessage = 'credential-canary-from-arbitrary-message';
+		const warning = algoliaImportCompatibilityWarning(
+			publicJob({
+				status: 'completed_with_warnings',
+				warnings: [
+					{
+						code: 'unsupported_synonym_type',
+						message: producerMessage,
+						resource: 'synonyms',
+						pageIndex: 2,
+						itemIndex: 5,
+						jsonPath: '$.synonyms[5]'
+					},
+					{
+						code: 'unsupported_setting',
+						message: 'source-payload-canary',
+						resource: 'settings',
+						pageIndex: null,
+						itemIndex: null,
+						jsonPath: '$.settings.attributesForFaceting[2]'
+					}
+				]
+			})
+		);
+
+		expect(warning).toBe(
+			'Import completed with 2 compatibility warnings: synonyms — unsupported synonym type (page 2, item 5, path $.synonyms[5]); settings — unsupported setting (path $.settings.attributesForFaceting[2]).'
+		);
+		expect(warning).not.toContain(producerMessage);
+		expect(warning).not.toContain('source-payload-canary');
+	});
+
+	it('bounds warning detail while preserving the total warning count', () => {
+		const warnings = Array.from({ length: 5 }, (_, index) => ({
+			code: `warning_${index}`,
+			message: `producer-message-${index}`,
+			resource: `resource_${index}`,
+			pageIndex: index,
+			itemIndex: null,
+			jsonPath: `$[${index}]`
+		}));
+
+		const warning = algoliaImportCompatibilityWarning(
+			publicJob({ status: 'completed_with_warnings', warnings })
+		);
+
+		expect(warning).toContain('Import completed with 5 compatibility warnings:');
+		expect(warning).toContain('resource 0 — warning 0');
+		expect(warning).toContain('resource 2 — warning 2');
+		expect(warning).toContain('and 2 more warnings');
+		expect(warning).not.toContain('resource 3');
+		expect(warning).not.toContain('producer-message');
+	});
+
+	it('bounds individual warning fields from the typed producer contract', () => {
+		const hiddenTail = 'must-not-survive-warning-truncation';
+		const longValue = `${'x'.repeat(160)}${hiddenTail}`;
+		const warning = algoliaImportCompatibilityWarning(
+			publicJob({
+				status: 'completed_with_warnings',
+				warnings: [
+					{
+						code: longValue,
+						message: 'producer-message',
+						resource: longValue,
+						pageIndex: null,
+						itemIndex: null,
+						jsonPath: `$.${longValue}`
+					}
+				]
+			})
+		);
+
+		expect(warning?.length).toBeLessThan(350);
+		expect(warning).not.toContain(hiddenTail);
+		expect(warning).not.toContain('producer-message');
 	});
 
 	it.each([
@@ -227,14 +367,14 @@ describe('Algolia import job presentation seam', () => {
 			message:
 				'Destination safety is unproven. Reconcile the destination before retrying into this target.'
 		});
-		expect(describeAlgoliaImportJobActions(failed, { admitted: true })).toEqual({
+		expect(describeAlgoliaImportJobActions(failed, { admitted: true }, NO_CAPABILITIES)).toEqual({
 			canViewIndex: false,
 			canTestSearch: false,
 			canCancel: false,
 			canResume: false,
 			canStartNewImport: false,
 			canEnterRetryKey: false,
-			retryCopy: 'Retry is blocked until destination reconciliation is complete.'
+			retryCopy: null
 		});
 	});
 
@@ -339,9 +479,14 @@ describe('Algolia import job presentation seam', () => {
 				undefined,
 				capabilities
 			)
-		).toMatchObject({
+		).toEqual({
+			canViewIndex: false,
+			canTestSearch: false,
 			canCancel: false,
-			canResume: false
+			canResume: false,
+			canStartNewImport: false,
+			canEnterRetryKey: false,
+			retryCopy: null
 		});
 	});
 

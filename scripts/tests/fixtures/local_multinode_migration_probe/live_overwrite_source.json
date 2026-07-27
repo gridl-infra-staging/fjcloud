@@ -1,0 +1,20 @@
+[
+  {
+    "objectID": "overwrite-doc-1",
+    "title": "Quartz adapter replacement",
+    "category": "hardware",
+    "revision": "overwrite"
+  },
+  {
+    "objectID": "overwrite-doc-2",
+    "title": "Velvet compass replacement",
+    "category": "navigation",
+    "revision": "overwrite"
+  },
+  {
+    "objectID": "overwrite-doc-3",
+    "title": "Ivory beacon",
+    "category": "navigation",
+    "revision": "overwrite"
+  }
+]

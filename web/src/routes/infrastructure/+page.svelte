@@ -3,8 +3,6 @@
 	import { formatNumber } from '$lib/format';
 	import {
 		healthBadgeFor,
-		parseInfrastructureHealth,
-		parseInfrastructureUtilization,
 		utilizationBadgeFor,
 		type InfrastructureRouteData
 	} from './infrastructure_contract';
@@ -42,10 +40,16 @@
 			{data.message}
 		</div>
 	{:else}
-		<section class="mt-8 grid gap-4 sm:grid-cols-3" aria-label="Infrastructure summary">
+		<section
+			class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+			aria-label="Infrastructure summary"
+		>
 			<div class="rounded-lg border border-flapjack-ink/20 bg-white p-5">
 				{#if data.infrastructure.overall.total_vms === 0 || data.infrastructure.overall.availability_pct === null}
-					<p data-testid="infrastructure-availability" class="text-xl font-semibold text-flapjack-ink">
+					<p
+						data-testid="infrastructure-availability"
+						class="text-xl font-semibold text-flapjack-ink"
+					>
 						Availability unavailable
 					</p>
 				{:else}
@@ -62,8 +66,38 @@
 			</div>
 			<div class="rounded-lg border border-flapjack-ink/20 bg-white p-5">
 				<p class="text-sm text-flapjack-ink/60">VMs</p>
-				<p class="mt-1 text-3xl font-bold text-flapjack-ink">
+				<p
+					data-testid="infrastructure-total-vm_count"
+					class="mt-1 text-3xl font-bold text-flapjack-ink"
+				>
 					{formatNumber(data.infrastructure.overall.total_vms)}
+				</p>
+			</div>
+			<div class="rounded-lg border border-flapjack-ink/20 bg-white p-5">
+				<p class="text-sm text-flapjack-ink/60">Healthy VMs</p>
+				<p
+					data-testid="infrastructure-total-healthy_count"
+					class="mt-1 text-3xl font-bold text-flapjack-ink"
+				>
+					{formatNumber(data.infrastructure.overall.healthy_count)}
+				</p>
+			</div>
+			<div class="rounded-lg border border-flapjack-ink/20 bg-white p-5">
+				<p class="text-sm text-flapjack-ink/60">Unhealthy VMs</p>
+				<p
+					data-testid="infrastructure-total-unhealthy_count"
+					class="mt-1 text-3xl font-bold text-flapjack-ink"
+				>
+					{formatNumber(data.infrastructure.overall.unhealthy_count)}
+				</p>
+			</div>
+			<div class="rounded-lg border border-flapjack-ink/20 bg-white p-5">
+				<p class="text-sm text-flapjack-ink/60">Unknown VMs</p>
+				<p
+					data-testid="infrastructure-total-unknown_count"
+					class="mt-1 text-3xl font-bold text-flapjack-ink"
+				>
+					{formatNumber(data.infrastructure.overall.unknown_count)}
 				</p>
 			</div>
 		</section>
@@ -79,7 +113,10 @@
 				</p>
 			{:else}
 				<div class="mt-4 overflow-x-auto rounded-lg border border-flapjack-ink/20 bg-white">
-					<table class="w-full border-collapse text-left text-sm" aria-label="Infrastructure regions">
+					<table
+						class="w-full border-collapse text-left text-sm"
+						aria-label="Infrastructure regions"
+					>
 						<thead class="bg-flapjack-ink/5 text-flapjack-ink/70">
 							<tr>
 								<th scope="col" class="px-4 py-3 font-medium">Region ID</th>
@@ -89,20 +126,24 @@
 								<th scope="col" class="px-4 py-3 font-medium">Health</th>
 								<th scope="col" class="px-4 py-3 font-medium">Utilization</th>
 								<th scope="col" class="px-4 py-3 text-right font-medium">VMs</th>
+								<th scope="col" class="px-4 py-3 text-right font-medium">Healthy</th>
+								<th scope="col" class="px-4 py-3 text-right font-medium">Unhealthy</th>
+								<th scope="col" class="px-4 py-3 text-right font-medium">Unknown</th>
 							</tr>
 						</thead>
 						<tbody class="divide-y divide-flapjack-ink/10">
 							{#each data.infrastructure.regions as region (region.region)}
-								{@const health = healthBadgeFor(parseInfrastructureHealth(region.health))}
-								{@const utilization = utilizationBadgeFor(
-									parseInfrastructureUtilization(region.utilization)
-								)}
+								{@const health = healthBadgeFor(region.health)}
+								{@const utilization = utilizationBadgeFor(region.utilization)}
 								<tr data-testid={`infrastructure-region-row-${region.region}`}>
 									<th scope="row" class="whitespace-nowrap px-4 py-4 font-medium text-flapjack-ink">
 										{region.region}
 									</th>
-									<td class="whitespace-nowrap px-4 py-4 text-flapjack-ink/80">{region.provider}</td>
-									<td class="whitespace-nowrap px-4 py-4 text-flapjack-ink/80">{region.display_name}</td>
+									<td class="whitespace-nowrap px-4 py-4 text-flapjack-ink/80">{region.provider}</td
+									>
+									<td class="whitespace-nowrap px-4 py-4 text-flapjack-ink/80"
+										>{region.display_name}</td
+									>
 									<td class="whitespace-nowrap px-4 py-4 text-flapjack-ink/80">
 										{region.provider_location}
 									</td>
@@ -122,8 +163,29 @@
 											{utilization.label}
 										</span>
 									</td>
-									<td class="px-4 py-4 text-right text-flapjack-ink/80">
+									<td
+										data-testid={`infrastructure-region-vm_count-${region.region}`}
+										class="px-4 py-4 text-right text-flapjack-ink/80"
+									>
 										{formatNumber(region.vm_count)}
+									</td>
+									<td
+										data-testid={`infrastructure-region-healthy_count-${region.region}`}
+										class="px-4 py-4 text-right text-flapjack-ink/80"
+									>
+										{formatNumber(region.healthy_count)}
+									</td>
+									<td
+										data-testid={`infrastructure-region-unhealthy_count-${region.region}`}
+										class="px-4 py-4 text-right text-flapjack-ink/80"
+									>
+										{formatNumber(region.unhealthy_count)}
+									</td>
+									<td
+										data-testid={`infrastructure-region-unknown_count-${region.region}`}
+										class="px-4 py-4 text-right text-flapjack-ink/80"
+									>
+										{formatNumber(region.unknown_count)}
 									</td>
 								</tr>
 							{/each}

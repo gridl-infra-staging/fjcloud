@@ -8,7 +8,10 @@ describe('ApiClient public infrastructure', () => {
 			overall: {
 				availability_pct: null,
 				total_regions: 1,
-				total_vms: 0
+				total_vms: 0,
+				healthy_count: 0,
+				unhealthy_count: 0,
+				unknown_count: 0
 			},
 			regions: [
 				{
@@ -18,7 +21,10 @@ describe('ApiClient public infrastructure', () => {
 					provider_location: 'N. Virginia',
 					health: 'unknown',
 					utilization: null,
-					vm_count: 0
+					vm_count: 0,
+					healthy_count: 0,
+					unhealthy_count: 0,
+					unknown_count: 0
 				}
 			]
 		};

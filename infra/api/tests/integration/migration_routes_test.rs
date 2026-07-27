@@ -962,13 +962,14 @@ fn assert_public_job_body(
         "resumeCheckpoint",
         "workerClaimedAt",
         "workerLeaseExpiresAt",
-        "warnings",
     ] {
         assert!(
             body.get(forbidden).is_none(),
             "public job body leaked internal field {forbidden}: {body}"
         );
     }
+    assert_eq!(body["terminalOutcomeObserved"], json!(false));
+    assert_eq!(body["warnings"], json!([]));
     assert!(body["error"].get("message").is_none());
     assert!(!body.to_string().contains("temporary-create-key"));
 }

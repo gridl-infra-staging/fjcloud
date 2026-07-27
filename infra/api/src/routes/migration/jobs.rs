@@ -10,7 +10,10 @@ use utoipa::ToSchema;
 
 use crate::auth::AuthenticatedTenant;
 use crate::errors::ApiError;
-use crate::models::algolia_import_job::{AlgoliaImportDestinationKind, AlgoliaImportJob};
+use crate::models::algolia_import_job::{
+    validate_algolia_import_warnings, AlgoliaImportDestinationKind, AlgoliaImportJob,
+    AlgoliaImportWarning,
+};
 use crate::models::AlgoliaImportErrorCode;
 use crate::repos::{
     clamp_algolia_import_job_list_limit, AlgoliaImportDispatchReplayIdentity,
@@ -95,6 +98,8 @@ pub struct PublicAlgoliaImportJob {
     destination: PublicAlgoliaImportDestination,
     source: PublicAlgoliaImportSource,
     summary: crate::models::algolia_import_job::AlgoliaImportSummary,
+    terminal_outcome_observed: bool,
+    warnings: Vec<AlgoliaImportWarning>,
     error: Option<PublicAlgoliaImportError>,
     cancel_requested_at: Option<String>,
     resume_provenance: Option<String>,
@@ -285,6 +290,11 @@ fn map_submit_admission_error(error: AlgoliaImportAdmissionError) -> ApiError {
 }
 
 pub(super) fn public_algolia_import_job(job: AlgoliaImportJob) -> PublicAlgoliaImportJob {
+    let warnings = if validate_algolia_import_warnings(&job.warnings).is_ok() {
+        job.warnings
+    } else {
+        Vec::new()
+    };
     PublicAlgoliaImportJob {
         id: job.id,
         status: job.status,
@@ -298,6 +308,8 @@ pub(super) fn public_algolia_import_job(job: AlgoliaImportJob) -> PublicAlgoliaI
             name: job.source_name,
         },
         summary: job.summary,
+        terminal_outcome_observed: job.terminal_outcome_observed,
+        warnings,
         error: job.error_code.map(|code| PublicAlgoliaImportError { code }),
         cancel_requested_at: job.cancel_requested_at.map(|value| value.to_rfc3339()),
         resume_provenance: job
@@ -559,6 +571,7 @@ mod tests {
     use crate::models::algolia_import_job::{
         AlgoliaImportDispatchIntentState, AlgoliaImportEngineAckState, AlgoliaImportJobStatus,
         AlgoliaImportPublicationDisposition, AlgoliaImportSummary,
+        MAX_ALGOLIA_IMPORT_WARNING_MESSAGE_BYTES,
     };
 
     #[test]
@@ -572,9 +585,24 @@ mod tests {
             serialized["error"],
             json!({ "code": "backend_unavailable" })
         );
-        assert!(serialized.get("warnings").is_none());
+        assert_eq!(serialized["terminalOutcomeObserved"], json!(true));
+        assert_eq!(
+            serialized["warnings"],
+            json!([{
+                "code": "unsupported_synonym_type",
+                "message": "Skipped one synonym",
+                "resource": "synonyms",
+                "pageIndex": 2,
+                "itemIndex": 5,
+                "jsonPath": "$.synonyms[5]"
+            }])
+        );
         assert!(serialized["source"].get("appId").is_none());
         assert!(serialized["error"].get("message").is_none());
+        assert!(serialized.get("rawProducerPayload").is_none());
+        assert!(serialized.get("algoliaAppId").is_none());
+        assert!(serialized.get("sourceApiKey").is_none());
+        assert!(serialized.get("upstreamBody").is_none());
         assert_eq!(
             serialized["summary"],
             json!({
@@ -604,6 +632,39 @@ mod tests {
         assert_eq!(serialized["resumable"], json!(true));
         assert_eq!(serialized["resumeCount"], json!(2));
         assert_eq!(serialized["publicationDisposition"], json!("unchanged"));
+    }
+
+    #[test]
+    fn public_algolia_import_job_distinguishes_absent_from_all_zero_terminal_outcome() {
+        let mut absent = import_job_with_lifecycle_fields();
+        absent.terminal_outcome_observed = false;
+        absent.summary = AlgoliaImportSummary::default();
+        absent.warnings = Vec::new();
+        let absent = serde_json::to_value(public_algolia_import_job(absent)).unwrap();
+
+        let mut observed = import_job_with_lifecycle_fields();
+        observed.terminal_outcome_observed = true;
+        observed.summary = AlgoliaImportSummary::default();
+        observed.warnings = Vec::new();
+        let observed = serde_json::to_value(public_algolia_import_job(observed)).unwrap();
+
+        assert_eq!(absent["summary"], observed["summary"]);
+        assert_eq!(absent["terminalOutcomeObserved"], json!(false));
+        assert_eq!(observed["terminalOutcomeObserved"], json!(true));
+        assert_eq!(observed["summary"]["settingsApplied"], json!(0));
+        assert_eq!(observed["summary"]["synonymsImported"], json!(0));
+        assert_eq!(observed["summary"]["rulesImported"], json!(0));
+        assert_eq!(observed["warnings"], json!([]));
+    }
+
+    #[test]
+    fn public_algolia_import_job_omits_out_of_bounds_warnings() {
+        let mut job = import_job_with_lifecycle_fields();
+        job.warnings[0].message = "x".repeat(MAX_ALGOLIA_IMPORT_WARNING_MESSAGE_BYTES + 1);
+
+        let serialized = serde_json::to_value(public_algolia_import_job(job)).unwrap();
+
+        assert_eq!(serialized["warnings"], json!([]));
     }
 
     #[test]
@@ -690,7 +751,15 @@ mod tests {
             resumable: true,
             resume_count: 2,
             summary: summary_fixture(),
-            warnings: json!({"skippedReplicas": []}),
+            terminal_outcome_observed: true,
+            warnings: vec![AlgoliaImportWarning {
+                code: "unsupported_synonym_type".to_string(),
+                message: "Skipped one synonym".to_string(),
+                resource: "synonyms".to_string(),
+                page_index: Some(2),
+                item_index: Some(5),
+                json_path: "$.synonyms[5]".to_string(),
+            }],
             error_code: Some(AlgoliaImportErrorCode::BackendUnavailable),
             error_message: Some("raw producer error".to_string()),
             status: AlgoliaImportJobStatus::Failed,

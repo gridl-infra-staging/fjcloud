@@ -431,9 +431,10 @@ async function arrangeTrackedSeededIndex({
 	seedCustomerIndex: SeedCustomerIndexFn;
 	name: string;
 	region?: string;
-}): Promise<void> {
+}): Promise<CreatedFixtureUser> {
 	const customer = await arrangeTrackedCustomerSession(page, { emailPrefix: name });
 	await seedCustomerIndex(customer, name, region);
+	return customer;
 }
 
 async function startFailingDeleteFlapjackEndpoint(): Promise<{
@@ -868,7 +869,7 @@ test.describe('Indexes list page', () => {
 });
 
 test.describe('Index detail page', () => {
-	test('detail page has a delete button with confirmation', async ({
+	test('row 14 @p0_coverage', async ({
 		page,
 		arrangeTrackedCustomerSession,
 		seedCustomerIndex,
@@ -876,18 +877,31 @@ test.describe('Index detail page', () => {
 	}) => {
 		test.setTimeout(120_000);
 		const name = `e2e-del-${Date.now()}`;
-		await arrangeTrackedSeededIndex({
+		const listLoadWitnessName = `e2e-del-witness-${Date.now()}`;
+		const customer = await arrangeTrackedSeededIndex({
 			page,
 			arrangeTrackedCustomerSession,
 			seedCustomerIndex,
 			name,
 			region: testRegion
 		});
+		await seedCustomerIndex(customer, listLoadWitnessName, testRegion);
 
 		await gotoIndexDetailWithRetry(page, name);
 
-		// The delete button should be visible on the page
-		await expect(page.getByRole('button', { name: /delete/i })).toBeVisible();
+		await page.getByRole('button', { name: 'Delete this index' }).click();
+		await page.getByPlaceholder(name, { exact: true }).fill(name);
+		await page.getByRole('button', { name: 'Permanently Delete' }).click();
+
+		await expect(page).toHaveURL('/console/indexes');
+		const listLoadWitnessRow = page.getByRole('row').filter({
+			has: page.getByRole('link', { name: listLoadWitnessName, exact: true })
+		});
+		await expect(listLoadWitnessRow).toBeVisible({ timeout: 30_000 });
+		const deletedIndexRow = page.getByRole('row').filter({
+			has: page.getByRole('link', { name, exact: true })
+		});
+		await expect(deletedIndexRow).toHaveCount(0);
 	});
 
 	test('Search tab shows real search results from Flapjack', async ({

@@ -128,9 +128,12 @@ export function registerFreshOnboardingAccount(setupName: string, storageStatePa
 		await page.getByRole('button', { name: 'Sign Up' }).click();
 
 		const signupAlert = page.getByRole('alert');
+		// Whichever branch loses the race keeps waiting and then rejects on timeout.
+		// Swallow both rejections so the race always settles and the URL check below
+		// reports the actionable diagnostic instead of an opaque Playwright timeout.
 		await Promise.race([
-			page.waitForURL(/\/console/, { timeout: 15_000 }),
-			signupAlert.waitFor({ state: 'visible', timeout: 15_000 })
+			page.waitForURL(/\/console/, { timeout: 15_000, waitUntil: 'commit' }).catch(() => {}),
+			signupAlert.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {})
 		]);
 
 		if (!/\/console/.test(page.url())) {

@@ -655,10 +655,10 @@ export const actions: Actions = {
 		const api = createApiClient(locals.user?.token);
 		try {
 			await api.deleteIndex(params.name);
-			return { deleted: true };
 		} catch (e) {
 			return failForDashboardAction(e, { deleteError: errorMessage(e, 'Failed to delete index') });
 		}
+		throw redirect(303, '/console/indexes');
 	},
 	appendSecuritySource: async ({ request, locals, params }) => {
 		return appendSecuritySourceAction({

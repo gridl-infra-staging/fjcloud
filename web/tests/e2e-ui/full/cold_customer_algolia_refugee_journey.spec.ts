@@ -331,8 +331,12 @@ async function assertAdjacentCustomerSurfaces(params: {
 	await expect(
 		page.getByRole('heading', { name: 'Migrate from Algolia', exact: true })
 	).toBeVisible();
-	await expect(page.getByLabel('App ID')).toBeVisible();
-	await expect(page.getByLabel('API Key')).toBeVisible();
+	// This journey only proves the refugee sees a coherent explanation here. The
+	// fail-closed contract (no create flow, no credential inputs, no import CTAs)
+	// has a single owner in full/migration-recovery.spec.ts — do not re-assert it.
+	await expect(page.getByTestId('migration-unavailable')).toContainText(
+		'Algolia migration is temporarily unavailable while we replace the importer.'
+	);
 
 	await gotoProtectedRoute({ page, path: '/console/billing', email, password, loginAs });
 	await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible();
@@ -351,7 +355,7 @@ async function assertAdjacentCustomerSurfaces(params: {
 }
 
 test.describe('Cold customer Algolia-refugee journey', () => {
-	test('public pricing to first uploaded-record search stays coherent on staging', async ({
+	test('row 19 @p0_coverage public pricing to first uploaded-record search stays coherent on staging', async ({
 		page,
 		createFreshSignupIdentity,
 		createUser,

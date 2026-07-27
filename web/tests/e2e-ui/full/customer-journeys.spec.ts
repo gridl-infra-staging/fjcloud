@@ -73,7 +73,7 @@ test.describe('Fresh-user customer journey — onboard to first search hit', () 
 	// Shared account, no retries — a retry would see stale wizard state
 	test.describe.configure({ retries: 0 });
 
-	test('onboard, add document, search, cleanup', async ({ page }) => {
+	test('row 20 @p0_coverage onboard, add document, search, cleanup', async ({ page }) => {
 		// Full journey can take 2+ minutes on shared-VM stacks due to index
 		// provisioning and credential generation.
 		test.setTimeout(180_000);

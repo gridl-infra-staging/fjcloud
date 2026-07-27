@@ -1,0 +1,219 @@
+{
+  "receipt_version": 1,
+  "stage": "L20 Stage 2",
+  "generated_at_utc": "2026-07-27T04:37:04Z",
+  "final_candidate_sha": "fcc900e4c01a9388719583429de9ccf6f05832c7",
+  "source_pins": {
+    "f10c": {
+      "merge_sha": "24bb1521202fdfae46dc798c2639e452e6b53825",
+      "immutable_tip_sha": "352e90822756a9a75762f3e1392074508f4e412d",
+      "obsolete_l1k_tip_sha": "393a41c5cd798e730cdf6feda9c8250f9298b227",
+      "path": "docs/runbooks/evidence/algolia-migration/20260726_f10c_clean_salvage_receipt.json",
+      "blob_sha": "91b33ca007b1dd14001f49a535378519a7af5787",
+      "sha256": "818397ef2e546862541656329ffce643b407d0a5a1e70c0460876fa1b58751df"
+    },
+    "f10e": {
+      "pinned_engine_sha": "320132fcd12a71d441d70a30c34ce66c64f21d46",
+      "validated_head_sha": "c14fd322842c42cf2527616a69f708257194a9ef",
+      "path": "engine/docs2/4_EVIDENCE/privacy_scrub_transport_receipt.json",
+      "blob_sha": "4200fcd624a5e6930d100802353233427f19b6e9",
+      "sha256_stage1": "5b8c1ebfa528bcc8c1303c8d511d5a73d72dcb8357d67f14c4ddd8f6786c2cbe",
+      "sha256_stage2": "5b8c1ebfa528bcc8c1303c8d511d5a73d72dcb8357d67f14c4ddd8f6786c2cbe"
+    }
+  },
+  "scope": {
+    "fjcloud_live_path": "PgCustomerRepo::hard_delete -> claim_reconciliation_jobs -> FlapjackProxy::privacy_scrub_algolia_migration -> mark_engine_acknowledged -> compaction",
+    "f10e_executed_live": false,
+    "f10e_scope_note": "F10E was pinned by the generated contract and reviewed receipt, not executed live in this lane.",
+    "raw_payload_bodies_recorded": false,
+    "database_urls_recorded": false,
+    "secrets_recorded": false
+  },
+  "database": {
+    "connection_locality": "loopback_only",
+    "database_name_pattern": "fjcloud_l20_privacy_exact_erasure_$$",
+    "stage2_database_name": "fjcloud_l20_privacy_exact_erasure_29425",
+    "database_url_recorded": false,
+    "createdb_host": "127.0.0.1",
+    "select_1_verified": true,
+    "cleanup_state": "dropped"
+  },
+  "owners_reused": [
+    "infra/api/src/repos/pg_customer_repo/hard_delete.rs",
+    "infra/api/src/repos/pg_algolia_import_job_scrub.rs",
+    "infra/api/src/repos/pg_algolia_import_job_repo.rs",
+    "infra/api/src/services/flapjack_proxy/migration.rs",
+    "infra/api/tests/integration/privacy_exact_erasure_acceptance.rs",
+    "infra/api/tests/integration/algolia_import_job_domain_transitions.rs",
+    "infra/api/tests/integration/algolia_migration_engine_contract_test.rs",
+    "infra/api/src/services/algolia_import/reconciliation_postgres_tests.rs",
+    "scripts/update_algolia_migration_engine_contract.sh",
+    "scripts/dev/regenerate_integration_test_root.py"
+  ],
+  "exact_absence_resource_classes": [
+    "objectIDs",
+    "synonymIDs",
+    "ruleIDs"
+  ],
+  "seeded_denominators": {
+    "total_imported_before_erasure": 6,
+    "per_class": {
+      "objectIDs": {
+        "expected": 2,
+        "imported": 2
+      },
+      "synonymIDs": {
+        "expected": 2,
+        "imported": 2
+      },
+      "ruleIDs": {
+        "expected": 2,
+        "imported": 2
+      }
+    }
+  },
+  "final_counts": {
+    "durable_acks": 1,
+    "transmissions": 2,
+    "tombstones": 1,
+    "compacted_tombstones": 1,
+    "exact_absence_class_counts": {
+      "objectIDs": 0,
+      "synonymIDs": 0,
+      "ruleIDs": 0
+    },
+    "residue_counts": {
+      "customer_rows": 0,
+      "non_null_erasure_handles": 0,
+      "active_reservations": 0,
+      "handle_mappings": 0,
+      "active_claims": 0,
+      "vm_retirement_blockers": 0,
+      "uncompacted_scrub_handles": 0
+    }
+  },
+  "red_mutations": [
+    {
+      "name": "declared_class_absence",
+      "log_path": "/tmp/l20_red/mutation_1_declared_class_absence.log",
+      "failure_excerpt": "declared class objectIDs residue remains: documents_expected=2, documents_imported=2",
+      "passed_count": 0,
+      "failed_count": 1,
+      "filtered_count": 1579,
+      "skipped_count": 0
+    },
+    {
+      "name": "transmission_count",
+      "log_path": "/tmp/l20_red/mutation_2_transmission_count.log",
+      "failure_excerpt": "assertion `left == right` failed: loss replay must send exactly twice; left: 3; right: 2",
+      "passed_count": 0,
+      "failed_count": 1,
+      "filtered_count": 1579,
+      "skipped_count": 0
+    },
+    {
+      "name": "absence_gate",
+      "log_path": "/tmp/l20_red/mutation_3_absence_gate.log",
+      "failure_excerpt": "engine-disposition tombstone ACK must fail with exact-target absence conflict",
+      "passed_count": 0,
+      "failed_count": 1,
+      "filtered_count": 1579,
+      "skipped_count": 0
+    },
+    {
+      "name": "pre_ack_residue",
+      "log_path": "/tmp/l20_red/mutation_4a_pre_ack_residue.log",
+      "failure_excerpt": "assertion `left == right` failed: final durable ACK count; left: 0; right: 1",
+      "passed_count": 0,
+      "failed_count": 1,
+      "filtered_count": 1579,
+      "skipped_count": 0
+    },
+    {
+      "name": "pre_erasure_customer",
+      "log_path": "/tmp/l20_red/mutation_4b_pre_erasure_customer.log",
+      "failure_excerpt": "assertion `left == right` failed: erased customer identity residue; left: 1; right: 0",
+      "passed_count": 0,
+      "failed_count": 1,
+      "filtered_count": 1579,
+      "skipped_count": 0
+    }
+  ],
+  "green_commands": [
+    {
+      "name": "reconciliation_postgres_tests",
+      "command": "cd infra && DATABASE_URL=\"$L20_DATABASE_URL\" cargo test -p api services::algolia_import::reconciliation_postgres_tests:: -- --test-threads=1 --nocapture",
+      "log_path": "/tmp/l20_stage2_reconciliation.log",
+      "passed_count": 14,
+      "failed_count": 0,
+      "filtered_count": 870,
+      "skipped_count": 0,
+      "skip_marker_absent": true
+    },
+    {
+      "name": "algolia_import_job_domain_transitions",
+      "command": "cd infra && DATABASE_URL=\"$L20_DATABASE_URL\" cargo test -p api --test platform algolia_import_job_domain_transitions:: -- --test-threads=1 --nocapture",
+      "log_path": "/tmp/l20_stage2_domain_transitions.log",
+      "passed_count": 35,
+      "failed_count": 0,
+      "filtered_count": 1547,
+      "skipped_count": 0,
+      "skip_marker_absent": true
+    },
+    {
+      "name": "algolia_migration_engine_contract_test",
+      "command": "cd infra && DATABASE_URL=\"$L20_DATABASE_URL\" cargo test -p api --test platform algolia_migration_engine_contract_test:: -- --test-threads=1 --nocapture",
+      "log_path": "/tmp/l20_stage2_contract_test.log",
+      "passed_count": 9,
+      "failed_count": 0,
+      "filtered_count": 1573,
+      "skipped_count": 0,
+      "skip_marker_absent": true
+    },
+    {
+      "name": "privacy_exact_erasure_acceptance",
+      "command": "cd infra && DATABASE_URL=\"$L20_DATABASE_URL\" cargo test -p api --test platform privacy_exact_erasure_acceptance::privacy_exact_erasure_acceptance_reaches_exact_absence -- --test-threads=1 --nocapture",
+      "log_path": "/tmp/l20_stage2_acceptance.log",
+      "passed_count": 1,
+      "failed_count": 0,
+      "filtered_count": 1581,
+      "skipped_count": 0,
+      "skip_marker_absent": true
+    },
+    {
+      "name": "contract_updater_test",
+      "command": "bash scripts/tests/update_algolia_migration_engine_contract_test.sh",
+      "log_path": "/tmp/l20_stage2_update_contract_test.log",
+      "passed_count": 1,
+      "failed_count": 0,
+      "filtered_count": 0,
+      "skipped_count": 0,
+      "skip_marker_absent": true
+    },
+    {
+      "name": "contract_check_pinned_temp_checkout",
+      "command": "FLAPJACK_DEV_DIR=/tmp/l20_flapjack_pinned bash scripts/update_algolia_migration_engine_contract.sh --check",
+      "log_path": "/tmp/l20_stage2_update_contract_check_pinned_tmp.log",
+      "passed_count": 2,
+      "failed_count": 0,
+      "filtered_count": 3792,
+      "skipped_count": 0,
+      "skip_marker_absent": true
+    },
+    {
+      "name": "integration_root_regenerator_check",
+      "command": "python3 scripts/dev/regenerate_integration_test_root.py --check",
+      "log_path": "/tmp/l20_stage2_regen_check.log",
+      "passed_count": 1,
+      "failed_count": 0,
+      "filtered_count": 0,
+      "skipped_count": 0,
+      "skip_marker_absent": true
+    }
+  ],
+  "notes": [
+    "The originally requested FLAPJACK_DEV_DIR=/Users/stuart/repos/gridl-dev/flapjack_dev check failed because that checkout HEAD was 6b5f2b598766302e54bd0a0947dbab19025893c8, not the contract-pinned engine SHA.",
+    "The corrected check used a throwaway local clone at /tmp/l20_flapjack_pinned detached at 320132fcd12a71d441d70a30c34ce66c64f21d46; no shared Flapjack checkout branch or HEAD was moved.",
+    "No raw scrub payload bodies, database URLs, API keys, or secret values are recorded."
+  ]
+}

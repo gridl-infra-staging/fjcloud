@@ -167,6 +167,8 @@ ROOT_GROUPS: dict[str, tuple[str, ...]] = {
         "pg_webhook_event_repo_test",
         "placement_test",
         "pricing_compare_test",
+        "privacy_exact_erasure_acceptance",
+        "privacy_exact_erasure_receipt_test",
         "provisioner_test",
         "provisioning_teardown_seam_test",
         "public_infrastructure_test",

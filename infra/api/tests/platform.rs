@@ -165,6 +165,10 @@ mod pg_webhook_event_repo_test;
 mod placement_test;
 #[path = "integration/pricing_compare_test.rs"]
 mod pricing_compare_test;
+#[path = "integration/privacy_exact_erasure_acceptance.rs"]
+mod privacy_exact_erasure_acceptance;
+#[path = "integration/privacy_exact_erasure_receipt_test.rs"]
+mod privacy_exact_erasure_receipt_test;
 #[path = "integration/provisioner_test.rs"]
 mod provisioner_test;
 #[path = "integration/provisioning_teardown_seam_test.rs"]

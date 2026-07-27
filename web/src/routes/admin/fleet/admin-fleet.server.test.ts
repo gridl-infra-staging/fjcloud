@@ -1,28 +1,17 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isActionFailure } from '@sveltejs/kit';
 import type { ActionFailure } from '@sveltejs/kit';
-import type { VmHostMetricsResponse } from '$lib/admin-client';
-import { parseRealPipelineOracle } from '../../../../tests/fixtures/real_pipeline_oracle';
-import { FLEET_FIXTURES, REPLICA_FIXTURES, VM_FIXTURES } from './admin_fleet_fixtures';
+import type { VmHostMetricsResponse, VmInventoryItem } from '$lib/admin-client';
+import {
+	FLEET_FIXTURES,
+	REAL_PIPELINE_ORACLE,
+	REPLICA_FIXTURES,
+	VM_FIXTURES
+} from './admin_fleet_fixtures';
 
 vi.mock('$env/dynamic/private', () => ({
 	env: new Proxy({}, { get: (_target, prop) => process.env[prop as string] })
 }));
-
-const REAL_PIPELINE_ORACLE = parseRealPipelineOracle(
-	JSON.parse(
-		readFileSync(
-			join(
-				process.cwd(),
-				'..',
-				'docs/runbooks/evidence/local-real-pipeline-oracle/2026_07_26_stage_03/oracle_redacted.json'
-			),
-			'utf8'
-		)
-	)
-);
 
 const HOST_METRICS_FIXTURE: VmHostMetricsResponse = {
 	id: 'metrics-aaaaaaaa-0001-0000-0000-000000000001',
@@ -363,6 +352,42 @@ describe('Fleet page server load', () => {
 });
 
 describe('Fleet page server actions', () => {
+	it('rejects valid remote vm ids before calling the kill endpoint', async () => {
+		const { actions } = await import('./+page.server');
+		const remoteVm: VmInventoryItem = {
+			...VM_FIXTURES[0],
+			id: 'vm-remote-0001',
+			flapjack_url: 'https://remote.example.test'
+		};
+		const requestedPaths: string[] = [];
+		const form = new FormData();
+		form.set('vmId', remoteVm.id);
+
+		const result = await actions.killVm({
+			request: new Request('http://example.test/admin/fleet', {
+				method: 'POST',
+				body: form
+			}),
+			fetch: async (input: string | URL | Request) => {
+				const path = requestPath(input);
+				requestedPaths.push(path);
+				if (path.endsWith('/admin/vms')) {
+					return new Response(JSON.stringify([remoteVm]), { status: 200 });
+				}
+				if (path.includes('/kill')) {
+					return new Response(JSON.stringify({ region: 'remote', port: 9999 }), { status: 200 });
+				}
+				return new Response(JSON.stringify({ error: `unexpected path ${path}` }), { status: 500 });
+			}
+		} as never);
+
+		expectActionFailure<{ error: string }>(result);
+		expect(result.status).toBe(403);
+		expect(result.data).toEqual({ error: 'VM is not eligible for local kill' });
+		expect(requestedPaths).toHaveLength(1);
+		expect(requestedPaths[0]).toMatch(/\/admin\/vms$/);
+	});
+
 	it('rejects vm ids with path-control characters before calling the admin API', async () => {
 		const { actions } = await import('./+page.server');
 		const fetchSpy = vi.fn(async () => new Response(JSON.stringify({}), { status: 200 }));

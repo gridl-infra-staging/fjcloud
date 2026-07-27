@@ -291,15 +291,12 @@ describe('Fleet dashboard', () => {
 			form: null
 		});
 
-		// This summary counts deployment rows, not canonical VM inventory rows.
 		expect(screen.getByText('Total Deployments')).toBeInTheDocument();
 		expect(screen.getByTestId('total-deployments')).toHaveTextContent('5');
-		// By status
 		expect(screen.getByTestId('running-count')).toHaveTextContent('2');
 		expect(screen.getByTestId('provisioning-count')).toHaveTextContent('1');
 		expect(screen.getByTestId('stopped-count')).toHaveTextContent('1');
 		expect(screen.getByTestId('failed-count')).toHaveTextContent('1');
-		// Unhealthy count
 		expect(screen.getByTestId('unhealthy-count')).toHaveTextContent('2');
 	});
 
@@ -311,28 +308,22 @@ describe('Fleet dashboard', () => {
 			form: null
 		});
 
-		// Table headers — must include Provider
-		// Use exact anchors (^/$) to avoid /ID/i matching "Provider"
 		expect(screen.getByRole('columnheader', { name: /^ID$/i })).toBeInTheDocument();
 		expect(screen.getByRole('columnheader', { name: /^Region$/i })).toBeInTheDocument();
 		expect(screen.getByRole('columnheader', { name: /^Provider$/i })).toBeInTheDocument();
 		expect(screen.getByRole('columnheader', { name: /^Status$/i })).toBeInTheDocument();
 		expect(screen.getByRole('columnheader', { name: /^Health$/i })).toBeInTheDocument();
 
-		// All 5 deployment rows rendered (plus header row)
 		const rows = screen.getAllByRole('row');
-		// header + 5 data rows
 		expect(rows.length).toBe(6);
 		expect(screen.getByTestId('fleet-row-aaaaaaaa-0001-0000-0000-000000000001')).toHaveTextContent(
 			'running'
 		);
 
-		// Verify deployment regions appear in the table
 		expect(screen.getAllByText('us-east-1')).toHaveLength(3);
 		expect(screen.getAllByText('eu-central-1')).toHaveLength(1);
 		expect(screen.getAllByText('eu-north-1')).toHaveLength(1);
 
-		// Verify provider labels appear in the table
 		expect(screen.getAllByText('aws')).toHaveLength(3);
 		expect(screen.getAllByText('hetzner')).toHaveLength(2);
 	});
@@ -635,7 +626,6 @@ describe('Fleet dashboard', () => {
 
 		expect(screen.getByRole('columnheader', { name: /^Replica placement$/i })).toBeInTheDocument();
 
-		// First VM is the primary for the seeded replica.
 		const primaryCell = screen.getByTestId(
 			'capacity-replicas-vm-aaaaaaaa-0001-0000-0000-000000000001'
 		);
@@ -645,7 +635,6 @@ describe('Fleet dashboard', () => {
 			'Replica regions: eu-west-1'
 		]);
 
-		// Second VM hosts the replica copy.
 		const replicaHostCell = screen.getByTestId(
 			'capacity-replicas-vm-aaaaaaaa-0002-0000-0000-000000000002'
 		);
@@ -655,7 +644,6 @@ describe('Fleet dashboard', () => {
 			'Hosts replica: eu-west-1'
 		]);
 
-		// Third VM has neither role.
 		const noRoleCell = screen.getByTestId(
 			'capacity-replicas-vm-bbbbbbbb-0003-0000-0000-000000000003'
 		);
@@ -682,16 +670,13 @@ describe('Fleet dashboard', () => {
 			form: null
 		});
 
-		// Select "running" status filter
 		const statusFilter = screen.getByTestId('status-filter');
 		await fireEvent.change(statusFilter, { target: { value: 'running' } });
 
-		// Only running VMs should be visible in the table body
 		const tableBody = screen.getByTestId('fleet-table-body');
 		const rows = within(tableBody).getAllByRole('row');
 		expect(rows).toHaveLength(2);
 
-		// Verify every visible row actually has "running" status
 		rows.forEach((row) => {
 			expect(within(row).getByText('running')).toBeInTheDocument();
 		});
@@ -705,16 +690,13 @@ describe('Fleet dashboard', () => {
 			form: null
 		});
 
-		// Select "hetzner" provider filter
 		const providerFilter = screen.getByTestId('provider-filter');
 		await fireEvent.change(providerFilter, { target: { value: 'hetzner' } });
 
-		// Only Hetzner VMs should be visible (2 out of 5)
 		const tableBody = screen.getByTestId('fleet-table-body');
 		const rows = within(tableBody).getAllByRole('row');
 		expect(rows).toHaveLength(2);
 
-		// Verify every visible row actually has "hetzner" provider
 		rows.forEach((row) => {
 			expect(within(row).getByText('hetzner')).toBeInTheDocument();
 		});
@@ -756,7 +738,6 @@ describe('Fleet dashboard', () => {
 		expect(providerLabels).toContain('GCP');
 		expect(providerLabels).toContain('OCI');
 
-		// Summary cards should still reflect known status buckets while total tracks all deployments.
 		expect(screen.getByTestId('total-deployments')).toHaveTextContent('7');
 		expect(screen.getByTestId('running-count')).toHaveTextContent('3');
 

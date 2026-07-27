@@ -11,6 +11,19 @@ import { fail } from '@sveltejs/kit';
 
 const VM_ID_PATTERN = /^[A-Za-z0-9-]+$/;
 
+function isLocalVmUrl(url: string): boolean {
+	try {
+		const parsed = new URL(url);
+		return (
+			parsed.hostname === '127.0.0.1' ||
+			parsed.hostname === 'localhost' ||
+			parsed.hostname === '::1'
+		);
+	} catch {
+		return false;
+	}
+}
+
 async function loadHostMetricsByVmId(
 	client: AdminClient,
 	vms: VmInventoryItem[]
@@ -77,6 +90,14 @@ export const actions: Actions = {
 
 		const client = createAdminClient(undefined, platform?.env);
 		client.setFetch(fetch);
+		const vms = await client.listVms().catch(() => null);
+		if (!vms) {
+			return fail(503, { error: 'VM inventory unavailable' });
+		}
+		const vm = vms.find((candidate) => candidate.id === vmId);
+		if (!vm || !isLocalVmUrl(vm.flapjack_url)) {
+			return fail(403, { error: 'VM is not eligible for local kill' });
+		}
 
 		try {
 			const result = await client.killVm(vmId);

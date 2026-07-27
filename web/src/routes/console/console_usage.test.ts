@@ -1,7 +1,14 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/svelte';
 import type { DailyUsageEntry, EstimatedBillResponse, UsageSummaryResponse } from '$lib/api/types';
 import { formatCents, formatNumber, formatPeriod } from '$lib/format';
+import {
+	parseRealPipelineOracle,
+	type RealPipelineOracle
+} from '../../../tests/fixtures/real_pipeline_oracle';
 import { layoutTestDefaults } from './layout-test-context';
 import {
 	completedOnboarding,
@@ -50,6 +57,71 @@ vi.mock('d3-scale', () => ({
 }));
 
 import DashboardPage from './+page.svelte';
+
+const REAL_PIPELINE_ORACLE_SPECIMEN_PATH = resolve(
+	process.cwd(),
+	'../docs/runbooks/evidence/local-real-pipeline-oracle/2026_07_26_stage_03/oracle_redacted.json'
+);
+const realPipelineOraclePayload = JSON.parse(
+	readFileSync(REAL_PIPELINE_ORACLE_SPECIMEN_PATH, 'utf8')
+) as unknown;
+const realPipelineOracle = parseRealPipelineOracle(realPipelineOraclePayload);
+
+function dailyUsageFromOracle(oracle: RealPipelineOracle): DailyUsageEntry[] {
+	const { usage_daily } = oracle.metering;
+	return [
+		{
+			date: usage_daily.target_date,
+			region: usage_daily.region,
+			search_requests: usage_daily.search_requests,
+			write_operations: usage_daily.write_operations,
+			// Neutral filler: the oracle proves only the daily search and write counters.
+			storage_gb: 0,
+			document_count: 0
+		}
+	];
+}
+
+function expectedRealPipelineDailyRow(): string[] {
+	const { usage_daily } = realPipelineOracle.metering;
+	return [
+		usage_daily.target_date,
+		formatNumber(usage_daily.search_requests),
+		formatNumber(usage_daily.write_operations)
+	];
+}
+
+function renderDailyUsageCells(dailyUsage: DailyUsageEntry[]): string[] {
+	render(DashboardPage, {
+		data: {
+			...layoutTestDefaults,
+			user: null,
+			usage: sampleUsage,
+			dailyUsage,
+			month: '2026-07',
+			estimate: null,
+			indexes: sampleIndexes,
+			onboardingStatus: completedOnboarding
+		}
+	});
+
+	const rows = within(screen.getByTestId('usage-chart')).getAllByRole('row').slice(1);
+	expect(rows).toHaveLength(1);
+	return within(rows[0])
+		.getAllByRole('cell')
+		.map((cell) => cell.textContent ?? '');
+}
+
+function expectRealPipelineDailyRowAgreement(cells: string[]): void {
+	expect(cells).toEqual(expectedRealPipelineDailyRow());
+}
+
+type RealPipelineDailyRowMismatch = {
+	cell: 'date' | 'search' | 'write';
+	index: number;
+	expected: string;
+	actual: string;
+};
 
 afterEach(() => {
 	cleanup();
@@ -158,6 +230,87 @@ describe('Dashboard usage page', () => {
 			expect(row.getByText(day.searches)).toBeInTheDocument();
 			expect(row.getByText(day.writes)).toBeInTheDocument();
 		});
+	});
+
+	it('renders the July 26 real-pipeline daily usage counters exactly', () => {
+		const { metering } = realPipelineOracle;
+		expect(metering.usage_daily.search_requests).toBe(8);
+		expect(metering.usage_daily.write_operations).toBe(6);
+		expect(metering.target_date).toBe('2026-07-26');
+		expect(metering.usage_daily.region).toBe('us-east-1');
+		expect(metering.usage_daily.rows_affected).toBe(1);
+		expect(metering.post_search_requests - metering.pre_search_requests).toBe(9 - 1);
+		expect(metering.post_write_operations - metering.pre_write_operations).toBe(11 - 5);
+
+		// This specimen has one region row for the target day, so the rendered
+		// cross-region daily total must equal its raw counters exactly.
+		const cells = renderDailyUsageCells(dailyUsageFromOracle(realPipelineOracle));
+		expectRealPipelineDailyRowAgreement(cells);
+		expect(cells).toEqual(['2026-07-26', formatNumber(8), formatNumber(6)]);
+	});
+
+	it.each([
+		{
+			name: 'search counter off by one',
+			mismatch: {
+				cell: 'search' as const,
+				index: 1,
+				expected: formatNumber(8),
+				actual: formatNumber(9)
+			},
+			mutate(payload: RealPipelineOracle) {
+				payload.metering.expected_search_requests = 9;
+				payload.metering.post_search_requests = 10;
+				payload.metering.usage_daily.search_requests = 9;
+			}
+		},
+		{
+			name: 'write counter off by one',
+			mismatch: {
+				cell: 'write' as const,
+				index: 2,
+				expected: formatNumber(6),
+				actual: formatNumber(7)
+			},
+			mutate(payload: RealPipelineOracle) {
+				payload.metering.expected_write_operations = 7;
+				payload.metering.post_write_operations = 12;
+				payload.metering.usage_daily.write_operations = 7;
+			}
+		},
+		{
+			name: 'customer day shifted to July 25',
+			mismatch: {
+				cell: 'date' as const,
+				index: 0,
+				expected: '2026-07-26',
+				actual: '2026-07-25'
+			},
+			mutate(payload: RealPipelineOracle) {
+				payload.metering.target_date = '2026-07-25';
+				payload.metering.usage_daily.target_date = '2026-07-25';
+			}
+		}
+	])('flags $name at the console daily-row boundary', ({ mutate, mismatch }) => {
+		const mutatedPayload = JSON.parse(
+			JSON.stringify(realPipelineOraclePayload)
+		) as RealPipelineOracle;
+		mutate(mutatedPayload);
+		const mutatedOracle = parseRealPipelineOracle(mutatedPayload);
+		const cells = renderDailyUsageCells(dailyUsageFromOracle(mutatedOracle));
+		const expectedCells = expectedRealPipelineDailyRow();
+
+		expect(() => expectRealPipelineDailyRowAgreement(cells)).toThrow();
+		const actualMismatch: RealPipelineDailyRowMismatch = {
+			cell: mismatch.cell,
+			index: mismatch.index,
+			expected: expectedCells[mismatch.index],
+			actual: cells[mismatch.index]
+		};
+		expect(actualMismatch).toEqual(mismatch);
+		expect(cells.filter((_, index) => index !== mismatch.index)).toEqual(
+			expectedCells.filter((_, index) => index !== mismatch.index)
+		);
 	});
 
 	it('browser daily usage chart passes readable grouped-series configuration to BarChart', () => {

@@ -8,7 +8,7 @@ use super::{support::repo_error, PgAlgoliaImportJobRepo};
 use crate::models::algolia_import_job::{
     AlgoliaImportDestinationKind, AlgoliaImportDispatchIntentState, AlgoliaImportEngineAckState,
     AlgoliaImportJob, AlgoliaImportJobStatus, AlgoliaImportPublicationDisposition,
-    AlgoliaImportSummary,
+    AlgoliaImportSummary, SourceImportProvider,
 };
 use crate::models::{AlgoliaImportTombstoneCleanupPhase, AlgoliaSealScrubWork};
 use crate::repos::algolia_import_job_repo::{
@@ -149,6 +149,7 @@ fn erased_tombstone_claim_job(
 ) -> AlgoliaImportJob {
     AlgoliaImportJob {
         id: row.id,
+        source_provider: SourceImportProvider::Algolia,
         customer_id: Uuid::nil(),
         tenant_id: ERASURE_TOMBSTONE_PLACEHOLDER.to_string(),
         algolia_app_id: ERASURE_TOMBSTONE_PLACEHOLDER.to_string(),

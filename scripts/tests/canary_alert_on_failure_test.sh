@@ -96,12 +96,23 @@ require_canary_script() {
     fi
 }
 
+write_aws_sts_success_mock() {
+    local mock_path="$1"
+    write_mock_script "$mock_path" 'set -euo pipefail
+if [[ "${1:-}" == "sts" && "${2:-}" == "get-caller-identity" ]]; then
+    printf "{\"Account\":\"123456789012\",\"Arn\":\"arn:aws:iam::123456789012:user/canary-test\",\"UserId\":\"AIDACANARYTEST\"}\n"
+    exit 0
+fi
+echo "unexpected aws invocation: $*" >&2
+exit 99'
+}
+
 test_signup_failure_dispatches_alert_with_non_empty_title() {
     if ! require_canary_script; then
         return
     fi
 
-    local tmp_dir curl_calls alert_calls alert_title
+    local tmp_dir curl_calls alert_calls alert_title alert_override
     tmp_dir="$(mktemp -d)"
     trap 'rm -rf "'"$tmp_dir"'"; trap - RETURN' RETURN
 
@@ -109,17 +120,22 @@ test_signup_failure_dispatches_alert_with_non_empty_title() {
     : > "$tmp_dir/curl_calls.log"
     : > "$tmp_dir/alert_calls.log"
 
+    write_aws_sts_success_mock "$tmp_dir/bin/aws"
+
     write_mock_script "$tmp_dir/bin/curl" 'set -euo pipefail
 : "${CURL_CALL_LOG:?CURL_CALL_LOG is required}"
 printf "%s\n" "$*" >> "$CURL_CALL_LOG"
 exit "${MOCK_CURL_EXIT_CODE:-74}"'
 
-    write_alert_dispatch_override "$tmp_dir/alert_dispatch_override.sh"
+    alert_override="$tmp_dir/alert_dispatch_override.sh"
+    write_alert_dispatch_override "$alert_override"
 
     run_canary "$tmp_dir" \
         "CANARY_QUIET_UNTIL_OVERRIDE=1" \
         "CURL_CALL_LOG=$tmp_dir/curl_calls.log" \
-        "ALERT_DISPATCH_HELPER=$tmp_dir/alert_dispatch_override.sh" \
+        "FJCLOUD_SECRET_FILE=$tmp_dir/missing.env" \
+        "FJCLOUD_TEST_ALERT_DISPATCH_HELPER_ROOT=$tmp_dir" \
+        "ALERT_DISPATCH_HELPER=$alert_override" \
         "ALERT_DISPATCH_CALL_LOG=$tmp_dir/alert_calls.log" \
         "SLACK_WEBHOOK_URL=https://mock.slack.local/slack"
 
@@ -144,11 +160,23 @@ exit "${MOCK_CURL_EXIT_CODE:-74}"'
     fi
 }
 
+test_alert_override_stays_out_of_repo_tree() {
+    local test_source forbidden_pattern
+    test_source="$(cat "$0")"
+    # The pattern is assembled from two halves so this guard does not match
+    # itself when it scans this file's own source.
+    forbidden_pattern='REPO_ROOT/'
+    forbidden_pattern="${forbidden_pattern}scripts/lib/canary_alert_on_failure_override"
+    assert_not_contains "$test_source" "$forbidden_pattern" \
+        "alert override helper should stay in the test temp directory, not scripts/lib"
+}
+
 main() {
     echo "=== canary_alert_on_failure_test.sh ==="
     echo ""
 
     test_signup_failure_dispatches_alert_with_non_empty_title
+    test_alert_override_stays_out_of_repo_tree
 
     echo ""
     echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="

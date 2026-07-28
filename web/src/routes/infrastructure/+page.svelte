@@ -41,7 +41,7 @@
 		</div>
 	{:else}
 		<section
-			class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+			class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
 			aria-label="Infrastructure summary"
 		>
 			<div class="rounded-lg border border-flapjack-ink/20 bg-white p-5">
@@ -73,33 +73,6 @@
 					{formatNumber(data.infrastructure.overall.total_vms)}
 				</p>
 			</div>
-			<div class="rounded-lg border border-flapjack-ink/20 bg-white p-5">
-				<p class="text-sm text-flapjack-ink/60">Healthy VMs</p>
-				<p
-					data-testid="infrastructure-total-healthy_count"
-					class="mt-1 text-3xl font-bold text-flapjack-ink"
-				>
-					{formatNumber(data.infrastructure.overall.healthy_count)}
-				</p>
-			</div>
-			<div class="rounded-lg border border-flapjack-ink/20 bg-white p-5">
-				<p class="text-sm text-flapjack-ink/60">Unhealthy VMs</p>
-				<p
-					data-testid="infrastructure-total-unhealthy_count"
-					class="mt-1 text-3xl font-bold text-flapjack-ink"
-				>
-					{formatNumber(data.infrastructure.overall.unhealthy_count)}
-				</p>
-			</div>
-			<div class="rounded-lg border border-flapjack-ink/20 bg-white p-5">
-				<p class="text-sm text-flapjack-ink/60">Unknown VMs</p>
-				<p
-					data-testid="infrastructure-total-unknown_count"
-					class="mt-1 text-3xl font-bold text-flapjack-ink"
-				>
-					{formatNumber(data.infrastructure.overall.unknown_count)}
-				</p>
-			</div>
 		</section>
 
 		<section class="mt-10" aria-labelledby="infrastructure-regions-heading">
@@ -126,9 +99,6 @@
 								<th scope="col" class="px-4 py-3 font-medium">Health</th>
 								<th scope="col" class="px-4 py-3 font-medium">Utilization</th>
 								<th scope="col" class="px-4 py-3 text-right font-medium">VMs</th>
-								<th scope="col" class="px-4 py-3 text-right font-medium">Healthy</th>
-								<th scope="col" class="px-4 py-3 text-right font-medium">Unhealthy</th>
-								<th scope="col" class="px-4 py-3 text-right font-medium">Unknown</th>
 							</tr>
 						</thead>
 						<tbody class="divide-y divide-flapjack-ink/10">
@@ -168,24 +138,6 @@
 										class="px-4 py-4 text-right text-flapjack-ink/80"
 									>
 										{formatNumber(region.vm_count)}
-									</td>
-									<td
-										data-testid={`infrastructure-region-healthy_count-${region.region}`}
-										class="px-4 py-4 text-right text-flapjack-ink/80"
-									>
-										{formatNumber(region.healthy_count)}
-									</td>
-									<td
-										data-testid={`infrastructure-region-unhealthy_count-${region.region}`}
-										class="px-4 py-4 text-right text-flapjack-ink/80"
-									>
-										{formatNumber(region.unhealthy_count)}
-									</td>
-									<td
-										data-testid={`infrastructure-region-unknown_count-${region.region}`}
-										class="px-4 py-4 text-right text-flapjack-ink/80"
-									>
-										{formatNumber(region.unknown_count)}
 									</td>
 								</tr>
 							{/each}

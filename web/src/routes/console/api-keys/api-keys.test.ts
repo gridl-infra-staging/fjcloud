@@ -10,6 +10,7 @@ import {
 } from '$lib/format';
 import { layoutTestDefaults } from '../layout-test-context';
 import { TOAST_DURATION_MS } from '$lib/toast_contract';
+import { getAccessibilityViolations } from '../../../tests/a11y';
 
 const { applyActionMock, deserializeMock, enhanceSubmitFunctions, gotoMock, invalidateAllMock } =
 	vi.hoisted(() => ({
@@ -158,6 +159,25 @@ describe('API Keys page', () => {
 		enhanceSubmitFunctions.length = 0;
 		vi.useRealTimers();
 		vi.unstubAllGlobals();
+	});
+
+	it('has no structural accessibility violations across key management states', async () => {
+		const { container } = renderPage();
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+		cleanup();
+
+		const { container: emptyContainer } = renderPage({ apiKeys: [] });
+		await expect(getAccessibilityViolations(emptyContainer)).resolves.toEqual([]);
+
+		await openCreateDialog();
+		await expect(getAccessibilityViolations(emptyContainer)).resolves.toEqual([]);
+		cleanup();
+
+		const { container: revealContainer } = renderPage(
+			{},
+			{ createdKey: 'fjc_live_created_key_value' }
+		);
+		await expect(getAccessibilityViolations(revealContainer)).resolves.toEqual([]);
 	});
 
 	it('renders seeded rows with lifecycle fields, scope labels, and row actions', () => {

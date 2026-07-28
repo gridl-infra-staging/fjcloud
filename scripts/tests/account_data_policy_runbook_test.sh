@@ -119,7 +119,7 @@ test_roadmap_documents_delete_precondition_and_status_gaps() {
 
     assert_contains "$account_retention_block" "- **Account-retention automation implemented.**" \
         "ROADMAP should mark account-retention automation implemented"
-    assert_contains "$account_retention_block" "Owner: \`docs/runbooks/account_data_policy.md\`" \
+    assert_contains "$account_retention_block" "Owners: \`docs/runbooks/account_data_policy.md\`" \
         "ROADMAP should point account-retention detail at the runbook owner"
     assert_contains "$account_retention_block" "fjcloud-retention-job" \
         "ROADMAP should point to the implemented retention job"

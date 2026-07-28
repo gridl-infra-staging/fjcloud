@@ -1,27 +1,31 @@
 {
-  "pinned_engine_sha": "320132fcd12a71d441d70a30c34ce66c64f21d46",
+  "pinned_engine_sha": "eecd5c8ad166de972ea5225682e86ef7df0e7304",
   "openapi_artifacts": [
     {
       "path": "engine/docs2/openapi.json",
-      "sha256": "5047642dfb4e7cb419105450fcf3c37570812d62ec186225545fa42906bfe07e"
+      "sha256": "811c247749b55c2fd85bcc4ea39898a24bb496a2ad0b2ec225df3f8513335178"
     },
     {
       "path": "engine/demo-dualclient/public/openapi.json",
-      "sha256": "5047642dfb4e7cb419105450fcf3c37570812d62ec186225545fa42906bfe07e"
+      "sha256": "811c247749b55c2fd85bcc4ea39898a24bb496a2ad0b2ec225df3f8513335178"
     }
   ],
   "routes": {
     "submit": {
       "method": "POST",
-      "path": "/1/migrations/algolia"
+      "path": "/1/migrations/{source_provider}"
     },
     "status": {
       "method": "GET",
-      "path": "/1/migrations/algolia/{job_id}"
+      "path": "/1/migrations/{source_provider}/{job_id}"
     },
     "cancel": {
       "method": "POST",
-      "path": "/1/migrations/algolia/{job_id}/cancel"
+      "path": "/1/migrations/{source_provider}/{job_id}/cancel"
+    },
+    "acknowledge": {
+      "method": "POST",
+      "path": "/1/migrations/{source_provider}/{job_id}/acknowledge"
     }
   },
   "required_runtime_routes": {
@@ -85,12 +89,27 @@
         "synonymIDs"
       ],
       "property_types": {
-        "expectedGeneration": { "type": "string" },
-        "objectIDs": { "type": "array", "items": "string" },
-        "ruleIDs": { "type": "array", "items": "string" },
-        "scrubId": { "type": "string" },
-        "synonymIDs": { "type": "array", "items": "string" },
-        "tenant": { "type": "string" }
+        "expectedGeneration": {
+          "type": "string"
+        },
+        "objectIDs": {
+          "type": "array",
+          "items": "string"
+        },
+        "ruleIDs": {
+          "type": "array",
+          "items": "string"
+        },
+        "scrubId": {
+          "type": "string"
+        },
+        "synonymIDs": {
+          "type": "array",
+          "items": "string"
+        },
+        "tenant": {
+          "type": "string"
+        }
       }
     },
     "ack": {
@@ -102,8 +121,12 @@
       ],
       "optional_fields": [],
       "property_types": {
-        "disposition": { "type": "string" },
-        "scrubId": { "type": "string" }
+        "disposition": {
+          "type": "string"
+        },
+        "scrubId": {
+          "type": "string"
+        }
       }
     },
     "receipt": {
@@ -276,75 +299,18 @@
       "http_status": 409
     }
   },
-  "status_outcome": {
-    "fields": [
-      "rulesImported",
-      "settingsApplied",
-      "synonymsImported",
-      "warnings"
-    ],
-    "settingsApplied": {
-      "type": [
-        "boolean",
-        "null"
-      ]
-    },
-    "synonymsImported": {
-      "ref": "#/components/schemas/MigrateCount",
-      "nullable": true
-    },
-    "rulesImported": {
-      "ref": "#/components/schemas/MigrateCount",
-      "nullable": true
-    },
-    "warnings": {
-      "type": "array",
-      "items_ref": "#/components/schemas/MigrateWarning"
-    }
+  "provider_discriminator": {
+    "field": "source_provider",
+    "values": [
+      "algolia"
+    ]
   },
-  "count": {
-    "required_fields": [
-      "imported"
-    ],
-    "optional_fields": [],
-    "field_types": {
-      "imported": [
-        "integer"
-      ]
-    }
-  },
-  "warning": {
-    "required_fields": [
-      "code",
-      "jsonPath",
-      "message",
-      "resource"
-    ],
-    "optional_fields": [
-      "itemIndex",
-      "pageIndex"
-    ],
-    "field_types": {
-      "code": [
-        "string"
-      ],
-      "itemIndex": [
-        "integer",
-        "null"
-      ],
-      "jsonPath": [
-        "string"
-      ],
-      "message": [
-        "string"
-      ],
-      "pageIndex": [
-        "integer",
-        "null"
-      ],
-      "resource": [
-        "string"
-      ]
+  "provider_aliases": {
+    "algolia": {
+      "submit": "/1/migrations/algolia",
+      "status": "/1/migrations/algolia/{job_id}",
+      "cancel": "/1/migrations/algolia/{job_id}/cancel",
+      "acknowledge": "/1/migrations/algolia/{job_id}/acknowledge"
     }
   }
 }

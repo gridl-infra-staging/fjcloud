@@ -22,6 +22,10 @@ The page renders a public header, `Public Beta` heading, concise sections for be
 - Error: static content should not depend on API data; route errors use the public error boundary.
 - Success: all policy/support links are visible and point to the canonical routes or shared support mailbox.
 
+## Mobile Narrow Contract
+
+Baseline viewport: 390px wide (iPhone 14). Beta scope, support target, feedback channel, GA timing, status link, and legal links remain readable in a single column without adding signup discovery.
+
 ## Controls And Navigation
 
 - No `Start beta signup` discovery link renders on `/beta`.
@@ -37,7 +41,7 @@ The page renders a public header, `Public Beta` heading, concise sections for be
 
 ## Current Implementation Gaps
 
-None known for the mapped launch-critical behavior.
+None known for the mapped launch-critical behavior. JSDOM axe coverage now proves the route component in `web/src/routes/beta/beta_a11y.test.ts`.
 
 ## Automated Coverage
 

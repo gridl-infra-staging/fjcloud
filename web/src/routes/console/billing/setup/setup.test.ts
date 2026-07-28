@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, within } from '@testing-library/svelte';
+import { getAccessibilityViolations } from '../../../../tests/a11y';
 import { layoutTestDefaults } from '../../layout-test-context';
 
 const { getStripeMock } = vi.hoisted(() => ({
@@ -148,5 +149,25 @@ describe('Billing setup page', () => {
 		expect(screen.getByRole('button', { name: 'Save payment method' })).toBeInTheDocument();
 		expect(screen.queryByText('Payment method management unavailable')).not.toBeInTheDocument();
 		expect(getStripeMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('has no structural accessibility violations for setup success and error states', async () => {
+		const { container } = render(SetupPage, {
+			data: { ...layoutTestDefaults, user: null, clientSecret: 'seti_secret_123', error: null }
+		});
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+		cleanup();
+
+		const { container: errorContainer } = render(SetupPage, {
+			data: {
+				...layoutTestDefaults,
+				user: null,
+				clientSecret: 'seti_secret_123',
+				error: 'Card declined'
+			}
+		});
+
+		await expect(getAccessibilityViolations(errorContainer)).resolves.toEqual([]);
 	});
 });

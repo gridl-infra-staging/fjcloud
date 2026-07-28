@@ -7,6 +7,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOCAL_CI="$REPO_ROOT/scripts/local-ci.sh"
 LOCAL_CI_TEXT="$(cat "$LOCAL_CI")"
+LOCAL_DEV_MIGRATE_TEST="$REPO_ROOT/scripts/tests/local_dev_migrate_test.sh"
+LOCAL_DEV_MIGRATE_TEST_TEXT="$(cat "$LOCAL_DEV_MIGRATE_TEST")"
 
 # shellcheck source=scripts/tests/lib/test_runner.sh
 source "$SCRIPT_DIR/lib/test_runner.sh"
@@ -39,6 +41,26 @@ test_web_test_gate_is_not_scheduled_in_parallel() {
     "web-test must not join the parallel gate batch"
 }
 
+test_rust_lint_gate_is_not_scheduled_in_parallel() {
+  assert_not_contains "$LOCAL_CI_TEXT" "schedule rust-lint" \
+    "rust-lint checkout-isolation checks must not overlap the parallel gate batch"
+}
+
+test_reachability_gate_is_not_scheduled_in_parallel() {
+  assert_not_contains "$LOCAL_CI_TEXT" "schedule test-reachability-contract" \
+    "test-reachability-contract must not join the parallel gate batch"
+}
+
+test_rc_wrapper_gate_is_not_scheduled_in_parallel() {
+  assert_not_contains "$LOCAL_CI_TEXT" "schedule rc-wrapper-contract" \
+    "rc-wrapper-contract must not overlap gates that mutate repo-local .local state"
+}
+
+test_local_schema_drift_gate_is_not_scheduled_in_parallel() {
+  assert_not_contains "$LOCAL_CI_TEXT" "schedule local-schema-drift-contract" \
+    "local-schema-drift-contract must not overlap gates that mutate repo-local .local state"
+}
+
 test_bootstrap_env_gate_has_parallel_dispatch_arm() {
   assert_contains "$LOCAL_CI_TEXT" 'validate-bootstrap-env-local) run_gate validate-bootstrap-env-local gate_validate_bootstrap_env_local ;;' \
     "bootstrap env gate dispatches through the parallel scheduler"
@@ -62,6 +84,12 @@ test_bootstrap_env_gate_has_one_run_path() {
   fi
 }
 
+test_local_schema_drift_test_does_not_replace_shared_runtime_tree() {
+  assert_not_contains "$LOCAL_DEV_MIGRATE_TEST_TEXT" \
+    'backup_repo_path "$REPO_ROOT/.local"' \
+    "local schema drift tests must not replace the shared .local runtime tree"
+}
+
 test_web_test_gate_runs_after_parallel_wait() {
   local parallel_wait_line web_test_line
   parallel_wait_line="$(first_match_line '^[[:space:]]*wait$')"
@@ -69,6 +97,33 @@ test_web_test_gate_runs_after_parallel_wait() {
 
   assert_line_after "$parallel_wait_line" "$web_test_line" \
     "web-test starts after the parallel batch"
+}
+
+test_reachability_gate_runs_after_parallel_wait() {
+  local parallel_wait_line reachability_line
+  parallel_wait_line="$(first_match_line '^[[:space:]]*wait$')"
+  reachability_line="$(first_match_line 'run_gate test-reachability-contract gate_test_reachability_contract')"
+
+  assert_line_after "$parallel_wait_line" "$reachability_line" \
+    "test-reachability-contract starts after the parallel batch"
+}
+
+test_rc_wrapper_gate_runs_after_parallel_wait() {
+  local parallel_wait_line rc_wrapper_line
+  parallel_wait_line="$(first_match_line '^[[:space:]]*wait$')"
+  rc_wrapper_line="$(first_match_line 'run_gate rc-wrapper-contract gate_rc_wrapper_contract')"
+
+  assert_line_after "$parallel_wait_line" "$rc_wrapper_line" \
+    "rc-wrapper-contract starts after the parallel batch"
+}
+
+test_local_schema_drift_gate_runs_after_rc_wrapper() {
+  local rc_wrapper_line local_schema_line
+  rc_wrapper_line="$(first_match_line 'run_gate rc-wrapper-contract gate_rc_wrapper_contract')"
+  local_schema_line="$(first_match_line 'run_gate local-schema-drift-contract gate_local_schema_drift_contract')"
+
+  assert_line_after "$rc_wrapper_line" "$local_schema_line" \
+    "local-schema-drift-contract starts after rc-wrapper-contract"
 }
 
 test_bootstrap_env_single_gate_mode_remains_supported() {
@@ -79,6 +134,111 @@ test_bootstrap_env_single_gate_mode_remains_supported() {
 test_web_test_single_gate_mode_remains_supported() {
   assert_contains "$LOCAL_CI_TEXT" 'SINGLE_GATE" = "web-test' \
     "web-test remains selectable through --gate"
+}
+
+test_rust_lint_gate_runs_after_parallel_wait_and_before_web_test() {
+  local rust_lint_line web_test_line preceding_wait_line
+  rust_lint_line="$(first_match_line '^[[:space:]]*run_gate rust-lint gate_rust_lint$')"
+  web_test_line="$(first_match_line '^[[:space:]]*run_gate web-test gate_web_test$')"
+  preceding_wait_line="$(
+    grep -n -E '^[[:space:]]*wait$' "$LOCAL_CI" \
+      | awk -F: -v target="$rust_lint_line" '$1 < target { line=$1 } END { print line }'
+  )"
+
+  assert_line_after "$preceding_wait_line" "$rust_lint_line" \
+    "rust-lint starts after the parallel batch drains"
+  assert_line_after "$rust_lint_line" "$web_test_line" \
+    "rust-lint completes before the existing sequential web-test lane"
+}
+
+test_rust_lint_gate_has_one_run_path() {
+  local run_path_count
+  run_path_count="$(grep -c 'run_gate rust-lint gate_rust_lint' "$LOCAL_CI" || true)"
+
+  if [ "$run_path_count" -eq 1 ]; then
+    pass "rust-lint has exactly one run path"
+  else
+    fail "rust-lint must have exactly one run path (found $run_path_count)"
+  fi
+}
+
+test_rust_lint_single_gate_mode_remains_supported() {
+  assert_contains "$LOCAL_CI_TEXT" 'SINGLE_GATE" = "rust-lint' \
+    "rust-lint remains selectable through --gate"
+}
+
+test_rc_wrapper_single_gate_mode_remains_supported() {
+  assert_contains "$LOCAL_CI_TEXT" 'SINGLE_GATE" = "rc-wrapper-contract' \
+    "rc-wrapper-contract remains selectable through --gate"
+}
+
+test_local_schema_drift_gate_has_one_run_path() {
+  local run_path_count
+  run_path_count="$(grep -c 'run_gate local-schema-drift-contract gate_local_schema_drift_contract' "$LOCAL_CI" || true)"
+
+  if [ "$run_path_count" -eq 1 ]; then
+    pass "local schema drift gate has exactly one run path"
+  else
+    fail "local schema drift gate must have exactly one run path (found $run_path_count)"
+  fi
+}
+
+test_local_schema_drift_single_gate_mode_remains_supported() {
+  assert_contains "$LOCAL_CI_TEXT" 'SINGLE_GATE" = "local-schema-drift-contract' \
+    "local schema drift gate remains selectable through --gate"
+}
+
+test_reachability_gate_runs_after_parallel_wait_and_before_schema_drift() {
+  local reachability_line local_schema_drift_line preceding_wait_line
+  reachability_line="$(first_match_line '^[[:space:]]*run_gate test-reachability-contract gate_test_reachability_contract$')"
+  local_schema_drift_line="$(first_match_line '^[[:space:]]*run_gate local-schema-drift-contract gate_local_schema_drift_contract$')"
+  preceding_wait_line="$(
+    grep -n -E '^[[:space:]]*wait$' "$LOCAL_CI" \
+      | awk -F: -v target="$reachability_line" '$1 < target { line=$1 } END { print line }'
+  )"
+
+  assert_line_after "$preceding_wait_line" "$reachability_line" \
+    "reachability gate starts after the parallel batch drains"
+  assert_line_after "$reachability_line" "$local_schema_drift_line" \
+    "reachability gate completes before local schema drift"
+}
+
+test_reachability_gate_has_one_run_path() {
+  local run_path_count
+  run_path_count="$(grep -c 'run_gate test-reachability-contract gate_test_reachability_contract' "$LOCAL_CI" || true)"
+
+  if [ "$run_path_count" -eq 1 ]; then
+    pass "reachability gate has exactly one run path"
+  else
+    fail "reachability gate must have exactly one run path (found $run_path_count)"
+  fi
+}
+
+test_reachability_single_gate_mode_remains_supported() {
+  assert_contains "$LOCAL_CI_TEXT" 'SINGLE_GATE" = "test-reachability-contract' \
+    "reachability gate remains selectable through --gate"
+}
+
+test_reachability_checkout_env_mutators_are_serial_only() {
+  local serial_only="$REPO_ROOT/scripts/tests/serial_only_tests.txt"
+  local serial_text
+  serial_text="$(sed -e 's/[[:space:]]*#.*$//' -e 's/[[:space:]]*$//' -e '/^[[:space:]]*$/d' "$serial_only")"
+
+  for test_path in \
+    "scripts/tests/api_dev_test.sh" \
+    "scripts/tests/integration_up_test.sh" \
+    "scripts/tests/local_demo_test.sh" \
+    "scripts/tests/local_dev_migrate_test.sh" \
+    "scripts/tests/run_aggregation_job_test.sh" \
+    "scripts/tests/seed_local_test.sh" \
+    "scripts/tests/web_dev_test.sh"
+  do
+    if printf '%s\n' "$serial_text" | grep -Fxq "$test_path"; then
+      pass "$test_path is serialized away from concurrent .env.local mutators"
+    else
+      fail "$test_path must be listed in serial_only_tests.txt"
+    fi
+  done
 }
 
 test_rust_test_gate_is_not_scheduled_in_parallel() {
@@ -135,9 +295,12 @@ test_dispatch_loop_throttles_before_launching_gates() {
 test_throttle_uses_bash32_safe_idiom() {
   # macOS ships bash 3.2, which has no `wait -n`. The throttle must poll
   # running jobs instead.
-  assert_contains "$LOCAL_CI_TEXT" 'jobs -pr' \
+  local body
+  body="$(awk '/^throttle_parallel\(\) \{/{f=1} f{print} f&&/^\}$/{exit}' "$LOCAL_CI")"
+
+  assert_contains "$body" 'jobs -pr' \
     "throttle polls running jobs via jobs -pr"
-  assert_not_contains "$LOCAL_CI_TEXT" 'wait -n' \
+  assert_not_contains "$body" 'wait -n' \
     "throttle avoids wait -n (unsupported on bash 3.2)"
 }
 
@@ -183,12 +346,30 @@ test_exit_cleanup_waits_before_persisting_logs() {
 
 test_bootstrap_env_gate_is_scheduled_in_parallel
 test_web_test_gate_is_not_scheduled_in_parallel
+test_rust_lint_gate_is_not_scheduled_in_parallel
+test_reachability_gate_is_not_scheduled_in_parallel
+test_rc_wrapper_gate_is_not_scheduled_in_parallel
+test_local_schema_drift_gate_is_not_scheduled_in_parallel
 test_bootstrap_env_gate_has_parallel_dispatch_arm
 test_bootstrap_env_sequential_workaround_is_removed
 test_bootstrap_env_gate_has_one_run_path
+test_local_schema_drift_test_does_not_replace_shared_runtime_tree
 test_web_test_gate_runs_after_parallel_wait
+test_reachability_gate_runs_after_parallel_wait
+test_rc_wrapper_gate_runs_after_parallel_wait
+test_local_schema_drift_gate_runs_after_rc_wrapper
 test_bootstrap_env_single_gate_mode_remains_supported
 test_web_test_single_gate_mode_remains_supported
+test_rust_lint_gate_runs_after_parallel_wait_and_before_web_test
+test_rust_lint_gate_has_one_run_path
+test_rust_lint_single_gate_mode_remains_supported
+test_rc_wrapper_single_gate_mode_remains_supported
+test_local_schema_drift_gate_has_one_run_path
+test_local_schema_drift_single_gate_mode_remains_supported
+test_reachability_gate_runs_after_parallel_wait_and_before_schema_drift
+test_reachability_gate_has_one_run_path
+test_reachability_single_gate_mode_remains_supported
+test_reachability_checkout_env_mutators_are_serial_only
 test_rust_test_gate_is_not_scheduled_in_parallel
 test_rust_test_gate_runs_after_web_test
 test_rust_test_single_gate_mode_remains_supported

@@ -90,7 +90,7 @@ If a future lane adds row filters, the `Export` semantics must be re-evaluated.
 
 ## Current Implementation Gaps
 
-The current 98-line viewer renders the minimal surface (table + select row + Clear). Wave B 3B adds curl-copy, expand-with-body-and-response, view-mode toggle, and Export JSON/CSV to reach upstream developer-debugger parity.
+The current 98-line viewer renders the minimal surface (table + select row + Clear). Wave B 3B adds curl-copy, expand-with-body-and-response, view-mode toggle, and Export JSON/CSV to reach upstream developer-debugger parity. Empty and populated route states have structural axe proof in `web/src/routes/console/logs/logs.test.ts`.
 
 ## Automated Coverage
 

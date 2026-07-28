@@ -1,0 +1,23 @@
+HTTP/2 200 
+content-type: text/html; charset=utf-8
+content-length: 2964
+cache-control: max-age=0, private, must-revalidate
+date: Tue, 28 Jul 2026 11:04:01 GMT
+etag: W/"0687a280a5bba0e9efd5f60acc0de3bb"
+referrer-policy: strict-origin-when-cross-origin
+server: nginx + Phusion Passenger(R)
+status: 200 OK
+vary: Accept
+x-content-type-options: nosniff
+x-download-options: noopen
+x-frame-options: SAMEORIGIN
+x-permitted-cross-domain-policies: none
+x-powered-by: Phusion Passenger(R)
+x-request-id: ad50caba-2070-4dd5-a43b-cd57c9e0bf6a
+x-runtime: 0.500101
+x-xss-protection: 0
+x-cache: Miss from cloudfront
+via: 1.1 0c482288431692a08571c47359ca2c80.cloudfront.net (CloudFront)
+x-amz-cf-pop: IAD55-P3
+x-amz-cf-id: A3T_st7b_V3XXc1-a0IsajYN0yo2xFrj1QxdwGz1WWEFTJ5IcsfR6w==
+

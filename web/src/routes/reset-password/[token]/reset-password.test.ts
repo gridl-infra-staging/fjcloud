@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import ResetPasswordPage from './+page.svelte';
+import { getAccessibilityViolations } from '../../../tests/a11y';
 
 vi.mock('$app/forms', () => ({
 	enhance: () => ({ destroy: () => {} })
@@ -13,6 +14,18 @@ function renderResetPasswordPage(form?: Record<string, unknown>) {
 }
 
 describe('Reset password page', () => {
+	it('has no structural accessibility violations for the reset form', async () => {
+		const { container } = renderResetPasswordPage();
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
+	it('has no structural accessibility violations for the success state', async () => {
+		const { container } = renderResetPasswordPage({ success: true });
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
 	it('renders password inputs and reset submit button', () => {
 		renderResetPasswordPage();
 

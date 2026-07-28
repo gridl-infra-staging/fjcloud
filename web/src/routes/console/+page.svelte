@@ -360,7 +360,7 @@
 						<BarChart
 							data={dailyTotals}
 							x="date"
-							axis={{ placement: 'left', ticks: 5 }}
+							axis={true}
 							bandPadding={0.24}
 							groupPadding={0.12}
 							padding={{ top: 56, right: 16, bottom: 52, left: 56 }}
@@ -389,6 +389,7 @@
 									}
 								},
 								yAxis: {
+									ticks: 5,
 									tickLabelProps: {
 										textAnchor: 'end'
 									}

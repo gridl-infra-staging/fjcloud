@@ -227,6 +227,22 @@ export const REGIONS = DEFAULT_INTERNAL_REGIONS.map((region) => ({
 
 /** Shared support email — single source of truth for customer-contact links. */
 export const SUPPORT_EMAIL = 'support@flapjack.foo';
+/** Reader-facing Flapjack documentation site. */
+export const READER_DOCS_URL = 'https://docs.flapjack.foo/';
+/** Community discussion landing for public product and usage conversations. */
+export const COMMUNITY_DISCUSSIONS_URL = 'https://github.com/flapjackhq/flapjack/discussions';
+/** Public Ideas category for feature requests and behavior-change proposals. */
+export const COMMUNITY_IDEAS_URL =
+	'https://github.com/flapjackhq/flapjack/discussions/categories/ideas';
+/** Public Q&A category for "how do I" questions. */
+export const COMMUNITY_QA_URL = 'https://github.com/flapjackhq/flapjack/discussions/categories/q-a';
+/** Public engine issue tracker for Flapjack engine bugs. */
+export const ENGINE_ISSUES_URL = 'https://github.com/flapjackhq/flapjack/issues';
+/** Public docs source directory for proposing documentation corrections. */
+export const DOCUMENTATION_SOURCE_URL =
+	'https://github.com/flapjackhq/flapjack-docs/tree/main/src/content/docs';
+/** Private security-reporting instructions; do not surface a mailbox in app code. */
+export const SECURITY_POLICY_URL = 'https://github.com/flapjackhq/flapjack/security/policy';
 /** Canonical legal/support mailto link for launch-ready public legal pages. */
 export const LEGAL_SUPPORT_MAILTO = `mailto:${SUPPORT_EMAIL}`;
 /** Shared beta-feedback mailto so policy pages and in-app links stay aligned. */
@@ -237,6 +253,12 @@ export const LEGAL_EFFECTIVE_DATE = '2026-05-19';
 export const LEGAL_EFFECTIVE_DATE_TEXT = `Effective date: ${LEGAL_EFFECTIVE_DATE}`;
 /** Repo-owned legal entity name used in public legal boilerplate. */
 export const LEGAL_ENTITY_NAME = 'THIRD FORK LABS LLC';
+
+export function buildCloudSupportMailto(route: string, timestamp: string): string {
+	return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(
+		'Flapjack Cloud support request'
+	)}&body=${encodeURIComponent(`Route: ${route}\nTimestamp: ${timestamp}`)}`;
+}
 
 /**
  * Management-scope definitions for the API key UI.

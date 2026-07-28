@@ -44,7 +44,7 @@ JSON
 
 copy_source_fixtures() {
   local dir="$1"
-  cp "$REPO_ROOT/web/tests/e2e-ui/mocked/auth_trust_states.spec.ts" "$dir/auth_trust_states.spec.ts"
+  cp "$REPO_ROOT/web/tests/e2e-ui/full/public-auth-trust-states.spec.ts" "$dir/auth_trust_states.spec.ts"
   cp "$REPO_ROOT/web/src/routes/forgot-password/+page.server.ts" "$dir/forgot_page.server.ts"
   cp "$REPO_ROOT/web/src/routes/reset-password/[token]/+page.server.ts" "$dir/reset_page.server.ts"
   cp "$REPO_ROOT/web/tests/fixtures/upgrade_fixture.ts" "$dir/upgrade_fixture.ts"

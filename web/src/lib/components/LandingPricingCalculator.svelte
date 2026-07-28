@@ -10,6 +10,7 @@
 	interface DisplayEstimateRow {
 		provider: string;
 		planName: string;
+		verificationLabel: string;
 		monthlyTotalLabel: string;
 		assumptions: string[];
 		isGriddle: boolean;
@@ -27,11 +28,16 @@
 		return estimate.provider === 'Flapjack Cloud' || estimate.provider === 'Griddle';
 	}
 
+	function toCustomerVerificationLabel(verificationLabel: string): string {
+		return verificationLabel === 'unverified' ? 'Modelled pricing' : verificationLabel;
+	}
+
 	function toDisplayRow(estimate: PricingEstimate, isFlapjack: boolean): DisplayEstimateRow {
 		const planName = estimate.plan_name ?? 'N/A';
 		return {
 			provider: isFlapjack ? 'Flapjack Cloud' : estimate.provider,
 			planName: isFlapjack ? planName.replaceAll('Griddle', 'Flapjack Cloud') : planName,
+			verificationLabel: toCustomerVerificationLabel(estimate.verification_label),
 			monthlyTotalLabel: formatLandingCurrency(estimate.monthly_total_cents),
 			assumptions: estimate.assumptions,
 			isGriddle: isFlapjack
@@ -66,6 +72,7 @@
 		const estimate = payload as Partial<PricingEstimate>;
 		return (
 			typeof estimate.provider === 'string' &&
+			typeof estimate.verification_label === 'string' &&
 			typeof estimate.monthly_total_cents === 'number' &&
 			(estimate.plan_name === null || typeof estimate.plan_name === 'string') &&
 			isStringArray(estimate.assumptions)
@@ -234,6 +241,9 @@
 					<tr class="border-b border-flapjack-ink/20">
 						<th class="px-4 py-3 text-left text-sm font-semibold text-flapjack-ink">Provider</th>
 						<th class="px-4 py-3 text-left text-sm font-semibold text-flapjack-ink">Plan</th>
+						<th class="px-4 py-3 text-left text-sm font-semibold text-flapjack-ink"
+							>Pricing verified</th
+						>
 						<th class="px-4 py-3 text-right text-sm font-semibold text-flapjack-ink"
 							>Monthly estimate</th
 						>
@@ -247,6 +257,7 @@
 						>
 							<td class="px-4 py-3 text-sm font-medium text-flapjack-ink">{row.provider}</td>
 							<td class="px-4 py-3 text-sm text-flapjack-ink/70">{row.planName}</td>
+							<td class="px-4 py-3 text-sm text-flapjack-ink/70">{row.verificationLabel}</td>
 							<td class="px-4 py-3 text-right text-sm font-semibold text-flapjack-ink"
 								>{row.monthlyTotalLabel}</td
 							>

@@ -44,9 +44,6 @@ pub struct PublicRegionInfrastructure {
     pub health: PublicRegionHealth,
     pub utilization: Option<UtilizationBucket>,
     pub vm_count: usize,
-    pub healthy_count: usize,
-    pub unhealthy_count: usize,
-    pub unknown_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, utoipa::ToSchema)]
@@ -54,15 +51,18 @@ pub struct PublicInfrastructureOverall {
     pub availability_pct: Option<f64>,
     pub total_regions: usize,
     pub total_vms: usize,
-    pub healthy_count: usize,
-    pub unhealthy_count: usize,
-    pub unknown_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, utoipa::ToSchema)]
 pub struct PublicInfrastructureResponse {
     pub regions: Vec<PublicRegionInfrastructure>,
     pub overall: PublicInfrastructureOverall,
+}
+
+#[derive(Debug, Clone)]
+struct RegionInfrastructureRollup {
+    response: PublicRegionInfrastructure,
+    counts: TopologyCounts,
 }
 
 #[utoipa::path(
@@ -113,14 +113,11 @@ pub async fn compute_public_infrastructure(
         .collect();
 
     if published_vms.is_empty() {
-        let regions = available_regions
+        let rollups = available_regions
             .into_iter()
-            .map(|(region, entry)| build_region_response(region, entry, &[]))
+            .map(|(region, entry)| build_region_rollup(region, entry, &[]))
             .collect::<Vec<_>>();
-        return Ok(PublicInfrastructureResponse {
-            overall: build_overall_response(&regions),
-            regions,
-        });
+        return Ok(build_public_response(rollups));
     }
 
     let public_vm_refs: Vec<_> = published_vms.iter().collect();
@@ -145,13 +142,26 @@ pub async fn compute_public_infrastructure(
             .find_by_ids(&deployment_ids.into_iter().collect::<Vec<_>>())
             .await?
     };
+    let public_deployment_ids: BTreeSet<_> = deployments
+        .iter()
+        .filter(|deployment| deployment.status == "running")
+        .map(|deployment| deployment.id)
+        .collect();
     let deployment_healths_by_id: BTreeMap<Uuid, String> = deployments
         .into_iter()
+        .filter(|deployment| public_deployment_ids.contains(&deployment.id))
         .map(|deployment| (deployment.id, deployment.health_status))
         .collect();
+    tenants_by_vm.retain(|_, tenants| {
+        tenants.retain(|tenant| public_deployment_ids.contains(&tenant.deployment_id));
+        !tenants.is_empty()
+    });
 
     for (vm, public_view) in published_vms.iter().zip(public_topology) {
         let tenants = tenants_by_vm.get(&vm.id).map(Vec::as_slice).unwrap_or(&[]);
+        if tenants.is_empty() {
+            continue;
+        }
         let health = health_rollup_from_deployment_healths(tenants, &deployment_healths_by_id);
         signals_by_region
             .entry(vm.region.clone())
@@ -162,40 +172,43 @@ pub async fn compute_public_infrastructure(
             });
     }
 
-    let regions = available_regions
+    let rollups = available_regions
         .into_iter()
         .map(|(region, entry)| {
             let signals = signals_by_region
                 .get(region.as_str())
                 .map(Vec::as_slice)
                 .unwrap_or(&[]);
-            build_region_response(region, entry, signals)
+            build_region_rollup(region, entry, signals)
         })
         .collect::<Vec<_>>();
 
-    Ok(PublicInfrastructureResponse {
-        overall: build_overall_response(&regions),
-        regions,
-    })
+    Ok(build_public_response(rollups))
 }
 
-fn build_region_response(
+fn build_public_response(rollups: Vec<RegionInfrastructureRollup>) -> PublicInfrastructureResponse {
+    let overall = build_overall_response(&rollups);
+    let regions = rollups.into_iter().map(|rollup| rollup.response).collect();
+    PublicInfrastructureResponse { regions, overall }
+}
+
+fn build_region_rollup(
     region: &str,
     entry: &RegionEntry,
     vm_signals: &[RegionVmSignal],
-) -> PublicRegionInfrastructure {
+) -> RegionInfrastructureRollup {
     let counts = topology_counts(vm_signals);
-    PublicRegionInfrastructure {
-        region: region.to_string(),
-        provider: entry.provider.clone(),
-        display_name: entry.display_name.clone(),
-        provider_location: entry.provider_location.clone(),
-        health: region_health(counts),
-        utilization: worst_region_utilization(vm_signals),
-        vm_count: counts.vm_count,
-        healthy_count: counts.healthy_count,
-        unhealthy_count: counts.unhealthy_count,
-        unknown_count: counts.unknown_count,
+    RegionInfrastructureRollup {
+        response: PublicRegionInfrastructure {
+            region: region.to_string(),
+            provider: entry.provider.clone(),
+            display_name: entry.display_name.clone(),
+            provider_location: entry.provider_location.clone(),
+            health: region_health(counts),
+            utilization: worst_region_utilization(vm_signals),
+            vm_count: counts.vm_count,
+        },
+        counts,
     }
 }
 
@@ -250,9 +263,12 @@ fn worst_region_utilization(vm_signals: &[RegionVmSignal]) -> Option<Utilization
         })
 }
 
-fn build_overall_response(regions: &[PublicRegionInfrastructure]) -> PublicInfrastructureOverall {
-    let total_vms = regions.iter().map(|region| region.vm_count).sum();
-    let healthy_count = regions.iter().map(|region| region.healthy_count).sum();
+fn build_overall_response(rollups: &[RegionInfrastructureRollup]) -> PublicInfrastructureOverall {
+    let total_vms: usize = rollups.iter().map(|rollup| rollup.counts.vm_count).sum();
+    let healthy_count: usize = rollups
+        .iter()
+        .map(|rollup| rollup.counts.healthy_count)
+        .sum();
     let availability_pct = if total_vms == 0 {
         None
     } else {
@@ -260,11 +276,8 @@ fn build_overall_response(regions: &[PublicRegionInfrastructure]) -> PublicInfra
     };
     PublicInfrastructureOverall {
         availability_pct,
-        total_regions: regions.len(),
+        total_regions: rollups.len(),
         total_vms,
-        healthy_count,
-        unhealthy_count: regions.iter().map(|region| region.unhealthy_count).sum(),
-        unknown_count: regions.iter().map(|region| region.unknown_count).sum(),
     }
 }
 
@@ -329,7 +342,9 @@ mod tests {
     }
 
     fn region_health(vms: &[RegionVmSignal]) -> PublicRegionHealth {
-        build_region_response("us-east-1", &region_entry(), vms).health
+        build_region_rollup("us-east-1", &region_entry(), vms)
+            .response
+            .health
     }
 
     #[test]
@@ -364,9 +379,9 @@ mod tests {
             PublicRegionHealth::Outage
         );
 
-        let empty = build_region_response("us-east-1", &region_entry(), &[]);
-        assert_eq!(empty.health, PublicRegionHealth::Unknown);
-        assert_eq!(empty.vm_count, 0);
+        let empty = build_region_rollup("us-east-1", &region_entry(), &[]);
+        assert_eq!(empty.response.health, PublicRegionHealth::Unknown);
+        assert_eq!(empty.response.vm_count, 0);
     }
 
     #[test]
@@ -420,7 +435,7 @@ mod tests {
     #[test]
     fn overall_rollup_counts_unknown_and_unhealthy_in_denominator() {
         let regions = [
-            build_region_response(
+            build_region_rollup(
                 "us-east-1",
                 &region_entry(),
                 &[
@@ -430,11 +445,14 @@ mod tests {
                     signal(VmHealth::Unhealthy, None),
                 ],
             ),
-            build_region_response("eu-west-1", &region_entry(), &[]),
+            build_region_rollup("eu-west-1", &region_entry(), &[]),
         ];
 
         assert_eq!(
-            regions.iter().map(|region| region.vm_count).sum::<usize>(),
+            regions
+                .iter()
+                .map(|region| region.response.vm_count)
+                .sum::<usize>(),
             4
         );
 
@@ -444,27 +462,21 @@ mod tests {
                 availability_pct: Some(75.0),
                 total_regions: 2,
                 total_vms: 4,
-                healthy_count: 3,
-                unhealthy_count: 1,
-                unknown_count: 0,
             }
         );
         assert_eq!(
-            build_overall_response(&[build_region_response("us-east-1", &region_entry(), &[],)]),
+            build_overall_response(&[build_region_rollup("us-east-1", &region_entry(), &[],)]),
             PublicInfrastructureOverall {
                 availability_pct: None,
                 total_regions: 1,
                 total_vms: 0,
-                healthy_count: 0,
-                unhealthy_count: 0,
-                unknown_count: 0,
             }
         );
     }
 
     #[test]
     fn region_rollup_reconciles_health_counts() {
-        let region = build_region_response(
+        let region = build_region_rollup(
             "us-east-1",
             &region_entry(),
             &[
@@ -483,29 +495,34 @@ mod tests {
             ],
         );
 
-        assert_eq!(region.vm_count, 3);
-        assert_eq!(region.healthy_count, 1);
-        assert_eq!(region.unhealthy_count, 1);
-        assert_eq!(region.unknown_count, 1);
+        assert_eq!(region.response.vm_count, 3);
+        assert_eq!(region.counts.healthy_count, 1);
+        assert_eq!(region.counts.unhealthy_count, 1);
+        assert_eq!(region.counts.unknown_count, 1);
         assert_eq!(
-            region.healthy_count + region.unhealthy_count + region.unknown_count,
-            region.vm_count
+            region.counts.healthy_count
+                + region.counts.unhealthy_count
+                + region.counts.unknown_count,
+            region.response.vm_count
         );
 
-        let empty = build_region_response("eu-west-1", &region_entry(), &[]);
-        assert_eq!(empty.vm_count, 0);
-        assert_eq!(empty.healthy_count, 0);
-        assert_eq!(empty.unhealthy_count, 0);
-        assert_eq!(empty.unknown_count, 0);
+        let empty = build_region_rollup("eu-west-1", &region_entry(), &[]);
+        assert_eq!(empty.response.vm_count, 0);
+        assert_eq!(empty.counts.healthy_count, 0);
+        assert_eq!(empty.counts.unhealthy_count, 0);
+        assert_eq!(empty.counts.unknown_count, 0);
     }
 
     #[test]
     fn public_region_serializes_only_documented_keys() {
-        let serialized = serde_json::to_value(build_region_response(
-            "us-east-1",
-            &region_entry(),
-            &[signal(VmHealth::Healthy, Some(UtilizationBucket::Green))],
-        ))
+        let serialized = serde_json::to_value(
+            build_region_rollup(
+                "us-east-1",
+                &region_entry(),
+                &[signal(VmHealth::Healthy, Some(UtilizationBucket::Green))],
+            )
+            .response,
+        )
         .unwrap();
         let keys = serialized
             .as_object()
@@ -519,14 +536,36 @@ mod tests {
             BTreeSet::from([
                 "display_name".to_string(),
                 "health".to_string(),
-                "healthy_count".to_string(),
                 "provider".to_string(),
                 "provider_location".to_string(),
                 "region".to_string(),
-                "unknown_count".to_string(),
-                "unhealthy_count".to_string(),
                 "utilization".to_string(),
                 "vm_count".to_string(),
+            ])
+        );
+    }
+
+    #[test]
+    fn public_overall_serializes_only_documented_keys() {
+        let serialized = serde_json::to_value(PublicInfrastructureOverall {
+            availability_pct: Some(75.0),
+            total_regions: 2,
+            total_vms: 4,
+        })
+        .unwrap();
+        let keys = serialized
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            keys,
+            BTreeSet::from([
+                "availability_pct".to_string(),
+                "total_regions".to_string(),
+                "total_vms".to_string(),
             ])
         );
     }

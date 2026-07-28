@@ -1,0 +1,12 @@
+{
+  "rows": [
+    {
+      "row_id": "B21",
+      "spec_path": "web/tests/e2e-ui/full/auth-end-effects.spec.ts",
+      "runner_command": "cd web && npx playwright test tests/e2e-ui/full/auth-end-effects.spec.ts --grep \"valid verification token shows success heading and login CTA @p0_coverage\" --reporter=line; cd ..",
+      "outcome": "skipped",
+      "recorded_at": "2026-07-28T12:25:15Z",
+      "raw_log": "raw/b21_auth_end_effects.log"
+    }
+  ]
+}

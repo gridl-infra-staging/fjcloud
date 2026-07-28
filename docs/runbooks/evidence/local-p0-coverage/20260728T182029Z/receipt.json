@@ -1,0 +1,28 @@
+{
+  "rows": [
+    {
+      "row_id": "B2",
+      "spec_path": "web/tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts",
+      "runner_command": "cd web && npx playwright test tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts --reporter=list --trace on --output test-results/billing_portal_payment_method_update --no-deps; cd ..",
+      "outcome": "executed_pass",
+      "recorded_at": "2026-07-28T18:30:50Z",
+      "raw_log": "raw/billing_portal_payment_method_update.txt"
+    },
+    {
+      "row_id": "B7",
+      "spec_path": "web/tests/e2e-ui/full/upgrade_to_shared_unmocked.spec.ts",
+      "runner_command": "cd web && npx playwright test tests/e2e-ui/full/upgrade_to_shared_unmocked.spec.ts --reporter=list --trace on --output test-results/upgrade_to_shared_unmocked --no-deps; cd ..",
+      "outcome": "executed_pass",
+      "recorded_at": "2026-07-28T18:33:09Z",
+      "raw_log": "raw/upgrade_to_shared_unmocked.txt"
+    },
+    {
+      "row_id": "B21",
+      "spec_path": "web/tests/e2e-ui/full/auth-end-effects.spec.ts",
+      "runner_command": "cd web && npx playwright test tests/e2e-ui/full/auth-end-effects.spec.ts --grep \"valid verification token shows success heading and login CTA @p0_coverage\" --reporter=list; cd ..",
+      "outcome": "executed_pass",
+      "recorded_at": "2026-07-28T15:17:58Z",
+      "raw_log": "raw/b21_auth_end_effects.log"
+    }
+  ]
+}

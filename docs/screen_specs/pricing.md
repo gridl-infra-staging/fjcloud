@@ -26,6 +26,10 @@ Stage 4 backend-alignment drift detection must extend this same owner: compare `
 - Error: not applicable for Stage 1 contract definition because the pricing owner is static and required in the current public-route seam.
 - Success: the page renders exact shared pricing values, omits signup discovery CTAs, and routes policy/status links to existing public routes.
 
+## Mobile Narrow Contract
+
+Baseline viewport: 390px wide (iPhone 14). Pricing cards, free-tier promise, hot/cold rows, Paid-plan minimum framing, region multipliers, and public-route links stack without overlap or horizontal scrolling, while preserving the absence of signup discovery CTAs.
+
 ## Controls And Navigation
 
 - Primary pricing CTA is absent while signup discovery is withdrawn.
@@ -47,6 +51,12 @@ Stage 4 backend-alignment drift detection must extend this same owner: compare `
 ## Current Implementation Gaps
 
 Stage 4 backend-alignment drift detection is a planned gap. The current route/browser coverage validates `MARKETING_PRICING` rendering and link behavior but does not yet compare those values to admin rate-card data.
+JSDOM axe coverage now proves the route component in `web/src/routes/pricing/pricing.test.ts`.
+
+- PUBUX-004 remains a product-decision gap for exact paid-plan minimum formatting.
+  Current: $5.00
+  Target: $5
+  Evidence: docs/audits/public_page_ux_audit_2026_07_27.md#pubux-004---pricing-storage-card-minimum-renders-500-where-the-pricing-spec-names-5
 
 ## Automated Coverage
 

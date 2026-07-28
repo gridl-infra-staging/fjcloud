@@ -159,6 +159,8 @@ Compare two search configurations on live traffic, monitor progress with statist
 
 ## Current Implementation Gaps
 
+- Structural accessibility for the populated experiment-detail route is covered by
+  `web/src/routes/console/indexes/[name]/experiments/[experimentId]/experiment-detail-route.test.ts`.
 - Current: per-row Stop posts directly to `?/stopExperiment` with no confirmation — one click halts a running production experiment.
   Target: Stop opens `ConfirmDialog` (typed-severe, `typedPhrase = experiment.name`) per the List view Stop action.
   Evidence: `web/src/routes/console/indexes/[name]/tabs/ExperimentsTab.svelte:264-274`; [CRITICAL_BUGS.md S2-1](../audits/feature-parity/20260525T165423Z_fjcloud_vs_engine_dashboard_extension/CRITICAL_BUGS.md), [audit row 2](../audits/feature-parity/20260525T165423Z_fjcloud_vs_engine_dashboard_extension/tab_experiments.md).

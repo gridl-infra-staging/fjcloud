@@ -1,0 +1,3 @@
+command: curl -L --max-time 30 https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonES/current/us-east-1/index.json
+http_status: 200
+effective_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonES/current/us-east-1/index.json

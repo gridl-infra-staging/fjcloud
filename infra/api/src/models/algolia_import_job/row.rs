@@ -3,13 +3,16 @@ use uuid::Uuid;
 
 use super::{
     canonical_persisted_warnings, AlgoliaImportDestinationKind, AlgoliaImportDispatchIntentState,
-    AlgoliaImportEngineAckState, AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportJobStatus,
-    AlgoliaImportPublicationDisposition, AlgoliaImportSummary,
+    AlgoliaImportEngineAckState, AlgoliaImportErrorCode, AlgoliaImportJobStatus,
+    AlgoliaImportPublicationDisposition, AlgoliaImportSummary, SourceImportProvider,
+    SourceMigrationJob,
 };
 
+/// TODO: Document AlgoliaImportJobRow.
 #[derive(sqlx::FromRow)]
-pub(crate) struct AlgoliaImportJobRow {
+pub(crate) struct SourceMigrationJobRow {
     pub id: Uuid,
+    pub source_provider: String,
     pub customer_id: Uuid,
     pub tenant_id: String,
     pub algolia_app_id: String,
@@ -64,8 +67,13 @@ pub(crate) struct AlgoliaImportJobRow {
     pub updated_at: DateTime<Utc>,
 }
 
-impl From<AlgoliaImportJobRow> for AlgoliaImportJob {
-    fn from(row: AlgoliaImportJobRow) -> Self {
+pub(crate) type AlgoliaImportJobRow = SourceMigrationJobRow;
+
+impl TryFrom<SourceMigrationJobRow> for SourceMigrationJob {
+    type Error = String;
+
+    fn try_from(row: SourceMigrationJobRow) -> Result<Self, Self::Error> {
+        let source_provider = SourceImportProvider::parse(&row.source_provider)?;
         let warnings = canonical_persisted_warnings(row.terminal_outcome_observed, row.warnings);
         let summary = AlgoliaImportSummary {
             documents_expected: row.documents_expected,
@@ -80,8 +88,9 @@ impl From<AlgoliaImportJobRow> for AlgoliaImportJob {
             rules_imported: row.rules_imported,
             rules_rejected: row.rules_rejected,
         };
-        Self {
+        Ok(Self {
             id: row.id,
+            source_provider,
             customer_id: row.customer_id,
             tenant_id: row.tenant_id,
             algolia_app_id: row.algolia_app_id,
@@ -124,7 +133,7 @@ impl From<AlgoliaImportJobRow> for AlgoliaImportJob {
             terminal_at: row.terminal_at,
             created_at: row.created_at,
             updated_at: row.updated_at,
-        }
+        })
     }
 }
 
@@ -187,6 +196,7 @@ fn parse_dispatch_intent_state(value: &str) -> AlgoliaImportDispatchIntentState 
 
 fn parse_error_code(value: &str) -> AlgoliaImportErrorCode {
     match value {
+        "source_provider_unsupported" => AlgoliaImportErrorCode::SourceProviderUnsupported,
         "invalid_credentials" => AlgoliaImportErrorCode::InvalidCredentials,
         "missing_source_permission" => AlgoliaImportErrorCode::MissingSourcePermission,
         "source_not_found" => AlgoliaImportErrorCode::SourceNotFound,

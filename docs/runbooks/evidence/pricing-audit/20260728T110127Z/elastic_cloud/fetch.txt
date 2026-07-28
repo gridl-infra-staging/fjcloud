@@ -1,0 +1,6 @@
+command: curl -L --max-time 30 https://www.elastic.co/pricing/cloud-hosted
+http_status: 200
+effective_url: https://www.elastic.co/pricing/cloud-hosted
+  392413 docs/runbooks/evidence/pricing-audit/20260728T110127Z/elastic_cloud/body.html
+    1001 docs/runbooks/evidence/pricing-audit/20260728T110127Z/elastic_cloud/headers.txt
+  393414 total

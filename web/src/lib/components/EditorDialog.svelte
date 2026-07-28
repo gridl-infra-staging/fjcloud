@@ -239,6 +239,11 @@
 		return serverFieldErrors[field.name] ?? fieldErrors[field.name] ?? '';
 	}
 
+	function arrayItemInputLabel(field: EditorDialogArrayFieldSchema, index: number): string {
+		const itemLabel = isGroupArrayItem(field.item) ? field.label : field.item.label;
+		return `${itemLabel} ${index + 1}`;
+	}
+
 	function arrayRows(fieldName: string): unknown[] {
 		const value = formValues[fieldName];
 		return Array.isArray(value) ? value : [];
@@ -521,6 +526,7 @@
 												id={`${testId}-field-${field.name}-${index}`}
 												type={inputTypeForSimpleField(field.item)}
 												data-testid={editorDialogArrayItemTestId(field.name, index)}
+												aria-label={arrayItemInputLabel(field, index)}
 												class={`${simpleFieldClass} flex-1`}
 												maxlength={inputMaxLength(field.item)}
 												pattern={inputPattern(field.item)}

@@ -12,6 +12,7 @@ mod terminal;
 
 pub use provider::{
     algolia_eligible_regions, validate_algolia_create_provider, AlgoliaReplaceTargetFacts,
+    SourceImportProvider,
 };
 pub(crate) use row::AlgoliaImportJobRow;
 pub use state::AlgoliaImportJobState;
@@ -213,9 +214,15 @@ impl AlgoliaImportDispatchIntentState {
     }
 }
 
+/// Provider-neutral error contract for the durable source-migration lifecycle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum AlgoliaImportErrorCode {
+#[schema(
+    as = AlgoliaImportErrorCode,
+    description = "TODO: Document AlgoliaImportErrorCode."
+)]
+pub enum SourceMigrationErrorCode {
+    SourceProviderUnsupported,
     InvalidCredentials,
     MissingSourcePermission,
     SourceNotFound,
@@ -237,9 +244,10 @@ pub enum AlgoliaImportErrorCode {
     Internal,
 }
 
-impl AlgoliaImportErrorCode {
+impl SourceMigrationErrorCode {
     pub fn as_str(self) -> &'static str {
         match self {
+            Self::SourceProviderUnsupported => "source_provider_unsupported",
             Self::InvalidCredentials => "invalid_credentials",
             Self::MissingSourcePermission => "missing_source_permission",
             Self::SourceNotFound => "source_not_found",
@@ -263,9 +271,13 @@ impl AlgoliaImportErrorCode {
     }
 }
 
+pub use SourceMigrationErrorCode as AlgoliaImportErrorCode;
+
+/// Provider-neutral durable source-migration job.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AlgoliaImportJob {
+pub struct SourceMigrationJob {
     pub id: Uuid,
+    pub source_provider: SourceImportProvider,
     pub customer_id: Uuid,
     pub tenant_id: String,
     pub algolia_app_id: String,
@@ -310,8 +322,10 @@ pub struct AlgoliaImportJob {
     pub updated_at: DateTime<Utc>,
 }
 
+pub use SourceMigrationJob as AlgoliaImportJob;
+
 #[derive(Debug, Clone)]
-pub struct NewAlgoliaImportJob {
+pub struct NewSourceMigrationJob {
     customer_id: Uuid,
     algolia_app_id: String,
     destination: AlgoliaImportDestination,
@@ -322,13 +336,17 @@ pub struct NewAlgoliaImportJob {
     target_binding: Option<AlgoliaImportTargetBinding>,
 }
 
+pub use NewSourceMigrationJob as NewAlgoliaImportJob;
+
 #[derive(Debug, Clone)]
-pub struct AlgoliaImportSource {
+pub struct SourceMigrationSource {
     algolia_app_id: String,
     source_name: String,
     canonical_fingerprint: String,
     source_size_bytes: i64,
 }
+
+pub use SourceMigrationSource as AlgoliaImportSource;
 
 pub const UNKNOWN_ALGOLIA_SOURCE_SIZE_BYTES: i64 = 1_073_741_824;
 
@@ -353,7 +371,7 @@ impl AlgoliaImportSourceMetadata {
     }
 }
 
-impl AlgoliaImportSource {
+impl SourceMigrationSource {
     pub fn from_final_key_metadata(
         algolia_app_id: impl Into<String>,
         source_name: impl Into<String>,
@@ -411,7 +429,7 @@ fn source_metadata_fingerprint(
 }
 
 #[derive(Debug, Clone)]
-pub struct NewAlgoliaReplaceImportJob {
+pub struct NewSourceReplacementMigrationJob {
     customer_id: Uuid,
     logical_target: String,
     source: AlgoliaImportSource,
@@ -419,13 +437,15 @@ pub struct NewAlgoliaReplaceImportJob {
     target_binding: Option<AlgoliaImportTargetBinding>,
 }
 
+pub use NewSourceReplacementMigrationJob as NewAlgoliaReplaceImportJob;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlgoliaImportCreatePlacement {
     pub vm_id: Uuid,
     pub physical_uid: String,
 }
 
-impl NewAlgoliaReplaceImportJob {
+impl NewSourceReplacementMigrationJob {
     pub fn new(
         customer_id: Uuid,
         logical_target: impl Into<String>,
@@ -604,7 +624,7 @@ impl AlgoliaImportDestination {
     }
 }
 
-impl NewAlgoliaImportJob {
+impl NewSourceMigrationJob {
     pub fn create(
         customer_id: Uuid,
         destination: AlgoliaImportCreateDestination,
@@ -620,6 +640,7 @@ impl NewAlgoliaImportJob {
         )
     }
 
+    /// TODO: Document NewAlgoliaImportJob.replace.
     pub fn replace(
         customer_id: Uuid,
         destination: AuthenticatedAlgoliaReplacementTarget,
@@ -636,6 +657,7 @@ impl NewAlgoliaImportJob {
         )
     }
 
+    /// TODO: Document NewAlgoliaImportJob.from_destination.
     fn from_destination(
         customer_id: Uuid,
         destination: AlgoliaImportDestination,

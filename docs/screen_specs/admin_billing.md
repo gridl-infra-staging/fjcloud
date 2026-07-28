@@ -56,6 +56,7 @@ At 390px width, KPI cards stack in the existing two-column grid, failed/draft ta
 - Current: launch-grade browser-unmocked admin batch billing proof remains part of Phase 6 local signoff.
 - Target: Stage 2 owns focused component, loader, source-guard, lint, and type-check coverage for the summary endpoint migration.
 - Evidence: `docs/screen_specs/coverage.md` maps `/admin/billing` to the existing browser and component owners.
+- JSDOM axe coverage now proves populated, confirmation-dialog, success, and error states in `web/src/routes/admin/billing/admin_billing_a11y.test.ts`.
 
 ## Automated Coverage
 

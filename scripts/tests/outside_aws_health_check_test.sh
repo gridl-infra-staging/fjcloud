@@ -54,7 +54,7 @@ printf '%s\n' "$*" >> "$CURL_ARGS_LOG"
 
 http_code="${MOCK_CURL_HTTP_CODE:-200}"
 exit_code="${MOCK_CURL_EXIT_CODE:-0}"
-if [[ "$url" == "https://cloud.flapjack.foo/health" ]]; then
+if [[ "$url" == "https://cloud.flapjack.foo/" ]]; then
     http_code="${MOCK_CURL_HTTP_CODE_CLOUD:-$http_code}"
     exit_code="${MOCK_CURL_EXIT_CODE_CLOUD:-$exit_code}"
 elif [[ "$url" == "https://api.flapjack.foo/health" ]]; then
@@ -137,8 +137,11 @@ test_green_path_probes_both_targets() {
 
     assert_eq "$call_count" "2" \
         "outside-AWS helper should probe exactly two targets"
-    assert_contains "$calls" "https://cloud.flapjack.foo/health" \
-        "outside-AWS helper should probe cloud health endpoint"
+    if printf '%s\n' "$calls" | grep -Fxq "https://cloud.flapjack.foo/"; then
+        pass "outside-AWS helper should probe exact cloud root redirect target"
+    else
+        fail "outside-AWS helper should probe exact cloud root redirect target"
+    fi
     assert_contains "$calls" "https://api.flapjack.foo/health" \
         "outside-AWS helper should probe api health endpoint"
 }
@@ -200,7 +203,7 @@ test_transport_failure_names_target() {
     fi
 
     combined_output="$RUN_STDOUT\n$RUN_STDERR"
-    assert_contains "$combined_output" "https://cloud.flapjack.foo/health" \
+    assert_contains "$combined_output" "target=https://cloud.flapjack.foo/ reason=transport_error" \
         "transport failure log should name the failed target"
 }
 

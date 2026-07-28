@@ -1,7 +1,7 @@
 //! Destination eligibility (`POST /migration/algolia/destination-eligibility`).
 use std::fmt;
 
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use chrono::{Duration, Utc};
@@ -14,14 +14,14 @@ use crate::models::algolia_import_job::{
     validate_algolia_create_provider, AlgoliaImportDestinationKind,
 };
 use crate::models::AlgoliaImportErrorCode;
-use crate::repos::{AlgoliaImportJobRepo, PgAlgoliaImportJobRepo};
+use crate::repos::{PgSourceMigrationJobRepo, SourceMigrationJobRepo};
 use crate::state::AppState;
 
 use super::{
     map_eligibility_snapshot_error, migration_error, migration_unavailable,
-    sign_destination_eligibility, verify_provider_envelope, AlgoliaEligibilityPhase,
-    DestinationEligibilityClaims, DESTINATION_ELIGIBILITY_DOMAIN,
-    DESTINATION_ELIGIBILITY_TOKEN_TTL_SECONDS,
+    sign_destination_eligibility, validate_source_provider, verify_provider_envelope,
+    AlgoliaEligibilityPhase, DestinationEligibilityClaims, MigrationSourcePath,
+    DESTINATION_ELIGIBILITY_DOMAIN, DESTINATION_ELIGIBILITY_TOKEN_TTL_SECONDS,
 };
 
 #[derive(Deserialize, ToSchema)]
@@ -90,6 +90,7 @@ impl fmt::Debug for AlgoliaDestinationEligibilityTargetRequest {
 #[utoipa::path(
     post,
     path = "/migration/algolia/destination-eligibility",
+    operation_id = "check_algolia_destination_eligibility",
     tag = "Migration",
     request_body = AlgoliaDestinationEligibilityRequest,
     responses(
@@ -100,11 +101,13 @@ impl fmt::Debug for AlgoliaDestinationEligibilityTargetRequest {
         (status = 503, description = "Migration admission disabled or backpressured", body = crate::errors::MigrationErrorResponse),
     )
 )]
-pub async fn check_algolia_destination_eligibility(
+pub async fn check_destination_eligibility(
     auth: AuthenticatedTenant,
     State(state): State<AppState>,
+    Path(path): Path<MigrationSourcePath>,
     Json(request): Json<AlgoliaDestinationEligibilityRequest>,
 ) -> Result<Json<AlgoliaDestinationEligibilityResponse>, ApiError> {
+    validate_source_provider(path.source_provider.as_deref())?;
     if !state.algolia_migration_enabled {
         return Err(migration_unavailable());
     }
@@ -209,7 +212,7 @@ async fn target_eligibility_phase(
                     AlgoliaImportErrorCode::DestinationChanged,
                 ));
             }
-            let snapshot = PgAlgoliaImportJobRepo::new(state.pool.clone())
+            let snapshot = PgSourceMigrationJobRepo::new(state.pool.clone())
                 .snapshot_replace_target_eligibility(auth.customer_id, &request.target.name)
                 .await
                 .map_err(map_eligibility_snapshot_error)?;

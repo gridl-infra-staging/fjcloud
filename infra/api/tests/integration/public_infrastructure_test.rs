@@ -257,9 +257,15 @@ async fn public_infrastructure_never_leaks_per_machine_detail() {
     assert_eq!(row_sum, 3);
     assert_eq!(body["overall"]["total_vms"], row_sum);
     assert_eq!(body["overall"]["total_regions"], 6);
-    assert_eq!(body["overall"]["healthy_count"], 3);
-    assert_eq!(body["overall"]["unhealthy_count"], 0);
-    assert_eq!(body["overall"]["unknown_count"], 0);
+    assert_eq!(
+        body["overall"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from(["availability_pct", "total_regions", "total_vms"])
+    );
     assert!(
         body["overall"].get("tenant_count").is_none()
             && body["overall"].get("index_count").is_none(),
@@ -271,9 +277,6 @@ async fn public_infrastructure_never_leaks_per_machine_detail() {
         .find(|region| region["region"] == "us-east-1")
         .unwrap();
     assert_eq!(us_east["vm_count"], 2);
-    assert_eq!(us_east["healthy_count"], 2);
-    assert_eq!(us_east["unhealthy_count"], 0);
-    assert_eq!(us_east["unknown_count"], 0);
     assert!(
         us_east.get("tenant_count").is_none() && us_east.get("index_count").is_none(),
         "public region must not disclose customer or index cardinality: {us_east}"
@@ -313,12 +316,9 @@ async fn public_infrastructure_never_leaks_per_machine_detail() {
             BTreeSet::from([
                 "display_name".to_string(),
                 "health".to_string(),
-                "healthy_count".to_string(),
                 "provider".to_string(),
                 "provider_location".to_string(),
                 "region".to_string(),
-                "unknown_count".to_string(),
-                "unhealthy_count".to_string(),
                 "utilization".to_string(),
                 "vm_count".to_string(),
             ])
@@ -481,7 +481,7 @@ async fn bulk_repository_mocks_omit_missing_unique_inputs_without_legacy_fanout(
 }
 
 #[tokio::test]
-async fn public_infrastructure_json_matches_preoptimization_contract() {
+async fn public_infrastructure_excludes_tenantless_and_terminated_capacity() {
     let vm_repo = crate::common::mock_vm_inventory_repo();
     let tenant_repo = crate::common::mock_tenant_repo();
     let deployment_repo = crate::common::mock_deployment_repo();
@@ -541,33 +541,24 @@ async fn public_infrastructure_json_matches_preoptimization_contract() {
                     "provider": "aws",
                     "display_name": "Alpha Region",
                     "provider_location": "alpha-location",
-                    "health": "operational",
+                    "health": "unknown",
                     "utilization": null,
-                    "vm_count": 1,
-                    "healthy_count": 1,
-                    "unhealthy_count": 0,
-                    "unknown_count": 0
+                    "vm_count": 0
                 },
                 {
                     "region": "zeta-1",
                     "provider": "hetzner",
                     "display_name": "Zeta Region",
                     "provider_location": "zeta-location",
-                    "health": "outage",
+                    "health": "unknown",
                     "utilization": null,
-                    "vm_count": 1,
-                    "healthy_count": 0,
-                    "unhealthy_count": 0,
-                    "unknown_count": 1
+                    "vm_count": 0
                 }
             ],
             "overall": {
-                "availability_pct": 50.0,
+                "availability_pct": null,
                 "total_regions": 2,
-                "total_vms": 2,
-                "healthy_count": 1,
-                "unhealthy_count": 0,
-                "unknown_count": 1
+                "total_vms": 0
             }
         })
     );
@@ -614,10 +605,7 @@ async fn empty_published_inventory_skips_bulk_fetches() {
                     "provider_location": "alpha-location",
                     "health": "unknown",
                     "utilization": null,
-                    "vm_count": 0,
-                    "healthy_count": 0,
-                    "unhealthy_count": 0,
-                    "unknown_count": 0
+                    "vm_count": 0
                 },
                 {
                     "region": "zeta-1",
@@ -626,19 +614,13 @@ async fn empty_published_inventory_skips_bulk_fetches() {
                     "provider_location": "zeta-location",
                     "health": "unknown",
                     "utilization": null,
-                    "vm_count": 0,
-                    "healthy_count": 0,
-                    "unhealthy_count": 0,
-                    "unknown_count": 0
+                    "vm_count": 0
                 }
             ],
             "overall": {
                 "availability_pct": null,
                 "total_regions": 2,
-                "total_vms": 0,
-                "healthy_count": 0,
-                "unhealthy_count": 0,
-                "unknown_count": 0
+                "total_vms": 0
             }
         })
     );
@@ -785,10 +767,7 @@ async fn repository_error_is_retried_not_cached() {
                     "provider_location": "alpha-location",
                     "health": "unknown",
                     "utilization": null,
-                    "vm_count": 0,
-                    "healthy_count": 0,
-                    "unhealthy_count": 0,
-                    "unknown_count": 0
+                    "vm_count": 0
                 },
                 {
                     "region": "zeta-1",
@@ -797,19 +776,13 @@ async fn repository_error_is_retried_not_cached() {
                     "provider_location": "zeta-location",
                     "health": "unknown",
                     "utilization": null,
-                    "vm_count": 0,
-                    "healthy_count": 0,
-                    "unhealthy_count": 0,
-                    "unknown_count": 0
+                    "vm_count": 0
                 }
             ],
             "overall": {
                 "availability_pct": null,
                 "total_regions": 2,
-                "total_vms": 0,
-                "healthy_count": 0,
-                "unhealthy_count": 0,
-                "unknown_count": 0
+                "total_vms": 0
             }
         })
     );

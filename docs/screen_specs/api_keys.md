@@ -75,7 +75,7 @@ The per-index filter is a compact labeled select with `border-flapjack-ink/30 bg
 
 ## Current Implementation Gaps
 
-The shipped page now renders the Wave B 3A self-service UI: per-index filter, lifecycle fields, copy-with-feedback, `EditorDialog` create flow, and typed `ConfirmDialog` revoke flow. Remaining gap: the lifecycle fields are stored/displayed metadata only until the follow-up enforcement lane lands; request-path authorization still remains scope-based as documented below.
+The shipped page now renders the Wave B 3A self-service UI: per-index filter, lifecycle fields, copy-with-feedback, `EditorDialog` create flow, and typed `ConfirmDialog` revoke flow. The populated, empty, create-dialog, and one-time key-reveal states have structural axe proof in `web/src/routes/console/api-keys/api-keys.test.ts`. Remaining gap: the lifecycle fields are stored/displayed metadata only until the follow-up enforcement lane lands; request-path authorization still remains scope-based as documented below.
 
 ## Enforcement Boundaries (runtime owner anchors)
 

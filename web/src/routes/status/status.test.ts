@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/svelte';
+import { getAccessibilityViolations } from '../../tests/a11y';
 import { parseServiceStatus, statusLabelForServiceStatus } from './status_contract';
 
 vi.mock('$env/dynamic/private', () => ({
@@ -44,6 +45,40 @@ describe('Status page', () => {
 
 	beforeEach(() => {
 		setStatusPageLocation(TEST_STATUS_URL);
+	});
+
+	it('has no structural accessibility violations for unavailable, degraded, and outage states', async () => {
+		const StatusPage = (await import('./+page.svelte')).default;
+		const unavailableStatus = parseServiceStatus(undefined);
+
+		const { container } = render(StatusPage, {
+			data: {
+				status: unavailableStatus,
+				statusLabel: statusLabelForServiceStatus(unavailableStatus),
+				lastUpdated: undefined
+			}
+		});
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+
+		cleanup();
+		const { container: degradedContainer } = render(StatusPage, {
+			data: {
+				status: 'degraded',
+				statusLabel: statusLabelForServiceStatus('degraded'),
+				lastUpdated: '2026-02-21T14:30:00Z'
+			}
+		});
+		await expect(getAccessibilityViolations(degradedContainer)).resolves.toEqual([]);
+
+		cleanup();
+		const { container: outageContainer } = render(StatusPage, {
+			data: {
+				status: 'outage',
+				statusLabel: statusLabelForServiceStatus('outage'),
+				lastUpdated: '2026-02-21T15:00:00Z'
+			}
+		});
+		await expect(getAccessibilityViolations(outageContainer)).resolves.toEqual([]);
 	});
 
 	it('renders current status with "Status Unavailable" default', async () => {

@@ -211,6 +211,7 @@ setup_workspace_runner() {
 run_browser_lane_script() {
     local workspace="$1"
     local lane="${2:-both}"
+    local lane_timeout_seconds="${3:-1}"
     local stdout_file="$workspace/stdout.txt"
     local stderr_file="$workspace/stderr.txt"
     local exit_code=0
@@ -221,7 +222,7 @@ run_browser_lane_script() {
             PATH="$workspace/bin:/usr/bin:/bin:/usr/local/bin" \
             TEST_NPX_COUNTER_FILE="$workspace/npx_counter.txt" \
             TEST_NPX_ARGS_FILE="$workspace/npx_args.txt" \
-            BROWSER_LANE_TIMEOUT_SECONDS=1 \
+            BROWSER_LANE_TIMEOUT_SECONDS="$lane_timeout_seconds" \
             bash "$workspace/scripts/launch/run_browser_lane_against_staging.sh" \
                 --lane "$lane" \
                 --evidence-dir "$workspace/evidence"
@@ -268,7 +269,7 @@ test_both_lane_timeout_still_emits_both_lane_logs() {
     write_mock_npx "$workspace"
     init_test_repo "$workspace"
 
-    run_browser_lane_script "$workspace"
+    run_browser_lane_script "$workspace" "both" "1"
 
     local first_lane_log second_lane_log
     first_lane_log="$workspace/evidence/signup_to_paid_invoice.txt"
@@ -301,7 +302,7 @@ test_launcher_copies_trace_artifacts_into_evidence_bundle() {
     write_mock_npx_with_trace_artifacts "$workspace"
     init_test_repo "$workspace"
 
-    run_browser_lane_script "$workspace"
+    run_browser_lane_script "$workspace" "both" "5"
 
     local sentinel_path trace_root sentinel_content
     sentinel_path="$workspace/evidence/trace_copy_summary.json"
@@ -352,7 +353,7 @@ test_single_lane_run_excludes_stale_opposite_lane_trace_artifacts() {
     mkdir -p "$workspace/web/test-results/billing_portal_payment_method_update/stale"
     printf 'stale billing lane artifact\n' > "$workspace/web/test-results/billing_portal_payment_method_update/stale/trace.zip"
 
-    run_browser_lane_script "$workspace" "signup_to_paid_invoice"
+    run_browser_lane_script "$workspace" "signup_to_paid_invoice" "5"
 
     local sentinel_path sentinel_content
     sentinel_path="$workspace/evidence/trace_copy_summary.json"
@@ -380,7 +381,7 @@ test_missing_stripe_contract_fails_closed_before_playwright() {
     write_mock_npx "$workspace"
     init_test_repo "$workspace"
 
-    run_browser_lane_script "$workspace"
+    run_browser_lane_script "$workspace" "both" "5"
 
     assert_eq "$RUN_EXIT_CODE" "1" "run should fail closed when hydrator omits Stripe contract values"
     assert_contains "$RUN_STDERR" "ERROR: STRIPE_SECRET_KEY not hydrated from SSM" "missing Stripe key should fail with explicit owner message"

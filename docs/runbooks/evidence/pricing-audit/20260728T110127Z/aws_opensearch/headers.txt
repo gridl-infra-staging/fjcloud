@@ -1,0 +1,18 @@
+HTTP/2 200 
+content-type: text/html;charset=utf-8
+date: Tue, 28 Jul 2026 11:01:42 GMT
+set-cookie: aws-priv=eyJ2IjoxLCJldSI6MCwic3QiOjB9; Version=1; Comment="Anonymous cookie for privacy regulations"; Domain=.aws.amazon.com; Max-Age=31536000; Expires=Wed, 28 Jul 2027 11:01:42 GMT; Path=/; Secure
+set-cookie: aws_lang=en; Domain=.amazon.com; Path=/
+x-content-type-options: nosniff
+server: Server
+x-frame-options: SAMEORIGIN
+x-xss-protection: 1; mode=block
+strict-transport-security: max-age=47304000; includeSubDomains
+x-amz-id-1: AAB03E84CD914E7AB81C
+last-modified: Wed, 15 Jul 2026 22:35:47 GMT
+vary: accept-encoding
+x-cache: Miss from cloudfront
+via: 1.1 ddba5cc22287785323b6bcc96e4c3062.cloudfront.net (CloudFront)
+x-amz-cf-pop: IAD61-P13
+x-amz-cf-id: 3UI5HsnMFqeWgYniQ8WVVWFgMJ64MNHAgIXlvkzTNadqcPHlPeqSQg==
+

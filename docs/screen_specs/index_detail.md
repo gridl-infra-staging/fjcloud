@@ -88,6 +88,8 @@ Inspect one index and open the management area needed for the next index task.
 ## Current Implementation Gaps
 
 None verified. The target behavior is implemented and mapped to the automated owners below.
+Structural accessibility is covered for the overview and populated analytics states by
+`web/src/routes/console/indexes/[name]/detail.a11y.test.ts`.
 
 ## Automated Coverage
 

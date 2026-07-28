@@ -38,6 +38,7 @@ vi.mock('$app/state', () => ({
 import LogsPage from './+page.svelte';
 import { appendLogEntry, clearLog } from '$lib/api-logs/store';
 import type { SanitizedLogEntry } from '$lib/api-logs/sanitization';
+import { getAccessibilityViolations } from '../../../tests/a11y';
 
 function setRouteUrl(pathAndQuery: string): void {
 	routeMocks.url = new URL(pathAndQuery, 'http://localhost');
@@ -89,6 +90,16 @@ function makeSanitizedEntry(overrides: Partial<SanitizedLogEntry> = {}): Sanitiz
 }
 
 describe('Dashboard logs page', () => {
+	it('has no structural accessibility violations for empty and populated logs', async () => {
+		const { container } = render(LogsPage);
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+		cleanup();
+
+		appendLogEntry(makeSanitizedEntry());
+		const { container: populatedContainer } = render(LogsPage);
+		await expect(getAccessibilityViolations(populatedContainer)).resolves.toEqual([]);
+	});
+
 	it('renders the page heading', () => {
 		render(LogsPage);
 		expect(screen.getByRole('heading', { name: /api logs/i })).toBeInTheDocument();

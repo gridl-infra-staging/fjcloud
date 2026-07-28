@@ -46,6 +46,7 @@ Rendering and setup-confirmation UX are owned by `web/src/routes/console/billing
 ## Current Implementation Gaps
 
 Browser-unmocked setup navigation is covered only when local Stripe-backed payment management is available; payment form internals are owned by Stripe Elements and local commerce proof.
+Structural jsdom accessibility proof is now owned by `web/src/routes/console/billing/setup/setup.test.ts` for setup success and server-error states.
 
 ## Automated Coverage
 

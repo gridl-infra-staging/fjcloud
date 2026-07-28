@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
 import type { Component } from 'svelte';
+import { getAccessibilityViolations } from '../../tests/a11y';
 import { formatCents } from '$lib/format';
 import { MARKETING_PRICING, sharedPlanMinimumMonthlyLabel } from '$lib/pricing';
 import PricingLayoutTestWrapper from './pricing_layout_test_wrapper.svelte';
+import PricingPage from './+page.svelte';
 
 const { pageState } = vi.hoisted(() => ({
 	pageState: { url: new URL('http://localhost/pricing') }
@@ -58,7 +60,7 @@ function isMissingPricingRouteModule(error: unknown): boolean {
 	return cannotFindModule || viteMissingUrl;
 }
 
-async function renderPricingPage(pricing = MARKETING_PRICING): Promise<void> {
+async function renderPricingPage(pricing = MARKETING_PRICING) {
 	let module: unknown;
 	try {
 		module = await import(/* @vite-ignore */ PRICING_ROUTE_COMPONENT_PATH);
@@ -79,10 +81,16 @@ async function renderPricingPage(pricing = MARKETING_PRICING): Promise<void> {
 		throw new Error('Expected /pricing route module to export a default Svelte component.');
 	}
 
-	render(module.default as Component<PricingPageProps>, { data: { pricing } });
+	return render(module.default as Component<PricingPageProps>, { data: { pricing } });
 }
 
 describe('Pricing page', () => {
+	it('has no structural accessibility violations', async () => {
+		const { container } = render(PricingPage, { data: { pricing: MARKETING_PRICING } });
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
 	it('sources the exact tax disclaimer from shared marketing pricing data', () => {
 		expect(MARKETING_PRICING.tax_disclaimer).toBe(EXPECTED_TAX_DISCLAIMER);
 	});

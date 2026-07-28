@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import * as formatModule from './format';
 import {
 	adminBadgeColor,
 	formatCents,
@@ -13,9 +16,54 @@ import {
 	indexStatusLabel,
 	scopeLabel,
 	planLabel,
+	SUPPORT_EMAIL,
 	statusColor,
 	statusLabel
 } from './format';
+
+const SUPPORT_DESTINATION_EXPECTATIONS = {
+	READER_DOCS_URL: 'https://docs.flapjack.foo/',
+	COMMUNITY_DISCUSSIONS_URL: 'https://github.com/flapjackhq/flapjack/discussions',
+	COMMUNITY_IDEAS_URL: 'https://github.com/flapjackhq/flapjack/discussions/categories/ideas',
+	COMMUNITY_QA_URL: 'https://github.com/flapjackhq/flapjack/discussions/categories/q-a',
+	ENGINE_ISSUES_URL: 'https://github.com/flapjackhq/flapjack/issues',
+	DOCUMENTATION_SOURCE_URL:
+		'https://github.com/flapjackhq/flapjack-docs/tree/main/src/content/docs',
+	SECURITY_POLICY_URL: 'https://github.com/flapjackhq/flapjack/security/policy'
+} as const;
+
+type SupportFormatContract = Partial<
+	Record<keyof typeof SUPPORT_DESTINATION_EXPECTATIONS, string> & {
+		buildCloudSupportMailto: (route: string, timestamp: string) => string;
+	}
+>;
+
+const supportFormat = formatModule as SupportFormatContract;
+
+function walkProductionFiles(root: string): string[] {
+	let entries: string[];
+	try {
+		entries = readdirSync(root);
+	} catch (error) {
+		throw new Error(`Unable to scan production source root ${root}`, { cause: error });
+	}
+	const files: string[] = [];
+
+	for (const entry of entries) {
+		const path = join(root, entry);
+		const stat = statSync(path);
+		if (stat.isDirectory()) {
+			files.push(...walkProductionFiles(path));
+			continue;
+		}
+		if (!stat.isFile()) continue;
+		if (!/\.(svelte|ts)$/.test(entry)) continue;
+		if (entry.endsWith('.test.ts') || entry.endsWith('.spec.ts')) continue;
+		files.push(path);
+	}
+
+	return files;
+}
 
 describe('formatCents', () => {
 	it('formats whole dollar amounts', () => {
@@ -257,6 +305,76 @@ describe('formatNumber', () => {
 		expect(formatNumber(1000)).toBe('1,000');
 		expect(formatNumber(1500)).toBe('1,500');
 		expect(formatNumber(1000000)).toBe('1,000,000');
+	});
+});
+
+describe('support destination routing contract', () => {
+	it.each(
+		Object.entries(SUPPORT_DESTINATION_EXPECTATIONS) as [
+			keyof typeof SUPPORT_DESTINATION_EXPECTATIONS,
+			string
+		][]
+	)('exports exact %s customer support destination', (name, expectedUrl) => {
+		const actualUrl = supportFormat[name];
+		expect(actualUrl, name).toBe(expectedUrl);
+		if (actualUrl === undefined) return;
+		expect(new URL(actualUrl).host, `${name} host`).toBe(new URL(expectedUrl).host);
+	});
+
+	it('builds a deterministic private cloud-support mailto with route and timestamp', () => {
+		const candidateBuilder = supportFormat.buildCloudSupportMailto;
+		expect(typeof candidateBuilder).toBe('function');
+		if (candidateBuilder === undefined) return;
+
+		const href = candidateBuilder('/console/indexes', '2026-07-27T12:34:56.000Z');
+		const parsed = new URL(href);
+		expect(parsed.protocol).toBe('mailto:');
+		expect(parsed.pathname).toBe(SUPPORT_EMAIL);
+		expect(parsed.searchParams.get('subject')).toBe('Flapjack Cloud support request');
+		expect(parsed.searchParams.get('body')).toBe(
+			'Route: /console/indexes\nTimestamp: 2026-07-27T12:34:56.000Z'
+		);
+	});
+
+	it('keeps canonical support URLs and email destinations owned by format.ts', () => {
+		const roots = [
+			join(process.cwd(), 'src', 'lib', 'components'),
+			join(process.cwd(), 'src', 'lib', 'error-boundary'),
+			join(process.cwd(), 'src', 'routes')
+		];
+		const forbiddenLiterals = [SUPPORT_EMAIL, ...Object.values(SUPPORT_DESTINATION_EXPECTATIONS)];
+		const offenders: string[] = [];
+		let scannedFileCount = 0;
+
+		for (const root of roots) {
+			for (const file of walkProductionFiles(root)) {
+				scannedFileCount += 1;
+				const source = readFileSync(file, 'utf8');
+				for (const literal of forbiddenLiterals) {
+					if (source.includes(literal)) {
+						offenders.push(`${relative(process.cwd(), file)} contains ${literal}`);
+					}
+				}
+			}
+		}
+
+		expect(scannedFileCount).toBeGreaterThan(0);
+		expect(offenders).toEqual([]);
+
+		const formatSource = readFileSync(join(process.cwd(), 'src', 'lib', 'format.ts'), 'utf8');
+		const supportMailboxOwners = [
+			...formatSource.matchAll(
+				/\b(?:export\s+)?const\s+([A-Z0-9_]*(?:SUPPORT[A-Z0-9_]*(?:EMAIL|MAILBOX)|(?:EMAIL|MAILBOX)[A-Z0-9_]*SUPPORT)[A-Z0-9_]*)\s*=/g
+			)
+		].map((match) => match[1]);
+		const literalMailboxOwners = [
+			...formatSource.matchAll(
+				/\b(?:export\s+)?const\s+([A-Z0-9_]+)\s*=\s*['"]support@flapjack\.foo['"]/g
+			)
+		].map((match) => match[1]);
+		expect(supportMailboxOwners).toEqual(['SUPPORT_EMAIL']);
+		expect(literalMailboxOwners).toEqual(['SUPPORT_EMAIL']);
+		expect(formatSource.match(/\bexport\s+const\s+SUPPORT_EMAIL\s*=/g)).toHaveLength(1);
 	});
 });
 

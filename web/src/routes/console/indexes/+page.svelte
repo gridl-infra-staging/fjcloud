@@ -203,7 +203,7 @@
 						<th class="px-4 py-3">Entries</th>
 						<th class="px-4 py-3">Data Size</th>
 						<th class="px-4 py-3">Created</th>
-						<th class="px-4 py-3"></th>
+						<th class="px-4 py-3"><span class="sr-only">Actions</span></th>
 					</tr>
 				</thead>
 				<tbody class="divide-y">

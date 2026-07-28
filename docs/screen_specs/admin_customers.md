@@ -46,7 +46,7 @@ Baseline viewport: 390px wide (iPhone 14). The page keeps heading, search input,
 
 ## Current Implementation Gaps
 
-Current browser tests cover active-row actions and truthfulness; broader list pagination is not present/mapped.
+Current browser tests cover active-row actions and truthfulness; broader list pagination is not present/mapped. JSDOM axe coverage now proves populated, filtered, empty, and unavailable states in `web/src/routes/admin/customers/admin_customers_a11y.test.ts`.
 
 ## Automated Coverage
 

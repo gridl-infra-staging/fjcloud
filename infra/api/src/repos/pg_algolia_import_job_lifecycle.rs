@@ -149,7 +149,7 @@ impl PgAlgoliaImportJobRepo {
         .fetch_one(&mut **tx)
         .await
         .map_err(repo_error)
-        .map(AlgoliaImportJob::from)?;
+        .and_then(super::decode_import_job_row)?;
 
         let dispatch = updated
             .engine_job_id
@@ -210,7 +210,7 @@ impl PgAlgoliaImportJobRepo {
         .fetch_one(&mut **tx)
         .await
         .map_err(repo_error)
-        .map(AlgoliaImportJob::from)?;
+        .and_then(super::decode_import_job_row)?;
 
         Ok(AlgoliaImportResumeOutcome {
             generation,
@@ -374,7 +374,7 @@ impl PgAlgoliaImportJobRepo {
         .fetch_one(&mut *tx)
         .await
         .map_err(repo_error)
-        .map(AlgoliaImportJob::from)?;
+        .and_then(super::decode_import_job_row)?;
         tx.commit().await.map_err(repo_error)?;
         Ok(updated)
     }

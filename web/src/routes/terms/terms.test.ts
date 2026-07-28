@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/svelte';
+import { getAccessibilityViolations } from '../../tests/a11y';
 
 import TermsLayoutTestWrapper from './terms_layout_test_wrapper.svelte';
 import {
@@ -33,6 +34,13 @@ const termsSectionHeadings = [
 ] as const;
 
 describe('Terms page legal contract', () => {
+	it('has no structural accessibility violations', async () => {
+		pageState.url = new URL('http://localhost/terms');
+		const { container } = render(TermsLayoutTestWrapper);
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
 	it('renders finalized terms copy without draft markers and preserves core sections', () => {
 		pageState.url = new URL('http://localhost/terms');
 		render(TermsLayoutTestWrapper);

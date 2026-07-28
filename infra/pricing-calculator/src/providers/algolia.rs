@@ -82,6 +82,7 @@ pub fn estimate(workload: &WorkloadProfile) -> EstimatedCost {
 
     EstimatedCost {
         provider: ProviderId::Algolia,
+        verification_label: metadata().verification_label(),
         monthly_total_cents,
         line_items,
         assumptions: vec![

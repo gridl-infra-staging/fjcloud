@@ -84,6 +84,20 @@ sleep 0.2'
     # Don't override kill — it's a shell builtin and we need it for real PID checks.
 }
 
+wait_for_call_log_contains() {
+    local call_log="$1"
+    local expected="$2"
+    local deadline=$((SECONDS + 5))
+
+    while [ "$SECONDS" -lt "$deadline" ]; do
+        if grep -Fq -- "$expected" "$call_log" 2>/dev/null; then
+            return 0
+        fi
+        sleep 0.05
+    done
+    return 1
+}
+
 # ============================================================================
 # Tests
 # ============================================================================
@@ -229,8 +243,7 @@ test_multi_region_parses_flapjack_regions() {
 
     assert_eq "$exit_code" "0" "multi-region start should succeed"
 
-    # Brief pause for backgrounded nohup processes to finish writing.
-    sleep 0.5
+    wait_for_call_log_contains "$call_log" "REGION=eu-central-1" || true
 
     local calls
     calls=$(cat "$call_log" 2>/dev/null || true)
@@ -270,7 +283,7 @@ test_multi_region_health_ports_auto_derived() {
 
     assert_eq "$exit_code" "0" "multi-region start should succeed"
 
-    sleep 0.5
+    wait_for_call_log_contains "$call_log" "HEALTH_PORT=9093" || true
 
     local calls
     calls=$(cat "$call_log" 2>/dev/null || true)

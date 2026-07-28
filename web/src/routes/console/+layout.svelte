@@ -4,7 +4,15 @@
 	import { page } from '$app/state';
 	import { DASHBOARD_SESSION_EXPIRED_REDIRECT } from '$lib/auth-session-contracts';
 	import { resolve } from '$app/paths';
-	import { planLabel, SUPPORT_EMAIL } from '$lib/format';
+	import {
+		buildCloudSupportMailto,
+		COMMUNITY_IDEAS_URL,
+		COMMUNITY_QA_URL,
+		DOCUMENTATION_SOURCE_URL,
+		ENGINE_ISSUES_URL,
+		planLabel,
+		SECURITY_POLICY_URL
+	} from '$lib/format';
 	import BetaSupportBadge from '$lib/components/BetaSupportBadge.svelte';
 	import { CANONICAL_PUBLIC_API_DOCS_URL } from '$lib/public_api';
 	import { parseRetryAfterSeconds, retryAfterSecondsFromHeaders } from '$lib/http/retry_after';
@@ -24,11 +32,37 @@
 		{ href: '/console/logs' as const, label: 'Logs', icon: 'list' },
 		{ href: '/console/account' as const, label: 'Account', icon: 'settings' }
 	];
-	const supportMailtoHref = `mailto:${SUPPORT_EMAIL}`;
-	const helpItems = [
-		{ href: supportMailtoHref, label: 'Support', external: false },
-		{ href: CANONICAL_PUBLIC_API_DOCS_URL, label: 'API Docs', external: true }
+	const helpItems = [{ href: CANONICAL_PUBLIC_API_DOCS_URL, label: 'API Docs', external: true }];
+	const supportRouteLinks = [
+		{
+			href: COMMUNITY_IDEAS_URL,
+			label: 'Share an idea',
+			copy: 'Ideas, feature requests, or behavior changes.'
+		},
+		{
+			href: COMMUNITY_QA_URL,
+			label: 'Ask a question',
+			copy: 'How-to questions and usage discussion.'
+		},
+		{
+			href: ENGINE_ISSUES_URL,
+			label: 'Report an engine bug',
+			copy: 'Engine bugs from self-hosted or cloud use.'
+		},
+		{
+			href: DOCUMENTATION_SOURCE_URL,
+			label: 'Propose a documentation correction',
+			copy: 'Documentation errors in the public source.'
+		},
+		{
+			href: SECURITY_POLICY_URL,
+			label: 'Read private security reporting instructions',
+			copy: 'Security vulnerabilities use private reporting.'
+		}
 	];
+	const cloudSupportMailtoHref = $derived(
+		buildCloudSupportMailto(page.url.pathname, new Date().toISOString())
+	);
 
 	function isActive(href: string): boolean {
 		if (href === '/console/account') {
@@ -47,6 +81,8 @@
 	}
 
 	let mobileNavOpen = $state(false);
+	let desktopSupportRoutingOpen = $state(false);
+	let mobileSupportRoutingOpen = $state(false);
 
 	function closeMobileNav() {
 		mobileNavOpen = false;
@@ -58,6 +94,14 @@
 
 	function closeMobileNavAfterNavigation() {
 		mobileNavOpen = false;
+	}
+
+	function toggleSupportRouting(isMobile: boolean) {
+		if (isMobile) {
+			mobileSupportRoutingOpen = !mobileSupportRoutingOpen;
+			return;
+		}
+		desktopSupportRoutingOpen = !desktopSupportRoutingOpen;
 	}
 
 	let redirectedForSessionExpiry = $state(false);
@@ -129,6 +173,7 @@
 </script>
 
 {#snippet renderShellNavigation(isMobile: boolean)}
+	{@const supportRoutingOpen = isMobile ? mobileSupportRoutingOpen : desktopSupportRoutingOpen}
 	<!-- P.brand_palette_consistency, M.universal.1: dashboard nav active/inactive color states cited by docs/runbooks/evidence/ui-polish/20260505T021650Z_first_run/judgments/auth__dashboard__empty__desktop.json and docs/runbooks/evidence/ui-polish/20260505T021650Z_first_run/judgments/auth__dashboard__empty__mobile_narrow.json -->
 	<nav class="space-y-1">
 		{#each navItems as item (item.href)}
@@ -151,6 +196,60 @@
 	<div class="mt-6 border-t pt-4 border-flapjack-ink/20">
 		<p class="mb-2 text-xs font-semibold uppercase tracking-wide text-flapjack-ink/60">Help</p>
 		<div class="space-y-1">
+			<div class="rounded-lg px-3 py-2 text-sm text-flapjack-ink" data-testid="support-routing">
+				<button
+					type="button"
+					class="text-left text-sm font-medium text-flapjack-ink"
+					aria-expanded={supportRoutingOpen}
+					aria-controls={isMobile
+						? 'dashboard-mobile-support-routing-panel'
+						: 'dashboard-desktop-support-routing-panel'}
+					onclick={() => toggleSupportRouting(isMobile)}
+				>
+					Report a problem or request a feature
+				</button>
+				{#if supportRoutingOpen}
+					<div
+						id={isMobile
+							? 'dashboard-mobile-support-routing-panel'
+							: 'dashboard-desktop-support-routing-panel'}
+						class="mt-3 space-y-3 text-xs leading-5 text-flapjack-ink/75"
+					>
+						<p>
+							Do not include account, invoice, index, or customer-data details in public GitHub
+							posts.
+						</p>
+						<p>Security vulnerabilities use the private reporting policy, not public trackers.</p>
+						<div class="space-y-2">
+							<!-- eslint-disable svelte/no-navigation-without-resolve -- support mailto is an external destination -->
+							<a
+								href={cloudSupportMailtoHref}
+								class="block font-medium text-flapjack-ink hover:underline"
+								onclick={isMobile ? closeMobileNavAfterNavigation : undefined}
+							>
+								Email support for cloud console, API, billing, account, invoice, index, or data
+								issues
+							</a>
+							<!-- eslint-enable svelte/no-navigation-without-resolve -->
+							{#each supportRouteLinks as item (item.href)}
+								<!-- eslint-disable svelte/no-navigation-without-resolve -- canonical public support destinations live in $lib/format -->
+								<a
+									href={item.href}
+									target="_blank"
+									rel="noreferrer"
+									aria-label={item.label}
+									class="block text-flapjack-ink hover:underline"
+									onclick={isMobile ? closeMobileNavAfterNavigation : undefined}
+								>
+									<span class="font-medium">{item.label}</span>
+									<span class="block text-flapjack-ink/65">{item.copy}</span>
+								</a>
+								<!-- eslint-enable svelte/no-navigation-without-resolve -->
+							{/each}
+						</div>
+					</div>
+				{/if}
+			</div>
 			{#each helpItems as item (item.href)}
 				<!-- eslint-disable svelte/no-navigation-without-resolve -- support mailto and canonical docs URL are external destinations -->
 				<a

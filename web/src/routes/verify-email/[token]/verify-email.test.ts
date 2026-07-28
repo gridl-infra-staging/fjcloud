@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/svelte';
 import VerifyEmailPage from './+page.svelte';
 import { LEGAL_SUPPORT_MAILTO, SUPPORT_EMAIL } from '$lib/format';
+import { getAccessibilityViolations } from '../../../tests/a11y';
 
 afterEach(cleanup);
 
@@ -12,6 +13,18 @@ function renderVerifyEmailPage(success: boolean, message: string) {
 }
 
 describe('Verify email page', () => {
+	it('has no structural accessibility violations for success outcomes', async () => {
+		const { container } = renderVerifyEmailPage(true, 'Email verified successfully');
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
+	it('has no structural accessibility violations for failure outcomes', async () => {
+		const { container } = renderVerifyEmailPage(false, 'verification token expired');
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
 	it('renders polished success outcome copy with login CTA', () => {
 		renderVerifyEmailPage(true, 'Email verified successfully');
 

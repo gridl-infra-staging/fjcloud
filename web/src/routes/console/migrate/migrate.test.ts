@@ -11,6 +11,7 @@ import {
 	availableAvailability,
 	unavailableAvailability
 } from '$lib/components/migration/migration_test_fixtures';
+import { getAccessibilityViolations } from '../../../tests/a11y';
 
 const { applyActionMock, deserializeMock, fetchMock, gotoMock, invalidateAllMock } = vi.hoisted(
 	() => ({
@@ -278,5 +279,15 @@ describe('Migrate page recent imports on the available surface', () => {
 		expect(screen.getByTestId(`migration-recent-import-${rerenderedJob.id}`)).toHaveTextContent(
 			'products_archive to products_archive_migrated'
 		);
+	});
+
+	it('has no structural accessibility violations for the connected migration wizard', async () => {
+		const { container } = renderMigratePage(availableAvailability, {
+			page: { jobs: [], nextCursor: null },
+			error: null
+		});
+
+		expect(await screen.findByTestId('migration-create-flow')).toBeInTheDocument();
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
 	});
 });

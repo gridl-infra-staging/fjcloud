@@ -3,7 +3,7 @@
 #
 # Scope:
 #   - Parse shape-map keys from inline route.fulfill(...) payloads in
-#     web/tests/e2e-ui/mocked/auth_trust_states.spec.ts.
+#     web/tests/e2e-ui/full/public-auth-trust-states.spec.ts.
 #   - Assert live wire payload keys for the two deterministic auth cases:
 #       1) forgot-password resend success
 #       2) reset-password invalid token
@@ -31,7 +31,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 PARSER="$REPO_ROOT/scripts/lib/mocked_spec_contract_parser.py"
 
-AUTH_SPEC_PATH="${MOCKED_SPEC_CONTRACT_AUTH_SPEC_PATH:-$REPO_ROOT/web/tests/e2e-ui/mocked/auth_trust_states.spec.ts}"
+AUTH_SPEC_PATH="${MOCKED_SPEC_CONTRACT_AUTH_SPEC_PATH:-$REPO_ROOT/web/tests/e2e-ui/full/public-auth-trust-states.spec.ts}"
 FORGOT_ROUTE_PATH="${MOCKED_SPEC_CONTRACT_FORGOT_ROUTE_PATH:-$REPO_ROOT/web/src/routes/forgot-password/+page.server.ts}"
 RESET_ROUTE_PATH="${MOCKED_SPEC_CONTRACT_RESET_ROUTE_PATH:-$REPO_ROOT/web/src/routes/reset-password/[token]/+page.server.ts}"
 UPGRADE_FIXTURE_PATH="${MOCKED_SPEC_CONTRACT_UPGRADE_FIXTURE_PATH:-$REPO_ROOT/web/tests/fixtures/upgrade_fixture.ts}"

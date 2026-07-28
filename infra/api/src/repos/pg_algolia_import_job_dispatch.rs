@@ -1,7 +1,7 @@
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
-use super::{repo_error, PgAlgoliaImportJobRepo};
+use super::{repo_error, support::decode_import_job_row, PgAlgoliaImportJobRepo};
 use crate::models::algolia_import_job::{
     AlgoliaImportDispatchIntentState, AlgoliaImportErrorCode, AlgoliaImportJob,
     AlgoliaImportJobRow, NewAlgoliaImportJob, NewAlgoliaReplaceImportJob,
@@ -90,7 +90,7 @@ impl PgAlgoliaImportJobRepo {
         .fetch_one(&mut **tx)
         .await
         .map_err(repo_error)
-        .map(AlgoliaImportJob::from)
+        .and_then(decode_import_job_row)
     }
 
     async fn insert_dispatch_admission(
@@ -279,7 +279,7 @@ impl PgAlgoliaImportJobRepo {
         .fetch_one(&mut *tx)
         .await
         .map_err(repo_error)
-        .map(AlgoliaImportJob::from)?;
+        .and_then(decode_import_job_row)?;
         tx.commit().await.map_err(repo_error)?;
         Ok(updated)
     }

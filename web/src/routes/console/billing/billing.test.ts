@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, within } from '@testing-library/svelte';
 import { layoutTestDefaults } from '../layout-test-context';
 import { LEGAL_SUPPORT_MAILTO, SUPPORT_EMAIL } from '$lib/format';
+import { getAccessibilityViolations } from '../../../tests/a11y';
 
 vi.mock('$app/navigation', () => ({
 	goto: vi.fn(),
@@ -45,6 +46,40 @@ function expectNoBillingPortalControls(container: HTMLElement): void {
 }
 
 describe('Billing page', () => {
+	it('has no structural accessibility violations when billing is available', async () => {
+		const { container } = render(BillingPage, {
+			data: {
+				...layoutTestDefaults,
+				user: null,
+				billingUnavailable: false,
+				paymentMethods: [],
+				setupIntentClientSecret: 'seti_secret_123',
+				setupIntentError: null,
+				upgradeStatus: null
+			},
+			form: null
+		});
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
+	it('has no structural accessibility violations when billing is unavailable', async () => {
+		const { container } = render(BillingPage, {
+			data: {
+				...layoutTestDefaults,
+				user: null,
+				billingUnavailable: true,
+				paymentMethods: [],
+				setupIntentClientSecret: null,
+				setupIntentError: null,
+				upgradeStatus: null
+			},
+			form: null
+		});
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
 	it('rejects non-exact manageBilling action targets in the no-portal helper', () => {
 		const container = document.createElement('div');
 

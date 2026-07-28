@@ -410,31 +410,59 @@ fn add_migration_routes(router: Router<AppState>) -> Router<AppState> {
     router
         .route(
             "/migration/algolia/availability",
-            get(migration::algolia_availability),
+            get(migration::migration_availability),
+        )
+        .route(
+            "/migration/:source_provider/availability",
+            get(migration::migration_availability),
         )
         .route(
             "/migration/algolia/list-indexes",
-            post(migration::list_algolia_indexes),
+            post(migration::list_source_indexes),
+        )
+        .route(
+            "/migration/:source_provider/list-indexes",
+            post(migration::list_source_indexes),
         )
         .route(
             "/migration/algolia/destination-eligibility",
-            post(migration::check_algolia_destination_eligibility),
+            post(migration::check_destination_eligibility),
+        )
+        .route(
+            "/migration/:source_provider/destination-eligibility",
+            post(migration::check_destination_eligibility),
         )
         .route(
             "/migration/algolia/jobs",
-            post(migration::create_algolia_import_job).get(migration::list_algolia_import_jobs),
+            post(migration::create_import_job).get(migration::list_import_jobs),
+        )
+        .route(
+            "/migration/:source_provider/jobs",
+            post(migration::create_import_job).get(migration::list_import_jobs),
         )
         .route(
             "/migration/algolia/jobs/:id",
-            get(migration::get_algolia_import_job),
+            get(migration::get_import_job),
+        )
+        .route(
+            "/migration/:source_provider/jobs/:id",
+            get(migration::get_import_job),
         )
         .route(
             "/migration/algolia/jobs/:id/cancel",
-            post(migration::cancel_algolia_import_job),
+            post(migration::cancel_import_job),
+        )
+        .route(
+            "/migration/:source_provider/jobs/:id/cancel",
+            post(migration::cancel_import_job),
         )
         .route(
             "/migration/algolia/jobs/:id/resume",
-            post(migration::resume_algolia_import_job),
+            post(migration::resume_import_job),
+        )
+        .route(
+            "/migration/:source_provider/jobs/:id/resume",
+            post(migration::resume_import_job),
         )
 }
 

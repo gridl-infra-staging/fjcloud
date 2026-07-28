@@ -45,7 +45,10 @@ Update profile name, verify displayed account email, change password, export cus
 
 ## Current Implementation Gaps
 
-None known for the mapped launch-critical behavior.
+None known for the mapped launch-critical behavior. Structural accessibility for the
+account-management and compatibility states is proved by the axe assertions in
+`web/src/routes/console/account/account.test.ts` and
+`web/src/routes/console/settings/settings.test.ts`.
 
 ## Automated Coverage
 

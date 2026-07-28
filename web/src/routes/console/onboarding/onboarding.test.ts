@@ -3,6 +3,7 @@ import { render, screen, cleanup, within } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
 import type { ComponentProps } from 'svelte';
 import type { OnboardingStatus, FlapjackCredentials } from '$lib/api/types';
+import { getAccessibilityViolations } from '../../../tests/a11y';
 import { layoutTestProfile } from '../layout-test-context';
 
 const browserState = vi.hoisted(() => ({ value: false }));
@@ -134,6 +135,19 @@ function renderPage(
 		onboarding_completed: boolean;
 	}> = {}
 ) {
+	return render(OnboardingPage, buildPageProps(onboardingStatus, form, planContextOverrides));
+}
+
+function buildPageProps(
+	onboardingStatus: OnboardingStatus,
+	form: OnboardingForm = null,
+	planContextOverrides: Partial<{
+		billing_plan: 'free' | 'shared';
+		free_tier_limits: OnboardingStatus['free_tier_limits'];
+		has_payment_method: boolean;
+		onboarding_completed: boolean;
+	}> = {}
+): ComponentProps<typeof OnboardingPage> {
 	const planContext = {
 		billing_plan: onboardingStatus.billing_plan,
 		free_tier_limits: onboardingStatus.free_tier_limits,
@@ -142,7 +156,7 @@ function renderPage(
 		onboarding_status_loaded: true,
 		...planContextOverrides
 	};
-	render(OnboardingPage, {
+	return {
 		data: {
 			user: null,
 			profile: layoutTestProfile,
@@ -151,7 +165,7 @@ function renderPage(
 			impersonation: null
 		},
 		form
-	});
+	};
 }
 
 function mockRetryIndexSubmit() {
@@ -162,6 +176,24 @@ function mockRetryIndexSubmit() {
 }
 
 describe('Onboarding wizard', () => {
+	it('step 1 has no structural accessibility violations', async () => {
+		const { container } = renderPage(freshOnboarding);
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
+	it('shared-plan billing gate has no structural accessibility violations', async () => {
+		const { container } = renderPage(sharedNeedsBillingOnboarding);
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
+	it('credentials step has no structural accessibility violations', async () => {
+		const { container } = renderPage(readyOnboarding, { credentials: buildCredentials() });
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
 	it('step 1 renders region options with index name input', () => {
 		renderPage(freshOnboarding);
 
@@ -207,6 +239,28 @@ describe('Onboarding wizard', () => {
 		await fireEvent.input(nameInput, { target: { value: 'valid-index' } });
 		expect(screen.queryByTestId('index-name-error')).not.toBeInTheDocument();
 		expect(continueButton).toBeEnabled();
+	});
+
+	it('step 1 retries a failed create action without clearing the selected values', async () => {
+		const view = renderPage(freshOnboarding);
+		const nameInput = screen.getByLabelText(/index name/i) as HTMLInputElement;
+		const selectedRegion = screen.getByRole('radio', {
+			name: /EU West \(Ireland\)/
+		}) as HTMLInputElement;
+
+		await fireEvent.input(nameInput, { target: { value: 'preserved-products' } });
+		await fireEvent.click(selectedRegion);
+
+		await view.rerender(
+			buildPageProps(freshOnboarding, {
+				error: 'Index name and region are required'
+			})
+		);
+
+		const retryForm = screen.getByRole('button', { name: /continue/i }).closest('form');
+		expect(retryForm).toHaveAttribute('action', '?/retryIndex');
+		expect(nameInput.value).toBe('preserved-products');
+		expect(selectedRegion.checked).toBe(true);
 	});
 
 	it('step 1 rejects index names with leading or trailing underscores', async () => {

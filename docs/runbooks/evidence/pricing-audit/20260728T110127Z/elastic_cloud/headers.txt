@@ -1,0 +1,22 @@
+HTTP/2 200 
+content-type: text/html; charset=utf-8
+cache-control: public, max-age=3600
+content-security-policy: frame-ancestors 'self' https://*.elastic.co https://elasticsandbox.docebosaas.com https://elastic.docebosaas.com https://www.gather.town;
+etag: "gk0l3qpw588drk"
+server: nginx
+x-powered-by: Next.js
+accept-ranges: bytes
+via: 1.1 varnish, 1.1 varnish
+age: 0
+set-cookie: euid=89730cc4-dd22-400d-b1c0-b53c4c3c0359; Expires=Tuesday, 19 January 2038 01:00:00 GMT; Path=/; Secure; Domain=.elastic.co;
+date: Tue, 28 Jul 2026 11:01:43 GMT
+x-change-language: true
+euid: aa51998d-f103-4341-a5ef-cbfaa5e424c2
+set-cookie: euid=aa51998d-f103-4341-a5ef-cbfaa5e424c2; Expires=Tuesday, 19 January 2038 01:00:00 GMT; Path=/; Secure; Domain=.elastic.co;
+x-served-by: cache-bfi-krnt7300040-BFI, cache-iad-kiad7000090-IAD
+x-cache: MISS, MISS
+x-cache-hits: 0, 0
+x-timer: S1785236503.022577,VS0,VE515
+vary: Accept-Language, X-Change-Language, Accept, Accept-Encoding
+content-length: 392413
+

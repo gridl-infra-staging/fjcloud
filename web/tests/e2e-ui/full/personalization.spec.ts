@@ -349,7 +349,7 @@ test.describe('Personalization tab', () => {
 		await expect(page.getByTestId('personalization-strategy-state-untouched')).toBeVisible();
 	});
 
-	test('profile delete confirm keeps no-op cancel, stays modal while confirming, and persists absence', async ({
+	test('row 25 @p0_coverage profile delete confirm keeps no-op cancel, stays modal while confirming, and persists absence', async ({
 		page,
 		seedIndex,
 		testRegion
@@ -529,7 +529,7 @@ test.describe('Personalization tab', () => {
 		expect(saveStrategyPostCount).toBe(0);
 	});
 
-	test('strategy save persists across reload and rehydrates editor fields from server state', async ({
+	test('row 24 @p0_coverage strategy save persists across reload and rehydrates editor fields from server state', async ({
 		page,
 		seedIndex,
 		testRegion

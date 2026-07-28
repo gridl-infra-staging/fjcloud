@@ -373,8 +373,9 @@ impl From<AlgoliaImportJobAdmissionError> for RepoError {
     }
 }
 
+/// Provider-neutral contract for the single durable source-migration lifecycle.
 #[async_trait]
-pub trait AlgoliaImportJobRepo {
+pub trait SourceMigrationJobRepo {
     async fn create(
         &self,
         job: NewAlgoliaImportJob,
@@ -537,3 +538,5 @@ pub trait AlgoliaImportJobRepo {
         expected_identity: Option<&CatalogLifecycleTargetIdentity>,
     ) -> Result<(), RepoError>;
 }
+
+pub use SourceMigrationJobRepo as AlgoliaImportJobRepo;

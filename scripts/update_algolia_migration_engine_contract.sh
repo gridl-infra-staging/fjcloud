@@ -168,6 +168,57 @@ def path_method(payload: dict, path: str, method: str) -> None:
     if method.lower() not in path_value:
         action_required(f"OpenAPI artifact is missing {method} {path}")
 
+def provider_discriminated_routes(payload: dict) -> dict:
+    paths = required_object_field(payload, "paths", "OpenAPI artifact")
+    status_alias = re.compile(r"^/1/migrations/([^/{]+)/\{job_id\}$")
+    providers = sorted(
+        match.group(1)
+        for path, operations in paths.items()
+        if isinstance(path, str)
+        and isinstance(operations, dict)
+        and "get" in operations
+        and (match := status_alias.fullmatch(path)) is not None
+    )
+    if not providers:
+        action_required("OpenAPI artifact contains no source migration provider aliases", exit_code=3)
+
+    shared_routes = {
+        "submit": {
+            "method": "POST",
+            "path": "/1/migrations/{source_provider}",
+        },
+        "status": {
+            "method": "GET",
+            "path": "/1/migrations/{source_provider}/{job_id}",
+        },
+        "cancel": {
+            "method": "POST",
+            "path": "/1/migrations/{source_provider}/{job_id}/cancel",
+        },
+        "acknowledge": {
+            "method": "POST",
+            "path": "/1/migrations/{source_provider}/{job_id}/acknowledge",
+        },
+    }
+    provider_aliases: dict[str, dict[str, str]] = {}
+    for provider in providers:
+        aliases = {
+            role: route["path"].replace("{source_provider}", provider)
+            for role, route in shared_routes.items()
+        }
+        for role, path in aliases.items():
+            path_method(payload, path, shared_routes[role]["method"])
+        provider_aliases[provider] = aliases
+
+    return {
+        "provider_discriminator": {
+            "field": "source_provider",
+            "values": providers,
+        },
+        "routes": shared_routes,
+        "provider_aliases": provider_aliases,
+    }
+
 def validate_required_runtime_routes(fixture: dict, payload: dict) -> None:
     routes = fixture.get("required_runtime_routes")
     if not isinstance(routes, dict) or not routes:
@@ -732,12 +783,9 @@ def extract_contract(payload: dict, fixture: dict) -> dict:
         if field not in status_optional:
             status_optional.append(field)
     status_optional.sort()
+    provider_contract = provider_discriminated_routes(payload)
     return {
-        "routes": {
-            "submit": {"method": "POST", "path": "/1/migrations/algolia"},
-            "status": {"method": "GET", "path": "/1/migrations/algolia/{job_id}"},
-            "cancel": {"method": "POST", "path": "/1/migrations/algolia/{job_id}/cancel"},
-        },
+        **provider_contract,
         "request": {
             "required_fields": sorted_required(payload, "MigrateFromAlgoliaRequest"),
             "optional_fields": sorted_optional(payload, "MigrateFromAlgoliaRequest"),
@@ -765,7 +813,9 @@ if not isinstance(fixture_artifacts, list) or not fixture_artifacts:
     action_required("fixture openapi_artifacts must be a nonempty list")
 
 contract_keys = [
+    "provider_discriminator",
     "routes",
+    "provider_aliases",
     "request",
     "status",
     "status_outcome",
@@ -775,9 +825,20 @@ contract_keys = [
     "enums",
     "errors",
 ]
+missing_contract_keys = [key for key in contract_keys if key not in fixture]
+if mode == "check" and missing_contract_keys:
+    action_required(
+        f"fixture is missing normalized contract keys: {', '.join(missing_contract_keys)}"
+    )
+provider_contract_upgrade = mode == "update" and any(
+    key in missing_contract_keys
+    for key in ["provider_discriminator", "provider_aliases"]
+)
 expected_without_meta = {
     key: copy.deepcopy(required_object_field(fixture, key, "fixture"))
     for key in contract_keys
+    if key in fixture
+    and not (provider_contract_upgrade and key == "routes")
 }
 
 baseline_contract = None
@@ -809,7 +870,11 @@ for artifact in fixture_artifacts:
     validate_required_runtime_routes(fixture, artifact_payload)
     validate_privacy_scrub_contract(fixture, artifact_payload)
     extracted = extract_contract(artifact_payload, fixture)
-    if extracted != expected_without_meta:
+    extracted_existing_contract = {
+        key: extracted[key]
+        for key in expected_without_meta
+    }
+    if extracted_existing_contract != expected_without_meta:
         action_required(f"OpenAPI artifact {rel_path} normalized contract differs from fixture")
     if baseline_contract is None:
         baseline_contract = extracted

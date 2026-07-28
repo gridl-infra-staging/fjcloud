@@ -1,0 +1,16 @@
+# Known failing hermetic shell tests awaiting a named repair owner.
+# Format: scripts/tests/<filename> # <existing lane-file path or ROADMAP.md row>
+#
+# Stage 3 owns executing orphans, assigning owners, and adding data rows.
+#
+# Owners are cited as the lane checklist path, NOT a ROADMAP.md line number.
+# probe_test_reachability.sh::reason_has_owner accepts any existing .md path
+# other than ROADMAP.md, and validates a `ROADMAP.md:<n>` citation by reading
+# that exact line — which silently breaks whenever any lane edits ROADMAP.md
+# above the row. That happened on this lane's own merge (2026-07-27): all 20
+# entries failed owner validation at once and fell through to `unaccounted`.
+# The drawdown row remains the human-facing owner; see ROADMAP.md, row title
+# "Hermetic shell-test quarantine drawdown".
+scripts/tests/algolia_import_dispatch_live_probe_test.sh # owned by chats/icg/jul27_pm_4_test_wiring_reachability_gate.md
+scripts/tests/catalog_lifecycle_service_window_live_probe_test.sh # owned by chats/icg/jul27_pm_4_test_wiring_reachability_gate.md
+scripts/tests/local_dev_up_test.sh # owned by chats/icg/jul27_pm_4_test_wiring_reachability_gate.md

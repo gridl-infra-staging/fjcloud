@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# run_browser_lane_locally.sh — FAST local iteration lane for the LB-2 / LB-3
+# run_browser_lane_locally.sh — FAST local iteration lane for routine local
 # Stripe billing browser specs.
 #
 # ─── Why this exists ──────────────────────────────────────────────────────
-# scripts/launch/run_browser_lane_against_staging.sh drives the SAME two specs
-# but only against DEPLOYED staging, so every code change costs a 30–60 min
-# deploy round-trip. The specs can just as well run against a LOCAL stack using
-# REAL Stripe *test mode* — no deploy needed. This launcher is that local lane.
+# scripts/launch/run_browser_lane_against_staging.sh drives deployed staging
+# billing specs, where every code change costs a 30–60 min deploy round-trip.
+# These routine local specs can run against a LOCAL stack using REAL Stripe
+# *test mode* — no deploy needed. This launcher is that local lane.
 #
 #   * Use THIS script for fast inner-loop verification of billing/Stripe code.
 #   * run_browser_lane_against_staging.sh REMAINS the final pre-launch gate:
@@ -28,27 +28,13 @@
 #   5. Always tears down the flapjack + API processes it started (EXIT trap),
 #      touching only its own PIDs.
 #
-# ─── Why we DON'T reuse scripts/api-dev.sh / playwright_local_stack.sh for the
-#     API (important, non-obvious) ────────────────────────────────────────
-# api-dev.sh, when API_DEV_ALLOW_LIVE_STRIPE=1, force-loads STRIPE_PUBLISHABLE_KEY
-# directly from .env.local via prefer_env_file_assignment_for_key(), overriding
-# anything the caller exported. In this repo .env.local's STRIPE_PUBLISHABLE_KEY
-# is a MISMATCHED pk_live_ (while its secret key is sk_test_). The backend serves
-# that publishable key verbatim at /billing/publishable-key (infra/api/src/config.rs
-# reads STRIPE_PUBLISHABLE_KEY raw), so the browser's Stripe.js would initialise
-# with a LIVE publishable key while every SetupIntent/PaymentIntent client_secret
-# is TEST mode → the Stripe Payment Element refuses to mount → the LB-3
-# @p0_coverage test fails. There is no env override for this because api-dev.sh
-# reads the value straight from the file. playwright_local_stack.sh starts the API
-# via api-dev.sh, so it inherits the same defect.
-# => We therefore launch the API ourselves with an explicitly-corrected env
-#    (SSM pk_test_ wins), while still REUSING the shared lib helpers
-#    (scripts/lib/env.sh, scripts/lib/stripe_checks.sh, scripts/lib/health.sh,
-#    scripts/lib/flapjack_binary.sh) for everything else.
-#    FINDING for maintainers: api-dev.sh's live-Stripe publishable-key selection
-#    should prefer a caller-exported STRIPE_PUBLISHABLE_KEY (or validate that the
-#    .env.local publishable key mode matches the secret key mode). Reported, not
-#    fixed here (out of scope for this task).
+# ─── Why we launch the API directly (important, non-obvious) ─────────────
+# This evidence lane owns SSM hydration, pinned proof ports, and bundle output,
+# so it starts the API with its exact runner env while still REUSING the shared
+# lib helpers (scripts/lib/env.sh, scripts/lib/stripe_checks.sh,
+# scripts/lib/health.sh, scripts/lib/flapjack_binary.sh).
+# api-dev.sh now preserves caller-owned STRIPE_PUBLISHABLE_KEY in live-Stripe
+# mode and fail-closes publishable/secret mode mismatches before cargo starts.
 #
 # ─── Why no Mailpit / no remote opt-in (non-obvious) ──────────────────────
 # The billing fixture arrangeBillingPortalCustomer auto-verifies fresh signups
@@ -99,6 +85,10 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # Shared helpers — the same owners api-dev.sh / playwright_local_stack.sh use.
 # shellcheck source=../lib/env.sh
 source "$SCRIPT_DIR/../lib/env.sh"
+# shellcheck source=../lib/contract_secret_env.sh
+source "$SCRIPT_DIR/../lib/contract_secret_env.sh"
+# shellcheck source=../lib/aws_identity.sh
+source "$SCRIPT_DIR/../lib/aws_identity.sh"
 # shellcheck source=../lib/health.sh
 source "$SCRIPT_DIR/../lib/health.sh"
 # shellcheck source=../lib/stripe_checks.sh
@@ -141,7 +131,7 @@ print_usage() {
   cat <<'EOF'
 Usage:
   scripts/launch/run_browser_lane_locally.sh \
-    --lane <signup_to_paid_invoice|billing_portal_payment_method_update|both> \
+    --lane <signup_to_paid_invoice|billing_portal_payment_method_update|upgrade_to_shared_unmocked|both> \
     [--evidence-dir <path>]
 
   scripts/launch/run_browser_lane_locally.sh --help
@@ -149,7 +139,8 @@ Usage:
 Lanes:
   signup_to_paid_invoice                — drives the LB-2 spec
   billing_portal_payment_method_update  — drives the LB-3 spec (@p0_coverage)
-  both                                  — runs LB-2 then LB-3 sequentially
+  upgrade_to_shared_unmocked            — drives the B7 shared-plan upgrade spec
+  both                                  — runs all three lanes sequentially
 
 Default evidence dir:
   .local/browser-lane-evidence/<UTC-timestamp>/   (gitignored — this is a dev
@@ -176,9 +167,9 @@ done
 if [ "$SHOW_HELP" = "1" ]; then print_usage; exit 0; fi
 
 case "$LANE_ARG" in
-  signup_to_paid_invoice|billing_portal_payment_method_update|both) ;;
+  signup_to_paid_invoice|billing_portal_payment_method_update|upgrade_to_shared_unmocked|both) ;;
   "") echo "ERROR: --lane is required" >&2; print_usage >&2; exit 64 ;;
-  *) echo "ERROR: --lane must be signup_to_paid_invoice|billing_portal_payment_method_update|both (got: $LANE_ARG)" >&2; exit 64 ;;
+  *) echo "ERROR: --lane must be signup_to_paid_invoice|billing_portal_payment_method_update|upgrade_to_shared_unmocked|both (got: $LANE_ARG)" >&2; exit 64 ;;
 esac
 
 if ! [[ "$LANE_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] || [ "$LANE_TIMEOUT_SECONDS" -le 0 ]; then
@@ -187,18 +178,17 @@ fi
 
 # ---------------------------------------------------------------------------
 # AWS credentials for SSM. Prefer whatever is already in the shell; otherwise
-# source the repo-local secret file (never echo its contents).
+# load the repo-local secret file as data (never execute or echo its contents).
 # ---------------------------------------------------------------------------
 FJCLOUD_SECRET_FILE="${FJCLOUD_SECRET_FILE:-$REPO_ROOT/.secret/.env.secret}"
 if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
   [ -f "$FJCLOUD_SECRET_FILE" ] || die "AWS credentials not in env and secret file not found: $FJCLOUD_SECRET_FILE"
-  log "Sourcing AWS credentials from $FJCLOUD_SECRET_FILE"
-  set -a
-  # shellcheck disable=SC1090
-  source "$FJCLOUD_SECRET_FILE"
-  set +a
+  log "Loading AWS credentials from $FJCLOUD_SECRET_FILE"
+  if ! load_contract_secret_env "$FJCLOUD_SECRET_FILE"; then
+    die "refused to execute malformed secret file $FJCLOUD_SECRET_FILE"
+  fi
 fi
-[ -n "${AWS_ACCESS_KEY_ID:-}" ] || die "AWS_ACCESS_KEY_ID unavailable after sourcing secret file"
+aws_identity_ensure "$FJCLOUD_SECRET_FILE" || die "$AWS_IDENTITY_DIAGNOSTIC"
 AWS_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 
 # The secret file also exports SES_* + a pk_live_ STRIPE_PUBLISHABLE_KEY; those
@@ -214,8 +204,19 @@ unset SES_FROM_ADDRESS SES_REGION SES_CONFIGURATION_SET || true
 # not export the publishable key, which the browser needs).
 # ---------------------------------------------------------------------------
 ssm_value() {
-  aws ssm get-parameter --name "$1" --with-decryption --region "$AWS_REGION" \
-    --query 'Parameter.Value' --output text 2>/dev/null
+  local output status
+  set +e
+  output="$(aws ssm get-parameter --name "$1" --with-decryption --region "$AWS_REGION" \
+    --query 'Parameter.Value' --output text 2>&1)"
+  status=$?
+  set -e
+  if [ "$status" -eq 0 ]; then
+    printf '%s\n' "$output"
+    return 0
+  fi
+  echo "[local-browser-lane] ERROR: failed to fetch $1 from SSM (aws exit $status)" >&2
+  printf '%s\n' "$output" | sed 's/^/[local-browser-lane]   /' >&2
+  return "$status"
 }
 
 log "Hydrating test-mode Stripe keys from SSM (region $AWS_REGION)"
@@ -391,8 +392,8 @@ if ! wait_for_health "$FLAPJACK_HTTP/health" "flapjack" 45; then
 fi
 
 # ---------------------------------------------------------------------------
-# Start the API (background) with the corrected live-test-Stripe env. Direct
-# cargo run — NOT api-dev.sh — so our SSM pk_test wins (see header rationale).
+# Start the API (background) with the hydrated live-test-Stripe proof env.
+# Direct cargo run keeps this evidence lane's SSM/port/bundle contract together.
 # ---------------------------------------------------------------------------
 log "Starting local API on :$PLAYWRIGHT_API_PORT (real Stripe test mode; publishable ${STRIPE_PUBLISHABLE_KEY:0:8}…)"
 ( cd "$REPO_ROOT" && exec cargo run --manifest-path infra/Cargo.toml -p api ) > "$API_LOG" 2>&1 &
@@ -444,8 +445,8 @@ cat > "$EVIDENCE_DIR_ARG/SUMMARY.md" <<EOF
 - **Started at (UTC):** $TS_SEED
 
 Run by \`scripts/launch/run_browser_lane_locally.sh\`. Per-spec stdout lives in
-\`signup_to_paid_invoice.txt\` / \`billing_portal_payment_method_update.txt\`
-(each ends with an \`exit=<code>\` line). This is the FAST local lane;
+\`signup_to_paid_invoice.txt\` / \`billing_portal_payment_method_update.txt\` /
+\`upgrade_to_shared_unmocked.txt\` (each ends with an \`exit=<code>\` line). This is the FAST local lane;
 \`run_browser_lane_against_staging.sh\` remains the deploy gate.
 EOF
 
@@ -475,6 +476,7 @@ run_one_lane() {
   case "$lane" in
     signup_to_paid_invoice) spec_file="tests/e2e-ui/full/signup_to_paid_invoice.spec.ts" ;;
     billing_portal_payment_method_update) spec_file="tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts" ;;
+    upgrade_to_shared_unmocked) spec_file="tests/e2e-ui/full/upgrade_to_shared_unmocked.spec.ts" ;;
     *) echo "ERROR: unknown lane: $lane" >&2; return 64 ;;
   esac
   echo "=== Running $lane (spec: $spec_file) against local $BASE_URL / api $API_URL ==="
@@ -498,9 +500,11 @@ OVERALL_EXIT=0
 case "$LANE_ARG" in
   signup_to_paid_invoice) run_one_lane signup_to_paid_invoice || OVERALL_EXIT=$? ;;
   billing_portal_payment_method_update) run_one_lane billing_portal_payment_method_update || OVERALL_EXIT=$? ;;
+  upgrade_to_shared_unmocked) run_one_lane upgrade_to_shared_unmocked || OVERALL_EXIT=$? ;;
   both)
     run_one_lane signup_to_paid_invoice || OVERALL_EXIT=$?
     run_one_lane billing_portal_payment_method_update || OVERALL_EXIT=$?
+    run_one_lane upgrade_to_shared_unmocked || OVERALL_EXIT=$?
     ;;
 esac
 

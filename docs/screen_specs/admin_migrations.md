@@ -37,7 +37,7 @@ The page shows `Migration Management`, optional feedback, a trigger form with in
 
 ## Current Implementation Gaps
 
-Browser-unmocked admin page coverage verifies sections; data-dependent migration success paths are covered more deeply by migration recovery/browser tests and server tests.
+Browser-unmocked admin page coverage verifies sections; data-dependent migration success paths are covered more deeply by migration recovery/browser tests and server tests. JSDOM axe coverage now proves active, recent, and empty states in `web/src/routes/admin/migrations/admin-migrations.test.ts`.
 
 ## Automated Coverage
 

@@ -125,7 +125,7 @@ staging_db_run_sql() {
     # Build the JSON parameters file via Python. Use shell-safe quoting so SQL
     # and credentials are passed verbatim even when they contain shell metacharacters.
     local tmpjson
-    tmpjson="$(mktemp /tmp/ssm_sql_XXXXXX.json)"
+    tmpjson="$(mktemp "${TMPDIR:-/tmp}/ssm_sql.XXXXXX")"
     if ! python3 -c "
 import json, shlex, sys
 h, port, user, pw, db, sql = sys.argv[1:]

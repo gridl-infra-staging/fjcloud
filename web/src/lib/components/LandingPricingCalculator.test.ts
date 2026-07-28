@@ -3,6 +3,7 @@ import { render, screen, cleanup, within } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
 import LandingPricingCalculator from './LandingPricingCalculator.svelte';
 import type { PricingCompareResponse } from '$lib/api/types';
+import { getAccessibilityViolations } from '../../tests/a11y';
 
 const sampleResponse: PricingCompareResponse = {
 	workload: {
@@ -16,7 +17,8 @@ const sampleResponse: PricingCompareResponse = {
 	},
 	estimates: [
 		{
-			provider: 'TypesenseCloud',
+			provider: 'Typesense Cloud',
+			verification_label: 'unverified',
 			monthly_total_cents: 3000,
 			line_items: [],
 			assumptions: [],
@@ -24,6 +26,7 @@ const sampleResponse: PricingCompareResponse = {
 		},
 		{
 			provider: 'Flapjack Cloud',
+			verification_label: 'unverified',
 			monthly_total_cents: 1000,
 			line_items: [
 				{
@@ -39,6 +42,7 @@ const sampleResponse: PricingCompareResponse = {
 		},
 		{
 			provider: 'Algolia',
+			verification_label: '2026-07-06',
 			monthly_total_cents: 50000,
 			line_items: [],
 			assumptions: [],
@@ -188,7 +192,36 @@ describe('LandingPricingCalculator', () => {
 		expect(screen.queryByTestId('landing-pricing-results')).not.toBeInTheDocument();
 	});
 
-	it('displays the Flapjack Cloud provider while preserving upstream estimate order', async () => {
+	it('rejects otherwise complete estimate rows missing verification labels', async () => {
+		const malformedEstimate = { ...sampleResponse.estimates[0] };
+		delete (malformedEstimate as Partial<PricingCompareResponse['estimates'][number]>)
+			.verification_label;
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							...sampleResponse,
+							estimates: [malformedEstimate]
+						}),
+						{
+							status: 200,
+							headers: { 'Content-Type': 'application/json' }
+						}
+					)
+			)
+		);
+
+		render(LandingPricingCalculator);
+		await fireEvent.click(screen.getByRole('button', { name: 'Compare monthly cost' }));
+
+		const alert = await screen.findByRole('alert');
+		expect(alert).toHaveTextContent('Unable to compare pricing right now');
+		expect(screen.queryByTestId('landing-pricing-results')).not.toBeInTheDocument();
+	});
+
+	it('displays provider verification labels accessibly while preserving upstream estimate order', async () => {
 		vi.stubGlobal(
 			'fetch',
 			vi.fn(
@@ -200,7 +233,7 @@ describe('LandingPricingCalculator', () => {
 			)
 		);
 
-		render(LandingPricingCalculator);
+		const { container } = render(LandingPricingCalculator);
 		await fireEvent.click(screen.getByRole('button', { name: 'Compare monthly cost' }));
 
 		const results = await screen.findByTestId('landing-pricing-results');
@@ -213,8 +246,13 @@ describe('LandingPricingCalculator', () => {
 
 		const competitorRows = within(results).getAllByTestId('pricing-row-competitor');
 		expect(competitorRows).toHaveLength(2);
-		expect(within(competitorRows[0]).getByText('TypesenseCloud')).toBeInTheDocument();
+		expect(within(competitorRows[0]).getByText('Typesense Cloud')).toBeInTheDocument();
+		expect(within(competitorRows[0]).getByText('Modelled pricing')).toBeInTheDocument();
 		expect(within(competitorRows[1]).getByText('Algolia')).toBeInTheDocument();
+		expect(within(competitorRows[1]).getByText('2026-07-06')).toBeInTheDocument();
+		expect(within(griddleRow).getByText('Modelled pricing')).toBeInTheDocument();
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
 	});
 
 	it('keeps old Griddle API responses customer-facing as Flapjack Cloud during rollout', async () => {

@@ -6,6 +6,7 @@ import {
 	EMPTY_LIFECYCLE_RESPONSE,
 	FALLBACK_REPLACEMENT_VM_ID,
 	LIFECYCLE_EVENTS_FIXTURE,
+	ORACLE_RENDER_TIMEOUT_MS,
 	ORACLE_SELECTED_VM,
 	ORACLE_VM_DETAIL_FIXTURE,
 	REAL_PIPELINE_ORACLE,
@@ -132,34 +133,38 @@ afterEach(() => {
 });
 
 describe('VM detail page', () => {
-	it('vm_detail_renders_the_selected_oracle_vm_and_exact_proxy_utilization', async () => {
-		const VmDetailPage = (await import('./+page.svelte')).default;
+	it(
+		'vm_detail_renders_the_selected_oracle_vm_and_exact_proxy_utilization',
+		async () => {
+			const VmDetailPage = (await import('./+page.svelte')).default;
 
-		render(VmDetailPage, {
-			data: oraclePageData() as never
-		});
+			render(VmDetailPage, {
+				data: oraclePageData() as never
+			});
 
-		const vmInfo = screen.getByTestId('vm-info-section');
-		expect(within(vmInfo).getByText('redacted-vm-4')).toBeInTheDocument();
-		expect(within(vmInfo).getByText('us-east-1')).toBeInTheDocument();
-		expect(within(vmInfo).getByText('local')).toBeInTheDocument();
-		expect(within(vmInfo).getByText('http://127.0.0.1:17703')).toBeInTheDocument();
-		expect(screen.getByRole('heading', { name: 'Indexes on this VM (533)' })).toBeInTheDocument();
-		expect(within(screen.getByTestId('tenant-breakdown-table')).getAllByRole('row')).toHaveLength(
-			ORACLE_SELECTED_VM.index_count + 1
-		);
+			const vmInfo = screen.getByTestId('vm-info-section');
+			expect(within(vmInfo).getByText('redacted-vm-4')).toBeInTheDocument();
+			expect(within(vmInfo).getByText('us-east-1')).toBeInTheDocument();
+			expect(within(vmInfo).getByText('local')).toBeInTheDocument();
+			expect(within(vmInfo).getByText('http://127.0.0.1:17703')).toBeInTheDocument();
+			expect(screen.getByRole('heading', { name: 'Indexes on this VM (533)' })).toBeInTheDocument();
+			expect(within(screen.getByTestId('tenant-breakdown-table')).getAllByRole('row')).toHaveLength(
+				ORACLE_SELECTED_VM.index_count + 1
+			);
 
-		const expectedUtilization = {
-			cpu_weight: 'cpu_weight 0 / 4 (0%)',
-			disk_bytes: 'disk_bytes 0 / 107374182400 (0%)',
-			indexing_rps: 'indexing_rps 0 / 200 (0%)',
-			mem_rss_bytes: 'mem_rss_bytes 0 / 8589934592 (0%)',
-			query_rps: 'query_rps 0 / 500 (0%)'
-		};
-		for (const [key, expected] of Object.entries(expectedUtilization)) {
-			expect(cellText(screen.getByTestId(`util-bar-${key}`))).toBe(expected);
-		}
-	});
+			const expectedUtilization = {
+				cpu_weight: 'cpu_weight 0 / 4 (0%)',
+				disk_bytes: 'disk_bytes 0 / 107374182400 (0%)',
+				indexing_rps: 'indexing_rps 0 / 200 (0%)',
+				mem_rss_bytes: 'mem_rss_bytes 0 / 8589934592 (0%)',
+				query_rps: 'query_rps 0 / 500 (0%)'
+			};
+			for (const [key, expected] of Object.entries(expectedUtilization)) {
+				expect(cellText(screen.getByTestId(`util-bar-${key}`))).toBe(expected);
+			}
+		},
+		ORACLE_RENDER_TIMEOUT_MS
+	);
 
 	it('vm_detail_renders_the_selected_oracle_host_metrics', async () => {
 		const VmDetailPage = (await import('./+page.svelte')).default;

@@ -46,6 +46,7 @@ setup_fixture_repo() {
 
     ln -s "$DRIVER_SCRIPT" "$fixture_root/scripts/verify/rerun_failing_lanes.sh"
     ln -s "$HYDRATE_LIB"  "$fixture_root/scripts/lib/hydrate_staging_env.sh"
+    ln -s "$REPO_ROOT/scripts/lib/redact_playwright_json.sh" "$fixture_root/scripts/lib/redact_playwright_json.sh"
 
     # The driver cd's into $REPO_ROOT/web before invoking the runner.
     # The spec file only needs to exist so grep-title tooling doesn't tripwire;

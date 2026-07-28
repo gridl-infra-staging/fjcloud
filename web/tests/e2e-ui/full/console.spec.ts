@@ -7,7 +7,7 @@
 
 import type { Locator, Page } from '@playwright/test';
 import { test, expect } from '../../fixtures/fixtures';
-import { formatPeriod, formatCents, SUPPORT_EMAIL } from '../../../src/lib/format';
+import { formatCents, formatPeriod } from '../../../src/lib/format';
 import { CANONICAL_PUBLIC_API_DOCS_URL } from '../../../src/lib/public_api';
 import { readDownloadText } from './index_detail_helpers';
 
@@ -110,10 +110,12 @@ test.describe('Dashboard page', () => {
 		const desktopNav = page.getByTestId('dashboard-nav-desktop');
 		await expect(desktopNav).toBeVisible();
 		await expect(desktopNav.getByRole('link', { name: 'Indexes', exact: true })).toBeVisible();
-		await expect(desktopNav.getByRole('link', { name: 'Support', exact: true })).toHaveAttribute(
-			'href',
-			`mailto:${SUPPORT_EMAIL}`
-		);
+		// Shell mechanics only: the support disclosure's destinations and copy are owned by
+		// full/support-routing.spec.ts, which opens the panel before asserting them.
+		await expect(
+			desktopNav.getByRole('button', { name: 'Report a problem or request a feature' })
+		).toBeVisible();
+		await expect(desktopNav.getByRole('link', { name: 'Support', exact: true })).toHaveCount(0);
 		await expect(desktopNav.getByRole('link', { name: 'API Docs', exact: true })).toHaveAttribute(
 			'href',
 			CANONICAL_PUBLIC_API_DOCS_URL
@@ -144,7 +146,9 @@ test.describe('Dashboard page', () => {
 		const drawer = page.getByTestId('dashboard-nav-mobile-drawer');
 		await expect(drawer).toHaveAttribute('data-nav-open', 'false');
 		await expect(drawer.getByRole('link', { name: 'Billing', exact: true })).toHaveCount(0);
-		await expect(drawer.getByRole('link', { name: 'Support', exact: true })).toHaveCount(0);
+		await expect(
+			drawer.getByRole('button', { name: 'Report a problem or request a feature' })
+		).toHaveCount(0);
 		await expect(drawer.getByRole('link', { name: 'API Docs', exact: true })).toHaveCount(0);
 
 		const trigger = page.getByTestId('dashboard-mobile-nav-trigger');
@@ -152,10 +156,10 @@ test.describe('Dashboard page', () => {
 		await trigger.click();
 
 		await expect(drawer).toHaveAttribute('data-nav-open', 'true');
-		await expect(drawer.getByRole('link', { name: 'Support', exact: true })).toHaveAttribute(
-			'href',
-			`mailto:${SUPPORT_EMAIL}`
-		);
+		await expect(
+			drawer.getByRole('button', { name: 'Report a problem or request a feature' })
+		).toBeVisible();
+		await expect(drawer.getByRole('link', { name: 'Support', exact: true })).toHaveCount(0);
 		await expect(drawer.getByRole('link', { name: 'API Docs', exact: true })).toHaveAttribute(
 			'href',
 			CANONICAL_PUBLIC_API_DOCS_URL
@@ -164,7 +168,9 @@ test.describe('Dashboard page', () => {
 		await page.getByTestId('dashboard-mobile-nav-dismiss').click();
 		await expect(drawer).toHaveAttribute('data-nav-open', 'false');
 		await expect(drawer.getByRole('link', { name: 'Billing', exact: true })).toHaveCount(0);
-		await expect(drawer.getByRole('link', { name: 'Support', exact: true })).toHaveCount(0);
+		await expect(
+			drawer.getByRole('button', { name: 'Report a problem or request a feature' })
+		).toHaveCount(0);
 		await expect(drawer.getByRole('link', { name: 'API Docs', exact: true })).toHaveCount(0);
 	});
 

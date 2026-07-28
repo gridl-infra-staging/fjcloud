@@ -62,6 +62,12 @@ pub(super) struct ActiveReservationRow {
     pub(super) reserved_node_transient_bytes: i64,
 }
 
+pub(super) fn decode_import_job_row(
+    row: AlgoliaImportJobRow,
+) -> Result<AlgoliaImportJob, RepoError> {
+    AlgoliaImportJob::try_from(row).map_err(RepoError::Other)
+}
+
 #[derive(sqlx::FromRow)]
 pub(super) struct VmCapacityRow {
     pub(super) capacity: Value,
@@ -438,7 +444,8 @@ impl PgAlgoliaImportJobRepo {
         .fetch_optional(&mut **tx)
         .await
         .map_err(repo_error)?
-        .map(AlgoliaImportJob::from)
+        .map(decode_import_job_row)
+        .transpose()?
         .ok_or(RepoError::NotFound)?;
         if job.lifecycle_generation != current_generation {
             return Err(RepoError::Conflict(
@@ -469,7 +476,8 @@ impl PgAlgoliaImportJobRepo {
             .fetch_optional(&mut **tx)
             .await
             .map_err(repo_error)?
-            .map(AlgoliaImportJob::from)
+            .map(decode_import_job_row)
+            .transpose()?
             .ok_or(RepoError::NotFound)?;
         if job.lifecycle_generation != current_generation {
             return Err(RepoError::Conflict(

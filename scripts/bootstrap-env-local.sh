@@ -159,6 +159,7 @@ if [ -n "$SECRETS_PARSED" ]; then
     appended=0
     while IFS= read -r secret_line || [ -n "$secret_line" ]; do
         skey="${secret_line%%=*}"
+        [ "$skey" = "STRIPE_PUBLISHABLE_KEY" ] && [[ "${secret_line#*=}" != pk_test_* ]] && continue
         if is_denied_for_local_env "$skey"; then
             continue
         fi

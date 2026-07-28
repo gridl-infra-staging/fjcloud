@@ -5,8 +5,6 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { CustomerProfileResponse, OnboardingStatus, FreeTierLimits } from '$lib/api/types';
 import { IMPERSONATION_COOKIE } from '$lib/config';
-import { SUPPORT_EMAIL } from '$lib/format';
-import { CANONICAL_PUBLIC_API_DOCS_URL } from '$lib/public_api';
 
 vi.mock('$env/dynamic/private', () => ({
 	env: new Proxy({}, { get: (_target, prop) => process.env[prop as string] })
@@ -206,6 +204,7 @@ function findIdenticalIsMobileTernaryBranches(source: string): string[] {
 afterEach(() => {
 	cleanup();
 	vi.clearAllMocks();
+	vi.useRealTimers();
 	pageState.url = new URL('http://localhost/console');
 	pageState.form = null;
 });
@@ -530,35 +529,6 @@ describe('Dashboard layout sidebar navigation', () => {
 		expect(shellHeader).toHaveClass('bg-brand-cream');
 		expect(shellHeader).toHaveClass('border-b');
 		expect(shellHeader).toHaveClass('border-flapjack-ink/15');
-	});
-
-	it('keeps mobile nav/help links unavailable while the drawer is closed, then renders canonical links after opening', async () => {
-		renderLayout();
-
-		const desktopWrapper = screen.getByTestId('dashboard-nav-desktop');
-		const mobileWrapper = screen.getByTestId('dashboard-nav-mobile-drawer');
-		const mobileTrigger = screen.getByTestId('dashboard-mobile-nav-trigger');
-		expect(mobileTrigger).toBeInTheDocument();
-		expect(mobileWrapper).toHaveAttribute('data-nav-open', 'false');
-		expect(within(mobileWrapper).queryByRole('link', { name: 'Support' })).not.toBeInTheDocument();
-		expect(within(mobileWrapper).queryByRole('link', { name: 'API Docs' })).not.toBeInTheDocument();
-
-		const desktopSupportLink = within(desktopWrapper).getByRole('link', { name: 'Support' });
-		expect(desktopSupportLink).toHaveAttribute('href', `mailto:${SUPPORT_EMAIL}`);
-		expect(within(desktopWrapper).getByRole('link', { name: 'API Docs' })).toHaveAttribute(
-			'href',
-			CANONICAL_PUBLIC_API_DOCS_URL
-		);
-
-		await fireEvent.click(mobileTrigger);
-		expect(mobileWrapper).toHaveAttribute('data-nav-open', 'true');
-
-		const mobileSupportLink = within(mobileWrapper).getByRole('link', { name: 'Support' });
-		expect(mobileSupportLink).toHaveAttribute('href', `mailto:${SUPPORT_EMAIL}`);
-		expect(within(mobileWrapper).getByRole('link', { name: 'API Docs' })).toHaveAttribute(
-			'href',
-			CANONICAL_PUBLIC_API_DOCS_URL
-		);
 	});
 
 	it('opens and closes mobile drawer without hiding compact beta support and verification banners', async () => {

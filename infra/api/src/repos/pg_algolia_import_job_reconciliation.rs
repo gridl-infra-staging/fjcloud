@@ -3,7 +3,7 @@ use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
 use super::{
-    support::{repo_error, state_from_job, validate_transition},
+    support::{decode_import_job_row, repo_error, state_from_job, validate_transition},
     PgAlgoliaImportJobRepo,
 };
 use crate::models::algolia_import_job::{
@@ -147,7 +147,7 @@ pub(super) async fn persist_job_state(
     .fetch_one(&mut **tx)
     .await
     .map_err(repo_error)
-    .map(AlgoliaImportJob::from)
+    .and_then(decode_import_job_row)
 }
 
 impl PgAlgoliaImportJobRepo {
@@ -374,11 +374,11 @@ impl PgAlgoliaImportJobRepo {
         .fetch_all(&mut *tx)
         .await
         .map_err(repo_error)?;
-        let mut claims = public_rows
-            .into_iter()
-            .map(AlgoliaImportJob::from)
-            .map(AlgoliaImportReconciliationClaim::try_from)
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut claims = Vec::with_capacity(claimed_rows.len());
+        for row in public_rows {
+            let job = decode_import_job_row(row)?;
+            claims.push(AlgoliaImportReconciliationClaim::try_from(job)?);
+        }
         if !erased_ids.is_empty() {
             claims.extend(
                 self.claim_erased_tombstone_jobs(&mut tx, &erased_ids)
@@ -427,7 +427,8 @@ impl PgAlgoliaImportJobRepo {
         .fetch_optional(&mut *tx)
         .await
         .map_err(repo_error)?
-        .map(AlgoliaImportJob::from);
+        .map(decode_import_job_row)
+        .transpose()?;
         let Some(current) = current else {
             return Ok(AlgoliaImportReconciliationWriteOutcome::LeaseLost);
         };
@@ -526,7 +527,7 @@ async fn persist_terminal_state(
     .fetch_one(&mut **tx)
     .await
     .map_err(repo_error)
-    .map(AlgoliaImportJob::from)
+    .and_then(decode_import_job_row)
 }
 
 async fn publish_create_catalog_placement(
@@ -680,8 +681,9 @@ async fn lock_terminal_authority(
             .bind(lease.lifecycle_generation)
             .fetch_optional(&mut **tx)
             .await
-            .map_err(repo_error)
-            .map(|row| row.map(AlgoliaImportJob::from))?;
+            .map_err(repo_error)?
+            .map(decode_import_job_row)
+            .transpose()?;
             let Some(current) = current else {
                 return Ok(None);
             };

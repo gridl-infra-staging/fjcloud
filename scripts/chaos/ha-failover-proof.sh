@@ -10,6 +10,7 @@
 # 6) verify tenant remains on promoted VM (no automatic switchback)
 
 set -euo pipefail
+umask 077
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -202,6 +203,22 @@ RECOVERY_DETECTED_FILTER='
         (((.title // "") | contains($region)) or ((.message // "") | contains($region)))
       )'
 
+# Single owner of the --arg binding contract the alert filters above expect.
+# An empty baseline_created_at means "consider every alert regardless of age".
+alerts_match_filter() {
+    local alerts_json="$1"
+    local jq_filter="$2"
+    local baseline_created_at="$3"
+
+    printf '%s' "$alerts_json" | jq -e \
+        --arg baseline "$baseline_created_at" \
+        --arg region "$TARGET_REGION" \
+        --arg tenant "$TENANT_ID" \
+        "$jq_filter" >/dev/null 2>&1
+}
+
+# Poll /admin/alerts until jq_filter matches or timeout_secs elapses, echoing the
+# matching alert payload on success.
 poll_alerts_until() {
     local jq_filter="$1"
     local timeout_secs="$2"
@@ -215,11 +232,7 @@ poll_alerts_until() {
             return 1
         fi
 
-        if printf '%s' "$alerts_json" | jq -e \
-            --arg baseline "$baseline_created_at" \
-            --arg region "$TARGET_REGION" \
-            --arg tenant "$TENANT_ID" \
-            "$jq_filter" >/dev/null 2>&1; then
+        if alerts_match_filter "$alerts_json" "$jq_filter" "$baseline_created_at"; then
             printf '%s\n' "$alerts_json"
             return 0
         fi
@@ -331,10 +344,11 @@ fi
 printf '%s\n' "$ALERTS_BEFORE_JSON" > "$ARTIFACT_DIR/alerts_before.json"
 BASELINE_ALERT_CURSOR="$(printf '%s' "$ALERTS_BEFORE_JSON" | highest_alert_created_at)"
 
-# Baseline failover alerts are valid after a previous successful local proof.
-# Polling below is cursor-based, so only alerts created after BASELINE_ALERT_CURSOR
-# can satisfy this run. That keeps reruns repeatable without deleting operator
-# evidence or relying on manual alert cleanup.
+# Refuse to run against alert state that already satisfies the proof: with a
+# complete failover pair already present, a passing run would prove nothing.
+if alerts_match_filter "$ALERTS_BEFORE_JSON" "$FAILOVER_DETECTED_FILTER" ""; then
+    finalize_failure "Dirty alert state for region ${TARGET_REGION} and tenant ${TENANT_ID} — clean up stale failover alerts before re-running"
+fi
 
 if ! TENANT_ASSIGNMENT_BEFORE_JSON="$(api_get "/admin/vms/${PRIMARY_VM_ID}")"; then
     finalize_failure "Failed to fetch tenant assignment from primary VM ${PRIMARY_VM_ID}"

@@ -82,7 +82,7 @@ At 390px wide, the page keeps the heading and auto-refresh control visible, stac
 
 ## Current Implementation Gaps
 
-No shipped-vs-target delta is verified for the current scope. Sorting, pagination, host telemetry history, and additional backend fields are intentionally outside this screen contract.
+No shipped-vs-target delta is verified for the current scope. Sorting, pagination, host telemetry history, and additional backend fields are intentionally outside this screen contract. JSDOM axe coverage now proves populated, filtered, and unavailable states in `web/src/routes/admin/fleet/admin_fleet_a11y.test.ts`.
 
 ## Unresolved Risks
 

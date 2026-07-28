@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
 import { SUPPORT_EMAIL } from '$lib/format';
+import { getAccessibilityViolations } from '../../tests/a11y';
 import {
 	NORMALIZED_BROWSER_ERROR_FAILURE,
 	NORMALIZED_BROWSER_REJECTION_FAILURE
@@ -32,6 +33,34 @@ afterEach(() => {
 });
 
 describe('Console error boundary (+error.svelte)', () => {
+	it('has no structural accessibility violations for 404, generic 4xx, and 5xx states', async () => {
+		const ErrorPage = (await import('./+error.svelte')).default;
+		const cases = [
+			{
+				status: 404,
+				error: { message: 'Not found' },
+				url: new URL('http://localhost/console/missing')
+			},
+			{
+				status: 403,
+				error: { message: 'Your request cannot be completed right now' },
+				url: new URL('http://localhost/console/forbidden')
+			},
+			{
+				status: 500,
+				error: { message: 'Internal server error' },
+				url: new URL('http://localhost/console/broken')
+			}
+		];
+
+		for (const pageCase of cases) {
+			mockPage = pageCase;
+			const { container } = render(ErrorPage);
+			await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+			cleanup();
+		}
+	});
+
 	// --- 404 ---
 
 	it('renders "Page not found" heading for 404 status', async () => {

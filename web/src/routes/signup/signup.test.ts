@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, within } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
+import { getAccessibilityViolations } from '../../tests/a11y';
 
 vi.mock('$app/forms', () => ({
 	enhance: () => ({ destroy: () => {} })
@@ -23,6 +24,27 @@ function renderSignupPage(form?: Record<string, unknown>) {
 }
 
 describe('Signup page', () => {
+	it('has no structural accessibility violations', async () => {
+		const { container } = renderSignupPage();
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
+	it('has no structural accessibility violations when validation errors are rendered', async () => {
+		const { container } = renderSignupPage({
+			errors: {
+				name: 'Name is required',
+				email: 'Invalid email',
+				password: 'Too short',
+				confirm_password: 'Passwords do not match'
+			},
+			name: '',
+			email: ''
+		});
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
 	it('renders exact customer-visible signup copy and post form contract', () => {
 		renderSignupPage();
 

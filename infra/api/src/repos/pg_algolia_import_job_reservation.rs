@@ -11,7 +11,7 @@ use super::{
 };
 use crate::models::algolia_import_job::{
     AlgoliaImportDestinationKind, AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportJobRow,
-    NewAlgoliaImportJob,
+    NewAlgoliaImportJob, SourceImportProvider,
 };
 use crate::repos::{AlgoliaImportJobAdmissionError, RepoError};
 
@@ -136,15 +136,16 @@ impl PgAlgoliaImportJobRepo {
     ) -> Result<AlgoliaImportJob, sqlx::Error> {
         sqlx::query_as::<_, AlgoliaImportJobRow>(
             "INSERT INTO algolia_import_jobs
-             (customer_id, tenant_id, algolia_app_id, destination_kind, logical_target,
+             (source_provider, customer_id, tenant_id, algolia_app_id, destination_kind, logical_target,
               destination_region,
               destination_deployment_id, destination_vm_id, physical_uid, source_name,
               idempotency_key, canonical_fingerprint, routing_identity, source_size_bytes,
               reserved_index_count, reserved_customer_storage_bytes,
               reserved_node_transient_bytes, lifecycle_generation)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
              RETURNING *",
         )
+        .bind(SourceImportProvider::Algolia.as_str())
         .bind(job.customer_id())
         .bind(job.tenant_id())
         .bind(job.algolia_app_id())
@@ -165,7 +166,10 @@ impl PgAlgoliaImportJobRepo {
         .bind(reservation.lifecycle_generation)
         .fetch_one(&mut **tx)
         .await
-        .map(Into::into)
+        .and_then(|row| {
+            super::support::decode_import_job_row(row)
+                .map_err(|error| sqlx::Error::Decode(Box::new(error)))
+        })
     }
 
     async fn active_reservations_for_update(

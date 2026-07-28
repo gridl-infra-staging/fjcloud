@@ -333,6 +333,9 @@ if [[ "${1:-}" == "ssm" && "${2:-}" == "get-parameter" ]]; then
         */ses_from_address)
             printf '%s\n' "system@example.test"
             ;;
+        */ses_region)
+            printf '%s\n' "us-east-1"
+            ;;
         */stripe_webhook_secret)
             printf '%s\n' "whsec_rehearsal_contract"
             ;;
@@ -1287,6 +1290,7 @@ if [[ "\${1:-}" == "ssm" && "\${2:-}" == "get-parameter" ]]; then
         */dns_domain) printf '%s\n' "staging.example.test" ;;
         */stripe_secret_key) printf '%s\n' "sk_test_rehearsal_contract" ;;
         */ses_from_address) printf '%s\n' "system@example.test" ;;
+        */ses_region) printf '%s\n' "us-east-1" ;;
         */stripe_webhook_secret) printf '%s\n' "whsec_rehearsal_contract" ;;
         *) printf '%s\n' "None" ;;
     esac

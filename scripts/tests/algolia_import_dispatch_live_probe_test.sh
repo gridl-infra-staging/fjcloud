@@ -45,6 +45,12 @@ setup_workspace() {
   write_fake_command "$WORK_DIR/up.sh" '#!/usr/bin/env bash
 set -euo pipefail
 printf "db=%s pid_dir=%s enabled=%s preserve=%s\n" "${INTEGRATION_DB:-}" "${FJCLOUD_INTEGRATION_PID_DIR:-}" "${FJCLOUD_ALGOLIA_MIGRATION_ENABLED:-}" "${FJCLOUD_INTEGRATION_PRESERVE_DB:-}" >> "$UP_LOG"
+if [ -n "${JWT_SECRET:-}" ]; then
+  jwt_fingerprint="$(printf "%s" "$JWT_SECRET" | cksum | awk "{print \$1 \":\" \$2}")"
+else
+  jwt_fingerprint="missing"
+fi
+printf "jwt_fingerprint=%s\n" "$jwt_fingerprint" >> "$UP_LOG"
 mkdir -p "$FJCLOUD_INTEGRATION_PID_DIR"
 printf "123\n" > "$FJCLOUD_INTEGRATION_PID_DIR/api.pid"
 printf "456\n" > "$FJCLOUD_INTEGRATION_PID_DIR/flapjack.pid"
@@ -412,6 +418,22 @@ PY
     "failed local node-key warmup emits ACTION_REQUIRED"
 }
 
+test_restart_preserves_jwt_signing_identity() {
+  setup_workspace
+  run_probe --phases restart_reconciliation
+  # Overall probe status for this phase is a separately-owned quarantined failure
+  # (see scripts/tests/quarantined_tests.txt), so it is deliberately not asserted here.
+  # fingerprint_count below is the restart guard: if the stack never restarts, only one
+  # identity is emitted and this test fails.
+  local fingerprints fingerprint_count unique_count
+  fingerprints="$(sed -n 's/^jwt_fingerprint=//p' "$WORK_DIR/up.log")"
+  fingerprint_count="$(printf '%s\n' "$fingerprints" | grep -c . | tr -d ' ')"
+  unique_count="$(printf '%s\n' "$fingerprints" | sort -u | grep -c . | tr -d ' ')"
+  assert_eq "$fingerprint_count" "2" "initial and restarted stacks receive a JWT identity"
+  assert_eq "$unique_count" "1" "restart reuses the initial JWT signing identity"
+  assert_not_contains "$fingerprints" "missing" "probe supplies the JWT signing identity"
+}
+
 test_secret_leak_in_database_is_action_required() {
   setup_workspace
   PSQL_SCENARIO=secret_match run_probe --phases dispatch
@@ -639,6 +661,7 @@ test_database_and_late_teardown_failures_are_action_required() {
 test_success_emits_phase_evidence_and_cleans_up
 test_default_settle_wait_covers_reconciliation_interval
 test_local_node_key_warmup_precedes_dispatch_and_fails_closed
+test_restart_preserves_jwt_signing_identity
 test_rejects_unknown_and_empty_phases
 test_missing_credentials_and_flapjack_mismatch_are_action_required
 test_unavailable_endpoint_and_inconclusive_evidence_are_action_required

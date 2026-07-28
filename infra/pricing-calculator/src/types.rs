@@ -218,6 +218,7 @@ pub struct CostLineItem {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EstimatedCost {
     pub provider: ProviderId,
+    pub verification_label: String,
     /// Total monthly cost in cents. Must equal `line_items.iter().map(|li| li.amount_cents).sum()`.
     pub monthly_total_cents: i64,
     pub line_items: Vec<CostLineItem>,
@@ -545,6 +546,7 @@ mod tests {
         let total: i64 = line_items.iter().map(|li| li.amount_cents).sum();
         let estimate = EstimatedCost {
             provider: ProviderId::Algolia,
+            verification_label: "2026-07-06".to_string(),
             monthly_total_cents: total,
             line_items,
             assumptions: vec!["Test assumption".to_string()],
@@ -565,6 +567,7 @@ mod tests {
     fn estimated_cost_empty_line_items_sums_to_zero() {
         let estimate = EstimatedCost {
             provider: ProviderId::TypesenseCloud,
+            verification_label: "unverified".to_string(),
             monthly_total_cents: 0,
             line_items: vec![],
             assumptions: vec![],

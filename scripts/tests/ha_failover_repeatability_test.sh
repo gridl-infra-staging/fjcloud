@@ -11,6 +11,21 @@ source "$SCRIPT_DIR/lib/test_runner.sh"
 # shellcheck source=lib/assertions.sh
 source "$SCRIPT_DIR/lib/assertions.sh"
 
+latest_region_artifact_dir_after() {
+    local marker_file="$1"
+    local region="$2"
+    local candidate newest=""
+
+    for candidate in /tmp/fjcloud-ha-proof/*-"$region"-*; do
+        [ -d "$candidate" ] || continue
+        if [ "$candidate" -nt "$marker_file" ]; then
+            newest="$candidate"
+        fi
+    done
+
+    printf '%s\n' "$newest"
+}
+
 setup_proof_test_repo() {
     local tmp_dir="$1"
 
@@ -18,6 +33,7 @@ setup_proof_test_repo() {
     cp "$REPO_ROOT/scripts/chaos/ha-failover-proof.sh" "$tmp_dir/scripts/chaos/"
     cp "$REPO_ROOT/scripts/lib/env.sh" "$tmp_dir/scripts/lib/"
     cp "$REPO_ROOT/scripts/lib/health.sh" "$tmp_dir/scripts/lib/"
+    cp "$REPO_ROOT/scripts/lib/flapjack_binary.sh" "$tmp_dir/scripts/lib/"
 
     cat > "$tmp_dir/scripts/chaos/restart-region.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -232,12 +248,87 @@ JSON
         "proof should not collapse consumed-replica state into generic missing-candidate message"
 }
 
+test_artifact_dir_is_private_even_under_permissive_parent_umask() {
+    local tmp_dir marker_file artifact_dir artifact_mode
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+
+    setup_proof_test_repo "$tmp_dir"
+
+    local primary_vm_id="55555555-5555-5555-5555-555555555555"
+    local replica_vm_id="66666666-6666-6666-6666-666666666666"
+
+    cat > "$tmp_dir/vms.json" <<JSON
+[
+  { "id": "$primary_vm_id", "region": "eu-central-1", "hostname": "primary.local" },
+  { "id": "$replica_vm_id", "region": "us-east-1", "hostname": "replica.local" }
+]
+JSON
+    cat > "$tmp_dir/replicas-active.json" <<JSON
+[
+  {
+    "tenant_id": "products",
+    "primary_vm_id": "$primary_vm_id",
+    "primary_vm_region": "eu-central-1",
+    "replica_vm_id": "$replica_vm_id",
+    "replica_region": "us-east-1",
+    "status": "active",
+    "lag_ops": 1
+  }
+]
+JSON
+    cp "$tmp_dir/replicas-active.json" "$tmp_dir/replicas-all.json"
+    cat > "$tmp_dir/alerts.json" <<'JSON'
+[
+  {
+    "title": "Region down — eu-central-1",
+    "message": "All 1 VMs in region eu-central-1 are unreachable.",
+    "created_at": "2026-03-30T11:00:01Z"
+  },
+  {
+    "title": "Index failed over — products",
+    "message": "Index products failed over from eu-central-1 to us-east-1.",
+    "created_at": "2026-03-30T11:00:02Z"
+  }
+]
+JSON
+    cat > "$tmp_dir/tenant-before.json" <<JSON
+{
+  "vm": { "id": "$primary_vm_id" },
+  "tenants": [ { "tenant_id": "products" } ]
+}
+JSON
+
+    write_proof_mock_curl "$tmp_dir" "$primary_vm_id"
+    marker_file="$tmp_dir/artifact.marker"
+    : > "$marker_file"
+
+    env PATH="$tmp_dir/bin:$PATH" \
+        REGION_FAILOVER_CYCLE_INTERVAL_SECS=1 \
+        bash -c 'umask 022; exec bash "$1" "eu-central-1"' _ \
+        "$tmp_dir/scripts/chaos/ha-failover-proof.sh" >/dev/null 2>&1 || true
+
+    artifact_dir="$(latest_region_artifact_dir_after "$marker_file" "eu-central-1")"
+    if [ -n "$artifact_dir" ]; then
+        pass "proof wrote an artifact directory for permission inspection"
+    else
+        fail "proof should create an artifact directory before failing dirty-alert preflight"
+        return
+    fi
+
+    artifact_mode="$(stat -f '%OLp' "$artifact_dir")"
+    assert_eq "$artifact_mode" "700" \
+        "proof artifact directory should stay private even if parent shell umask is 022"
+    rm -rf "$artifact_dir"
+}
+
 main() {
     echo "=== ha failover repeatability tests ==="
     echo ""
 
     test_rejects_stale_alert_state_before_destructive_kill
     test_detects_consumed_replicas_from_prior_failover
+    test_artifact_dir_is_private_even_under_permissive_parent_umask
 
     run_test_summary
 }

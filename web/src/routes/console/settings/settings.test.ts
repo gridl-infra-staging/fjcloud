@@ -1,10 +1,25 @@
-import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/svelte';
 
 import { layoutTestDefaults } from '../layout-test-context';
+import { getAccessibilityViolations } from '../../../tests/a11y';
 import SettingsPage from './+page.svelte';
 
+afterEach(cleanup);
+
 describe('Settings compatibility seam', () => {
+	it('has no structural accessibility violations for the account migration guidance', async () => {
+		const { container } = render(SettingsPage, {
+			data: {
+				user: null,
+				...layoutTestDefaults
+			},
+			form: null
+		} as never);
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
 	it('renders only migration guidance to /console/account and no account-management owner forms', () => {
 		render(SettingsPage, {
 			data: {

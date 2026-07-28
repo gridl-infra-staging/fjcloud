@@ -22,6 +22,10 @@ The status page renders the Flapjack Cloud brand, a public login link, the `Serv
 - Error: unknown status values render `Status Unavailable` with state `unknown` instead of exposing infrastructure details or implying operational health.
 - Success: `operational`, `degraded`, and `outage` values render distinct labels and warning colors. When `SERVICE_STATUS_UPDATED` is present, the page renders `Last updated` with that value. When `SERVICE_STATUS_MESSAGE` is set, the message is included in the `StatusRouteData.message` field and rendered on the page.
 
+## Mobile Narrow Contract
+
+Baseline viewport: 390px wide (iPhone 14). The service label, optional last-updated/message content, operations ownership copy, beta-scope link, and email-support link remain readable in one column without exposing raw infrastructure details or signup discovery.
+
 ## Controls And Navigation
 
 - Header brand link navigates to `/`.
@@ -51,7 +55,7 @@ The status page renders the Flapjack Cloud brand, a public login link, the `Serv
 
 ## Current Implementation Gaps
 
-- None known for fail-closed status rendering.
+- None known for fail-closed status rendering. JSDOM axe coverage now proves unavailable, degraded, and outage states in `web/src/routes/status/status.test.ts`.
 
 ## Automated Coverage
 

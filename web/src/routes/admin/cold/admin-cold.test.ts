@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
+import { getAccessibilityViolations } from '../../../tests/a11y';
 
 vi.mock('$app/forms', () => ({
 	enhance: () => ({ destroy: () => {} })
@@ -60,6 +61,21 @@ afterEach(() => {
 });
 
 describe('Admin cold storage page', () => {
+	it('has no structural accessibility violations for populated and empty states', async () => {
+		const ColdPage = (await import('./+page.svelte')).default;
+
+		const { container } = render(ColdPage, {
+			data: { environment: 'test', isAuthenticated: true, coldIndexes: COLD_FIXTURES }
+		});
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+
+		cleanup();
+		const { container: emptyContainer } = render(ColdPage, {
+			data: { environment: 'test', isAuthenticated: true, coldIndexes: [] }
+		});
+		await expect(getAccessibilityViolations(emptyContainer)).resolves.toEqual([]);
+	});
+
 	it('cold_index_list_renders_snapshot_data', async () => {
 		const ColdPage = (await import('./+page.svelte')).default;
 

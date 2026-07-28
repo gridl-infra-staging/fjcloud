@@ -1,0 +1,6 @@
+command: curl -L --max-time 30 https://cloud.typesense.org/pricing
+http_status: 200
+effective_url: https://cloud.typesense.org/pricing/calculator
+   55649 docs/runbooks/evidence/pricing-audit/20260728T110127Z/typesense_cloud/body.html
+    1538 docs/runbooks/evidence/pricing-audit/20260728T110127Z/typesense_cloud/headers.txt
+   57187 total

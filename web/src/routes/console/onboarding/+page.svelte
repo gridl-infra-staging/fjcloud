@@ -53,6 +53,7 @@
 
 	const validationError = $derived(validateIndexName(indexName));
 	const hasValidationError = $derived(indexName !== 'my-first-index' && validationError !== null);
+	const indexCreationAction = $derived(formResult?.error ? '?/retryIndex' : '?/createIndex');
 
 	// Credentials from form result
 	const credentials: FlapjackCredentials | null = $derived(formResult?.credentials ?? null);
@@ -212,7 +213,7 @@
 					</p>
 				{/if}
 
-				<form method="POST" action="?/createIndex" use:enhance={preserveWizardStepOnSuccess}>
+				<form method="POST" action={indexCreationAction} use:enhance={preserveWizardStepOnSuccess}>
 					<!-- Region picker -->
 					<fieldset class="mb-6">
 						<legend class="mb-3 text-sm font-medium text-flapjack-ink/80">Region</legend>

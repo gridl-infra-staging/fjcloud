@@ -24,6 +24,10 @@ Backend ownership for post-signup billing setup is explicit: `infra/api/src/rout
 - Error: weak passwords, mismatched confirmation, invalid email, and duplicate-email/API failures show safe visible feedback without exposing whether an email already exists.
 - Success: valid signup redirects to `/console`; email verification remains the gate that unlocks downstream Stripe/billing setup.
 
+## Mobile Narrow Contract
+
+Baseline viewport: 390px wide (iPhone 14). The account fields, free-tier promise, validation messages, submit button, OAuth controls, login link, and support contact remain readable and tappable in one column without implying billing setup is complete before email verification.
+
 ## Controls And Navigation
 
 - `Name`, `Email`, `Password`, and `Confirm Password` are accessible labeled inputs.

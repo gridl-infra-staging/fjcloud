@@ -17,20 +17,42 @@ import {
 	pricingContractSnapshotFromMarketing,
 	sharedPlanMinimumMonthlyLabel
 } from '../../../src/lib/pricing';
+import { CANONICAL_PUBLIC_API_DOCS_URL } from '../../../src/lib/public_api';
 import { assertSharedLegalPageContract } from '../../fixtures/legal_page_playwright_helpers';
 
 // Unauthenticated — no stored auth state needed
 test.use({ storageState: { cookies: [], origins: [] } });
 
 test.describe('Landing page', () => {
-	test('root path redirects unauthenticated users to /login', async ({ page }) => {
+	test('root path renders the public product and pricing journey', async ({ page }) => {
 		await page.goto('/');
 
-		await expect(page).toHaveURL(/\/login/);
+		await expect(page).toHaveURL(/\/$/);
 		await expect(page).toHaveTitle(/Flapjack Cloud/);
 		await expect(page).not.toHaveTitle(/Griddle/);
-		await expect(page.getByRole('heading', { name: 'Log in to Flapjack Cloud' })).toBeVisible();
-		await expect(page.getByTestId('public-beta-banner')).toHaveCount(0);
+		await expect(page.getByRole('heading', { name: 'Managed search API' })).toBeVisible();
+		await expect(page.getByRole('main')).toContainText(MARKETING_PRICING.free_tier_promise);
+		await expect(page.getByRole('link', { name: 'View API Docs' })).toHaveAttribute(
+			'href',
+			CANONICAL_PUBLIC_API_DOCS_URL
+		);
+		await expect(page.getByTestId('public-beta-banner')).toContainText(/public beta/i);
+		await expect(
+			page.getByRole('contentinfo').getByRole('link', { name: 'Terms' })
+		).toHaveAttribute('href', '/terms');
+		await expect(
+			page.getByRole('contentinfo').getByRole('link', { name: 'Privacy' })
+		).toHaveAttribute('href', '/privacy');
+		await expect(page.getByRole('contentinfo').getByRole('link', { name: 'DPA' })).toHaveAttribute(
+			'href',
+			'/dpa'
+		);
+		await expect(page.getByRole('navigation').getByRole('link', { name: 'Sign Up' })).toHaveCount(
+			0
+		);
+		await expect(
+			page.getByRole('navigation').getByRole('link', { name: 'Log In' })
+		).toHaveAttribute('href', '/login');
 	});
 
 	test('Log In link reaches the login page', async ({ page }) => {

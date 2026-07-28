@@ -9,8 +9,30 @@
  * that has never completed onboarding.
  */
 
-import type { Page } from '@playwright/test';
+import type { Page, Response } from '@playwright/test';
 import { test, expect } from '../../fixtures/fixtures';
+import { verifyFreshSignupEmail } from '../../fixtures/onboarding-auth-shared';
+
+type OnboardingActionPost = {
+	action: string;
+	status: number;
+};
+
+type OnboardingActionFailureScenario = {
+	actionPosts: OnboardingActionPost[];
+	dispose: () => Promise<void>;
+};
+
+type FreshSignupIdentityLike = {
+	name: string;
+	email: string;
+	password: string;
+};
+
+type ArrangeFreshSignupToDashboardFn = (
+	page: Page,
+	signup: FreshSignupIdentityLike
+) => Promise<{ prerequisiteFailureMessage: string | null }>;
 
 async function openOnboardingStepOne(page: Page): Promise<void> {
 	await page.goto('/console');
@@ -19,17 +41,82 @@ async function openOnboardingStepOne(page: Page): Promise<void> {
 	await expect(page.getByTestId('onboarding-step-1')).toBeVisible();
 }
 
-async function restoreFreshOnboardingBanner(
+function isOnboardingCreateOrRetryAction(url: URL): boolean {
+	return (
+		url.pathname === '/console/onboarding' &&
+		(url.search === '?/createIndex' || url.search === '?/retryIndex')
+	);
+}
+
+function buildMissingNamePostData(postData: string | null): string {
+	const form = new URLSearchParams(postData ?? '');
+	form.set('name', '');
+	return form.toString();
+}
+
+async function setupOnboardingActionFailureScenario(
+	page: Page
+): Promise<OnboardingActionFailureScenario> {
+	let failFirstCreatePost = true;
+	const actionPosts: OnboardingActionPost[] = [];
+	const actionRoute = (url: URL) => isOnboardingCreateOrRetryAction(url);
+	const handleResponse = (response: Response) => {
+		const request = response.request();
+		const url = new URL(response.url());
+		if (request.method() === 'POST' && isOnboardingCreateOrRetryAction(url)) {
+			actionPosts.push({ action: url.search, status: response.status() });
+		}
+	};
+
+	page.on('response', handleResponse);
+	await page.route(actionRoute, async (route) => {
+		const request = route.request();
+		const url = new URL(request.url());
+		if (failFirstCreatePost && request.method() === 'POST' && url.search === '?/createIndex') {
+			failFirstCreatePost = false;
+			await route.continue({
+				headers: {
+					...request.headers(),
+					'content-type': 'application/x-www-form-urlencoded'
+				},
+				postData: buildMissingNamePostData(request.postData())
+			});
+			return;
+		}
+		await route.continue();
+	});
+
+	return {
+		actionPosts,
+		dispose: async () => {
+			page.off('response', handleResponse);
+			await page.unroute(actionRoute);
+		}
+	};
+}
+
+async function arrangeIsolatedFreshVerifiedOnboardingAccount(
 	page: Page,
-	indexName: string,
-	cleanupRequired: boolean
+	createFreshSignupIdentity: () => FreshSignupIdentityLike,
+	arrangeFreshSignupToDashboard: ArrangeFreshSignupToDashboardFn
 ): Promise<void> {
-	if (!cleanupRequired) {
-		return;
+	const signup = createFreshSignupIdentity();
+	const arrangeResult = await arrangeFreshSignupToDashboard(page, signup);
+	if (arrangeResult.prerequisiteFailureMessage) {
+		throw new Error(
+			`Onboarding create-flow prerequisite unavailable: ${arrangeResult.prerequisiteFailureMessage}`
+		);
 	}
 
-	// Delete the UI-created index so other fresh-user specs can still
-	// assert the shared onboarding banner regardless of file order.
+	await verifyFreshSignupEmail(signup.email);
+	await page.goto('/console');
+	await expect(page.getByTestId('onboarding-banner')).toBeVisible({ timeout: 30_000 });
+}
+
+async function restoreFreshOnboardingBanner(page: Page, indexName: string): Promise<void> {
+	// The attempted action may have created the index even when a later
+	// assertion fails. Check for it unconditionally so cleanup remains
+	// idempotent before and after a successful mutation.
 	await page.goto('/console/indexes');
 
 	const createdRow = page.getByRole('row').filter({
@@ -37,20 +124,64 @@ async function restoreFreshOnboardingBanner(
 	});
 	const deleteButton = createdRow.getByRole('button', { name: 'Delete' });
 
-	await expect(deleteButton).toBeVisible({ timeout: 30_000 });
+	const createdRowCount = await createdRow.count();
+	expect(createdRowCount, `cleanup found duplicate rows for ${indexName}`).toBeLessThanOrEqual(1);
 
-	await deleteButton.click();
-	await expect(page.getByRole('cell', { name: indexName })).toHaveCount(0, { timeout: 30_000 });
+	if (createdRowCount === 1) {
+		await expect(deleteButton).toBeVisible({ timeout: 30_000 });
+		await deleteButton.click();
+		await expect(page.getByRole('cell', { name: indexName })).toHaveCount(0, {
+			timeout: 30_000
+		});
+	}
 
 	await page.goto('/console');
 	await expect(page.getByTestId('onboarding-banner')).toBeVisible({ timeout: 30_000 });
 }
 
+async function runWithOnboardingCleanup(
+	exercise: () => Promise<void>,
+	cleanup: () => Promise<void>
+): Promise<void> {
+	try {
+		await exercise();
+	} finally {
+		await cleanup();
+	}
+}
+
+async function recoverFromOnboardingCreateFailure(
+	page: Page,
+	scenario: OnboardingActionFailureScenario,
+	indexName: string
+): Promise<void> {
+	await openOnboardingStepOne(page);
+
+	const nameInput = page.getByLabel('Index name');
+	await nameInput.clear();
+	await nameInput.fill(indexName);
+
+	await page.getByRole('button', { name: 'Continue' }).click();
+	await expect.poll(() => scenario.actionPosts.length, { timeout: 90_000 }).toBe(1);
+	expect(scenario.actionPosts[0]).toEqual({ action: '?/createIndex', status: 200 });
+	await expect(page.getByTestId('onboarding-step-1')).toBeVisible();
+	await expect(page.getByText('Index name and region are required')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Continue' })).toBeEnabled();
+
+	await page.getByRole('button', { name: 'Continue' }).click();
+	await expect.poll(() => scenario.actionPosts.length, { timeout: 90_000 }).toBe(2);
+	expect(scenario.actionPosts[1].action).toBe('?/retryIndex');
+	expect(scenario.actionPosts[1].status).toBeLessThan(400);
+	await expect(page.getByTestId('onboarding-step-3')).toBeVisible({ timeout: 90_000 });
+	await expect(
+		page.getByTestId('onboarding-step-3').getByRole('button', { name: 'Get Credentials' })
+	).toBeVisible({ timeout: 90_000 });
+}
+
 test.describe('Fresh-user onboarding flow', () => {
-	// This file shares one freshly signed-up account across all tests. Keep
-	// retries disabled at the file level and clean up the one UI-created index so
-	// sibling specs can still rely on the same tenant showing the onboarding
-	// banner.
+	// Read-only cases share the setup account; create flows below use disposable
+	// accounts. Keep retries disabled because each create flow owns explicit index
+	// cleanup and verifies that its onboarding banner is restored.
 	test.describe.configure({ retries: 0 });
 
 	test('load-and-verify: dashboard shows onboarding banner for fresh user', async ({ page }) => {
@@ -121,32 +252,106 @@ test.describe('Fresh-user onboarding flow', () => {
 		await expect(page.getByRole('button', { name: 'Continue' })).toBeDisabled();
 	});
 
-	test('valid index creation advances to step 3 credentials UI', async ({ page }) => {
-		test.setTimeout(120_000);
+	test.describe('isolated onboarding create flows', () => {
+		test.use({ storageState: { cookies: [], origins: [] } });
 
-		const indexName = `onboard-${Date.now()}`;
-		let cleanupRequired = false;
+		test('cleanup guard restores the onboarding banner after a successful second POST followed by an assertion failure', async ({
+			page,
+			createFreshSignupIdentity,
+			arrangeFreshSignupToDashboard
+		}) => {
+			test.setTimeout(150_000);
 
-		try {
-			await openOnboardingStepOne(page);
+			await arrangeIsolatedFreshVerifiedOnboardingAccount(
+				page,
+				createFreshSignupIdentity,
+				arrangeFreshSignupToDashboard
+			);
 
-			// Fill the index name
-			const nameInput = page.getByLabel('Index name');
-			await nameInput.clear();
-			await nameInput.fill(indexName);
+			const indexName = `onboard-cleanup-${Date.now()}`;
+			const expectedAssertionMessage = 'post-submit cleanup regression sentinel';
+			const scenario = await setupOnboardingActionFailureScenario(page);
 
-			// Submit the form
-			await page.getByRole('button', { name: 'Continue' }).click();
+			try {
+				await expect(
+					runWithOnboardingCleanup(
+						async () => {
+							await recoverFromOnboardingCreateFailure(page, scenario, indexName);
+							throw new Error(expectedAssertionMessage);
+						},
+						() => restoreFreshOnboardingBanner(page, indexName)
+					)
+				).rejects.toThrow(expectedAssertionMessage);
 
-			// Shared-VM placement can auto-provision capacity on live stacks, so the
-			// createIndex action can exceed Playwright's default 30s budget.
-			await expect(page.getByTestId('onboarding-step-3')).toBeVisible({ timeout: 90_000 });
-			await expect(
-				page.getByTestId('onboarding-step-3').getByRole('button', { name: 'Get Credentials' })
-			).toBeVisible({ timeout: 90_000 });
-			cleanupRequired = true;
-		} finally {
-			await restoreFreshOnboardingBanner(page, indexName, cleanupRequired);
-		}
+				await expect(page.getByTestId('onboarding-banner')).toBeVisible({ timeout: 30_000 });
+			} finally {
+				await scenario.dispose();
+			}
+		});
+
+		test('valid index creation advances to step 3 credentials UI', async ({
+			page,
+			createFreshSignupIdentity,
+			arrangeFreshSignupToDashboard
+		}) => {
+			test.setTimeout(120_000);
+
+			await arrangeIsolatedFreshVerifiedOnboardingAccount(
+				page,
+				createFreshSignupIdentity,
+				arrangeFreshSignupToDashboard
+			);
+
+			const indexName = `onboard-${Date.now()}`;
+
+			await runWithOnboardingCleanup(
+				async () => {
+					await openOnboardingStepOne(page);
+
+					// Fill the index name
+					const nameInput = page.getByLabel('Index name');
+					await nameInput.clear();
+					await nameInput.fill(indexName);
+
+					// Submit the form
+					await page.getByRole('button', { name: 'Continue' }).click();
+
+					// Shared-VM placement can auto-provision capacity on live stacks, so the
+					// createIndex action can exceed Playwright's default 30s budget.
+					await expect(page.getByTestId('onboarding-step-3')).toBeVisible({ timeout: 90_000 });
+					await expect(
+						page.getByTestId('onboarding-step-3').getByRole('button', { name: 'Get Credentials' })
+					).toBeVisible({ timeout: 90_000 });
+				},
+				() => restoreFreshOnboardingBanner(page, indexName)
+			);
+		});
+
+		test('row 11 @p0_coverage onboarding create failure retries through existing action path and recovers credentials state', async ({
+			page,
+			createFreshSignupIdentity,
+			arrangeFreshSignupToDashboard
+		}) => {
+			test.setTimeout(150_000);
+
+			await arrangeIsolatedFreshVerifiedOnboardingAccount(
+				page,
+				createFreshSignupIdentity,
+				arrangeFreshSignupToDashboard
+			);
+
+			const indexName = `onboard-retry-${Date.now()}`;
+			const scenario = await setupOnboardingActionFailureScenario(page);
+
+			try {
+				await runWithOnboardingCleanup(
+					() => recoverFromOnboardingCreateFailure(page, scenario, indexName),
+					() => restoreFreshOnboardingBanner(page, indexName)
+				);
+				expect(scenario.actionPosts).toHaveLength(2);
+			} finally {
+				await scenario.dispose();
+			}
+		});
 	});
 });

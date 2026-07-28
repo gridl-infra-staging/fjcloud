@@ -49,7 +49,7 @@ The page shows customer name/email/status, the exact plan tier in the Info tab, 
 
 ## Current Implementation Gaps
 
-Deployment termination requires seeded deployment data and is currently covered as an empty-state blocker.
+Deployment termination requires seeded deployment data and is currently covered as an empty-state blocker. JSDOM axe coverage now proves populated, tabbed, success, and error states in `web/src/routes/admin/customers/[id]/admin_customer_detail_a11y.test.ts`.
 
 ## Automated Coverage
 

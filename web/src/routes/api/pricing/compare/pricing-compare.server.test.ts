@@ -46,6 +46,7 @@ const comparisonResponse: PricingCompareResponse = {
 	estimates: [
 		{
 			provider: 'Algolia',
+			verification_label: '2026-07-06',
 			monthly_total_cents: 50_000,
 			line_items: [],
 			assumptions: ['Standard pricing'],

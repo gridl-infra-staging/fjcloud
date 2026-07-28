@@ -1,0 +1,6 @@
+command: curl -L --max-time 30 https://aws.amazon.com/opensearch-service/pricing/
+http_status: 200
+effective_url: https://aws.amazon.com/opensearch-service/pricing/
+  340617 docs/runbooks/evidence/pricing-audit/20260728T110127Z/aws_opensearch/body.html
+     831 docs/runbooks/evidence/pricing-audit/20260728T110127Z/aws_opensearch/headers.txt
+  341448 total

@@ -4,6 +4,29 @@ use super::AlgoliaImportErrorCode;
 
 const LOCAL_INTEGRATION_PROVIDER: &str = "local";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SourceImportProvider {
+    Algolia,
+}
+
+impl SourceImportProvider {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Algolia => "algolia",
+        }
+    }
+
+    pub(crate) fn parse(value: &str) -> Result<Self, String> {
+        match value {
+            value if value == Self::Algolia.as_str() => Ok(Self::Algolia),
+            other => Err(format!(
+                "unsupported source provider stored for import job: {other}"
+            )),
+        }
+    }
+}
+
 pub fn validate_algolia_create_provider(
     config: &RegionConfig,
     region: &str,

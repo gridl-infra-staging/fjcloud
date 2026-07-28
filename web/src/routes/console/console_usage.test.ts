@@ -349,7 +349,7 @@ describe('Dashboard usage page', () => {
 				color: '#7b314a'
 			}
 		]);
-		expect(props.axis).toEqual({ placement: 'left', ticks: 5 });
+		expect(props.axis).toBe(true);
 		expect(props.bandPadding).toBe(0.24);
 		expect(props.groupPadding).toBe(0.12);
 		expect(props.padding).toEqual({ top: 56, right: 16, bottom: 52, left: 56 });
@@ -364,6 +364,7 @@ describe('Dashboard usage page', () => {
 				}
 			},
 			yAxis: {
+				ticks: 5,
 				tickLabelProps: {
 					textAnchor: 'end'
 				}

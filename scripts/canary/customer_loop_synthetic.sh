@@ -21,10 +21,23 @@ source "$REPO_ROOT/scripts/lib/http_json.sh"
 DEFAULT_ALERT_DISPATCH_IMPL="$REPO_ROOT/scripts/lib/alert_dispatch.sh"
 ALERT_DISPATCH_IMPL="${ALERT_DISPATCH_HELPER:-$DEFAULT_ALERT_DISPATCH_IMPL}"
 
+# True when the already-resolved absolute file path $1 sits under directory $2.
+path_is_within_directory() {
+    case "$1" in
+        "$2"/*) return 0 ;;
+    esac
+    return 1
+}
+
+# Fail closed unless the alert-dispatch helper resolves inside scripts/lib, so a
+# hostile or stale ALERT_DISPATCH_HELPER cannot make the canary source arbitrary
+# code. Tests opt an isolated temp directory in via
+# FJCLOUD_TEST_ALERT_DISPATCH_HELPER_ROOT so their override never lands in the
+# repo tree.
 validate_alert_dispatch_helper() {
     local helper_path="$1"
     local allowed_dir="$REPO_ROOT/scripts/lib"
-    local allowed_dir_resolved helper_dir_resolved helper_file_resolved
+    local allowed_dir_resolved helper_dir_resolved helper_file_resolved test_helper_root test_helper_root_resolved
 
     allowed_dir_resolved="$(cd "$allowed_dir" && pwd -P)"
 
@@ -36,21 +49,29 @@ validate_alert_dispatch_helper() {
     helper_dir_resolved="$(cd "$(dirname "$helper_path")" && pwd -P)"
     helper_file_resolved="$helper_dir_resolved/$(basename "$helper_path")"
 
-    case "$helper_file_resolved" in
-        "$allowed_dir_resolved"/*)
-            ;;
-        *)
-            echo "ALERT_DISPATCH_HELPER must stay within $allowed_dir_resolved" >&2
-            return 1
-            ;;
-    esac
+    if path_is_within_directory "$helper_file_resolved" "$allowed_dir_resolved"; then
+        return 0
+    fi
+
+    test_helper_root="${FJCLOUD_TEST_ALERT_DISPATCH_HELPER_ROOT:-}"
+    if [ -n "$test_helper_root" ] && [ -d "$test_helper_root" ]; then
+        test_helper_root_resolved="$(cd "$test_helper_root" && pwd -P)"
+        if path_is_within_directory "$helper_file_resolved" "$test_helper_root_resolved"; then
+            return 0
+        fi
+    fi
+
+    echo "ALERT_DISPATCH_HELPER must stay within $allowed_dir_resolved" >&2
+    return 1
 }
 
-if ! validate_alert_dispatch_helper "$ALERT_DISPATCH_IMPL"; then
-    exit 1
-fi
-# shellcheck source=scripts/lib/alert_dispatch.sh
-source "$ALERT_DISPATCH_IMPL"
+load_alert_dispatch_helper() {
+    if ! validate_alert_dispatch_helper "$ALERT_DISPATCH_IMPL"; then
+        return 1
+    fi
+    # shellcheck source=scripts/lib/alert_dispatch.sh
+    source "$ALERT_DISPATCH_IMPL"
+}
 
 # shellcheck source=scripts/lib/test_inbox_helpers.sh
 source "$REPO_ROOT/scripts/lib/test_inbox_helpers.sh"
@@ -1019,6 +1040,9 @@ main() {
         fi
     fi
     if ! load_canary_env; then
+        return 1
+    fi
+    if ! load_alert_dispatch_helper; then
         return 1
     fi
     if [ -n "$CANARY_LIVE_MODE_CLI_OVERRIDE" ]; then

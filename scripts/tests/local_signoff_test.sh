@@ -398,7 +398,7 @@ if [ "$*" != "build -p flapjack-server" ]; then
     exit 17
 fi
 mkdir -p target/debug
-printf "#!/usr/bin/env bash\nexit 0\n" > target/debug/flapjack
+printf "#!/usr/bin/env bash\necho {\\\\\"build\\\\\":{\\\\\"workspaceDigest\\\\\":\\\\\"fixture-workspace\\\\\"}}\n" > target/debug/flapjack
 chmod +x target/debug/flapjack
 '
 

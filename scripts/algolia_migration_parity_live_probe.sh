@@ -788,14 +788,15 @@ dispatch_job() {
 }
 
 # Shared bounded terminal poll for any accepted job. The expected terminal kind
-# is carried per job in ACCEPTED_JOB_TERMINAL_KIND (default promoted_success), so
+# is carried per job by the accepted-job tracking seam (default promoted_success), so
 # the one canonical drain and each phase poll the same way while asserting the
 # terminal tuple that phase requires (promoted_success or cancelled_unchanged).
 poll_job_to_terminal() {
     # on_failure lets a phase route non-terminal outcomes through the accepted-job
     # drain (finish_accepted_job_action_required) instead of racing cleanup.
     local on_failure="${1:-finish_action_required}"
-    local kind="${ACCEPTED_JOB_TERMINAL_KIND[$JOB_ID]:-promoted_success}"
+    local kind
+    kind="$(accepted_job_terminal_kind "$JOB_ID")"
     CURRENT_STEP="terminal_poll"
     local elapsed=0 status disposition resumable
     while :; do

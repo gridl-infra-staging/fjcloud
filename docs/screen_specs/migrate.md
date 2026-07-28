@@ -231,6 +231,10 @@ Algolia credentials.
 
 - None for the bounded replica-copy contract. Route activation, async warning
   transport, and resume behavior remain owned by separate lanes.
+- Structural jsdom accessibility proof is now owned by
+  `web/src/routes/console/migrate/migrate.test.ts` for the connected migration
+  wizard and `web/src/routes/console/migrate/[jobId]/job.test.ts` for running
+  and failed job details.
 
 ## Automated Coverage
 

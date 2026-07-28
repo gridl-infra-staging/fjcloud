@@ -3,7 +3,8 @@ import { resolve } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
-import type { PublicInfrastructureResponse } from '$lib/api/types';
+import type { PublicInfrastructureResponse, PublicRegionHealth } from '$lib/api/types';
+import { getAccessibilityViolations } from '../../tests/a11y';
 import {
 	parseRealPipelineOracle,
 	RealPipelineOracleError,
@@ -36,10 +37,7 @@ const mixedRegionInfrastructure: PublicInfrastructureResponse = {
 	overall: {
 		availability_pct: 98.75,
 		total_regions: 2,
-		total_vms: 3,
-		healthy_count: 3,
-		unhealthy_count: 0,
-		unknown_count: 0
+		total_vms: 3
 	},
 	regions: [
 		{
@@ -49,10 +47,7 @@ const mixedRegionInfrastructure: PublicInfrastructureResponse = {
 			provider_location: 'N. Virginia',
 			health: 'operational',
 			utilization: 'green',
-			vm_count: 3,
-			healthy_count: 3,
-			unhealthy_count: 0,
-			unknown_count: 0
+			vm_count: 3
 		},
 		{
 			region: 'eu-west-1',
@@ -61,10 +56,7 @@ const mixedRegionInfrastructure: PublicInfrastructureResponse = {
 			provider_location: 'Ireland',
 			health: 'unknown',
 			utilization: null,
-			vm_count: 0,
-			healthy_count: 0,
-			unhealthy_count: 0,
-			unknown_count: 0
+			vm_count: 0
 		}
 	]
 };
@@ -159,10 +151,7 @@ function publicInfrastructureFromOracle(oracle: RealPipelineOracle): PublicInfra
 		overall: {
 			availability_pct: null,
 			total_regions: oracle.topology.regions.length,
-			total_vms: oracle.topology.totals.vm_count,
-			healthy_count: oracle.topology.totals.healthy_count,
-			unhealthy_count: oracle.topology.totals.unhealthy_count,
-			unknown_count: oracle.topology.totals.unknown_count
+			total_vms: oracle.topology.totals.vm_count
 		},
 		regions: oracle.topology.regions.map((region) => ({
 			provider: 'aws',
@@ -171,26 +160,9 @@ function publicInfrastructureFromOracle(oracle: RealPipelineOracle): PublicInfra
 			health: expectedRegionHealth(region),
 			utilization: null,
 			region: region.region,
-			vm_count: region.vm_count,
-			healthy_count: region.healthy_count,
-			unhealthy_count: region.unhealthy_count,
-			unknown_count: region.unknown_count
+			vm_count: region.vm_count
 		}))
 	};
-}
-
-function expectRegionCount(
-	region: RealPipelineTopologyRegion,
-	field: keyof TopologyTotals,
-	value: number
-) {
-	expect(screen.getByTestId(`infrastructure-region-${field}-${region.region}`)).toHaveTextContent(
-		String(value)
-	);
-}
-
-function expectTopologyTotal(field: keyof TopologyTotals, value: number) {
-	expect(screen.getByTestId(`infrastructure-total-${field}`)).toHaveTextContent(String(value));
 }
 
 function expectTopologySumsRejection(payload: unknown) {
@@ -205,6 +177,55 @@ function expectTopologySumsRejection(payload: unknown) {
 }
 
 describe('Infrastructure presentation contract', () => {
+	it('accepts exactly the documented public infrastructure allowlist', () => {
+		expect(parsePublicInfrastructureResponse(mixedRegionInfrastructure)).toEqual(
+			mixedRegionInfrastructure
+		);
+	});
+
+	it('rejects health-bucket topology counts at public response boundaries', () => {
+		expect(
+			parsePublicInfrastructureResponse({
+				...mixedRegionInfrastructure,
+				overall: { ...mixedRegionInfrastructure.overall, healthy_count: 3 }
+			})
+		).toBeNull();
+		expect(
+			parsePublicInfrastructureResponse({
+				...mixedRegionInfrastructure,
+				regions: [
+					{ ...mixedRegionInfrastructure.regions[0], unknown_count: 0 },
+					mixedRegionInfrastructure.regions[1]
+				]
+			})
+		).toBeNull();
+	});
+
+	it('has no structural accessibility violations for populated and empty infrastructure states', async () => {
+		const InfrastructurePage = (await import('./+page.svelte')).default;
+
+		const { container } = render(InfrastructurePage, {
+			data: { status: 'success', infrastructure: mixedRegionInfrastructure }
+		});
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+
+		cleanup();
+		const { container: emptyContainer } = render(InfrastructurePage, {
+			data: {
+				status: 'success',
+				infrastructure: {
+					overall: {
+						availability_pct: null,
+						total_regions: 0,
+						total_vms: 0
+					},
+					regions: []
+				}
+			}
+		});
+		await expect(getAccessibilityViolations(emptyContainer)).resolves.toEqual([]);
+	});
+
 	it('consumes the committed real-pipeline topology oracle as the canonical count owner', () => {
 		expect(realPipelineOracle.topology.regions).toEqual(expectedOracleRegions);
 		expect(realPipelineOracle.topology.totals).toEqual(expectedOracleTotals);
@@ -305,10 +326,7 @@ describe('Infrastructure presentation contract', () => {
 				overall: {
 					availability_pct: 98.75,
 					total_regions: 1,
-					total_vms: 3,
-					healthy_count: 3,
-					unhealthy_count: 0,
-					unknown_count: 0
+					total_vms: 3
 				},
 				regions: [
 					{
@@ -318,10 +336,7 @@ describe('Infrastructure presentation contract', () => {
 						provider_location: 'N. Virginia',
 						health: 'unexpected',
 						utilization: 'unexpected',
-						vm_count: 3,
-						healthy_count: 3,
-						unhealthy_count: 0,
-						unknown_count: 0
+						vm_count: 3
 					}
 				]
 			})
@@ -329,10 +344,7 @@ describe('Infrastructure presentation contract', () => {
 			overall: {
 				availability_pct: 98.75,
 				total_regions: 1,
-				total_vms: 3,
-				healthy_count: 3,
-				unhealthy_count: 0,
-				unknown_count: 0
+				total_vms: 3
 			},
 			regions: [
 				{
@@ -342,10 +354,7 @@ describe('Infrastructure presentation contract', () => {
 					provider_location: 'N. Virginia',
 					health: 'unknown',
 					utilization: null,
-					vm_count: 3,
-					healthy_count: 3,
-					unhealthy_count: 0,
-					unknown_count: 0
+					vm_count: 3
 				}
 			]
 		});
@@ -365,10 +374,7 @@ describe('Infrastructure presentation contract', () => {
 
 	it.each([
 		['total_regions', 'total_regions'],
-		['total_vms', 'total_vms'],
-		['healthy_count', 'healthy_count'],
-		['unhealthy_count', 'unhealthy_count'],
-		['unknown_count', 'unknown_count']
+		['total_vms', 'total_vms']
 	] as const)('rejects a mismatched %s region sum', (_name, field) => {
 		const payload = structuredClone(mixedRegionInfrastructure);
 		payload.overall[field] += 1;
@@ -376,32 +382,46 @@ describe('Infrastructure presentation contract', () => {
 		expect(parsePublicInfrastructureResponse(payload)).toBeNull();
 	});
 
-	it.each(['healthy_count', 'unhealthy_count', 'unknown_count'] as const)(
-		'rejects a negative or fractional %s',
-		(field) => {
-			const negative = structuredClone(mixedRegionInfrastructure);
-			negative.regions[0][field] = -1;
-			expect(parsePublicInfrastructureResponse(negative)).toBeNull();
+	// A region with no VMs has no health signal to report, so the API always emits
+	// "unknown" for it. Any other recognized health on a zero-VM region is upstream
+	// corruption and must fail closed rather than render as a real public status.
+	it.each(['operational', 'degraded', 'outage'] as const)(
+		'rejects a zero-VM region reporting %s health',
+		(health) => {
+			const payload = structuredClone(mixedRegionInfrastructure);
+			payload.regions[1].health = health;
 
-			const fractional = structuredClone(mixedRegionInfrastructure);
-			fractional.overall[field] = 0.5;
-			expect(parsePublicInfrastructureResponse(fractional)).toBeNull();
+			expect(parsePublicInfrastructureResponse(payload)).toBeNull();
 		}
 	);
 
-	it('rejects health buckets that do not reconcile with a region VM count', () => {
+	it.each([
+		['unknown', 'unknown'],
+		['unexpected', 'unknown']
+	] as const)('accepts a zero-VM region reporting %s health', (health, expected) => {
 		const payload = structuredClone(mixedRegionInfrastructure);
-		payload.regions[0].unknown_count += 1;
-		payload.overall.unknown_count += 1;
+		payload.regions[1].health = health as PublicRegionHealth;
 
-		expect(parsePublicInfrastructureResponse(payload)).toBeNull();
+		expect(parsePublicInfrastructureResponse(payload)?.regions[1].health).toBe(expected);
 	});
 
-	it('rejects a recognized health label that contradicts the region counts', () => {
-		const payload = structuredClone(mixedRegionInfrastructure);
-		payload.regions[0].health = 'unknown';
+	it.each([0, 1])(
+		'rejects recognized utilization for a region below the two-VM privacy threshold (%i VM)',
+		(vmCount) => {
+			const payload = structuredClone(mixedRegionInfrastructure);
+			payload.regions[0].vm_count = vmCount;
+			payload.regions[1].vm_count = 0;
+			payload.overall.total_vms = vmCount;
 
-		expect(parsePublicInfrastructureResponse(payload)).toBeNull();
+			expect(parsePublicInfrastructureResponse(payload)).toBeNull();
+		}
+	);
+
+	it('keeps API-provided health as the public health owner', () => {
+		const payload = structuredClone(mixedRegionInfrastructure);
+		payload.regions[0].health = 'outage';
+
+		expect(parsePublicInfrastructureResponse(payload)?.regions[0].health).toBe('outage');
 	});
 
 	it.each([
@@ -429,7 +449,7 @@ describe('Infrastructure presentation contract', () => {
 });
 
 describe('Infrastructure page', () => {
-	it('renders the committed oracle region counts exactly', async () => {
+	it('renders the committed oracle public region VM counts exactly', async () => {
 		const InfrastructurePage = (await import('./+page.svelte')).default;
 
 		render(InfrastructurePage, {
@@ -443,14 +463,13 @@ describe('Infrastructure page', () => {
 		expect(rows).toHaveLength(4);
 		for (const region of expectedOracleRegions) {
 			expect(screen.getByTestId(`infrastructure-region-row-${region.region}`)).toBeInTheDocument();
-			expectRegionCount(region, 'vm_count', region.vm_count);
-			expectRegionCount(region, 'healthy_count', region.healthy_count);
-			expectRegionCount(region, 'unhealthy_count', region.unhealthy_count);
-			expectRegionCount(region, 'unknown_count', region.unknown_count);
+			expect(
+				screen.getByTestId(`infrastructure-region-vm_count-${region.region}`)
+			).toHaveTextContent(String(region.vm_count));
 		}
 	});
 
-	it('renders the committed oracle topology totals exactly', async () => {
+	it('renders the committed oracle public VM total exactly', async () => {
 		const InfrastructurePage = (await import('./+page.svelte')).default;
 
 		render(InfrastructurePage, {
@@ -461,10 +480,9 @@ describe('Infrastructure page', () => {
 		});
 
 		expect(screen.getAllByTestId(/^infrastructure-region-row-/)).toHaveLength(4);
-		expectTopologyTotal('vm_count', expectedOracleTotals.vm_count);
-		expectTopologyTotal('healthy_count', expectedOracleTotals.healthy_count);
-		expectTopologyTotal('unhealthy_count', expectedOracleTotals.unhealthy_count);
-		expectTopologyTotal('unknown_count', expectedOracleTotals.unknown_count);
+		expect(screen.getByTestId('infrastructure-total-vm_count')).toHaveTextContent(
+			String(expectedOracleTotals.vm_count)
+		);
 	});
 
 	it('renders one complete row per public region and the overall availability', async () => {
@@ -479,6 +497,9 @@ describe('Infrastructure page', () => {
 		expect(screen.getByRole('link', { name: 'Log In' })).toHaveAttribute('href', '/login');
 		expect(screen.queryByRole('link', { name: 'Sign Up' })).not.toBeInTheDocument();
 		expect(screen.getByTestId('infrastructure-availability')).toHaveTextContent('98.75%');
+		expect(screen.queryByText('Healthy VMs')).not.toBeInTheDocument();
+		expect(screen.queryByText('Unhealthy VMs')).not.toBeInTheDocument();
+		expect(screen.queryByText('Unknown VMs')).not.toBeInTheDocument();
 
 		const rows = screen.getAllByTestId(/^infrastructure-region-row-/);
 		expect(rows).toHaveLength(2);
@@ -497,6 +518,12 @@ describe('Infrastructure page', () => {
 			'—'
 		);
 		expect(rows[1]).toHaveTextContent('0');
+		const table = screen.getByRole('table', { name: 'Infrastructure regions' });
+		expect(within(table).queryByRole('columnheader', { name: 'Healthy' })).not.toBeInTheDocument();
+		expect(
+			within(table).queryByRole('columnheader', { name: 'Unhealthy' })
+		).not.toBeInTheDocument();
+		expect(within(table).queryByRole('columnheader', { name: 'Unknown' })).not.toBeInTheDocument();
 	});
 
 	it('renders zero-VM availability as unavailable instead of a healthy percentage', async () => {
@@ -509,10 +536,7 @@ describe('Infrastructure page', () => {
 					overall: {
 						availability_pct: 100,
 						total_regions: 1,
-						total_vms: 0,
-						healthy_count: 0,
-						unhealthy_count: 0,
-						unknown_count: 0
+						total_vms: 0
 					},
 					regions: [
 						{
@@ -522,10 +546,7 @@ describe('Infrastructure page', () => {
 							provider_location: 'N. Virginia',
 							health: 'unknown',
 							utilization: null,
-							vm_count: 0,
-							healthy_count: 0,
-							unhealthy_count: 0,
-							unknown_count: 0
+							vm_count: 0
 						}
 					]
 				}
@@ -536,9 +557,7 @@ describe('Infrastructure page', () => {
 		expect(availability).toHaveTextContent('Availability unavailable');
 		expect(availability).not.toHaveTextContent('100%');
 		expect(screen.getByTestId('infrastructure-health-us-east-1')).toHaveTextContent('Unknown');
-		for (const field of ['vm_count', 'healthy_count', 'unhealthy_count', 'unknown_count']) {
-			expect(screen.getByTestId(`infrastructure-region-${field}-us-east-1`)).toHaveTextContent('0');
-		}
+		expect(screen.getByTestId('infrastructure-region-vm_count-us-east-1')).toHaveTextContent('0');
 	});
 
 	it('renders safe error copy without upstream details', async () => {

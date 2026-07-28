@@ -2136,6 +2136,11 @@ async fn stale_engine_identity_and_lease_return_fence_lost_without_mutation() {
     let claim = claim_for_finalization(&repo, running.id).await;
     let terminal_at = postgres_timestamp(Utc::now());
     let claimed_before_engine_fence = claim.job.clone();
+    let active_reservation_before_engine_fence = has_active_reservation(&db.pool, running.id).await;
+    assert!(
+        active_reservation_before_engine_fence,
+        "promoting job must own an active reservation before stale engine finalization"
+    );
 
     let stale_engine_identity = repo
         .finalize_terminal_observation(
@@ -2160,10 +2165,20 @@ async fn stale_engine_identity_and_lease_return_fence_lost_without_mutation() {
         .expect("job remains retained");
     assert_unfinalized_create_job(&retained_after_engine_fence, vm_id, physical_uid.as_str());
     assert_fence_lost_preserved_job_row(&claimed_before_engine_fence, &retained_after_engine_fence);
+    let active_reservation_after_engine_fence = has_active_reservation(&db.pool, running.id).await;
+    assert_eq!(
+        active_reservation_after_engine_fence, active_reservation_before_engine_fence,
+        "stale engine identity must not release the active reservation"
+    );
     assert_eq!(catalog_row_count(&db.pool, customer_id).await, 0);
     assert_eq!(deployment_row_count(&db.pool, customer_id).await, 0);
 
     let claimed_before_lease_fence = retained_after_engine_fence.clone();
+    let active_reservation_before_lease_fence = has_active_reservation(&db.pool, running.id).await;
+    assert!(
+        active_reservation_before_lease_fence,
+        "promoting job must own an active reservation before stale lease finalization"
+    );
     let stale_lease = repo
         .finalize_terminal_observation(
             AlgoliaImportTerminalFinalizationAuthority::ReconciliationLease(
@@ -2192,6 +2207,11 @@ async fn stale_engine_identity_and_lease_return_fence_lost_without_mutation() {
         .expect("job remains retained");
     assert_unfinalized_create_job(&retained_after_lease_fence, vm_id, physical_uid.as_str());
     assert_fence_lost_preserved_job_row(&claimed_before_lease_fence, &retained_after_lease_fence);
+    let active_reservation_after_lease_fence = has_active_reservation(&db.pool, running.id).await;
+    assert_eq!(
+        active_reservation_after_lease_fence, active_reservation_before_lease_fence,
+        "stale lease must not release the active reservation"
+    );
     assert_eq!(catalog_row_count(&db.pool, customer_id).await, 0);
     assert_eq!(deployment_row_count(&db.pool, customer_id).await, 0);
 }
@@ -2538,6 +2558,26 @@ fn assert_unfinalized_create_job(job: &AlgoliaImportJob, vm_id: Uuid, physical_u
 }
 
 fn assert_fence_lost_preserved_job_row(before: &AlgoliaImportJob, after: &AlgoliaImportJob) {
+    assert_eq!(after.status, before.status);
+    assert_eq!(
+        after.publication_disposition,
+        before.publication_disposition
+    );
+    assert_eq!(after.reserved_index_count, before.reserved_index_count);
+    assert_eq!(
+        after.reserved_customer_storage_bytes,
+        before.reserved_customer_storage_bytes
+    );
+    assert_eq!(
+        after.reserved_node_transient_bytes,
+        before.reserved_node_transient_bytes
+    );
+    assert_eq!(
+        after.terminal_outcome_observed,
+        before.terminal_outcome_observed
+    );
+    assert_eq!(after.terminal_at, before.terminal_at);
+    assert_eq!(after.engine_ack_state, before.engine_ack_state);
     assert_eq!(after.worker_claimed_at, before.worker_claimed_at);
     assert_eq!(
         after.worker_lease_expires_at,

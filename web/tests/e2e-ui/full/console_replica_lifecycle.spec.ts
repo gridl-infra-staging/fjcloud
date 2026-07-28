@@ -26,8 +26,7 @@ async function expectSuccessfulMutationResponse(
 		return;
 	}
 
-	const expectedDescription =
-		expectedResponse === 'either' ? 'JSON or HTML' : 'JSON';
+	const expectedDescription = expectedResponse === 'either' ? 'JSON or HTML' : 'JSON';
 	throw new Error(
 		`${actionName} should return a successful ${expectedDescription} response, received content-type ${contentType ?? 'missing'}`
 	);

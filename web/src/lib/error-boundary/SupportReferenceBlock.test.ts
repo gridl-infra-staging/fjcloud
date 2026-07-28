@@ -14,10 +14,10 @@ describe('SupportReferenceBlock', () => {
 		render(SupportReferenceBlock, { boundaryCopy });
 
 		expect(screen.getAllByText('Support reference')).toHaveLength(1);
-		expect(screen.getAllByText(/^web-[a-f0-9]{12}$/)).toHaveLength(1);
-		expect(screen.getByRole('link', { name: SUPPORT_EMAIL })).toHaveAttribute(
-			'href',
-			expect.stringContaining(`mailto:${SUPPORT_EMAIL}`)
-		);
+		expect(screen.getAllByText('web-abc123def456')).toHaveLength(1);
+		expect(screen.getByText(/If you contact support, email/)).toBeInTheDocument();
+		const supportLink = screen.getByRole('link', { name: SUPPORT_EMAIL });
+		expect(supportLink).toHaveAttribute('href', boundaryCopy.supportMailtoHref);
+		expect(screen.getByText(/and include this reference/)).toBeInTheDocument();
 	});
 });

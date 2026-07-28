@@ -17,7 +17,7 @@ Both error boundaries render shared recovery copy from `buildBoundaryCopy()` and
 
 - Visible label exactly `Support reference`.
 - Customer-visible identifier matching `web-[a-f0-9]{12}`.
-- Support-contact wording that uses `SUPPORT_EMAIL` from `web/src/lib/format.ts` as the single source of truth for the contact address.
+- Support-contact wording that renders `SUPPORT_EMAIL` from `web/src/lib/format.ts` together with the customer-visible `web-[a-f0-9]{12}` support reference.
 - Backend `x-request-id` values are not rendered to customers; when available on an `ApiRequestError`, they are paired with the web support reference in server route-error logs.
 - Browser-only uncaught `error` and `unhandledrejection` failures are normalized into sanitized 500-style boundary copy, include one web support reference, emit browser-console maintainer metadata with `backend_correlation: 'absent'`, and submit the same sanitized metadata to the repo-owned `/browser-errors` ingestion route.
 
@@ -32,7 +32,8 @@ Both error boundaries render shared recovery copy from `buildBoundaryCopy()` and
 
 - Primary CTA is driven by `buildBoundaryCopy()` (`/` for public 4xx/404, `/console` for console 4xx/404, `/status` for 5xx).
 - Secondary status link follows current boundary behavior and must remain unchanged by support-reference work.
-- Support contact uses the shared `SUPPORT_EMAIL` source; no second hard-coded mailbox is introduced.
+- Support contact uses the shared `SUPPORT_EMAIL` source and appears with the visible support reference; no second hard-coded mailbox is introduced.
+- Support-contact `mailto:` links include the visible `web-[a-f0-9]{12}` support reference in the generated subject or body so the customer-visible reference remains usable when the customer opens an email client.
 
 ## Acceptance Criteria
 
@@ -40,15 +41,17 @@ Both error boundaries render shared recovery copy from `buildBoundaryCopy()` and
 - [x] Each boundary renders one customer-visible support reference matching `web-[a-f0-9]{12}`.
 - [x] Existing privacy guardrails remain intact: unsafe infrastructure details stay hidden and raw 5xx internals stay suppressed.
 - [x] Support-contact copy for both boundaries is sourced from `SUPPORT_EMAIL`.
+- [x] Support-contact links include the rendered support reference in the mailto payload.
 - [x] Backend `x-request-id` values are preserved by `ApiRequestError` metadata (`web/src/lib/api/client.ts`) and paired with the web support reference in route-error logs (`web/src/hooks.server.ts`).
 - [x] Browser-only uncaught errors and unhandled promise rejections are normalized by `web/src/lib/error-boundary/client-runtime.ts` into one sanitized support reference, keep browser-console maintainer metadata with `backend_correlation: 'absent'`, and submit the same sanitized payload to `/browser-errors` via `infra/api/src/routes/browser_error_reporting.rs`.
 
 ## Current Implementation Gaps
 
 No known gap remains in the repo-owned browser-runtime reporting seam. Customer-visible support references remain web-generated and `web-` prefixed by design, browser-only runtime failures now submit sanitized metadata to `/browser-errors` while preserving browser-console maintainer diagnostics, and backend `x-request-id` values remain available only to maintainer-visible server route-error logs when the thrown error is an `ApiRequestError` with preserved response metadata.
+JSDOM axe coverage now proves representative 404, generic 4xx, and 5xx states for both public and console error boundaries in `web/src/routes/error.test.ts` and `web/src/routes/console/error.test.ts`.
 
 ## Automated Coverage
 
-- Browser-unmocked tests: `web/tests/e2e-ui/full/public-pages.spec.ts`; `web/tests/e2e-ui/full/console.spec.ts`
+- Browser-unmocked tests: `web/tests/e2e-ui/full/public-pages.spec.ts`; `web/tests/e2e-ui/full/console.spec.ts`; `web/tests/e2e-ui/full/support-routing.spec.ts`
 - Component tests: `web/src/lib/error-boundary/recovery-copy.test.ts`; `web/src/lib/error-boundary/SupportReferenceBlock.test.ts`; `web/src/lib/error-boundary/client-runtime.test.ts`; `web/src/routes/layout.test.ts`; `web/src/routes/error.test.ts`; `web/src/routes/console/error.test.ts`
 - Server/contract tests: `web/src/lib/api/client.test.ts`; `web/src/hooks.server.test.ts`

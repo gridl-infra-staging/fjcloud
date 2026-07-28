@@ -48,6 +48,13 @@ staging, delivered on prod") — not something the local lane replaces.
    `DATABASE_URL` and a reachable `flapjack` binary; the launcher hydrates
    Stripe test keys, starts the stack in real-test-Stripe mode, runs the spec,
    and tears down only its own processes.)
+   For the B21 fresh-signup email verification proof, start the local stack with
+   `PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION=1`; `scripts/playwright_local_stack.sh`
+   owns Mailpit startup/readiness and fails closed when the message-store API is
+   unavailable. The stack starts the API with `API_DEV_REQUIRE_LOCAL_EMAIL_DELIVERY=1`,
+   so `scripts/api-dev.sh` revokes the auto-verify and SES opt-ins after it reloads
+   `.env.local` — an `API_DEV_ALLOW_SES_EMAIL=1` left in your shell or env file
+   cannot route the proof's verification email out through SES.
 2. **Land + deploy** the fix through the normal path (dev `main` → `debbie sync
    staging` → mirror CI, which now deploys **both** the API plane and the web
    plane — see [deploy_surfaces.md](deploy_surfaces.md)).

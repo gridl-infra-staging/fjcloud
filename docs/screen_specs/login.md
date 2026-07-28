@@ -22,6 +22,10 @@ The screen uses the shared `bg-flapjack-mint text-flapjack-ink` auth canvas and 
 - Error: wrong password and unknown email show the same generic credential failure and remain on `/login`.
 - Success: valid credentials redirect to `/console`.
 
+## Mobile Narrow Contract
+
+Baseline viewport: 390px wide (iPhone 14). The auth card remains one column, fills available width within page padding, keeps both fields and the primary action readable, and preserves the OAuth divider plus forgot-password link below the form without signup discovery.
+
 ## Controls And Navigation
 
 - `Email` and `Password` are accessible labeled inputs.

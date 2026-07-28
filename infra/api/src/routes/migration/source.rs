@@ -2,7 +2,7 @@
 //! the single mapping of source-service errors onto stable migration codes.
 use std::fmt;
 
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::Deserialize;
@@ -17,7 +17,8 @@ use crate::services::algolia_source::{
 use crate::state::AppState;
 
 use super::{
-    migration_backend_unavailable, migration_error, migration_unavailable, ALGOLIA_ACL_GUIDANCE,
+    migration_backend_unavailable, migration_error, migration_unavailable,
+    validate_source_provider, MigrationSourcePath, ALGOLIA_ACL_GUIDANCE,
 };
 
 const MAX_LIST_INDEXES_HITS_PER_PAGE: u32 = 100;
@@ -47,6 +48,7 @@ impl fmt::Debug for ListAlgoliaIndexesRequest {
 #[utoipa::path(
     post,
     path = "/migration/algolia/list-indexes",
+    operation_id = "list_algolia_indexes",
     tag = "Migration",
     request_body = ListAlgoliaIndexesRequest,
     responses(
@@ -57,11 +59,14 @@ impl fmt::Debug for ListAlgoliaIndexesRequest {
         (status = 503, description = "Algolia discovery unavailable or timed out", body = crate::errors::MigrationErrorResponse),
     )
 )]
-pub async fn list_algolia_indexes(
+/// Lists source indexes for the validated migration provider.
+pub async fn list_source_indexes(
     _auth: AuthenticatedTenant,
     State(state): State<AppState>,
+    Path(path): Path<MigrationSourcePath>,
     Json(request): Json<ListAlgoliaIndexesRequest>,
 ) -> Result<Json<AlgoliaSourceListResponse>, ApiError> {
+    validate_source_provider(path.source_provider.as_deref())?;
     if !super::migration_available(&state) {
         return Err(migration_unavailable());
     }

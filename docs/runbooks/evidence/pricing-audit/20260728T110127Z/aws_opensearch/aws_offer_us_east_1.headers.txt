@@ -1,0 +1,16 @@
+HTTP/1.1 200 OK
+Content-Type: application/octet-stream
+Content-Length: 1824425
+Connection: keep-alive
+Date: Tue, 28 Jul 2026 11:06:03 GMT
+Last-Modified: Thu, 09 Jul 2026 09:09:30 GMT
+ETag: "821035ea0f20ff2f2a4075c81fad6446"
+x-amz-server-side-encryption: AES256
+x-amz-version-id: _sSo9t8lGpqsfeYETlDJGGh3505XfN64
+Accept-Ranges: bytes
+Server: AmazonS3
+X-Cache: Miss from cloudfront
+Via: 1.1 e192a0c00645fc183da32770a14cec54.cloudfront.net (CloudFront)
+X-Amz-Cf-Pop: IAD61-P11
+X-Amz-Cf-Id: Txd48AGYdfLQkwwjZ3UE0vKUODMNHsnakLRCJl4FjTMINhKMt-4JuQ==
+

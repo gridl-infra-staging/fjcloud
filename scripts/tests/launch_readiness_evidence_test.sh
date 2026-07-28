@@ -15,6 +15,9 @@ ROADMAP_DOC="$REPO_ROOT/ROADMAP.md"
 PROJECT_OVERVIEW_DOC="$REPO_ROOT/PROJECT_OVERVIEW.md"
 GAPS_AND_RISKS_DOC="$REPO_ROOT/docs/checklists/apr21_pm_2_post_phase6_gaps_and_risks.md"
 STAGING_EVIDENCE_DOC="$REPO_ROOT/docs/runbooks/staging-evidence.md"
+ACCOUNT_DATA_POLICY_DOC="$REPO_ROOT/docs/runbooks/account_data_policy.md"
+ERROR_BOUNDARIES_DOC="$REPO_ROOT/docs/screen_specs/error_boundaries.md"
+ROUTE_ASSEMBLY_SRC="$REPO_ROOT/infra/api/src/router/route_assembly.rs"
 PAID_LIFECYCLE_BUNDLE_DIR="$REPO_ROOT/docs/runbooks/evidence/staging-billing-rehearsal/20260428T055058Z_paid_lifecycle_clean"
 PAID_LIFECYCLE_SUMMARY_DOC="$PAID_LIFECYCLE_BUNDLE_DIR/SUMMARY.md"
 PAID_LIFECYCLE_CROSS_CHECK_RESULT_DOC="$PAID_LIFECYCLE_BUNDLE_DIR/cross_check_result.json"
@@ -386,11 +389,15 @@ test_status_docs_reference_stage123_canonical_artifacts() {
 
 test_status_docs_preserve_stage123_residual_boundaries() {
     local roadmap_content overview_content risk_content staging_evidence_content status_docs_content
+    local account_data_policy_content error_boundaries_content route_assembly_content
     roadmap_content="$(cat "$ROADMAP_DOC")"
     overview_content="$(cat "$PROJECT_OVERVIEW_DOC")"
     risk_content="$(cat "$GAPS_AND_RISKS_DOC")"
     staging_evidence_content="$(cat "$STAGING_EVIDENCE_DOC")"
     status_docs_content="$(printf '%s\n%s\n%s\n%s\n' "$roadmap_content" "$overview_content" "$risk_content" "$staging_evidence_content")"
+    account_data_policy_content="$(cat "$ACCOUNT_DATA_POLICY_DOC")"
+    error_boundaries_content="$(cat "$ERROR_BOUNDARIES_DOC")"
+    route_assembly_content="$(cat "$ROUTE_ASSEMBLY_SRC")"
 
     assert_contains "$status_docs_content" "SPF" \
         "status docs should keep SPF as unproven deliverability evidence"
@@ -402,18 +409,20 @@ test_status_docs_preserve_stage123_residual_boundaries() {
         "status docs should keep first-send evidence as unproven"
     assert_contains "$status_docs_content" "inbox-receipt" \
         "status docs should keep inbox-receipt evidence as unproven"
-    assert_contains "$status_docs_content" "soft-delete" \
-        "status docs should keep account deletion as soft-delete only"
-    assert_contains "$status_docs_content" "account export" \
-        "status docs should preserve account-data owner context"
+    assert_contains "$account_data_policy_content" "soft-delete" \
+        "docs/runbooks/account_data_policy.md should keep account deletion as soft-delete only"
+    assert_contains "$account_data_policy_content" "GET /account/export" \
+        "docs/runbooks/account_data_policy.md should preserve account-export owner context"
     assert_contains "$status_docs_content" "downstream cleanup is not implemented" \
         "status docs should keep downstream cleanup as not implemented"
     assert_contains "$status_docs_content" "Account-retention automation implemented" \
         "status docs should keep retention-duration automation implemented"
     assert_contains "$status_docs_content" "live rotations have not been executed" \
         "status docs should keep live secret rotations as not yet executed"
-    assert_contains "$status_docs_content" "/browser-errors" \
-        "status docs should document the repo-owned browser-runtime ingestion route"
+    assert_contains "$error_boundaries_content" "/browser-errors" \
+        "docs/screen_specs/error_boundaries.md should document the repo-owned browser-runtime ingestion route"
+    assert_contains "$route_assembly_content" '"/browser-errors"' \
+        "infra/api/src/router/route_assembly.rs should mount the browser-runtime ingestion route"
     assert_contains "$status_docs_content" "panics_total" \
         "status docs should narrow remaining error-reporting work to the panics_total alarm wiring"
     assert_contains "$status_docs_content" "30-day RDS PostgreSQL CloudWatch log-retention coverage" \

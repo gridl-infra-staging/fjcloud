@@ -34,7 +34,7 @@ The page shows `Replica Management`, summary cards for total/active/syncing/fail
 
 ## Current Implementation Gaps
 
-No dedicated browser flow verifies HA-created replica visibility after a deterministic action yet.
+No dedicated browser flow verifies HA-created replica visibility after a deterministic action yet. JSDOM axe coverage now proves populated, filtered, and empty states in `web/src/routes/admin/replicas/admin-replicas.test.ts`.
 
 ## Automated Coverage
 

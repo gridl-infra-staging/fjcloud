@@ -12,6 +12,8 @@ source "$SCRIPT_DIR/lib/env.sh"
 source "$SCRIPT_DIR/lib/health.sh"
 # shellcheck source=lib/stripe_checks.sh
 source "$SCRIPT_DIR/lib/stripe_checks.sh"
+# shellcheck source=lib/local_url.sh
+source "$SCRIPT_DIR/lib/local_url.sh"
 
 log() { echo "[api-dev] $*"; }
 die() {
@@ -151,13 +153,91 @@ prefer_env_file_live_stripe_secret_selection() {
     fi
 }
 
+caller_stripe_publishable_key_present=0
+if [ "${STRIPE_PUBLISHABLE_KEY+x}" = "x" ]; then
+    caller_stripe_publishable_key_present=1
+fi
+
+# The API treats SES_FROM_ADDRESS, SES_REGION, and SES_CONFIGURATION_SET as one
+# startup family (infra/api/src/startup_env.rs::ses_family_state): any member
+# left set forces SesStartupMode::Ses, so local Mailpit lanes must clear all
+# three rather than just the credential pair.
+SES_ROUTING_ENV_KEYS=(SES_FROM_ADDRESS SES_REGION SES_CONFIGURATION_SET)
+LOCAL_EMAIL_DELIVERY_ENVIRONMENT_VALUES=(local dev development)
+
+clear_ses_routing_env() {
+    local key
+    for key in "${SES_ROUTING_ENV_KEYS[@]}"; do
+        unset "$key"
+    done
+}
+
+require_or_default_local_email_delivery_startup_mode() {
+    local normalized_environment normalized_node_secret_backend allowed_environment=0
+    local environment_value
+
+    if [ -z "${ENVIRONMENT:-}" ]; then
+        export ENVIRONMENT="local"
+    fi
+    if [ -z "${NODE_SECRET_BACKEND:-}" ]; then
+        export NODE_SECRET_BACKEND="memory"
+    fi
+
+    normalized_environment="$(printf '%s' "$ENVIRONMENT" | tr '[:upper:]' '[:lower:]' | xargs)"
+    normalized_node_secret_backend="$(printf '%s' "$NODE_SECRET_BACKEND" | tr '[:upper:]' '[:lower:]' | xargs)"
+
+    for environment_value in "${LOCAL_EMAIL_DELIVERY_ENVIRONMENT_VALUES[@]}"; do
+        if [ "$normalized_environment" = "$environment_value" ]; then
+            allowed_environment=1
+            break
+        fi
+    done
+
+    if [ "$allowed_environment" -ne 1 ] || [ "$normalized_node_secret_backend" != "memory" ]; then
+        die "API_DEV_REQUIRE_LOCAL_EMAIL_DELIVERY=1 requires ENVIRONMENT=local/dev/development and NODE_SECRET_BACKEND=memory so API startup selects Mailpit instead of SES"
+    fi
+}
+
+require_loopback_http_mailpit_api_url() {
+    local mailpit_api_url="$1"
+
+    if ! loopback_http_url_is_valid "$mailpit_api_url"; then
+        die "API_DEV_REQUIRE_LOCAL_EMAIL_DELIVERY=1 needs a loopback HTTP MAILPIT_API_URL so verification email stays in the local Mailpit inbox"
+    fi
+}
+
+# Captured before .env.local loads so an env file cannot switch the fail-closed
+# local-delivery contract back off after the caller demanded it.
+caller_requires_local_email_delivery="${API_DEV_REQUIRE_LOCAL_EMAIL_DELIVERY:-0}"
+
 if [ -f "$REPO_ROOT/.env.local" ]; then
     load_env_file "$REPO_ROOT/.env.local"
     if [ "${API_DEV_ALLOW_LIVE_STRIPE:-}" = "1" ]; then
         prefer_env_file_live_stripe_secret_selection "$REPO_ROOT/.env.local"
-        prefer_env_file_assignment_for_key "$REPO_ROOT/.env.local" "STRIPE_PUBLISHABLE_KEY" || true
+        if [ "$caller_stripe_publishable_key_present" -ne 1 ]; then
+            prefer_env_file_assignment_for_key "$REPO_ROOT/.env.local" "STRIPE_PUBLISHABLE_KEY" || true
+        fi
         prefer_env_file_assignment_for_key "$REPO_ROOT/.env.local" "STRIPE_WEBHOOK_SECRET" || true
     fi
+fi
+
+requires_local_email_delivery="${API_DEV_REQUIRE_LOCAL_EMAIL_DELIVERY:-0}"
+if [ "$caller_requires_local_email_delivery" = "1" ]; then
+    requires_local_email_delivery=1
+fi
+
+# Fail-closed local-delivery mode for browser proofs that must redeem a real
+# verification token out of Mailpit. Both escape hatches below are honored from
+# .env.local as well as the parent shell, so this mode revokes them AFTER the
+# env file has loaded — revoking them earlier would let a stale env file reinstate
+# auto-verification or SES routing and send the proof email outside the local stack.
+if [ "$requires_local_email_delivery" = "1" ]; then
+    [ -n "${MAILPIT_API_URL:-}" ] \
+        || die "API_DEV_REQUIRE_LOCAL_EMAIL_DELIVERY=1 needs MAILPIT_API_URL so verification email stays in the local Mailpit inbox"
+    require_loopback_http_mailpit_api_url "$MAILPIT_API_URL"
+    require_or_default_local_email_delivery_startup_mode
+    unset API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION
+    unset API_DEV_ALLOW_SES_EMAIL
 fi
 
 listen_port="$(resolve_listen_port)"
@@ -180,8 +260,7 @@ fi
 # Prefer Mailpit delivery for local browser-lane proofs when it is configured.
 # Keep SES available behind explicit API_DEV_ALLOW_SES_EMAIL=1 opt-in.
 if [ -n "${MAILPIT_API_URL:-}" ] && [ "${API_DEV_ALLOW_SES_EMAIL:-}" != "1" ]; then
-    unset SES_FROM_ADDRESS
-    unset SES_REGION
+    clear_ses_routing_env
 fi
 
 # Default local dev to the in-process Stripe mock so checkout-based fixture
@@ -202,7 +281,7 @@ if [ "${API_DEV_ALLOW_LIVE_STRIPE:-}" = "1" ]; then
     # debugging time. Fail closed with an actionable message instead of shipping
     # a broken form. (Empty is allowed: a run may legitimately not set a pk yet.)
     if [ -n "${STRIPE_PUBLISHABLE_KEY:-}" ] && [[ "${STRIPE_PUBLISHABLE_KEY}" != pk_test_* ]]; then
-        die "STRIPE_PUBLISHABLE_KEY mode mismatch: live-Stripe dev mode requires a pk_test_ publishable key (the secret key is test-mode). A pk_live_ key silently breaks the browser Payment Element. Set a pk_test_ key from the same Stripe sandbox as STRIPE_SECRET_KEY in .env.local."
+        die "STRIPE_PUBLISHABLE_KEY mode mismatch: resolved publishable mode is non-test while resolved secret mode is test. live-Stripe dev mode requires a pk_test_ publishable key from the same Stripe sandbox as STRIPE_SECRET_KEY."
     fi
 else
     export STRIPE_LOCAL_MODE="${STRIPE_LOCAL_MODE:-1}"

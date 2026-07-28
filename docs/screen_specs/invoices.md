@@ -42,6 +42,7 @@ The invoice list shows `Invoices` and either `No invoices yet` or a table with p
 
 Invoice-detail browser coverage may skip when local Stripe linkage is unavailable. Mailpit invoice-ready email evidence is owned by the local commerce proof rather than this browser spec.
 Billing-page availability/portal-action behavior and subscription-status-banner ownership remain in `docs/screen_specs/console_billing.md` to avoid duplicate contracts in this invoice-focused spec.
+Structural jsdom accessibility proof is now owned by `web/src/routes/console/billing/invoices/invoices.test.ts` for populated and empty invoice lists, and `web/src/routes/console/billing/invoices/[id]/invoice-detail.test.ts` for a populated invoice detail.
 
 ## Automated Coverage
 

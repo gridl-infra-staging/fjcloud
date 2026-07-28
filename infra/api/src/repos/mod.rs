@@ -55,7 +55,8 @@ pub use algolia_import_job_repo::{
     AlgoliaImportTerminalFinalizationAuthority, AlgoliaImportTerminalFinalizationOutcome,
     AlgoliaImportTransitionDisposition, AlgoliaLifecycleError, CatalogLifecycleTargetGuard,
     CatalogLifecycleTargetIdentity, DestinationEligibilityError, DestinationEligibilitySnapshot,
-    ALGOLIA_IMPORT_JOB_LIST_DEFAULT_LIMIT, ALGOLIA_IMPORT_JOB_LIST_MAX_LIMIT,
+    SourceMigrationJobRepo, ALGOLIA_IMPORT_JOB_LIST_DEFAULT_LIMIT,
+    ALGOLIA_IMPORT_JOB_LIST_MAX_LIMIT,
 };
 pub use api_key_repo::ApiKeyRepo;
 pub use cold_snapshot_repo::ColdSnapshotRepo;
@@ -75,7 +76,7 @@ pub use in_memory_storage_key_repo::InMemoryStorageKeyRepo;
 pub use index_migration_repo::IndexMigrationRepo;
 pub use index_replica_repo::IndexReplicaRepo;
 pub use invoice_repo::InvoiceRepo;
-pub use pg_algolia_import_job_repo::PgAlgoliaImportJobRepo;
+pub use pg_algolia_import_job_repo::{PgAlgoliaImportJobRepo, PgSourceMigrationJobRepo};
 pub use pg_api_key_repo::PgApiKeyRepo;
 pub use pg_cold_snapshot_repo::PgColdSnapshotRepo;
 pub use pg_customer_repo::PgCustomerRepo;

@@ -3,6 +3,7 @@ import { cleanup, render, screen, within } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
 import {
 	FLEET_FIXTURES,
+	ORACLE_RENDER_TIMEOUT_MS,
 	REAL_PIPELINE_ORACLE,
 	REPLICA_FIXTURES,
 	VM_FIXTURES,
@@ -169,29 +170,33 @@ describe('Fleet dashboard', () => {
 		]);
 	});
 
-	it('renders every oracle VM capacity row and selected host sample exactly', async () => {
-		const FleetPage = (await import('./+page.svelte')).default;
-		const selectedVmId = REAL_PIPELINE_ORACLE.topology.selected_vm_id;
-		const selectedSample = REAL_PIPELINE_ORACLE.host_metrics.samples[0];
-		vi.useFakeTimers();
-		vi.setSystemTime(REAL_PIPELINE_ORACLE.provenance.generated_at);
+	it(
+		'renders every oracle VM capacity row and selected host sample exactly',
+		async () => {
+			const FleetPage = (await import('./+page.svelte')).default;
+			const selectedVmId = REAL_PIPELINE_ORACLE.topology.selected_vm_id;
+			const selectedSample = REAL_PIPELINE_ORACLE.host_metrics.samples[0];
+			vi.useFakeTimers();
+			vi.setSystemTime(REAL_PIPELINE_ORACLE.provenance.generated_at);
 
-		render(FleetPage, {
-			data: pageData({
-				vms: REAL_PIPELINE_ORACLE.topology.vms,
-				hostMetricsByVmId: { [selectedVmId]: selectedSample }
-			}),
-			form: null
-		});
+			render(FleetPage, {
+				data: pageData({
+					vms: REAL_PIPELINE_ORACLE.topology.vms,
+					hostMetricsByVmId: { [selectedVmId]: selectedSample }
+				}),
+				form: null
+			});
 
-		assertOracleCapacityRows(REAL_PIPELINE_ORACLE.topology.vms);
-		expect(cellText(screen.getByTestId(`host-disk-${selectedVmId}`))).toBe('86%');
-		expect(cellText(screen.getByTestId(`host-cpu-${selectedVmId}`))).toBe('41%');
-		expect(cellText(screen.getByTestId(`host-ram-${selectedVmId}`))).toBe('60%');
-		expect(cellText(screen.getByTestId(`host-net-${selectedVmId}`))).toBe(
-			'RX total 435.8 GB / TX total 41.4 GB'
-		);
-	});
+			assertOracleCapacityRows(REAL_PIPELINE_ORACLE.topology.vms);
+			expect(cellText(screen.getByTestId(`host-disk-${selectedVmId}`))).toBe('86%');
+			expect(cellText(screen.getByTestId(`host-cpu-${selectedVmId}`))).toBe('41%');
+			expect(cellText(screen.getByTestId(`host-ram-${selectedVmId}`))).toBe('60%');
+			expect(cellText(screen.getByTestId(`host-net-${selectedVmId}`))).toBe(
+				'RX total 435.8 GB / TX total 41.4 GB'
+			);
+		},
+		ORACLE_RENDER_TIMEOUT_MS
+	);
 
 	it('has fail-capable oracle health and index-count assertions', async () => {
 		const FleetPage = (await import('./+page.svelte')).default;

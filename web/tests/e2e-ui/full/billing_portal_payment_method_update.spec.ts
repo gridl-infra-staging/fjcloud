@@ -3,7 +3,7 @@ import {
 	isRemoteTargetMode,
 	setAuthCookieForToken
 } from '../../fixtures/fresh_signup_remote_bootstrap';
-import type { FrameLocator } from '@playwright/test';
+import type { FrameLocator, Page } from '@playwright/test';
 
 // This flow validates auth+billing lifecycle for a newly arranged customer.
 // Start from an unauthenticated browser context so `/login` always renders.
@@ -25,7 +25,7 @@ function sessionRecoveryFailure(detail: string): Error {
 }
 
 async function loginWithFixtureCredentials(
-	page: import('@playwright/test').Page,
+	page: Page,
 	email: string,
 	password: string,
 	loginAs: (email: string, password: string) => Promise<string>
@@ -60,7 +60,7 @@ async function loginWithFixtureCredentials(
 }
 
 async function gotoBillingPageWithSessionRecovery(
-	page: import('@playwright/test').Page,
+	page: Page,
 	email: string,
 	password: string,
 	loginAs: (email: string, password: string) => Promise<string>
@@ -83,6 +83,17 @@ async function gotoBillingPageWithSessionRecovery(
 			'navigation remained on /login?reason=session_expired after auth-cookie replay'
 		);
 	}
+}
+
+async function openBillingPageForCustomer(
+	page: Page,
+	customer: { email: string; password: string },
+	loginAs: (email: string, password: string) => Promise<string>
+): Promise<void> {
+	await loginWithFixtureCredentials(page, customer.email, customer.password, loginAs);
+	await gotoBillingPageWithSessionRecovery(page, customer.email, customer.password, loginAs);
+	await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Payment methods' })).toBeVisible();
 }
 
 async function selectStripeCardCountry(stripeFrame: FrameLocator): Promise<void> {
@@ -133,20 +144,7 @@ test.describe('Billing in-app payment-method updates', () => {
 		test.setTimeout(180_000);
 		const arrangedCustomer = await arrangeBillingPortalCustomer();
 
-		await loginWithFixtureCredentials(
-			page,
-			arrangedCustomer.email,
-			arrangedCustomer.password,
-			loginAs
-		);
-		await gotoBillingPageWithSessionRecovery(
-			page,
-			arrangedCustomer.email,
-			arrangedCustomer.password,
-			loginAs
-		);
-		await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible();
-		await expect(page.getByRole('heading', { name: 'Payment methods' })).toBeVisible();
+		await openBillingPageForCustomer(page, arrangedCustomer, loginAs);
 		await expect(page.getByRole('button', { name: 'Manage billing' })).toHaveCount(0);
 
 		if (arrangedCustomer.stripeCustomerId.startsWith('cus_local_')) {
@@ -209,7 +207,7 @@ test.describe('Billing in-app payment-method updates', () => {
 		expect(currentDefaultPaymentMethodId).toBe(arrangedCustomer.expectedDefaultPaymentMethodId);
 	});
 
-	test('saves a new payment method via the Stripe Payment Element on /console/billing/setup @p0_coverage', async ({
+	test('row 8 @p0_coverage: setup flow attaches a distinct card via the Stripe Payment Element on /console/billing/setup', async ({
 		page,
 		arrangeBillingPortalCustomer,
 		waitForStripeDefaultPaymentMethod,
@@ -218,19 +216,7 @@ test.describe('Billing in-app payment-method updates', () => {
 		test.setTimeout(180_000);
 		const arrangedCustomer = await arrangeBillingPortalCustomer();
 
-		await loginWithFixtureCredentials(
-			page,
-			arrangedCustomer.email,
-			arrangedCustomer.password,
-			loginAs
-		);
-		await gotoBillingPageWithSessionRecovery(
-			page,
-			arrangedCustomer.email,
-			arrangedCustomer.password,
-			loginAs
-		);
-		await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible();
+		await openBillingPageForCustomer(page, arrangedCustomer, loginAs);
 
 		if (arrangedCustomer.stripeCustomerId.startsWith('cus_local_')) {
 			test.skip(
@@ -239,10 +225,14 @@ test.describe('Billing in-app payment-method updates', () => {
 			);
 		}
 
-		// Baseline: arrangeBillingPortalCustomer attaches one Visa (pm_card_visa,
-		// last4=4242) as the default PM.
+		// Fixture baseline (arrangeBillingPortalCustomer): exactly one Visa
+		// (pm_card_visa, last4=4242, default) and exactly one Mastercard
+		// (pm_card_mastercard, last4=4444, non-default). The fixture-seeded
+		// Mastercard is the visible baseline, NOT the method this setup flow adds.
 		const visaRowLocator = page.getByText('Visa ending in 4242');
+		const mastercardRowLocator = page.getByText('Mastercard ending in 4444');
 		await expect(visaRowLocator).toHaveCount(1);
+		await expect(mastercardRowLocator).toHaveCount(1);
 
 		await page.goto('/console/billing/setup');
 		await expect(page.getByRole('heading', { name: 'Add Payment Method' })).toBeVisible();
@@ -259,7 +249,13 @@ test.describe('Billing in-app payment-method updates', () => {
 
 		const cardNumberField = stripeFrame.getByRole('textbox', { name: /Card number/i });
 		await expect(cardNumberField).toBeVisible({ timeout: 30_000 });
-		await cardNumberField.fill('4242424242424242');
+		// Stripe's established Mastercard test number — the raw-PAN equivalent of
+		// the `pm_card_mastercard` identity the fixture already uses. Typing it
+		// here (rather than the Visa `4242...`) is what makes the setup flow
+		// attach a second, separately-identified card, so the persisted
+		// `Mastercard ending in 4444` row count rises from the fixture baseline
+		// of 1 to 2 instead of re-attaching the same Visa the customer already has.
+		await cardNumberField.fill('5555555555554444');
 
 		await stripeFrame.getByRole('textbox', { name: /Expiration/i }).fill('1230');
 		await stripeFrame.getByRole('textbox', { name: /CVC|Security code/i }).fill('123');
@@ -273,11 +269,21 @@ test.describe('Billing in-app payment-method updates', () => {
 		await page.getByRole('button', { name: 'Save payment method' }).click();
 		await page.waitForURL(/\/console\/billing(?:\?|$)/, { timeout: 60_000 });
 
-		// End-effect: the setup flow returns to the billing page and preserves the
-		// existing default card. Stripe may or may not de-duplicate the identical
-		// test card fingerprint, so accept count 1 (de-duplicated) or 2 (both kept).
+		// Row 8 end-effect: the setup flow returns to /console/billing and the
+		// newly attached distinct card must appear as an additional Mastercard row.
+		// Re-query live billing-page state after the redirect so the counts reflect
+		// the persisted payment-method list, not the pre-setup snapshot.
 		await expect(page.getByRole('heading', { name: 'Payment methods' })).toBeVisible();
-		await expect(visaRowLocator.first()).toBeVisible({ timeout: 30_000 });
+		const visaRowsAfterSetup = page.getByText('Visa ending in 4242');
+		const mastercardRowsAfterSetup = page.getByText('Mastercard ending in 4444');
+		// Distinct-card end effect: the persisted Mastercard count must rise from
+		// the fixture baseline of 1 to 2 because the setup flow submits a second
+		// Mastercard via the Stripe Payment Element. This persisted row-count
+		// check is the row-8 proof that the redirected billing page reflects the
+		// newly attached card rather than the pre-setup snapshot.
+		await expect(mastercardRowsAfterSetup).toHaveCount(2, { timeout: 30_000 });
+		// The fixture default Visa is untouched — exactly one Visa row remains.
+		await expect(visaRowsAfterSetup).toHaveCount(1, { timeout: 30_000 });
 
 		// Stripe-API end-effect: the customer's default PM should still be the
 		// fixture-attached default (Stripe does not auto-promote SetupIntent PMs).

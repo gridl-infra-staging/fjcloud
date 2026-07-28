@@ -36,7 +36,7 @@ The page shows `Alerts`, severity filter, auto-refresh behavior, and either `No 
 
 ## Current Implementation Gaps
 
-Browser-unmocked coverage currently verifies page shell/table-or-empty state; metadata expansion is component-owned.
+Browser-unmocked coverage currently verifies page shell/table-or-empty state; metadata expansion is component-owned. JSDOM axe coverage now proves populated, filtered, and expanded metadata states in `web/src/routes/admin/alerts/admin-alerts.test.ts`.
 
 ## Automated Coverage
 

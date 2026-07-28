@@ -13,6 +13,7 @@ use crate::models::algolia_import_job::{
     AlgoliaImportDestinationKind, AlgoliaImportDispatchIntentState, AlgoliaImportEngineAckState,
     AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportJobState, AlgoliaImportJobStatus,
     AlgoliaImportPublicationDisposition, AlgoliaImportSummary, AlgoliaImportTerminalFact,
+    SourceImportProvider,
 };
 use crate::models::vm_inventory::{NewVmInventory, VmInventory};
 use crate::repos::{
@@ -269,6 +270,7 @@ impl FlapjackHttpClient for QueueHttpClient {
 pub(super) fn job(now: DateTime<Utc>, vm_id: Uuid) -> AlgoliaImportJob {
     AlgoliaImportJob {
         id: Uuid::new_v4(),
+        source_provider: SourceImportProvider::Algolia,
         customer_id: Uuid::new_v4(),
         tenant_id: "products_next".to_string(),
         algolia_app_id: "app-id".to_string(),

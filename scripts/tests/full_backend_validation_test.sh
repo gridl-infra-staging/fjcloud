@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ORCH_SCRIPT="$REPO_ROOT/scripts/launch/run_full_backend_validation.sh"
+EXPECTED_PAID_BETA_STEP_COUNT=23
 PASS_COUNT=0
 FAIL_COUNT=0
 fail() {
@@ -625,6 +626,7 @@ AWS_SECRET_ACCESS_KEY=credential_file_secret_key
 AWS_DEFAULT_REGION=us-east-2
 STRIPE_SECRET_KEY=sk_test_from_file
 STAGING_API_URL=https://api.drifted.example.invalid
+API_URL=https://api.prod.flapjack.foo
 EOF
     local ses_args_file billing_args_file staging_smoke_api_ami_id staging_smoke_flapjack_ami_id backend_gate_args_file
     ses_args_file="$tmp_dir/ses_args.txt"
@@ -713,6 +715,7 @@ exit 0'
 printf "%s\n" "$*" > "${STRIPE_ARGS_FILE:?}"
 printf "%s\n" "${STRIPE_SECRET_KEY:-}" > "${STRIPE_ENV_FILE:?}"
 exit 0'
+    write_mock_script "$tmp_dir/mock_full_vm_lifecycle.sh" 'exit 0'
     write_mock_script "$tmp_dir/bin/npx" '
 printf "browser_auth_setup|%s|%s|remote=%s\n" "$PWD" "$*" "${PLAYWRIGHT_TARGET_REMOTE:-}" >> "${INVOCATION_LOG_FILE:?}"
 exit 0'
@@ -751,6 +754,7 @@ exit 0'
         FULL_VALIDATION_STRIPE_VALIDATION_SCRIPT="$tmp_dir/mock_validate_stripe.sh" \
         FULL_VALIDATION_SES_INBOUND_ROUNDTRIP_SCRIPT="$tmp_dir/mock_ses_inbound_roundtrip.sh" \
         FULL_VALIDATION_CANARY_CUSTOMER_LOOP_SCRIPT="$tmp_dir/mock_canary_customer_loop.sh" \
+        FULL_VALIDATION_FULL_VM_LIFECYCLE_SCRIPT="$tmp_dir/mock_full_vm_lifecycle.sh" \
         FULL_VALIDATION_WEB_RUNTIME_REPO_ROOT="$tmp_dir" \
         bash "$ORCH_SCRIPT" --paid-beta-rc --sha=aabbccddee00112233445566778899aabbccddee \
             --credential-env-file="$credential_env_file" --billing-month=2026-03 --artifact-dir="$artifact_dir" \
@@ -803,7 +807,7 @@ exit 0'
     assert_eq "$(json_step_reason "$RUN_STDOUT" "browser_signup_paid")" "" "Tier-1 browser_signup_paid should not keep placeholder critical skip reason"
     assert_eq "$(json_step_status "$RUN_STDOUT" "browser_portal_cancel")" "pass" "Tier-1 browser_portal_cancel should pass when delegated browser lane succeeds"
     assert_eq "$(json_step_reason "$RUN_STDOUT" "browser_portal_cancel")" "" "Tier-1 browser_portal_cancel should not keep placeholder critical skip reason"
-    assert_eq "$(json_step_count "$RUN_STDOUT")" "22" "paid-beta-rc path should include Stage 1 plus Tier-1 proof rows"
+    assert_eq "$(json_step_count "$RUN_STDOUT")" "$EXPECTED_PAID_BETA_STEP_COUNT" "paid-beta-rc path should include Stage 1 plus Tier-1 proof rows"
     assert_not_contains "$RUN_STDOUT" '"blocked"' "paid-beta-rc pass payload should not include legacy blocked status"
     assert_eq "$normalized_stdout" "$normalized_summary" "paid-beta-rc should write summary.json with the same final JSON emitted to stdout"
     assert_contains "$ses_args" "--identity beta@example.com" "ses_readiness should receive resolved identity"
@@ -897,6 +901,7 @@ SES_FROM_ADDRESS=beta@example.com
 SES_REGION=us-east-1
 FLAPJACK_ADMIN_KEY=file_admin_key
 STRIPE_TEST_SECRET_KEY=sk_test_from_file
+API_URL=https://api.prod.flapjack.foo
 EOF
     write_mock_script "$tmp_dir/mock_cargo.sh" 'exit 0'
     write_mock_script "$tmp_dir/mock_backend_gate.sh" 'echo "{\"verdict\":\"pass\"}"; exit 0'
@@ -913,6 +918,7 @@ EOF
 printf "%s\n" "$*" > "${STRIPE_ARGS_FILE:?}"
 printf "%s\n" "${STRIPE_SECRET_KEY:-}" > "${STRIPE_ENV_FILE:?}"
 exit 0'
+    write_mock_script "$tmp_dir/mock_full_vm_lifecycle.sh" 'exit 0'
     write_mock_script "$tmp_dir/bin/npx" 'exit 0'
     write_mock_web_playwright_runtime "$tmp_dir"
     run_orchestrator env \
@@ -935,6 +941,7 @@ exit 0'
         FULL_VALIDATION_SES_INBOUND_ROUNDTRIP_SCRIPT="$tmp_dir/mock_ses_inbound_roundtrip.sh" \
         FULL_VALIDATION_CANARY_CUSTOMER_LOOP_SCRIPT="$tmp_dir/mock_canary_customer_loop.sh" \
         FULL_VALIDATION_STRIPE_VALIDATION_SCRIPT="$tmp_dir/mock_validate_stripe.sh" \
+        FULL_VALIDATION_FULL_VM_LIFECYCLE_SCRIPT="$tmp_dir/mock_full_vm_lifecycle.sh" \
         FULL_VALIDATION_WEB_RUNTIME_REPO_ROOT="$tmp_dir" \
         bash "$ORCH_SCRIPT" --paid-beta-rc --sha=aabbccddee00112233445566778899aabbccddee \
             --credential-env-file="$credential_env_file" --billing-month=2026-03 --artifact-dir="$artifact_dir" \
@@ -1369,7 +1376,7 @@ exit 0'
     assert_eq "$(json_step_reason "$RUN_STDOUT" "admin_broadcast")" "staging_only_production_surface" "staging-only skips should use deterministic coordinator reason code"
     assert_eq "$(json_step_reason "$RUN_STDOUT" "browser_signup_paid")" "staging_only_production_surface" "staging-only browser signup skip should use deterministic coordinator reason code"
     assert_eq "$(json_step_reason "$RUN_STDOUT" "browser_portal_cancel")" "staging_only_production_surface" "staging-only browser portal skip should use deterministic coordinator reason code"
-    assert_eq "$(json_step_count "$RUN_STDOUT")" "22" "staging-only mode should preserve coordinator step cardinality"
+    assert_eq "$(json_step_count "$RUN_STDOUT")" "$EXPECTED_PAID_BETA_STEP_COUNT" "staging-only mode should preserve coordinator step cardinality"
     assert_contains "$invocation_log" "browser_preflight|$PWD|" "staging-only mode should still execute browser preflight"
     assert_contains "$invocation_log" "staging_runtime_smoke|$PWD|--env-file $credential_env_file --api-ami-id $staging_smoke_api_ami_id --flapjack-ami-id $staging_smoke_flapjack_ami_id --env staging" "staging-only mode should still execute runtime smoke with split AMI inputs"
     assert_not_contains "$invocation_log" "--ami-id" "staging-only runtime smoke delegation must not use removed single-AMI option"

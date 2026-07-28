@@ -15,12 +15,12 @@ pub(super) async fn setup_algolia_cloud_job_read_app(
         .build();
     let app = axum::Router::new()
         .route(
-            "/migration/algolia/jobs",
-            axum::routing::get(api::routes::migration::list_algolia_import_jobs),
+            "/migration/:source_provider/jobs",
+            axum::routing::get(api::routes::migration::list_import_jobs),
         )
         .route(
-            "/migration/algolia/jobs/:id",
-            axum::routing::get(api::routes::migration::get_algolia_import_job),
+            "/migration/:source_provider/jobs/:id",
+            axum::routing::get(api::routes::migration::get_import_job),
         )
         .with_state(state);
     (app, create_test_jwt(customer.id), customer.id)
@@ -42,20 +42,20 @@ pub(super) async fn setup_algolia_cloud_job_lifecycle_app(
         .build();
     let app = axum::Router::new()
         .route(
-            "/migration/algolia/jobs",
-            axum::routing::get(api::routes::migration::list_algolia_import_jobs),
+            "/migration/:source_provider/jobs",
+            axum::routing::get(api::routes::migration::list_import_jobs),
         )
         .route(
-            "/migration/algolia/jobs/:id",
-            axum::routing::get(api::routes::migration::get_algolia_import_job),
+            "/migration/:source_provider/jobs/:id",
+            axum::routing::get(api::routes::migration::get_import_job),
         )
         .route(
-            "/migration/algolia/jobs/:id/cancel",
-            axum::routing::post(api::routes::migration::cancel_algolia_import_job),
+            "/migration/:source_provider/jobs/:id/cancel",
+            axum::routing::post(api::routes::migration::cancel_import_job),
         )
         .route(
-            "/migration/algolia/jobs/:id/resume",
-            axum::routing::post(api::routes::migration::resume_algolia_import_job),
+            "/migration/:source_provider/jobs/:id/resume",
+            axum::routing::post(api::routes::migration::resume_import_job),
         )
         .with_state(state);
     (app, create_test_jwt(customer.id), customer.id)
@@ -103,16 +103,16 @@ pub(super) async fn setup_algolia_cancel_dispatch_app(
         .build();
     let app = axum::Router::new()
         .route(
-            "/migration/algolia/jobs",
-            axum::routing::get(api::routes::migration::list_algolia_import_jobs),
+            "/migration/:source_provider/jobs",
+            axum::routing::get(api::routes::migration::list_import_jobs),
         )
         .route(
-            "/migration/algolia/jobs/:id",
-            axum::routing::get(api::routes::migration::get_algolia_import_job),
+            "/migration/:source_provider/jobs/:id",
+            axum::routing::get(api::routes::migration::get_import_job),
         )
         .route(
-            "/migration/algolia/jobs/:id/cancel",
-            axum::routing::post(api::routes::migration::cancel_algolia_import_job),
+            "/migration/:source_provider/jobs/:id/cancel",
+            axum::routing::post(api::routes::migration::cancel_import_job),
         )
         .with_state(state);
     (

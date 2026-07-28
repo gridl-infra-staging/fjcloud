@@ -69,6 +69,17 @@ require_canary_script() {
     fi
 }
 
+write_aws_sts_success_mock() {
+    local mock_path="$1"
+    write_mock_script "$mock_path" 'set -euo pipefail
+if [[ "${1:-}" == "sts" && "${2:-}" == "get-caller-identity" ]]; then
+    printf "{\"Account\":\"123456789012\",\"Arn\":\"arn:aws:iam::123456789012:user/canary-test\",\"UserId\":\"AIDACANARYTEST\"}\n"
+    exit 0
+fi
+echo "unexpected aws invocation: $*" >&2
+exit 99'
+}
+
 test_expired_quiet_window_attempts_first_signup_step() {
     if ! require_canary_script; then
         return
@@ -81,6 +92,8 @@ test_expired_quiet_window_attempts_first_signup_step() {
     mkdir -p "$tmp_dir/bin"
     : > "$tmp_dir/curl_calls.log"
     printf '0' > "$tmp_dir/curl_count.log"
+
+    write_aws_sts_success_mock "$tmp_dir/bin/aws"
 
     write_mock_script "$tmp_dir/bin/curl" 'set -euo pipefail
 : "${CURL_CALL_LOG:?CURL_CALL_LOG is required}"
@@ -97,7 +110,8 @@ exit 0'
     run_canary "$tmp_dir" \
         "CANARY_QUIET_UNTIL_OVERRIDE=1" \
         "CURL_CALL_LOG=$tmp_dir/curl_calls.log" \
-        "CURL_CALL_COUNT_FILE=$tmp_dir/curl_count.log"
+        "CURL_CALL_COUNT_FILE=$tmp_dir/curl_count.log" \
+        "FJCLOUD_SECRET_FILE=$tmp_dir/missing.env"
 
     if [ "$RUN_EXIT_CODE" -ne 0 ]; then
         pass "expired quiet-window path exits non-zero after first failing HTTP attempt"

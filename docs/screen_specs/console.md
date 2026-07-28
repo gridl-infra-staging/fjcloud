@@ -38,6 +38,10 @@ Baseline viewport: 390px wide (iPhone 14). Console shell uses the shipped drawer
 - Index-detail Overview does not carry a duplicate `Continue setup` banner; setup discovery remains centralized on `/console`.
 - Index-detail uses the shared `API Activity Log` viewer for session-captured API calls instead of a search-query-specific log label.
 - Beta banner link opens `/beta`; feedback link opens the shared support mailbox.
+- The desktop sidebar and mobile drawer expose exactly one Help affordance labeled `Report a problem or request a feature`; the mobile drawer exposes the same affordance after opening, and no bare `Support` link remains in the console shell.
+- That affordance is a disclosure, not a static list: it renders `aria-expanded="false"` on load with none of its destination links or warning copy in the DOM, and reveals them only after activation, which then sets `aria-expanded="true"`.
+- Public support-routing destinations and mailto construction are owned by `web/src/lib/format.ts`. The cloud-console route sends private console, API, billing, account, invoice, index, and customer-data issues to the shared support mailbox with subject `Flapjack Cloud support request`, the current console route, and an ISO timestamp in the mailto body. Public ideas route to the Ideas discussion category, questions route to the Q&A discussion category, engine bugs route to GitHub Issues, documentation corrections route to the public docs source, and security vulnerabilities route to the private security policy.
+- Help copy warns customers not to post account, invoice, index, or customer-data details in public GitHub posts and keeps security vulnerabilities on the private security-policy path.
 
 ## Acceptance Criteria
 
@@ -49,6 +53,8 @@ Baseline viewport: 390px wide (iPhone 14). Console shell uses the shipped drawer
 - [ ] Usage section renders a readable Daily Usage grouped bar chart for search requests and write operations, plus region breakdown when usage data exists and no-usage fallback text when it does not.
 - [ ] Index detail and logs surfaces label the shared session-captured request viewer as `API Activity Log` and make the browser-session scope explicit.
 - [ ] Mobile narrow drawer flow keeps Billing navigation reachable at 390px.
+- [ ] Desktop and mobile console Help expose the same support-routing choices with private-data and security warnings.
+- [ ] Cloud support mailto links include the current console route and timestamp context.
 
 ## Visual contract
 
@@ -64,6 +70,6 @@ Some browser tests still carry accepted conditional-expect lint warnings around 
 
 ## Automated Coverage
 
-- Browser-unmocked tests: `web/tests/e2e-ui/full/console.spec.ts`; `web/tests/e2e-ui/smoke/console.spec.ts`; `web/tests/e2e-ui/full/onboarding.spec.ts`
+- Browser-unmocked tests: `web/tests/e2e-ui/full/console.spec.ts`; `web/tests/e2e-ui/smoke/console.spec.ts`; `web/tests/e2e-ui/full/onboarding.spec.ts`; `web/tests/e2e-ui/full/support-routing.spec.ts`
 - Component tests: `web/src/routes/console/console.test.ts`; `web/src/routes/console/console_usage.test.ts`; `web/src/routes/console/layout.test.ts`; `web/src/routes/console/console.server.test.ts`
 - Server/contract tests: `web/src/routes/console/console.server.test.ts`

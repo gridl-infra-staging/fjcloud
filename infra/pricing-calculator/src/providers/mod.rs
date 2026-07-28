@@ -178,15 +178,6 @@ mod tests {
         ProviderId::AwsOpenSearch,
     ];
 
-    /// Expected verification status per provider. Verified means the provider
-    /// module has a `last_verified` date backed by source-checked pricing inputs.
-    fn expected_verified(id: ProviderId) -> bool {
-        matches!(
-            id,
-            ProviderId::Algolia | ProviderId::MeilisearchResourceBased
-        )
-    }
-
     // --- all_metadata() contract tests ----------------------------------------
 
     #[test]
@@ -346,20 +337,86 @@ mod tests {
         }
     }
 
+    const TEMPORARILY_UNVERIFIED_COMPETITORS: &[(ProviderId, &str)] = &[
+        // reason: public pricing source did not return usable tier prices through the captured calculator requests
+        (
+            ProviderId::TypesenseCloud,
+            "20260728T110127Z evidence: pricing page and calculator fragments returned HTTP 200, but rendered modeled tier prices stayed N/A for tested public requests",
+        ),
+        // reason: public pricing source did not confirm the full modeled scaled hosted tier table
+        (
+            ProviderId::ElasticCloud,
+            "20260728T110127Z evidence: hosted pricing page confirms only the $99/month 120 GB 2-zone baseline, not the modeled scaled hosted tiers",
+        ),
+        // reason: public pricing sources did not source-back every modeled charge
+        (
+            ProviderId::AwsOpenSearch,
+            "20260728T110127Z evidence: AWS page and offer confirm compute and gp3 rates, but OpenSearch page only delegates outbound transfer to standard AWS transfer charges",
+        ),
+    ];
+
     #[test]
-    fn all_metadata_marks_only_fully_reverified_providers_as_verified() {
-        let actual: Vec<(ProviderId, bool)> = all_metadata()
+    fn all_competitor_metadata_is_verified_or_explicitly_allowlisted() {
+        for (id, reason) in TEMPORARILY_UNVERIFIED_COMPETITORS {
+            assert!(
+                !reason.trim().is_empty(),
+                "Temporary verification allowlist reason must be non-empty for {:?}",
+                id
+            );
+        }
+
+        let metadata = all_metadata();
+        let allowlisted: HashSet<ProviderId> = TEMPORARILY_UNVERIFIED_COMPETITORS
             .iter()
-            .map(|m| (m.id, m.is_verified()))
+            .map(|(id, _reason)| *id)
             .collect();
-        let expected: Vec<(ProviderId, bool)> = CANONICAL_PROVIDER_ORDER
+        let competitors: Vec<&ProviderMetadata> = metadata
             .iter()
-            .map(|&id| (id, expected_verified(id)))
+            .filter(|provider| provider.id != ProviderId::Griddle)
             .collect();
-        assert_eq!(
-            actual, expected,
-            "Only providers with source-backed pricing inputs should expose a verification date"
+        let provider_count = competitors.len();
+        let verified_count = competitors
+            .iter()
+            .filter(|provider| provider.is_verified())
+            .count();
+        let unverified: Vec<&ProviderMetadata> = competitors
+            .iter()
+            .copied()
+            .filter(|provider| !provider.is_verified() && !allowlisted.contains(&provider.id))
+            .collect();
+        let unverified_details: Vec<(ProviderId, &str)> = unverified
+            .iter()
+            .map(|provider| (provider.id, provider.display_name.as_str()))
+            .collect();
+
+        assert!(
+            provider_count > 0,
+            "competitor verification guard must inspect at least one provider; providers=0 verified=0 unverified=0"
         );
+        assert!(
+            unverified.is_empty(),
+            "competitor pricing verification failed: providers={} verified={} unverified={} unverified_providers={:?}",
+            provider_count,
+            verified_count,
+            unverified.len(),
+            unverified_details
+        );
+    }
+
+    #[test]
+    fn temporary_competitor_allowlist_reasons_record_observed_stage_2_status() {
+        for (id, reason) in TEMPORARILY_UNVERIFIED_COMPETITORS {
+            assert!(
+                !reason.contains("pending live source verification in Stage 2"),
+                "Temporary verification allowlist reason for {:?} must record the observed Stage 2 obstacle",
+                id
+            );
+            assert!(
+                reason.contains("20260728T110127Z"),
+                "Temporary verification allowlist reason for {:?} must point to the Stage 2 evidence bundle",
+                id
+            );
+        }
     }
 
     fn metadata_fixture(

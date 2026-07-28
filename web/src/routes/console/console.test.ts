@@ -2,9 +2,11 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, within } from '@testing-library/svelte';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { ComponentProps } from 'svelte';
 import type { Index, OnboardingStatus } from '$lib/api/types';
 import { formatNumber, indexStatusLabel } from '$lib/format';
 import { layoutTestDefaults } from './layout-test-context';
+import { getAccessibilityViolations } from '../../tests/a11y';
 import {
 	completedOnboarding,
 	freshOnboarding,
@@ -44,6 +46,8 @@ vi.mock('d3-scale', () => ({
 
 import DashboardPage from './+page.svelte';
 
+type DashboardData = ComponentProps<typeof DashboardPage>['data'];
+
 const dashboardSource = readFileSync(
 	join(process.cwd(), 'src', 'routes', 'console', '+page.svelte'),
 	'utf8'
@@ -55,20 +59,40 @@ afterEach(() => {
 	vi.clearAllMocks();
 });
 
+function renderDashboardPage(overrides: Partial<DashboardData> = {}) {
+	return render(DashboardPage, {
+		data: {
+			...layoutTestDefaults,
+			user: null,
+			usage: sampleUsage,
+			dailyUsage: sampleDailyUsage,
+			month: '2026-02',
+			estimate: null,
+			indexes: sampleIndexes,
+			onboardingStatus: completedOnboarding,
+			...overrides
+		}
+	});
+}
+
 describe('Dashboard indexes card', () => {
-	it('indexes card shows count of indexes', () => {
-		render(DashboardPage, {
-			data: {
-				...layoutTestDefaults,
-				user: null,
-				usage: sampleUsage,
-				dailyUsage: sampleDailyUsage,
-				month: '2026-02',
-				estimate: null,
-				indexes: sampleIndexes,
-				onboardingStatus: completedOnboarding
-			}
+	it('has no structural accessibility violations for a populated dashboard', async () => {
+		const { container } = renderDashboardPage();
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
+	it('has no structural accessibility violations for the empty onboarding dashboard', async () => {
+		const { container } = renderDashboardPage({
+			indexes: [],
+			onboardingStatus: freshOnboarding
 		});
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
+	it('indexes card shows count of indexes', () => {
+		renderDashboardPage();
 
 		const card = screen.getByTestId('indexes-card');
 		expect(card).toBeInTheDocument();
@@ -82,17 +106,8 @@ describe('Dashboard indexes card', () => {
 	});
 
 	it('indexes card uses the singular label for one index', () => {
-		render(DashboardPage, {
-			data: {
-				...layoutTestDefaults,
-				user: null,
-				usage: sampleUsage,
-				dailyUsage: sampleDailyUsage,
-				month: '2026-02',
-				estimate: null,
-				indexes: sampleIndexes.slice(0, 1),
-				onboardingStatus: completedOnboarding
-			}
+		renderDashboardPage({
+			indexes: sampleIndexes.slice(0, 1)
 		});
 
 		const card = screen.getByTestId('indexes-card');
@@ -137,17 +152,8 @@ describe('Dashboard indexes card', () => {
 			}
 		];
 
-		render(DashboardPage, {
-			data: {
-				...layoutTestDefaults,
-				user: null,
-				usage: sampleUsage,
-				dailyUsage: sampleDailyUsage,
-				month: '2026-02',
-				estimate: null,
-				indexes,
-				onboardingStatus: completedOnboarding
-			}
+		renderDashboardPage({
+			indexes
 		});
 
 		const card = screen.getByTestId('indexes-card');

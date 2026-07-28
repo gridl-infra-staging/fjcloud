@@ -75,6 +75,8 @@ Inspect one index's high-level state, run per-index export/import, and jump into
 
 ## Current Implementation Gaps
 
+- Structural accessibility for the rendered Overview and populated Analytics states is covered by
+  `web/src/routes/console/indexes/[name]/detail.a11y.test.ts`.
 - Current: no analytics summary section on the Overview tab. Customers must click into the Analytics tab to see any usage signal.
   Target: 3 KPI cards (Searches 7d, No-results rate 7d, Top query 7d) + 7-day sparkline + `View Details →` link.
   Evidence: `web/src/routes/console/indexes/[name]/tabs/OverviewTab.svelte` (no matches for `analytics summary|KPI|sparkline`); parent audit rows "Analytics summary section displays data" / "Analytics chart renders in overview analytics section" (both `absent`).

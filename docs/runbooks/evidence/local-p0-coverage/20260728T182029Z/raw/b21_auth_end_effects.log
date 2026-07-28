@@ -1,0 +1,7 @@
+
+Running 2 tests using 1 worker
+
+  ✓  1 [setup:user] › tests/fixtures/auth.setup.ts:110:1 › authenticate as customer (5.5s)
+  ✓  2 [chromium] › tests/e2e-ui/full/auth-end-effects.spec.ts:66:2 › Verify email end-effect › valid verification token shows success heading and login CTA @p0_coverage (1.9s)
+
+  2 passed (10.0s)

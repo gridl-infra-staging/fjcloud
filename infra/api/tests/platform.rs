@@ -127,6 +127,8 @@ mod migration_059_vm_inventory_reference_guard_test;
 mod migration_062_algolia_erased_vm_retirement_blocker_test;
 #[path = "integration/migration_066_algolia_terminal_outcome_presence_test.rs"]
 mod migration_066_algolia_terminal_outcome_presence_test;
+#[path = "integration/migration_068_provider_neutral_algolia_import_jobs_test.rs"]
+mod migration_068_provider_neutral_algolia_import_jobs_test;
 #[path = "integration/migration_routes_test.rs"]
 mod migration_routes_test;
 #[path = "integration/migration_test.rs"]

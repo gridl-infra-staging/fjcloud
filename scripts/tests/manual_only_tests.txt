@@ -1,0 +1,7 @@
+# Deliberately manual shell tests.
+# Format: scripts/tests/<filename> # <specific external invocation requirement>
+#
+# Add data rows only when the test itself proves a live credential, deployed
+# environment, or destructive-operation requirement. Hermetic failures belong
+# in quarantined_tests.txt after Stage 3 assigns an owner.
+scripts/tests/staging_browser_host_probe_test.sh # requires public DNS, TLS, and deployed SvelteKit HTML at cloud.staging.flapjack.foo; owner chats/icg/may19_pm_5_staging_tls_host_routing.md

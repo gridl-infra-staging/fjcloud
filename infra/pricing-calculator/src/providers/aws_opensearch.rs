@@ -48,36 +48,36 @@ pub const INSTANCE_TYPES: &[InstanceType] = &[
         name: "m6g.large.search",
         vcpus: 2,
         ram_gib: 8,
-        hourly_cents: dec!(16.7), // ~$0.167/hr
+        hourly_cents: dec!(12.8), // 20260728 AWS offer: $0.128/hr
     },
     InstanceType {
         name: "r6g.large.search",
         vcpus: 2,
         ram_gib: 16,
-        hourly_cents: dec!(26.1), // ~$0.261/hr
+        hourly_cents: dec!(16.7), // 20260728 AWS offer: $0.167/hr
     },
     InstanceType {
         name: "r6g.xlarge.search",
         vcpus: 4,
         ram_gib: 32,
-        hourly_cents: dec!(52.2), // ~$0.522/hr
+        hourly_cents: dec!(33.5), // 20260728 AWS offer: $0.335/hr
     },
     InstanceType {
         name: "r6g.2xlarge.search",
         vcpus: 8,
         ram_gib: 64,
-        hourly_cents: dec!(104.4), // ~$1.044/hr
+        hourly_cents: dec!(66.9), // 20260728 AWS offer: $0.669/hr
     },
     InstanceType {
         name: "r6g.4xlarge.search",
         vcpus: 16,
         ram_gib: 128,
-        hourly_cents: dec!(208.8), // ~$2.088/hr
+        hourly_cents: dec!(133.9), // 20260728 AWS offer: $1.339/hr
     },
 ];
 
 /// EBS gp3 storage price per GiB per month, in cents (us-east-1).
-pub const EBS_GP3_CENTS_PER_GIB_MONTH: Decimal = dec!(8); // ~$0.08/GiB-month
+pub const EBS_GP3_CENTS_PER_GIB_MONTH: Decimal = dec!(12.2); // 20260728 AWS offer: $0.122/GB-month
 
 /// HA requires multi-AZ: minimum 2 data nodes.
 pub const HA_MIN_DATA_NODES: i64 = 2;
@@ -200,6 +200,7 @@ pub fn estimate(workload: &WorkloadProfile) -> EstimatedCost {
 
     EstimatedCost {
         provider: ProviderId::AwsOpenSearch,
+        verification_label: metadata().verification_label(),
         monthly_total_cents,
         line_items,
         assumptions,
@@ -224,6 +225,15 @@ mod tests {
             sort_directions: 0,
             num_indexes: 1,
             high_availability: false,
+        }
+    }
+
+    fn workload_with_exact_storage_gib(storage_gib: i64) -> WorkloadProfile {
+        WorkloadProfile {
+            document_count: storage_gib,
+            avg_document_size_bytes: 1_073_741_824,
+            search_requests_per_month: 0,
+            ..small_workload()
         }
     }
 
@@ -257,7 +267,10 @@ mod tests {
     fn estimate_ha_adds_dedicated_masters() {
         // HA: 2 data nodes + 3 dedicated masters
         // Compute: 2 × 730 × 7.3 = 10658
-        // Masters: 3 × 730 × 16.7 = 36573
+        // Storage: (100000 × 2048 / 1073741824) GiB × 2 nodes × 12.2¢ = 4.65¢ → 5¢
+        // Transfer: 50000 searches × 2048 B × 20 results / 1B × 9¢ = 18.43¢ → 18¢
+        // Masters: 3 × 730 × 12.8 = 28032
+        // Total: 10658 + 5 + 18 + 28032 = 38713
         let w = WorkloadProfile {
             high_availability: true,
             ..small_workload()
@@ -270,11 +283,10 @@ mod tests {
             est.line_items[1].quantity,
             non_ha.line_items[1].quantity * Decimal::from(HA_MIN_DATA_NODES)
         ); // doubled EBS quantity
-        let expected_ha_ebs_amount = super::super::rounded_cents(
-            w.storage_gib() * EBS_GP3_CENTS_PER_GIB_MONTH * Decimal::from(HA_MIN_DATA_NODES),
-        );
-        assert_eq!(est.line_items[1].amount_cents, expected_ha_ebs_amount); // HA EBS uses doubled storage before rounding
-        assert_eq!(est.line_items[3].amount_cents, 36573); // dedicated masters
+        assert_eq!(est.line_items[1].amount_cents, 5); // HA EBS uses doubled storage before rounding
+        assert_eq!(est.line_items[2].amount_cents, 18);
+        assert_eq!(est.line_items[3].amount_cents, 28032); // dedicated masters
+        assert_eq!(est.monthly_total_cents, 38713);
         assert!(est.line_items[3]
             .description
             .contains(DEDICATED_MASTER_INSTANCE_NAME));
@@ -321,6 +333,38 @@ mod tests {
     }
 
     #[test]
+    fn estimate_r6g_data_node_rates_match_hand_calculated_totals() {
+        let cases = [
+            // 32 GiB storage -> 16 GiB RAM -> r6g.large.
+            // Compute: 730 hr × 16.7¢ = 12191¢. EBS: 32 GiB × 12.2¢ = 390.4¢ -> 390¢.
+            // Transfer: 0 searches = 0¢. Total: 12191 + 390 + 0 = 12581¢.
+            ("r6g.large.search", 32, 12191, 390, 12581),
+            // 64 GiB storage -> 32 GiB RAM -> r6g.xlarge.
+            // Compute: 730 hr × 33.5¢ = 24455¢. EBS: 64 GiB × 12.2¢ = 780.8¢ -> 781¢.
+            // Transfer: 0 searches = 0¢. Total: 24455 + 781 + 0 = 25236¢.
+            ("r6g.xlarge.search", 64, 24455, 781, 25236),
+            // 128 GiB storage -> 64 GiB RAM -> r6g.2xlarge.
+            // Compute: 730 hr × 66.9¢ = 48837¢. EBS: 128 GiB × 12.2¢ = 1561.6¢ -> 1562¢.
+            // Transfer: 0 searches = 0¢. Total: 48837 + 1562 + 0 = 50399¢.
+            ("r6g.2xlarge.search", 128, 48837, 1562, 50399),
+            // 256 GiB storage -> 128 GiB RAM -> r6g.4xlarge.
+            // Compute: 730 hr × 133.9¢ = 97747¢. EBS: 256 GiB × 12.2¢ = 3123.2¢ -> 3123¢.
+            // Transfer: 0 searches = 0¢. Total: 97747 + 3123 + 0 = 100870¢.
+            ("r6g.4xlarge.search", 256, 97747, 3123, 100870),
+        ];
+
+        for (plan_name, storage_gib, compute_cents, ebs_cents, total_cents) in cases {
+            let estimate = estimate(&workload_with_exact_storage_gib(storage_gib));
+
+            assert_eq!(estimate.plan_name, Some(plan_name.to_string()));
+            assert_eq!(estimate.line_items[0].amount_cents, compute_cents);
+            assert_eq!(estimate.line_items[1].amount_cents, ebs_cents);
+            assert_eq!(estimate.line_items[2].amount_cents, 0);
+            assert_eq!(estimate.monthly_total_cents, total_cents);
+        }
+    }
+
+    #[test]
     fn estimate_non_ha_excludes_dedicated_masters() {
         let est = estimate(&small_workload());
         assert_eq!(est.line_items.len(), 3);
@@ -347,17 +391,49 @@ mod tests {
 
     #[test]
     fn estimate_ebs_rounds_half_cent_to_even() {
-        // 1 doc × 67,108,864 B = 0.0625 GiB
-        // 0.0625 × 8 = 0.5 cents -> banker's rounding => 0
+        // 1 doc × 44,000,000 B = 0.040978 GiB
+        // 0.040978 × 12.2 = 0.49993 cents -> rounds to 0
         let w = WorkloadProfile {
             document_count: 1,
-            avg_document_size_bytes: 67_108_864,
+            avg_document_size_bytes: 44_000_000,
             search_requests_per_month: 0,
             ..small_workload()
         };
         let est = estimate(&w);
-        assert_eq!(est.line_items[1].quantity, dec!(0.0625));
+        assert_eq!(est.line_items[1].quantity.round_dp(6), dec!(0.040978));
         assert_eq!(est.line_items[1].amount_cents, 0);
+    }
+
+    #[test]
+    fn source_backed_on_demand_constants_match_us_east_1_offer_snapshot() {
+        // Captured AWS offer file effective 2026-07-01:
+        // t3.small $0.036/hr = 3.6¢, t3.medium $0.073/hr = 7.3¢,
+        // m6g.large $0.128/hr = 12.8¢, r6g.large $0.167/hr = 16.7¢,
+        // r6g.xlarge $0.335/hr = 33.5¢, r6g.2xlarge $0.669/hr = 66.9¢,
+        // r6g.4xlarge $1.339/hr = 133.9¢, gp3 $0.122/GB-month = 12.2¢.
+        let expected = [
+            ("t3.small.search", 2, 2, dec!(3.6)),
+            ("t3.medium.search", 2, 4, dec!(7.3)),
+            ("m6g.large.search", 2, 8, dec!(12.8)),
+            ("r6g.large.search", 2, 16, dec!(16.7)),
+            ("r6g.xlarge.search", 4, 32, dec!(33.5)),
+            ("r6g.2xlarge.search", 8, 64, dec!(66.9)),
+            ("r6g.4xlarge.search", 16, 128, dec!(133.9)),
+        ];
+
+        for (instance, (name, vcpus, ram_gib, hourly_cents)) in INSTANCE_TYPES.iter().zip(expected)
+        {
+            assert_eq!(
+                (
+                    instance.name,
+                    instance.vcpus,
+                    instance.ram_gib,
+                    instance.hourly_cents
+                ),
+                (name, vcpus, ram_gib, hourly_cents)
+            );
+        }
+        assert_eq!(EBS_GP3_CENTS_PER_GIB_MONTH, dec!(12.2));
     }
 
     #[test]

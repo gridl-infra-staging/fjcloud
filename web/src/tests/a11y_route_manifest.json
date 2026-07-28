@@ -1,0 +1,206 @@
+{
+	"schemaVersion": 1,
+	"scannedRoutes": [
+		{
+			"route": "/signup",
+			"testFile": "web/src/routes/signup/signup.test.ts",
+			"testName": "has no structural accessibility violations"
+		},
+		{
+			"route": "/login",
+			"testFile": "web/src/routes/login/login.test.ts",
+			"testName": "has no structural accessibility violations"
+		},
+		{
+			"route": "/reset-password/[token]",
+			"testFile": "web/src/routes/reset-password/[token]/reset-password.test.ts",
+			"testName": "has no structural accessibility violations for the reset form"
+		},
+		{
+			"route": "/verify-email/[token]",
+			"testFile": "web/src/routes/verify-email/[token]/verify-email.test.ts",
+			"testName": "has no structural accessibility violations for success outcomes"
+		},
+		{
+			"route": "/console",
+			"testFile": "web/src/routes/console/console.test.ts",
+			"testName": "has no structural accessibility violations for a populated dashboard"
+		},
+		{
+			"route": "/console/indexes",
+			"testFile": "web/src/routes/console/indexes/indexes.test.ts",
+			"testName": "has no structural accessibility violations for a populated index list"
+		},
+		{
+			"route": "/console/indexes/[name]",
+			"testFile": "web/src/routes/console/indexes/[name]/detail.a11y.test.ts",
+			"testName": "has no structural accessibility violations for overview and populated analytics states"
+		},
+		{
+			"route": "/console/indexes/[name]/experiments/[experimentId]",
+			"testFile": "web/src/routes/console/indexes/[name]/experiments/[experimentId]/experiment-detail-route.test.ts",
+			"testName": "has no structural accessibility violations for a populated experiment detail"
+		},
+		{
+			"route": "/console/onboarding",
+			"testFile": "web/src/routes/console/onboarding/onboarding.test.ts",
+			"testName": "step 1 has no structural accessibility violations"
+		},
+		{
+			"route": "/console/billing",
+			"testFile": "web/src/routes/console/billing/billing.test.ts",
+			"testName": "has no structural accessibility violations when billing is available"
+		},
+		{
+			"route": "/console/billing/setup",
+			"testFile": "web/src/routes/console/billing/setup/setup.test.ts",
+			"testName": "has no structural accessibility violations for setup success and error states"
+		},
+		{
+			"route": "/console/billing/invoices",
+			"testFile": "web/src/routes/console/billing/invoices/invoices.test.ts",
+			"testName": "has no structural accessibility violations for populated and empty invoice lists"
+		},
+		{
+			"route": "/console/billing/invoices/[id]",
+			"testFile": "web/src/routes/console/billing/invoices/[id]/invoice-detail.test.ts",
+			"testName": "has no structural accessibility violations for a populated invoice detail"
+		},
+		{
+			"route": "/console/account",
+			"testFile": "web/src/routes/console/account/account.test.ts",
+			"testName": "has no structural accessibility violations for account management states"
+		},
+		{
+			"route": "/console/api-keys",
+			"testFile": "web/src/routes/console/api-keys/api-keys.test.ts",
+			"testName": "has no structural accessibility violations across key management states"
+		},
+		{
+			"route": "/console/settings",
+			"testFile": "web/src/routes/console/settings/settings.test.ts",
+			"testName": "has no structural accessibility violations for the account migration guidance"
+		},
+		{
+			"route": "/console/logs",
+			"testFile": "web/src/routes/console/logs/logs.test.ts",
+			"testName": "has no structural accessibility violations for empty and populated logs"
+		},
+		{
+			"route": "/console/migrate",
+			"testFile": "web/src/routes/console/migrate/migrate.test.ts",
+			"testName": "has no structural accessibility violations for the connected migration wizard"
+		},
+		{
+			"route": "/console/migrate/[jobId]",
+			"testFile": "web/src/routes/console/migrate/[jobId]/job.test.ts",
+			"testName": "has no structural accessibility violations for running and failed job states"
+		},
+		{
+			"route": "/",
+			"testFile": "web/src/routes/page_a11y.test.ts",
+			"testName": "has no structural accessibility violations"
+		},
+		{
+			"route": "/admin/alerts",
+			"testFile": "web/src/routes/admin/alerts/admin-alerts.test.ts",
+			"testName": "has no structural accessibility violations for populated, filtered, and expanded metadata states"
+		},
+		{
+			"route": "/admin/billing",
+			"testFile": "web/src/routes/admin/billing/admin_billing_a11y.test.ts",
+			"testName": "has no structural accessibility violations for populated, dialog, success, and error states"
+		},
+		{
+			"route": "/admin/cold",
+			"testFile": "web/src/routes/admin/cold/admin-cold.test.ts",
+			"testName": "has no structural accessibility violations for populated and empty states"
+		},
+		{
+			"route": "/admin/customers",
+			"testFile": "web/src/routes/admin/customers/admin_customers_a11y.test.ts",
+			"testName": "has no structural accessibility violations for populated, filtered, empty, and unavailable states"
+		},
+		{
+			"route": "/admin/customers/[id]",
+			"testFile": "web/src/routes/admin/customers/[id]/admin_customer_detail_a11y.test.ts",
+			"testName": "has no structural accessibility violations for populated, tabbed, success, and error states"
+		},
+		{
+			"route": "/admin/fleet",
+			"testFile": "web/src/routes/admin/fleet/admin_fleet_a11y.test.ts",
+			"testName": "has no structural accessibility violations for populated, filtered, and unavailable states"
+		},
+		{
+			"route": "/admin/fleet/[id]",
+			"testFile": "web/src/routes/admin/fleet/[id]/admin_vm_detail_a11y.test.ts",
+			"testName": "has no structural accessibility violations for populated and empty lifecycle states"
+		},
+		{
+			"route": "/admin/login",
+			"testFile": "web/src/routes/admin/login/admin_login_a11y.test.ts",
+			"testName": "has no structural accessibility violations for initial and error states"
+		},
+		{
+			"route": "/admin/logout",
+			"testFile": "web/src/routes/admin/logout/admin_logout_a11y.test.ts",
+			"testName": "has no structural accessibility violations"
+		},
+		{
+			"route": "/admin/migrations",
+			"testFile": "web/src/routes/admin/migrations/admin-migrations.test.ts",
+			"testName": "has no structural accessibility violations for active, recent, and empty states"
+		},
+		{
+			"route": "/admin/replicas",
+			"testFile": "web/src/routes/admin/replicas/admin-replicas.test.ts",
+			"testName": "has no structural accessibility violations for populated, filtered, and empty states"
+		},
+		{
+			"route": "/beta",
+			"testFile": "web/src/routes/beta/beta_a11y.test.ts",
+			"testName": "has no structural accessibility violations"
+		},
+		{
+			"route": "/dev_editor_dialog_demo",
+			"testFile": "web/src/routes/dev_editor_dialog_demo/dev_editor_dialog_demo_a11y.test.ts",
+			"testName": "has no structural accessibility violations for idle and open dialog states"
+		},
+		{
+			"route": "/dpa",
+			"testFile": "web/src/routes/dpa/dpa.test.ts",
+			"testName": "has no structural accessibility violations"
+		},
+		{
+			"route": "/forgot-password",
+			"testFile": "web/src/routes/forgot-password/forgot-password.test.ts",
+			"testName": "has no structural accessibility violations for initial, success, and cooldown states"
+		},
+		{
+			"route": "/infrastructure",
+			"testFile": "web/src/routes/infrastructure/infrastructure.test.ts",
+			"testName": "has no structural accessibility violations for populated and empty infrastructure states"
+		},
+		{
+			"route": "/pricing",
+			"testFile": "web/src/routes/pricing/pricing.test.ts",
+			"testName": "has no structural accessibility violations"
+		},
+		{
+			"route": "/privacy",
+			"testFile": "web/src/routes/privacy/privacy.test.ts",
+			"testName": "has no structural accessibility violations"
+		},
+		{
+			"route": "/status",
+			"testFile": "web/src/routes/status/status.test.ts",
+			"testName": "has no structural accessibility violations for unavailable, degraded, and outage states"
+		},
+		{
+			"route": "/terms",
+			"testFile": "web/src/routes/terms/terms.test.ts",
+			"testName": "has no structural accessibility violations"
+		}
+	],
+	"unrenderableInJsdom": []
+}

@@ -17,8 +17,8 @@ use crate::models::algolia_import_job::{
 use crate::models::AlgoliaImportErrorCode;
 use crate::repos::{
     clamp_algolia_import_job_list_limit, AlgoliaImportDispatchReplayIdentity,
-    AlgoliaImportJobListCursor, AlgoliaImportJobRepo, AlgoliaImportTransitionDisposition,
-    AlgoliaLifecycleError, PgAlgoliaImportJobRepo,
+    AlgoliaImportJobListCursor, AlgoliaImportTransitionDisposition, AlgoliaLifecycleError,
+    PgSourceMigrationJobRepo, SourceMigrationJobRepo,
 };
 use crate::services::algolia_import::{
     AlgoliaImportAdmissionError, AlgoliaImportAdmissionRequest, AlgoliaImportCancelContext,
@@ -29,7 +29,8 @@ use crate::state::AppState;
 use super::{
     map_algolia_source_error, map_create_admission_error, map_job_admission_error,
     migration_backend_unavailable, migration_code_error, migration_error, migration_unavailable,
-    sign_list_cursor, verify_list_cursor,
+    sign_list_cursor, validate_source_provider, verify_list_cursor, MigrationJobPath,
+    MigrationSourcePath,
 };
 
 #[derive(Deserialize, ToSchema)]
@@ -150,6 +151,7 @@ pub struct PublicAlgoliaImportJobPage {
 #[utoipa::path(
     post,
     path = "/migration/algolia/jobs",
+    operation_id = "create_algolia_import_job",
     tag = "Migration",
     request_body = CreateAlgoliaImportJobRequest,
     responses(
@@ -161,12 +163,15 @@ pub struct PublicAlgoliaImportJobPage {
         (status = 503, description = "Migration admission disabled or repository backpressured", body = crate::errors::MigrationErrorResponse),
     )
 )]
-pub async fn create_algolia_import_job(
+/// Creates a retained import job for the validated migration provider.
+pub async fn create_import_job(
     auth: AuthenticatedTenant,
     State(state): State<AppState>,
+    Path(path): Path<MigrationSourcePath>,
     headers: HeaderMap,
     Json(request): Json<CreateAlgoliaImportJobRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
+    validate_source_provider(path.source_provider.as_deref())?;
     if !state.algolia_migration_enabled {
         return Err(migration_unavailable());
     }
@@ -330,6 +335,7 @@ pub(super) fn public_algolia_import_job(job: AlgoliaImportJob) -> PublicAlgoliaI
 #[utoipa::path(
     get,
     path = "/migration/algolia/jobs",
+    operation_id = "list_algolia_import_jobs",
     tag = "Migration",
     params(
         ("limit" = Option<i64>, Query, description = "Page size; clamped to a default of 50 and a maximum of 200"),
@@ -341,17 +347,19 @@ pub(super) fn public_algolia_import_job(job: AlgoliaImportJob) -> PublicAlgoliaI
         (status = 401, description = "Authentication required", body = crate::errors::ErrorResponse),
     )
 )]
-pub async fn list_algolia_import_jobs(
+pub async fn list_import_jobs(
     auth: AuthenticatedTenant,
     State(state): State<AppState>,
+    Path(path): Path<MigrationSourcePath>,
     Query(query): Query<ListAlgoliaImportJobsQuery>,
 ) -> Result<Json<PublicAlgoliaImportJobPage>, ApiError> {
+    validate_source_provider(path.source_provider.as_deref())?;
     let limit = clamp_algolia_import_job_list_limit(query.limit);
     let after = match query.cursor.as_deref() {
         Some(token) => Some(verify_list_cursor(&state, &auth, token)?),
         None => None,
     };
-    let page = PgAlgoliaImportJobRepo::new(state.pool.clone())
+    let page = PgSourceMigrationJobRepo::new(state.pool.clone())
         .list_for_customer(auth.customer_id, after, limit)
         .await
         .map_err(ApiError::from)?;
@@ -387,6 +395,7 @@ pub async fn list_algolia_import_jobs(
 #[utoipa::path(
     get,
     path = "/migration/algolia/jobs/{id}",
+    operation_id = "get_algolia_import_job",
     tag = "Migration",
     params(
         ("id" = uuid::Uuid, Path, description = "Retained import job id owned by the calling customer"),
@@ -397,13 +406,14 @@ pub async fn list_algolia_import_jobs(
         (status = 404, description = "No such job, or the job is owned by another customer (indistinguishable)", body = crate::errors::ErrorResponse),
     )
 )]
-pub async fn get_algolia_import_job(
+pub async fn get_import_job(
     auth: AuthenticatedTenant,
     State(state): State<AppState>,
-    Path(id): Path<uuid::Uuid>,
+    Path(path): Path<MigrationJobPath>,
 ) -> Result<Json<PublicAlgoliaImportJob>, ApiError> {
-    let job = PgAlgoliaImportJobRepo::new(state.pool.clone())
-        .get_for_customer(auth.customer_id, id)
+    validate_source_provider(path.source_provider.as_deref())?;
+    let job = PgSourceMigrationJobRepo::new(state.pool.clone())
+        .get_for_customer(auth.customer_id, path.id)
         .await
         .map_err(ApiError::from)?
         .ok_or_else(|| ApiError::NotFound("algolia_import_job_not_found".into()))?;
@@ -413,6 +423,7 @@ pub async fn get_algolia_import_job(
 #[utoipa::path(
     post,
     path = "/migration/algolia/jobs/{id}/cancel",
+    operation_id = "cancel_algolia_import_job",
     tag = "Migration",
     params(
         ("id" = uuid::Uuid, Path, description = "Retained import job id owned by the calling customer"),
@@ -426,12 +437,15 @@ pub async fn get_algolia_import_job(
         (status = 409, description = "Job state cannot be cancelled", body = crate::errors::MigrationErrorResponse),
     )
 )]
-pub async fn cancel_algolia_import_job(
+/// Cancels a retained import job for the validated migration provider.
+pub async fn cancel_import_job(
     auth: AuthenticatedTenant,
     State(state): State<AppState>,
-    Path(id): Path<uuid::Uuid>,
+    Path(path): Path<MigrationJobPath>,
     Json(_request): Json<CancelAlgoliaImportJobRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
+    validate_source_provider(path.source_provider.as_deref())?;
+    let id = path.id;
     let result = state
         .algolia_import_service
         .cancel_for_customer(AlgoliaImportCancelContext {
@@ -462,6 +476,7 @@ pub async fn cancel_algolia_import_job(
 #[utoipa::path(
     post,
     path = "/migration/algolia/jobs/{id}/resume",
+    operation_id = "resume_algolia_import_job",
     tag = "Migration",
     params(
         ("id" = uuid::Uuid, Path, description = "Retained import job id owned by the calling customer"),
@@ -478,12 +493,15 @@ pub async fn cancel_algolia_import_job(
         (status = 503, description = "Migration resume disabled or repository backpressured", body = crate::errors::MigrationErrorResponse),
     )
 )]
-pub async fn resume_algolia_import_job(
+/// Resumes a retained import job for the validated migration provider.
+pub async fn resume_import_job(
     auth: AuthenticatedTenant,
     State(state): State<AppState>,
-    Path(id): Path<uuid::Uuid>,
+    Path(path): Path<MigrationJobPath>,
     Json(request): Json<ResumeAlgoliaImportJobRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
+    validate_source_provider(path.source_provider.as_deref())?;
+    let id = path.id;
     if !state.algolia_migration_enabled {
         return Err(migration_backend_unavailable(
             AlgoliaImportErrorCode::BackendUnavailable.as_str(),
@@ -496,7 +514,7 @@ pub async fn resume_algolia_import_job(
             AlgoliaImportErrorCode::InvalidCredentials,
         ));
     }
-    let repo = PgAlgoliaImportJobRepo::new(state.pool.clone());
+    let repo = PgSourceMigrationJobRepo::new(state.pool.clone());
     let retained = repo
         .get_for_customer(auth.customer_id, id)
         .await
@@ -570,7 +588,7 @@ mod tests {
 
     use crate::models::algolia_import_job::{
         AlgoliaImportDispatchIntentState, AlgoliaImportEngineAckState, AlgoliaImportJobStatus,
-        AlgoliaImportPublicationDisposition, AlgoliaImportSummary,
+        AlgoliaImportPublicationDisposition, AlgoliaImportSummary, SourceImportProvider,
         MAX_ALGOLIA_IMPORT_WARNING_MESSAGE_BYTES,
     };
 
@@ -719,6 +737,7 @@ mod tests {
         let resume_deadline = Utc.with_ymd_and_hms(2026, 7, 18, 11, 2, 0).unwrap();
         AlgoliaImportJob {
             id: uuid::Uuid::from_u128(1),
+            source_provider: SourceImportProvider::Algolia,
             customer_id: uuid::Uuid::from_u128(2),
             tenant_id: "tenant".to_string(),
             algolia_app_id: "APP123".to_string(),

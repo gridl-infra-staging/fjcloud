@@ -39,7 +39,7 @@ Baseline viewport: 390px wide (iPhone 14). The single article card remains reada
 
 ## Current Implementation Gaps
 
-None known for this static public legal route.
+None known for this static public legal route. JSDOM axe coverage now proves the route component in `web/src/routes/privacy/privacy.test.ts`.
 
 ## Automated Coverage
 

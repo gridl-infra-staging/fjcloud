@@ -154,7 +154,8 @@ No known gap remains in the VM autorepair lifecycle timeline seam. The shipped
 detail page now renders the timeline through the existing admin client, VM
 detail server load, and VM detail page owners while preserving the backend
 ordering, distinct empty versus unavailable states, and the single five-second
-detail refresh lifecycle.
+detail refresh lifecycle. JSDOM axe coverage now proves populated and empty
+lifecycle states in `web/src/routes/admin/fleet/[id]/admin_vm_detail_a11y.test.ts`.
 
 ## Automated Coverage
 

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
+import { getAccessibilityViolations } from '../../../tests/a11y';
 
 vi.mock('$app/forms', () => ({
 	enhance: () => ({ destroy: () => {} })
@@ -85,6 +86,27 @@ afterEach(() => {
 });
 
 describe('Admin migrations page', () => {
+	it('has no structural accessibility violations for active, recent, and empty states', async () => {
+		const MigrationsPage = (await import('./+page.svelte')).default;
+
+		const { container } = render(MigrationsPage, {
+			data: {
+				activeMigrations: ACTIVE_MIGRATIONS,
+				recentMigrations: RECENT_MIGRATIONS
+			}
+		});
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+
+		cleanup();
+		const { container: emptyContainer } = render(MigrationsPage, {
+			data: {
+				activeMigrations: [],
+				recentMigrations: []
+			}
+		});
+		await expect(getAccessibilityViolations(emptyContainer)).resolves.toEqual([]);
+	});
+
 	it('migration_list_renders_active_and_recent', async () => {
 		const MigrationsPage = (await import('./+page.svelte')).default;
 

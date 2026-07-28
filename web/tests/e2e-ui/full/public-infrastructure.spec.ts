@@ -9,7 +9,10 @@ const PRIVATE_KEYS = [
 	'flapjack_url',
 	'capacity',
 	'current_load',
-	'vm_id'
+	'vm_id',
+	'healthy_count',
+	'unhealthy_count',
+	'unknown_count'
 ] as const;
 
 function collectKeys(value: unknown): string[] {

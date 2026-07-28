@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { fireEvent, render, screen, cleanup } from '@testing-library/svelte';
+import { getAccessibilityViolations } from '../../tests/a11y';
 
 vi.mock('$app/forms', () => ({
 	enhance: () => ({ destroy: () => {} })
@@ -32,6 +33,24 @@ function renderLoginPage(form?: Record<string, unknown>) {
 }
 
 describe('Login page', () => {
+	it('has no structural accessibility violations', async () => {
+		const { container } = renderLoginPage();
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
+	it('has no structural accessibility violations when login errors are rendered', async () => {
+		const { container } = renderLoginPage({
+			errors: {
+				form: 'Invalid credentials',
+				password: 'Password is required'
+			},
+			email: 'alice@example.com'
+		});
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
 	it('renders email and password fields', () => {
 		renderLoginPage();
 		expect(screen.getByLabelText('Email')).toBeInTheDocument();

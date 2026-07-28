@@ -198,6 +198,129 @@ MOCK
     unset MOCK_CALL_LOG
 }
 
+test_pre_tracking_database_seed_warns_with_drift_probe_remediation() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap "rm -rf '$tmp_dir'" RETURN
+
+    touch "$tmp_dir/001_existing.sql"
+    touch "$tmp_dir/002_existing.sql"
+
+    local mock_bin="$tmp_dir/bin"
+    mkdir -p "$mock_bin"
+    cat > "$mock_bin/psql" <<'MOCK'
+#!/usr/bin/env bash
+echo "$*" >> "$MOCK_CALL_LOG"
+
+if [[ "$*" == *"SELECT count(*) FROM _schema_migrations"* ]]; then
+    echo "0"
+    exit 0
+fi
+
+if [[ "$*" == *"information_schema.tables"* ]]; then
+    echo "1"
+    exit 0
+fi
+
+if [[ "$*" == *"INSERT INTO _schema_migrations"* ]]; then
+    echo "seed:$*" >> "$MOCK_SEED_LOG"
+    exit 0
+fi
+
+if [[ "$*" == *"SELECT 1 FROM _schema_migrations WHERE filename="* ]]; then
+    echo "1"
+    exit 0
+fi
+
+exit 0
+MOCK
+    chmod +x "$mock_bin/psql"
+
+    export MOCK_CALL_LOG="$tmp_dir/psql_calls.log"
+    export MOCK_SEED_LOG="$tmp_dir/seed_calls.log"
+    LOG_OUTPUT=""
+
+    PATH="$mock_bin:$PATH" run_migrations_with_runner "$tmp_dir" "/container/migrations" \
+        psql postgres://test@localhost/testdb
+    local exit_code=$?
+
+    assert_eq "$exit_code" "0" "pre-tracking legacy seed should complete successfully"
+    assert_contains "$LOG_OUTPUT" "Pre-tracking database detected" \
+        "legacy seed path should warn when user tables predate migration tracking"
+    assert_contains "$LOG_OUTPUT" "scripts/probe_local_schema_drift.sh" \
+        "legacy seed warning should name the local schema drift probe remediation"
+
+    local seed_count
+    seed_count=$(wc -l < "$MOCK_SEED_LOG" | tr -d ' ')
+    assert_eq "$seed_count" "2" "legacy seed should record every existing migration filename"
+
+    unset MOCK_CALL_LOG
+    unset MOCK_SEED_LOG
+}
+
+test_pre_tracking_database_seed_insert_failure_returns_nonzero_before_apply_loop() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap "rm -rf '$tmp_dir'" RETURN
+
+    touch "$tmp_dir/001_existing.sql"
+    touch "$tmp_dir/002_never_applied.sql"
+
+    local mock_bin="$tmp_dir/bin"
+    mkdir -p "$mock_bin"
+    cat > "$mock_bin/psql" <<'MOCK'
+#!/usr/bin/env bash
+echo "$*" >> "$MOCK_CALL_LOG"
+
+if [[ "$*" == *"SELECT count(*) FROM _schema_migrations"* ]]; then
+    echo "0"
+    exit 0
+fi
+
+if [[ "$*" == *"information_schema.tables"* ]]; then
+    echo "1"
+    exit 0
+fi
+
+if [[ "$*" == *"INSERT INTO _schema_migrations"* && "$*" == *"ON CONFLICT DO NOTHING"* ]]; then
+    echo "seed insert failed" >&2
+    exit 9
+fi
+
+if [[ "$*" == *"-f /container/migrations/"* ]]; then
+    echo "apply:$*" >> "$MOCK_APPLY_LOG"
+    exit 0
+fi
+
+if [[ "$*" == *"SELECT 1 FROM _schema_migrations WHERE filename="* ]]; then
+    exit 0
+fi
+
+exit 0
+MOCK
+    chmod +x "$mock_bin/psql"
+
+    export MOCK_CALL_LOG="$tmp_dir/psql_calls.log"
+    export MOCK_APPLY_LOG="$tmp_dir/apply_calls.log"
+    LOG_OUTPUT=""
+    : > "$MOCK_APPLY_LOG"
+
+    local exit_code=0
+    PATH="$mock_bin:$PATH" run_migrations_with_runner "$tmp_dir" "/container/migrations" \
+        psql postgres://test@localhost/testdb || exit_code=$?
+
+    assert_eq "$exit_code" "1" "failed legacy seed insert should return non-zero"
+    assert_contains "$LOG_OUTPUT" "Failed to seed migration history" \
+        "failed legacy seed insert should explain that seeding failed"
+
+    local apply_count
+    apply_count=$(wc -l < "$MOCK_APPLY_LOG" | tr -d ' ')
+    assert_eq "$apply_count" "0" "failed legacy seed insert should not continue to apply loop"
+
+    unset MOCK_CALL_LOG
+    unset MOCK_APPLY_LOG
+}
+
 test_no_sql_files_returns_nonzero() {
     local tmp_dir
     tmp_dir=$(mktemp -d)
@@ -242,6 +365,8 @@ main() {
     test_returns_nonzero_on_migration_failure
     test_passes_db_url_to_psql
     test_run_migrations_with_runner_uses_custom_runner_path
+    test_pre_tracking_database_seed_warns_with_drift_probe_remediation
+    test_pre_tracking_database_seed_insert_failure_returns_nonzero_before_apply_loop
     test_no_sql_files_returns_nonzero
     test_email_log_suppressed_status_migration_quotes_delivery_status_literals
 

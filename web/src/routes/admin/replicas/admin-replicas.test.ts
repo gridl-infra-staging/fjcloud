@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
+import { getAccessibilityViolations } from '../../../tests/a11y';
 
 vi.mock('$app/forms', () => ({
 	enhance: () => ({ destroy: () => {} })
@@ -75,6 +76,24 @@ afterEach(() => {
 });
 
 describe('Admin replicas page', () => {
+	it('has no structural accessibility violations for populated, filtered, and empty states', async () => {
+		const ReplicasPage = (await import('./+page.svelte')).default;
+
+		const { container } = render(ReplicasPage, {
+			data: { environment: 'test', isAuthenticated: true, replicas: REPLICA_FIXTURES }
+		});
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+
+		await fireEvent.change(screen.getByTestId('status-filter'), { target: { value: 'active' } });
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+
+		cleanup();
+		const { container: emptyContainer } = render(ReplicasPage, {
+			data: { environment: 'test', isAuthenticated: true, replicas: [] }
+		});
+		await expect(getAccessibilityViolations(emptyContainer)).resolves.toEqual([]);
+	});
+
 	it('renders summary cards with correct counts', async () => {
 		const ReplicasPage = (await import('./+page.svelte')).default;
 

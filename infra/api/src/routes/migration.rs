@@ -1,4 +1,4 @@
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -11,7 +11,9 @@ use utoipa::ToSchema;
 
 use crate::auth::AuthenticatedTenant;
 use crate::errors::ApiError;
-use crate::models::algolia_import_job::{AlgoliaImportDestinationKind, AlgoliaImportTargetBinding};
+use crate::models::algolia_import_job::{
+    AlgoliaImportDestinationKind, AlgoliaImportTargetBinding, SourceImportProvider,
+};
 use crate::models::AlgoliaImportErrorCode;
 use crate::repos::{
     AlgoliaImportJobAdmissionError, AlgoliaImportJobListCursor, DestinationEligibilityError,
@@ -42,18 +44,59 @@ use source::map_algolia_source_error;
 // after extracting the migration route surface.
 pub use capabilities::AlgoliaMigrationCapabilities;
 pub use eligibility::{
-    __path_check_algolia_destination_eligibility, check_algolia_destination_eligibility,
+    __path_check_destination_eligibility, check_destination_eligibility,
     AlgoliaDestinationEligibilityRequest, AlgoliaDestinationEligibilityResponse,
 };
 pub use jobs::{
-    __path_cancel_algolia_import_job, __path_create_algolia_import_job,
-    __path_get_algolia_import_job, __path_list_algolia_import_jobs,
-    __path_resume_algolia_import_job, cancel_algolia_import_job, create_algolia_import_job,
-    get_algolia_import_job, list_algolia_import_jobs, resume_algolia_import_job,
-    CancelAlgoliaImportJobRequest, CreateAlgoliaImportJobRequest, ListAlgoliaImportJobsQuery,
-    PublicAlgoliaImportJob, PublicAlgoliaImportJobPage, ResumeAlgoliaImportJobRequest,
+    __path_cancel_import_job, __path_create_import_job, __path_get_import_job,
+    __path_list_import_jobs, __path_resume_import_job, cancel_import_job, create_import_job,
+    get_import_job, list_import_jobs, resume_import_job, CancelAlgoliaImportJobRequest,
+    CreateAlgoliaImportJobRequest, ListAlgoliaImportJobsQuery, PublicAlgoliaImportJob,
+    PublicAlgoliaImportJobPage, ResumeAlgoliaImportJobRequest,
 };
-pub use source::{__path_list_algolia_indexes, list_algolia_indexes, ListAlgoliaIndexesRequest};
+pub use source::{__path_list_source_indexes, list_source_indexes, ListAlgoliaIndexesRequest};
+
+pub use check_destination_eligibility as check_algolia_destination_eligibility;
+pub use list_source_indexes as list_algolia_indexes;
+pub use {
+    __path_cancel_import_job as __path_cancel_algolia_import_job,
+    __path_check_destination_eligibility as __path_check_algolia_destination_eligibility,
+    __path_create_import_job as __path_create_algolia_import_job,
+    __path_get_import_job as __path_get_algolia_import_job,
+    __path_list_import_jobs as __path_list_algolia_import_jobs,
+    __path_list_source_indexes as __path_list_algolia_indexes,
+    __path_resume_import_job as __path_resume_algolia_import_job,
+};
+pub use {
+    cancel_import_job as cancel_algolia_import_job, create_import_job as create_algolia_import_job,
+    get_import_job as get_algolia_import_job, list_import_jobs as list_algolia_import_jobs,
+    resume_import_job as resume_algolia_import_job,
+};
+
+#[derive(Deserialize)]
+pub struct MigrationSourcePath {
+    #[serde(default)]
+    pub(super) source_provider: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct MigrationJobPath {
+    #[serde(default)]
+    pub(super) source_provider: Option<String>,
+    pub(super) id: uuid::Uuid,
+}
+
+fn validate_source_provider(
+    source_provider: Option<&str>,
+) -> Result<SourceImportProvider, ApiError> {
+    SourceImportProvider::parse(
+        source_provider.unwrap_or_else(|| SourceImportProvider::Algolia.as_str()),
+    )
+    .map_err(|_| {
+        let error_code = AlgoliaImportErrorCode::SourceProviderUnsupported;
+        migration_error(StatusCode::BAD_REQUEST, error_code.as_str(), error_code)
+    })
+}
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, ToSchema)]
 #[serde(rename_all = "snake_case")]
@@ -176,18 +219,24 @@ pub(super) fn migration_available(state: &AppState) -> bool {
 #[utoipa::path(
     get,
     path = "/migration/algolia/availability",
+    operation_id = "algolia_availability",
     tag = "Migration",
     responses(
         (status = 200, description = "Algolia migration availability", body = AlgoliaMigrationAvailabilityResponse),
         (status = 401, description = "Authentication required", body = crate::errors::ErrorResponse),
     )
 )]
-pub async fn algolia_availability(
+pub async fn migration_availability(
     _auth: AuthenticatedTenant,
     State(state): State<AppState>,
-) -> Json<AlgoliaMigrationAvailabilityResponse> {
-    Json(current_migration_availability(&state))
+    Path(path): Path<MigrationSourcePath>,
+) -> Result<Json<AlgoliaMigrationAvailabilityResponse>, ApiError> {
+    validate_source_provider(path.source_provider.as_deref())?;
+    Ok(Json(current_migration_availability(&state)))
 }
+
+pub use __path_migration_availability as __path_algolia_availability;
+pub use migration_availability as algolia_availability;
 
 /// Verify a replayed provider envelope. Every failure here is locally decidable
 /// and must precede any repository or source access.
@@ -346,7 +395,10 @@ fn validate_provider_claims(
             AlgoliaImportErrorCode::DestinationChanged,
         ));
     }
-    if claims.mode != expected_mode || claims.region != expected_target.region {
+    if claims.mode != expected_mode
+        || claims.region != expected_target.region
+        || claims.name != expected_target.name
+    {
         return Err(migration_error(
             StatusCode::BAD_REQUEST,
             "destination_changed",

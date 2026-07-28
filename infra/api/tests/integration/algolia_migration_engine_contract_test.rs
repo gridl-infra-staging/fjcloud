@@ -12,6 +12,22 @@ fn contract() -> Value {
         .expect("Algolia migration engine contract fixture is valid JSON")
 }
 
+#[test]
+fn route_credential_canaries_never_enter_engine_contract_fixture() {
+    for canary in [
+        "secret-api-key-canary-success",
+        "temporary-secret-key-that-must-not-leak",
+        "source-name-canary-that-must-not-enter-logs",
+        "cancel-customer-credential-canary",
+        "fresh-refused-key",
+    ] {
+        assert!(
+            !CONTRACT_JSON.contains(canary),
+            "route credential canary must not enter the engine fixture: {canary}"
+        );
+    }
+}
+
 fn strings_at<'a>(value: &'a Value, path: &[&str]) -> Vec<&'a str> {
     value
         .pointer(&format!("/{}", path.join("/")))
@@ -116,21 +132,6 @@ fn algolia_migration_engine_contract_fixture_pins_engine_and_artifacts() {
 fn algolia_migration_engine_contract_fixture_closes_routes_and_wire_sets() {
     let contract = contract();
 
-    assert_eq!(contract["routes"]["submit"]["method"], "POST");
-    assert_eq!(
-        contract["routes"]["submit"]["path"],
-        "/1/migrations/algolia"
-    );
-    assert_eq!(contract["routes"]["status"]["method"], "GET");
-    assert_eq!(
-        contract["routes"]["status"]["path"],
-        "/1/migrations/algolia/{job_id}"
-    );
-    assert_eq!(contract["routes"]["cancel"]["method"], "POST");
-    assert_eq!(
-        contract["routes"]["cancel"]["path"],
-        "/1/migrations/algolia/{job_id}/cancel"
-    );
     assert_eq!(
         contract["required_runtime_routes"]["acknowledge"]["method"],
         "POST"
@@ -274,6 +275,80 @@ fn algolia_migration_engine_contract_fixture_closes_routes_and_wire_sets() {
         strings_at(&contract, &["progress", "optional_fields"]),
         Vec::<&str>::new()
     );
+}
+
+#[test]
+fn algolia_migration_engine_contract_fixture_closes_provider_discriminator_and_shared_lifecycle() {
+    let contract = contract();
+    let transport_owner = include_str!("../../src/services/flapjack_proxy/migration.rs");
+
+    assert_eq!(
+        contract["provider_discriminator"],
+        json!({
+            "field": "source_provider",
+            "values": ["algolia"]
+        }),
+        "the source-provider discriminator must remain a closed set"
+    );
+    assert_eq!(
+        contract["routes"],
+        json!({
+            "submit": {
+                "method": "POST",
+                "path": "/1/migrations/{source_provider}"
+            },
+            "status": {
+                "method": "GET",
+                "path": "/1/migrations/{source_provider}/{job_id}"
+            },
+            "cancel": {
+                "method": "POST",
+                "path": "/1/migrations/{source_provider}/{job_id}/cancel"
+            },
+            "acknowledge": {
+                "method": "POST",
+                "path": "/1/migrations/{source_provider}/{job_id}/acknowledge"
+            }
+        }),
+        "all providers must share one lifecycle route-role map"
+    );
+    assert_eq!(
+        contract["provider_aliases"],
+        json!({
+            "algolia": {
+                "submit": "/1/migrations/algolia",
+                "status": "/1/migrations/algolia/{job_id}",
+                "cancel": "/1/migrations/algolia/{job_id}/cancel",
+                "acknowledge": "/1/migrations/algolia/{job_id}/acknowledge"
+            }
+        }),
+        "the existing Algolia wire must remain an explicit compatibility alias"
+    );
+    assert!(
+        transport_owner.contains("fn migration_url(")
+            && transport_owner.contains("async fn submit_migration(")
+            && transport_owner.contains("async fn migration_status(")
+            && transport_owner.contains("async fn cancel_migration(")
+            && transport_owner.contains("async fn acknowledge_migration("),
+        "the fixture's shared lifecycle map must have one provider-neutral transport owner"
+    );
+    assert!(
+        !transport_owner.contains("/1/migrations/algolia"),
+        "legacy Algolia transport aliases must pass the provider discriminator into the shared URL builder"
+    );
+    for preserved_key in [
+        "request",
+        "status",
+        "status_outcome",
+        "errors",
+        "privacy_scrub_contract",
+        "privacy_scrub_known_answer",
+    ] {
+        assert!(
+            contract[preserved_key].is_object(),
+            "{preserved_key} must remain in the provider-discriminated fixture"
+        );
+    }
 }
 
 #[test]
@@ -534,6 +609,8 @@ fn algolia_migration_engine_contract_fixture_closes_top_level_schema() {
         "privacy_scrub_contract",
         "privacy_scrub_known_answer",
         "progress",
+        "provider_aliases",
+        "provider_discriminator",
         "request",
         "required_runtime_routes",
         "routes",

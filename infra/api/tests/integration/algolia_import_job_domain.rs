@@ -11,7 +11,7 @@ use api::models::algolia_import_job::{
     AlgoliaImportSourceMetadata, AlgoliaImportSummary, AlgoliaImportTargetBinding,
     AlgoliaImportTerminalDetails, AlgoliaImportTerminalFact, AlgoliaImportTombstoneCleanupPhase,
     AlgoliaReplaceTargetFacts, AlgoliaSealScrubWork, NewAlgoliaImportJob,
-    NewAlgoliaReplaceImportJob, UNKNOWN_ALGOLIA_SOURCE_SIZE_BYTES,
+    NewAlgoliaReplaceImportJob, SourceImportProvider, UNKNOWN_ALGOLIA_SOURCE_SIZE_BYTES,
 };
 use api::secrets::mock::MockNodeSecretManager;
 use api::services::flapjack_proxy::FlapjackProxy;
@@ -61,30 +61,31 @@ use crate::common::support::pg_schema_harness::{
 };
 use crate::common::vm_inventory_reference_guard_fixtures::insert_vm_with_id;
 
-static FLAPJACK_IDENTITY_ENV_LOCK: Mutex<()> = Mutex::new(());
-const FLAPJACK_IDENTITY_ENV_NAMES: [&str; 5] = [
+static ALGOLIA_CREATE_ENV_LOCK: Mutex<()> = Mutex::new(());
+const ALGOLIA_CREATE_ENV_NAMES: [&str; 6] = [
     "FJCLOUD_FLAPJACK_VERSION",
     "FJCLOUD_FLAPJACK_REQUIRED_REVISION",
     "FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID",
     "FJCLOUD_FLAPJACK_REQUIRED_SHA256",
     "FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY",
+    "LOCAL_DEV_FLAPJACK_URL",
 ];
 
-struct FlapjackIdentityEnvGuard {
+struct AlgoliaCreateEnvGuard {
     _lock: MutexGuard<'static, ()>,
     previous_values: Vec<(&'static str, Option<OsString>)>,
 }
 
-impl FlapjackIdentityEnvGuard {
+impl AlgoliaCreateEnvGuard {
     fn cleared() -> Self {
-        let lock = FLAPJACK_IDENTITY_ENV_LOCK
+        let lock = ALGOLIA_CREATE_ENV_LOCK
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let previous_values = FLAPJACK_IDENTITY_ENV_NAMES
+        let previous_values = ALGOLIA_CREATE_ENV_NAMES
             .into_iter()
             .map(|name| (name, std::env::var_os(name)))
             .collect();
-        for name in FLAPJACK_IDENTITY_ENV_NAMES {
+        for name in ALGOLIA_CREATE_ENV_NAMES {
             std::env::remove_var(name);
         }
         Self {
@@ -106,7 +107,7 @@ impl FlapjackIdentityEnvGuard {
     }
 }
 
-impl Drop for FlapjackIdentityEnvGuard {
+impl Drop for AlgoliaCreateEnvGuard {
     fn drop(&mut self) {
         for (name, previous_value) in &self.previous_values {
             match previous_value {
@@ -453,6 +454,212 @@ async fn migration_creates_distinct_algolia_import_jobs_contract() {
     .into_iter()
     .collect();
     assert!(!index_migration_columns.contains("algolia_app_id"));
+}
+
+#[tokio::test]
+async fn provider_neutral_schema_uses_one_job_table_and_old_rows_decode_as_algolia() {
+    const MODEL_OWNER: &str = include_str!("../../src/models/algolia_import_job.rs");
+    const ROW_OWNER: &str = include_str!("../../src/models/algolia_import_job/row.rs");
+    const REPO_CONTRACT_OWNER: &str = include_str!("../../src/repos/algolia_import_job_repo.rs");
+    const REPO_OWNER: &str = include_str!("../../src/repos/pg_algolia_import_job_repo.rs");
+
+    assert!(
+        MODEL_OWNER.contains("pub struct SourceMigrationJob {")
+            && MODEL_OWNER.contains("pub struct SourceMigrationSource {")
+            && MODEL_OWNER.contains("pub enum SourceMigrationErrorCode {")
+            && REPO_CONTRACT_OWNER.contains("pub trait SourceMigrationJobRepo")
+            && REPO_OWNER.contains("pub struct PgSourceMigrationJobRepo {")
+            && REPO_OWNER.contains("impl SourceMigrationJobRepo for PgSourceMigrationJobRepo {"),
+        "provider-neutral durable contracts must own behavior; legacy Algolia names may only \
+         re-export those owners"
+    );
+
+    let Some(db) = connect_and_migrate("provider_neutral_old_algolia_row").await else {
+        return;
+    };
+
+    let customer_id =
+        Uuid::parse_str("11111111-1111-4111-8111-111111111101").expect("customer UUID fixture");
+    let job_id = Uuid::parse_str("11111111-1111-4111-8111-111111111102").expect("job UUID fixture");
+    let destination_vm_id =
+        Uuid::parse_str("11111111-1111-4111-8111-111111111103").expect("VM UUID fixture");
+    let cloud_job_id =
+        Uuid::parse_str("11111111-1111-4111-8111-111111111104").expect("cloud job UUID fixture");
+    let canonical_fingerprint =
+        "sha256:8d54c86c94f4f7822ef48c6a23c12b99c008de8e7c965661184d8241c4328d4f";
+    let routing_identity = "tenant/products@old-algolia-route";
+    let source_size_bytes = 98_765_i64;
+    let lifecycle_generation = 7_i64;
+
+    insert_active_customer(&db.pool, customer_id, lifecycle_generation).await;
+    insert_vm_with_id(
+        &db.pool,
+        destination_vm_id,
+        "provider-neutral-old-algolia-row",
+        "active",
+    )
+    .await;
+    sqlx::query(
+        "INSERT INTO algolia_import_jobs
+         (id, customer_id, tenant_id, algolia_app_id, destination_kind, logical_target,
+          destination_region, destination_vm_id, physical_uid, source_name, cloud_job_id,
+          lifecycle_generation, idempotency_key, canonical_fingerprint, routing_identity,
+          source_size_bytes, reserved_index_count, reserved_customer_storage_bytes,
+          reserved_node_transient_bytes)
+         VALUES
+         ($1, $2, 'products', 'OLDAPP123', 'create', 'products', 'us-east-1',
+          $3, 'old-algolia-physical-uid', 'Products', $4, $5, 'old-algolia-row',
+          $6, $7, $8, 1, $8, $8)",
+    )
+    .bind(job_id)
+    .bind(customer_id)
+    .bind(destination_vm_id)
+    .bind(cloud_job_id)
+    .bind(lifecycle_generation)
+    .bind(canonical_fingerprint)
+    .bind(routing_identity)
+    .bind(source_size_bytes)
+    .execute(&db.pool)
+    .await
+    .expect("hand-insert pre-source-provider Algolia row");
+
+    let decoded = PgAlgoliaImportJobRepo::new(db.pool.clone())
+        .get(job_id)
+        .await
+        .expect("decode pre-source-provider row through durable repository")
+        .expect("pre-source-provider row remains visible");
+    assert_eq!(decoded.id, job_id);
+    assert_eq!(decoded.source_provider, SourceImportProvider::Algolia);
+    assert_eq!(decoded.customer_id, customer_id);
+    assert_eq!(decoded.tenant_id, "products");
+    assert_eq!(decoded.algolia_app_id, "OLDAPP123");
+    assert_eq!(decoded.source_name, "Products");
+    assert_eq!(
+        decoded.destination_kind,
+        AlgoliaImportDestinationKind::Create
+    );
+    assert_eq!(decoded.logical_target, "products");
+    assert_eq!(decoded.destination_region, "us-east-1");
+    assert_eq!(decoded.destination_vm_id, Some(destination_vm_id));
+    assert_eq!(
+        decoded.physical_uid.as_deref(),
+        Some("old-algolia-physical-uid")
+    );
+    assert_eq!(decoded.cloud_job_id, cloud_job_id);
+    assert_eq!(decoded.lifecycle_generation, lifecycle_generation);
+    assert_eq!(
+        decoded.canonical_fingerprint, canonical_fingerprint,
+        "adding a source-provider discriminator must not rewrite the authoritative fingerprint"
+    );
+    assert_eq!(decoded.routing_identity.as_deref(), Some(routing_identity));
+    assert_eq!(decoded.source_size_bytes, source_size_bytes);
+
+    let physical_job_tables: Vec<String> = sqlx::query_scalar(
+        "SELECT c.relname::text
+         FROM pg_class AS c
+         JOIN pg_namespace AS n ON n.oid = c.relnamespace
+         JOIN pg_tables AS t
+           ON t.schemaname = n.nspname AND t.tablename = c.relname
+         WHERE n.nspname = current_schema()
+           AND c.relkind = 'r'
+           AND (
+             c.relname LIKE '%import%job%'
+             OR c.relname LIKE '%migration%job%'
+           )
+         ORDER BY c.relname::text",
+    )
+    .fetch_all(&db.pool)
+    .await
+    .expect("inspect physical import lifecycle tables through pg_class and pg_tables");
+    assert_eq!(
+        physical_job_tables,
+        vec!["algolia_import_jobs".to_string()],
+        "the provider-neutral lifecycle must retain exactly one physical job table"
+    );
+
+    let constrained_job_tables: Vec<String> = sqlx::query_scalar(
+        "SELECT DISTINCT c.relname::text
+         FROM pg_constraint AS con
+         JOIN pg_class AS c ON c.oid = con.conrelid
+         JOIN pg_namespace AS n ON n.oid = c.relnamespace
+         WHERE n.nspname = current_schema()
+           AND (
+             c.relname LIKE '%import%job%'
+             OR c.relname LIKE '%migration%job%'
+           )
+         ORDER BY c.relname::text",
+    )
+    .fetch_all(&db.pool)
+    .await
+    .expect("inspect job lifecycle constraint owners");
+    assert_eq!(
+        constrained_job_tables,
+        vec!["algolia_import_jobs".to_string()],
+        "all lifecycle constraints must remain attached to the one retained job table"
+    );
+
+    let provider_private_job_tables: Vec<String> = sqlx::query_scalar(
+        "SELECT tablename::text
+         FROM pg_tables
+         WHERE schemaname = current_schema()
+           AND (
+             tablename ~* '(meilisearch|typesense|provider).*(import|migration).*jobs?'
+             OR tablename ~* '(import|migration).*(meilisearch|typesense|provider).*jobs?'
+             OR tablename IN ('source_migration_jobs', 'import_provider_jobs')
+           )
+         ORDER BY tablename",
+    )
+    .fetch_all(&db.pool)
+    .await
+    .expect("inspect provider-private job tables");
+    assert!(
+        provider_private_job_tables.is_empty(),
+        "provider-private lifecycle tables are forbidden: {provider_private_job_tables:?}"
+    );
+
+    assert!(ROW_OWNER.contains("pub(crate) struct SourceMigrationJobRow"));
+    assert!(REPO_OWNER.contains("pub struct PgSourceMigrationJobRepo"));
+}
+
+#[tokio::test]
+async fn repository_rejects_unknown_durable_source_provider_values() {
+    let Some(db) = connect_and_migrate("unknown_durable_provider").await else {
+        return;
+    };
+
+    let customer_id =
+        Uuid::parse_str("11111111-1111-4111-8111-111111111151").expect("customer UUID fixture");
+    insert_active_customer(&db.pool, customer_id, 1).await;
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let job = repo
+        .create(new_job(customer_id, "unknown-durable-provider"))
+        .await
+        .expect("seed persisted Algolia import job");
+
+    sqlx::query(
+        "ALTER TABLE algolia_import_jobs
+         DROP CONSTRAINT algolia_import_jobs_source_provider_check",
+    )
+    .execute(&db.pool)
+    .await
+    .expect("remove current-stage provider CHECK to simulate a future persisted provider");
+    sqlx::query("UPDATE algolia_import_jobs SET source_provider = 'meilisearch' WHERE id = $1")
+        .bind(job.id)
+        .execute(&db.pool)
+        .await
+        .expect("seed unknown durable source provider");
+
+    let error = repo
+        .get(job.id)
+        .await
+        .expect_err("unknown durable source provider must fail closed");
+    match error {
+        RepoError::Other(message) => assert!(
+            message.contains("unsupported source provider") && message.contains("meilisearch"),
+            "decode error should identify the unsupported source provider: {message}"
+        ),
+        other => panic!("unexpected repository error for unknown source provider: {other:?}"),
+    }
 }
 
 #[tokio::test]
@@ -1384,7 +1591,7 @@ async fn algolia_create_import_engine_compatibility_uses_shared_admission_and_pl
     let Some(db) = connect_and_migrate("algolia_shared_admission").await else {
         return;
     };
-    let identity_env = FlapjackIdentityEnvGuard::cleared();
+    let identity_env = AlgoliaCreateEnvGuard::cleared();
     identity_env.configure_complete_identity();
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed_verified_free_customer(
@@ -1465,7 +1672,7 @@ async fn algolia_create_import_engine_compatibility_rejects_incompatible_health_
     let Some(db) = connect_and_migrate("algolia_import_engine_gate_reject").await else {
         return;
     };
-    let identity_env = FlapjackIdentityEnvGuard::cleared();
+    let identity_env = AlgoliaCreateEnvGuard::cleared();
     identity_env.configure_complete_identity();
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed_verified_free_customer(
@@ -1543,7 +1750,7 @@ async fn algolia_create_import_engine_compatibility_rejects_absent_or_partial_id
     let Some(db) = connect_and_migrate("algolia_import_engine_config_gate").await else {
         return;
     };
-    let identity_env = FlapjackIdentityEnvGuard::cleared();
+    let identity_env = AlgoliaCreateEnvGuard::cleared();
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed_verified_free_customer(
         "Algolia identity config customer",
@@ -3218,6 +3425,7 @@ async fn erase_retained_job(pool: &PgPool, id: Uuid) {
         "UPDATE algolia_import_jobs SET
             erased_at = now(), erasure_handle = gen_random_uuid(),
             cleanup_phase = 'engine_disposition_required',
+            source_provider = NULL,
             customer_id = NULL, tenant_id = NULL, algolia_app_id = NULL, destination_kind = NULL,
             logical_target = NULL, destination_region = NULL, destination_deployment_id = NULL,
             destination_vm_id = NULL, physical_uid = NULL, source_name = NULL, cloud_job_id = NULL,

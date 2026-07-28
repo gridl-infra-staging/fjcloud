@@ -34,7 +34,7 @@ The page shows `Cold Storage` and either `No indexes in cold storage.` or a tabl
 
 ## Current Implementation Gaps
 
-Browser-unmocked coverage verifies shell/table-or-empty state; full restore flow is deferred to cold-storage local signoff.
+Browser-unmocked coverage verifies shell/table-or-empty state; full restore flow is deferred to cold-storage local signoff. JSDOM axe coverage now proves populated and empty states in `web/src/routes/admin/cold/admin-cold.test.ts`.
 
 ## Automated Coverage
 

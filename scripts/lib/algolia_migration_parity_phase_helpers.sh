@@ -284,10 +284,14 @@ submit_job_payload() {
 # Owned generically so both idempotency replays and overwrite dispatches drain
 # their accepted jobs through one lifecycle path.
 ACCEPTED_JOB_IDS=()
-# Expected terminal kind per accepted job (job_id -> promoted_success |
-# cancelled_unchanged). The shared terminal poll reads this so the one canonical
-# drain and each phase assert the terminal tuple that job requires.
-declare -A ACCEPTED_JOB_TERMINAL_KIND=()
+# Terminal kind a job is expected to reach unless a phase overrides it.
+DEFAULT_JOB_TERMINAL_KIND="promoted_success"
+# Expected terminal kind per accepted job, as job_id/kind rows joined by
+# ACCEPTED_JOB_ROW_SEPARATOR and terminated by newlines. Kept as a plain string
+# rather than an associative array so repo-supported Bash 3.2 can run the same
+# canonical drain without a shell-version fork.
+ACCEPTED_JOB_ROW_SEPARATOR=$'\t'
+ACCEPTED_JOB_TERMINAL_KIND_ROWS=""
 DRAINING_ACCEPTED_JOBS=0
 
 parse_response_job_fields() {
@@ -317,11 +321,11 @@ parse_job_id_from_location() {
 }
 
 track_accepted_job() {
-    local job_id="$1" kind="${2:-promoted_success}" existing
-    ACCEPTED_JOB_TERMINAL_KIND["$job_id"]="$kind"
-    for existing in "${ACCEPTED_JOB_IDS[@]+"${ACCEPTED_JOB_IDS[@]}"}"; do
-        [ "$existing" = "$job_id" ] && return 0
-    done
+    local job_id="$1" kind="${2:-$DEFAULT_JOB_TERMINAL_KIND}"
+    set_job_terminal_kind "$job_id" "$kind"
+    if accepted_job_is_tracked "$job_id"; then
+        return 0
+    fi
     ACCEPTED_JOB_IDS+=("$job_id")
 }
 
@@ -337,7 +341,25 @@ accepted_job_is_tracked() {
 # turns a job accepted as a promotion into one whose canonical terminal is
 # cancelled_unchanged, so the shared drain waits for the right terminal tuple.
 set_job_terminal_kind() {
-    ACCEPTED_JOB_TERMINAL_KIND["$1"]="$2"
+    local job_id="$1" kind="$2" current_id current_kind other_rows=""
+    while IFS="$ACCEPTED_JOB_ROW_SEPARATOR" read -r current_id current_kind; do
+        [ -n "$current_id" ] || continue
+        [ "$current_id" = "$job_id" ] && continue
+        other_rows="${other_rows}${current_id}${ACCEPTED_JOB_ROW_SEPARATOR}${current_kind}"$'\n'
+    done <<<"$ACCEPTED_JOB_TERMINAL_KIND_ROWS"
+    ACCEPTED_JOB_TERMINAL_KIND_ROWS="${other_rows}${job_id}${ACCEPTED_JOB_ROW_SEPARATOR}${kind}"$'\n'
+}
+
+accepted_job_terminal_kind() {
+    local job_id="$1" current_id current_kind
+    while IFS="$ACCEPTED_JOB_ROW_SEPARATOR" read -r current_id current_kind; do
+        [ -n "$current_id" ] || continue
+        if [ "$current_id" = "$job_id" ]; then
+            printf '%s\n' "$current_kind"
+            return 0
+        fi
+    done <<<"$ACCEPTED_JOB_TERMINAL_KIND_ROWS"
+    printf '%s\n' "$DEFAULT_JOB_TERMINAL_KIND"
 }
 
 track_current_job_response() {

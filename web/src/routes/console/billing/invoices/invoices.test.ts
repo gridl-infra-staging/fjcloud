@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, within } from '@testing-library/svelte';
 import type { InvoiceListItem, InvoiceDetailResponse } from '$lib/api/types';
 import { formatCents, formatDate, formatPeriod, formatUnitPrice, statusLabel } from '$lib/format';
+import { getAccessibilityViolations } from '../../../../tests/a11y';
 import { layoutTestDefaults } from '../../layout-test-context';
 
 vi.mock('$app/forms', () => ({
@@ -158,6 +159,22 @@ describe('Invoice list page', () => {
 		expect(screen.getByRole('heading', { level: 1, name: 'Invoices' })).toBeInTheDocument();
 		expect(screen.getByText(/no invoices yet/i)).toBeInTheDocument();
 		expect(screen.queryByRole('table')).not.toBeInTheDocument();
+	});
+
+	it('has no structural accessibility violations for populated and empty invoice lists', async () => {
+		const { default: InvoiceListPage } = await import('./+page.svelte');
+		const { container } = render(InvoiceListPage, {
+			data: { ...layoutTestDefaults, user: null, invoices: sampleInvoices }
+		});
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+		cleanup();
+
+		const { container: emptyContainer } = render(InvoiceListPage, {
+			data: { ...layoutTestDefaults, user: null, invoices: [] }
+		});
+
+		await expect(getAccessibilityViolations(emptyContainer)).resolves.toEqual([]);
 	});
 });
 

@@ -22,6 +22,7 @@ export interface PricingCostLineItem {
 
 export interface PricingEstimate {
 	provider: string;
+	verification_label: string;
 	monthly_total_cents: number;
 	line_items: PricingCostLineItem[];
 	assumptions: string[];

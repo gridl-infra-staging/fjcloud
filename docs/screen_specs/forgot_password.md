@@ -22,6 +22,10 @@ The screen shows `Forgot your password?`, explanatory copy, a labeled email fiel
 - Error: backend failures are hidden from the user to avoid account enumeration.
 - Success: confirmation message appears and the user can navigate back to `/login`.
 
+## Mobile Narrow Contract
+
+Baseline viewport: 390px wide (iPhone 14). The email field, submit/resend controls, non-enumerating confirmation, cooldown or delivery-failure guidance, and back-to-login link remain readable and tappable in one column.
+
 ## Controls And Navigation
 
 - `Email` accepts the reset target email.
@@ -36,10 +40,10 @@ The screen shows `Forgot your password?`, explanatory copy, a labeled email fiel
 
 ## Current Implementation Gaps
 
-Browser-unmocked coverage uses a nonexistent email; explicit browser coverage for an existing-email reset request is not mapped.
+Browser-unmocked coverage uses a nonexistent email; explicit browser coverage for an existing-email reset request is not mapped. JSDOM axe coverage now proves initial, success, and cooldown states in `web/src/routes/forgot-password/forgot-password.test.ts`.
 
 ## Automated Coverage
 
-- Browser-unmocked tests: `web/tests/e2e-ui/full/auth.spec.ts`
-- Component tests: none mapped
+- Browser-unmocked tests: `web/tests/e2e-ui/full/auth.spec.ts`; `web/tests/e2e-ui/full/auth-end-effects.spec.ts`
+- Component tests: `web/src/routes/forgot-password/forgot-password.test.ts`
 - Server/contract tests: `web/src/routes/forgot-password/forgot-password.server.test.ts`

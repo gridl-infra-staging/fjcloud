@@ -3,8 +3,8 @@
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import favicon from '$lib/assets/favicon.ico';
-	import { SUPPORT_EMAIL } from '$lib/format';
 	import BetaSupportBadge from '$lib/components/BetaSupportBadge.svelte';
+	import SiteFooter from '$lib/components/SiteFooter.svelte';
 	import { Toaster, toasterProps } from '$lib/toast';
 	import { onMount } from 'svelte';
 	import {
@@ -121,22 +121,7 @@
 			{@render children()}
 		{/if}
 
-		<footer class="border-t border-flapjack-ink/20 py-8">
-			<div
-				class="mx-auto flex max-w-6xl flex-col justify-between gap-4 px-6 text-sm text-flapjack-ink/60 sm:flex-row"
-			>
-				<p>&copy; {new Date().getFullYear()} Flapjack Cloud. Contact: {SUPPORT_EMAIL}</p>
-				<nav class="flex flex-wrap gap-4" aria-label="Legal">
-					<a href={resolve('/terms')} class="text-flapjack-rose hover:text-flapjack-plum">Terms</a>
-					<a href={resolve('/privacy')} class="text-flapjack-rose hover:text-flapjack-plum"
-						>Privacy</a
-					>
-					<a href={resolve('/dpa')} class="text-flapjack-rose hover:text-flapjack-plum">DPA</a>
-					<a href={resolve('/status')} class="text-flapjack-rose hover:text-flapjack-plum">Status</a
-					>
-				</nav>
-			</div>
-		</footer>
+		<SiteFooter tone="publicTrust" />
 	</div>
 {:else}
 	{@render children()}

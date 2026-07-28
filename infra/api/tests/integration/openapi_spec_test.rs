@@ -156,6 +156,37 @@ fn public_infrastructure_openapi_surface_is_public_and_schema_bound() {
         Some(&vec![serde_json::json!({})]),
         "public infrastructure must override global bearer auth"
     );
+
+    for (schema_name, expected_properties) in [
+        (
+            "PublicInfrastructureOverall",
+            BTreeSet::from(["availability_pct", "total_regions", "total_vms"]),
+        ),
+        (
+            "PublicRegionInfrastructure",
+            BTreeSet::from([
+                "display_name",
+                "health",
+                "provider",
+                "provider_location",
+                "region",
+                "utilization",
+                "vm_count",
+            ]),
+        ),
+    ] {
+        let properties = spec
+            .pointer(&format!("/components/schemas/{schema_name}/properties"))
+            .and_then(|value| value.as_object())
+            .unwrap_or_else(|| panic!("{schema_name} must define object properties"))
+            .keys()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            properties, expected_properties,
+            "{schema_name} must expose only the public allowlist"
+        );
+    }
 }
 
 #[test]
@@ -298,6 +329,7 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
         .and_then(|value| value.as_array())
         .expect("canonical Algolia import error code enum must be documented");
     let expected_codes = [
+        AlgoliaImportErrorCode::SourceProviderUnsupported,
         AlgoliaImportErrorCode::InvalidCredentials,
         AlgoliaImportErrorCode::MissingSourcePermission,
         AlgoliaImportErrorCode::SourceNotFound,
@@ -333,6 +365,47 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
         assert!(
             spec.pointer(mounted_path).is_some(),
             "{mounted_path} must remain documented after route activation"
+        );
+    }
+    for (mounted_path, legacy_operation_id) in [
+        (
+            "/paths/~1migration~1algolia~1availability/get",
+            "algolia_availability",
+        ),
+        (
+            "/paths/~1migration~1algolia~1list-indexes/post",
+            "list_algolia_indexes",
+        ),
+        (
+            "/paths/~1migration~1algolia~1destination-eligibility/post",
+            "check_algolia_destination_eligibility",
+        ),
+        (
+            "/paths/~1migration~1algolia~1jobs/post",
+            "create_algolia_import_job",
+        ),
+        (
+            "/paths/~1migration~1algolia~1jobs/get",
+            "list_algolia_import_jobs",
+        ),
+        (
+            "/paths/~1migration~1algolia~1jobs~1{id}/get",
+            "get_algolia_import_job",
+        ),
+        (
+            "/paths/~1migration~1algolia~1jobs~1{id}~1cancel/post",
+            "cancel_algolia_import_job",
+        ),
+        (
+            "/paths/~1migration~1algolia~1jobs~1{id}~1resume/post",
+            "resume_algolia_import_job",
+        ),
+    ] {
+        assert_eq!(
+            spec.pointer(&format!("{mounted_path}/operationId"))
+                .and_then(|value| value.as_str()),
+            Some(legacy_operation_id),
+            "{mounted_path} must preserve its public legacy operationId"
         );
     }
     let required = spec

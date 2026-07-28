@@ -3,8 +3,7 @@ import type {
 	PublicInfrastructureResponse,
 	PublicRegionInfrastructure,
 	PublicRegionHealth,
-	PublicRegionUtilization,
-	PublicTopologyCounts
+	PublicRegionUtilization
 } from '$lib/api/types';
 
 export type InfrastructureBadge = {
@@ -22,10 +21,7 @@ const PUBLIC_INFRASTRUCTURE_RESPONSE_KEYS = new Set(['overall', 'regions']);
 const PUBLIC_INFRASTRUCTURE_OVERALL_KEYS = new Set([
 	'availability_pct',
 	'total_regions',
-	'total_vms',
-	'healthy_count',
-	'unhealthy_count',
-	'unknown_count'
+	'total_vms'
 ]);
 const PUBLIC_INFRASTRUCTURE_REGION_KEYS = new Set([
 	'region',
@@ -34,22 +30,8 @@ const PUBLIC_INFRASTRUCTURE_REGION_KEYS = new Set([
 	'provider_location',
 	'health',
 	'utilization',
-	'vm_count',
-	'healthy_count',
-	'unhealthy_count',
-	'unknown_count'
+	'vm_count'
 ]);
-const PUBLIC_TOPOLOGY_COUNT_KEYS = [
-	'healthy_count',
-	'unhealthy_count',
-	'unknown_count'
-] as const;
-const REGION_TO_OVERALL_COUNT_FIELDS = [
-	['vm_count', 'total_vms'],
-	['healthy_count', 'healthy_count'],
-	['unhealthy_count', 'unhealthy_count'],
-	['unknown_count', 'unknown_count']
-] as const;
 
 const HEALTH_BADGES: Record<PublicRegionHealth, InfrastructureBadge> = {
 	operational: {
@@ -140,32 +122,6 @@ export function parseInfrastructureUtilization(value: unknown): PublicRegionUtil
 	return isInfrastructureUtilization(value) ? value : null;
 }
 
-function expectedInfrastructureHealth(
-	vmCount: number,
-	counts: PublicTopologyCounts
-): PublicRegionHealth {
-	if (vmCount === 0) {
-		return 'unknown';
-	}
-	if (counts.healthy_count === vmCount) {
-		return 'operational';
-	}
-	if (counts.healthy_count > 0) {
-		return 'degraded';
-	}
-	return 'outage';
-}
-
-function readTopologyCounts(value: InfrastructureRecord): PublicTopologyCounts | null {
-	const counts = Object.fromEntries(
-		PUBLIC_TOPOLOGY_COUNT_KEYS.map((field) => [field, readCount(value[field])])
-	) as Record<(typeof PUBLIC_TOPOLOGY_COUNT_KEYS)[number], number | null>;
-	if (PUBLIC_TOPOLOGY_COUNT_KEYS.some((field) => counts[field] === null)) {
-		return null;
-	}
-	return counts as PublicTopologyCounts;
-}
-
 function parseOverallInfrastructure(
 	value: InfrastructureRecord
 ): PublicInfrastructureOverall | null {
@@ -175,11 +131,9 @@ function parseOverallInfrastructure(
 	const availabilityPct = readAvailabilityPct(value.availability_pct);
 	const totalRegions = readCount(value.total_regions);
 	const totalVms = readCount(value.total_vms);
-	const counts = readTopologyCounts(value);
 	if (
 		totalRegions === null ||
 		totalVms === null ||
-		counts === null ||
 		(value.availability_pct !== null && availabilityPct === null)
 	) {
 		return null;
@@ -187,9 +141,22 @@ function parseOverallInfrastructure(
 	return {
 		availability_pct: availabilityPct,
 		total_regions: totalRegions,
-		total_vms: totalVms,
-		...counts
+		total_vms: totalVms
 	};
+}
+
+/**
+ * A region with no VMs has no health signal, so the API always reports "unknown"
+ * for it. Any other recognized health on a zero-VM region is upstream corruption
+ * and must fail closed. Unrecognized values still coerce to "unknown" so enum
+ * drift stays non-fatal.
+ */
+function isHealthConsistentWithVmCount(rawHealth: unknown, vmCount: number): boolean {
+	return vmCount > 0 || !isInfrastructureHealth(rawHealth) || rawHealth === 'unknown';
+}
+
+function isUtilizationConsistentWithVmCount(rawUtilization: unknown, vmCount: number): boolean {
+	return vmCount >= 2 || !isInfrastructureUtilization(rawUtilization);
 }
 
 function parseRegionInfrastructure(value: unknown): PublicRegionInfrastructure | null {
@@ -201,7 +168,6 @@ function parseRegionInfrastructure(value: unknown): PublicRegionInfrastructure |
 	const displayName = readString(value.display_name);
 	const providerLocation = readString(value.provider_location);
 	const vmCount = readCount(value.vm_count);
-	const counts = readTopologyCounts(value);
 	const health = parseInfrastructureHealth(value.health);
 	if (
 		region === null ||
@@ -209,10 +175,8 @@ function parseRegionInfrastructure(value: unknown): PublicRegionInfrastructure |
 		displayName === null ||
 		providerLocation === null ||
 		vmCount === null ||
-		counts === null ||
-		counts.healthy_count + counts.unhealthy_count + counts.unknown_count !== vmCount ||
-		(isInfrastructureHealth(value.health) &&
-			health !== expectedInfrastructureHealth(vmCount, counts))
+		!isHealthConsistentWithVmCount(value.health, vmCount) ||
+		!isUtilizationConsistentWithVmCount(value.utilization, vmCount)
 	) {
 		return null;
 	}
@@ -223,21 +187,17 @@ function parseRegionInfrastructure(value: unknown): PublicRegionInfrastructure |
 		provider_location: providerLocation,
 		health,
 		utilization: parseInfrastructureUtilization(value.utilization),
-		vm_count: vmCount,
-		...counts
+		vm_count: vmCount
 	};
 }
 
-function hasReconciledTopology(
+function hasReconciledInfrastructureTotals(
 	overall: PublicInfrastructureOverall,
 	regions: PublicRegionInfrastructure[]
 ): boolean {
 	return (
 		overall.total_regions === regions.length &&
-		REGION_TO_OVERALL_COUNT_FIELDS.every(
-			([regionField, overallField]) =>
-				regions.reduce((sum, region) => sum + region[regionField], 0) === overall[overallField]
-		)
+		regions.reduce((sum, region) => sum + region.vm_count, 0) === overall.total_vms
 	);
 }
 
@@ -267,7 +227,7 @@ export function parsePublicInfrastructureResponse(
 		parsedRegions.push(parsedRegion);
 	}
 
-	if (!hasReconciledTopology(parsedOverall, parsedRegions)) {
+	if (!hasReconciledInfrastructureTotals(parsedOverall, parsedRegions)) {
 		return null;
 	}
 	return {

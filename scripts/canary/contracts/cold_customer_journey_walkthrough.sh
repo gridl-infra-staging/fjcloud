@@ -295,6 +295,7 @@ payload = {
 if detail:
     payload["detail"] = detail
 if step == "search_index" and response_body:
+    payload["body_shape_keys"] = sorted(sanitize_search_response(response_body).keys())
     payload["response_body"] = sanitize_search_response(response_body)
 with open(path, "a", encoding="utf-8") as handle:
     handle.write(json.dumps(payload, sort_keys=True) + "\n")

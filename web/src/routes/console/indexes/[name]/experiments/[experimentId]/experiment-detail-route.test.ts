@@ -61,6 +61,7 @@ import {
 	sampleExperiments,
 	sampleExperimentResults
 } from '../../detail.test.shared';
+import { getAccessibilityViolations } from '../../../../../../tests/a11y';
 
 describe('Experiment detail child route page', () => {
 	beforeEach(() => {
@@ -79,6 +80,19 @@ describe('Experiment detail child route page', () => {
 			data: { experimentError: message }
 		};
 	}
+
+	it('has no structural accessibility violations for a populated experiment detail', async () => {
+		const { container } = render(ExperimentDetailChildPage, {
+			data: createMockPageData({
+				selectedExperiment: sampleExperiments.abtests[0],
+				selectedExperimentResults: sampleExperimentResults,
+				experimentDetailBackHref: '../../?tab=experiments'
+			}),
+			form: null
+		});
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
 
 	it('renders through the shared index shell with the experiments tab active', () => {
 		render(ExperimentDetailChildPage, {

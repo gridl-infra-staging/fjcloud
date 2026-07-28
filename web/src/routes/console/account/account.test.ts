@@ -4,6 +4,7 @@ import type { CustomerProfileResponse } from '$lib/api/types';
 import { layoutTestDefaults } from '../layout-test-context';
 import { LEGAL_SUPPORT_MAILTO, SUPPORT_EMAIL } from '$lib/format';
 import { TOAST_DURATION_MS } from '$lib/toast_contract';
+import { getAccessibilityViolations } from '../../../tests/a11y';
 
 const toastSuccessMock = vi.hoisted(() => vi.fn());
 const enhancedSubmitHandlers = vi.hoisted(
@@ -104,6 +105,15 @@ function renderAccountWithNullProfile() {
 }
 
 describe('Account page', () => {
+	it('has no structural accessibility violations for account management states', async () => {
+		const { container } = renderAccount();
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+
+		await fireEvent.click(screen.getByTestId('delete-account-open'));
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
 	it('renders profile and password panels with exact headings, labels, actions, and button copy', () => {
 		renderAccount();
 

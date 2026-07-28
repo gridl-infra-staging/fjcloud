@@ -36,7 +36,7 @@ The screen shows `Admin Login`, explanatory copy, a labeled `Admin Key` password
 
 ## Current Implementation Gaps
 
-None known for the mapped launch-critical behavior.
+None known for the mapped launch-critical behavior. JSDOM axe coverage now proves initial and error states in `web/src/routes/admin/login/admin_login_a11y.test.ts`.
 
 ## Automated Coverage
 

@@ -92,6 +92,7 @@
 			/>
 			<select
 				data-testid="status-filter"
+				aria-label="Filter customers by status"
 				bind:value={statusFilter}
 				class="rounded-md border border-[#f6c15b] bg-[#fff8ea] px-3 py-2 text-sm text-slate-900 focus:border-amber-500 focus:outline-none"
 			>

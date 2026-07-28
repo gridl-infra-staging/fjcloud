@@ -94,6 +94,30 @@ async fn pricing_compare_estimates_sorted_cheapest_first() {
 }
 
 #[tokio::test]
+async fn pricing_compare_exposes_verification_labels() {
+    let app = crate::common::test_app();
+    let req = json_post("/pricing/compare", valid_workload());
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = body_json(resp).await;
+    let estimates = body["estimates"].as_array().unwrap();
+
+    let algolia = estimates
+        .iter()
+        .find(|estimate| estimate["provider"].as_str() == Some("Algolia"))
+        .expect("Algolia estimate must be present");
+    assert_eq!(algolia["verification_label"], "2026-07-06");
+
+    let flapjack_cloud = estimates
+        .iter()
+        .find(|estimate| estimate["provider"].as_str() == Some("Flapjack Cloud"))
+        .expect("Flapjack Cloud estimate must be present");
+    assert_eq!(flapjack_cloud["verification_label"], "unverified");
+}
+
+#[tokio::test]
 async fn pricing_compare_rejects_invalid_document_count() {
     let app = crate::common::test_app();
     let mut workload = valid_workload();

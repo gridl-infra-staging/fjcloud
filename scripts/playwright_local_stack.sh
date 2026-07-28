@@ -15,6 +15,7 @@ API_HEALTH_URL="${API_BASE_URL%/}/health"
 LISTEN_ADDR="${LISTEN_ADDR:-127.0.0.1:${PLAYWRIGHT_API_PORT}}"
 API_START_TIMEOUT_SECONDS="${PLAYWRIGHT_API_READY_TIMEOUT_SECONDS:-180}"
 FORCE_API_RESTART="${PLAYWRIGHT_FORCE_API_RESTART:-0}"
+MAILPIT_READY_TIMEOUT_SECONDS="${PLAYWRIGHT_MAILPIT_READY_TIMEOUT_SECONDS:-30}"
 
 parse_port_from_http_url() {
 	local url="$1"
@@ -47,15 +48,113 @@ source "$SCRIPT_DIR/lib/health.sh"
 source "$SCRIPT_DIR/lib/flapjack_binary.sh"
 # shellcheck source=lib/local_stack_contract.sh
 source "$SCRIPT_DIR/lib/local_stack_contract.sh"
+# shellcheck source=lib/compose_project.sh
+source "$SCRIPT_DIR/lib/compose_project.sh"
+# shellcheck source=lib/local_url.sh
+source "$SCRIPT_DIR/lib/local_url.sh"
 
 export PLAYWRIGHT_API_PORT
 export API_BASE_URL
 export API_URL
 export LISTEN_ADDR
 load_env_file "$REPO_ROOT/.env.local"
+REQUIRE_EMAIL_VERIFICATION="${PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION:-0}"
 export FLAPJACK_ADMIN_KEY="${FLAPJACK_ADMIN_KEY:-$DEFAULT_LOCAL_FLAPJACK_ADMIN_KEY}"
 
 log() { echo "[playwright_local_stack] $*"; }
+
+mailpit_message_store_json_is_valid() {
+	local response_path="$1"
+
+	python3 - "$response_path" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+try:
+    payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+except (OSError, UnicodeError, json.JSONDecodeError):
+    raise SystemExit(1)
+
+if not isinstance(payload, dict) or not isinstance(payload.get("messages"), list):
+    raise SystemExit(1)
+PY
+}
+
+configure_loopback_mailpit_api_url() {
+	local mailpit_api_url="${MAILPIT_API_URL:-http://127.0.0.1:${LOCAL_MAILPIT_UI_PORT:-8025}}"
+
+	if ! loopback_http_url_is_valid "$mailpit_api_url"; then
+		echo "[playwright_local_stack] ERROR: verification-required mode needs a loopback HTTP MAILPIT_API_URL." >&2
+		exit 1
+	fi
+
+	MAILPIT_API_URL="$mailpit_api_url"
+	export MAILPIT_API_URL
+}
+
+reject_unknown_api_mode_for_email_verification() {
+	if ! curl -fsS "$API_HEALTH_URL" >/dev/null 2>&1; then
+		return
+	fi
+
+	echo "[playwright_local_stack] ERROR: verification-required mode cannot reuse the already-healthy API at $API_BASE_URL because its email configuration is unknown." >&2
+	echo "[playwright_local_stack] ERROR: re-run with --force-api-restart to replace an owned local API with verification-safe settings." >&2
+	exit 1
+}
+
+ensure_mailpit_ready_for_email_verification() {
+	local response_file running_services elapsed=0
+	COMPOSE_PROJECT_NAME="$(resolve_compose_project_name "$REPO_ROOT")"
+	export COMPOSE_PROJECT_NAME
+
+	if ! running_services="$(
+		cd "$REPO_ROOT" &&
+			docker compose ps --status running --services mailpit 2>&1
+	)"; then
+		echo "[playwright_local_stack] ERROR: could not determine whether Mailpit is already running; refusing to claim ownership." >&2
+		printf '%s\n' "$running_services" | sed 's/^/[playwright_local_stack]   /' >&2
+		exit 1
+	fi
+	if printf '%s\n' "$running_services" | grep -Fxq "mailpit"; then
+		log "Using the already-running Mailpit service..."
+	else
+		log "Starting Mailpit for verification-required Playwright stack..."
+		started_mailpit="1"
+		(cd "$REPO_ROOT" && docker compose up -d mailpit) 2>&1 |
+			while IFS= read -r line; do log "$line"; done
+	fi
+
+	response_file="$(mktemp "$LOCAL_DIR/mailpit-messages.XXXXXX")"
+	while [ "$elapsed" -lt "$MAILPIT_READY_TIMEOUT_SECONDS" ]; do
+		if curl -fsS "${MAILPIT_API_URL%/}/api/v1/messages" -o "$response_file" &&
+			mailpit_message_store_json_is_valid "$response_file"; then
+			rm -f "$response_file"
+			return 0
+		fi
+		sleep 1
+		elapsed=$((elapsed + 1))
+	done
+
+	echo "[playwright_local_stack] ERROR: Mailpit did not expose valid message-store JSON at ${MAILPIT_API_URL%/}/api/v1/messages" >&2
+	cat "$response_file" >&2 2>/dev/null || true
+	rm -f "$response_file"
+	exit 1
+}
+
+configure_email_verification_mode() {
+	if [ "$REQUIRE_EMAIL_VERIFICATION" = "1" ]; then
+		unset SKIP_EMAIL_VERIFICATION
+		unset API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION
+		configure_loopback_mailpit_api_url
+		reject_unknown_api_mode_for_email_verification
+		ensure_mailpit_ready_for_email_verification
+		return
+	fi
+
+	export SKIP_EMAIL_VERIFICATION="1"
+	export API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION="1"
+}
 
 require_local_database_url() {
 	local database_host
@@ -104,6 +203,7 @@ flapjack_pid=""
 started_flapjack="0"
 web_pid=""
 started_web="0"
+started_mailpit="0"
 
 cleanup() {
 	if [ "$started_web" = "1" ] && [ -n "$web_pid" ] && kill -0 "$web_pid" 2>/dev/null; then
@@ -117,6 +217,11 @@ cleanup() {
 	if [ "$started_api" = "1" ] && [ -n "$api_pid" ] && kill -0 "$api_pid" 2>/dev/null; then
 		kill "$api_pid" 2>/dev/null || true
 		wait "$api_pid" 2>/dev/null || true
+	fi
+	if [ "$started_mailpit" = "1" ]; then
+		started_mailpit="0"
+		(cd "$REPO_ROOT" && docker compose stop mailpit) 2>&1 |
+			while IFS= read -r line; do log "$line"; done || true
 	fi
 }
 
@@ -254,6 +359,8 @@ if [ "$FORCE_API_RESTART" = "1" ]; then
 	kill_owned_api_listener_for_restart
 fi
 
+configure_email_verification_mode
+
 if ! curl -fsS "$API_HEALTH_URL" >/dev/null 2>&1; then require_local_database_url; fi
 ensure_local_flapjack_ready
 flapjack_identity_reason="$(flapjack_runtime_identity_reason "$FLAPJACK_URL" "$started_flapjack")"
@@ -267,7 +374,18 @@ ensure_flapjack_experiments_api_ready
 if ! curl -fsS "$API_HEALTH_URL" >/dev/null 2>&1; then
 	require_local_database_url
 	bash "$SCRIPT_DIR/local-dev-migrate.sh"
-	bash "$SCRIPT_DIR/api-dev.sh" >"$API_LOG_PATH" 2>&1 &
+	if [ "$REQUIRE_EMAIL_VERIFICATION" = "1" ]; then
+		# api-dev.sh owns revoking the auto-verify and SES escape hatches after it
+		# reloads .env.local; clearing them only here would not survive that reload.
+		env -u SKIP_EMAIL_VERIFICATION -u API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION \
+			API_DEV_REQUIRE_LOCAL_EMAIL_DELIVERY=1 \
+			MAILPIT_API_URL="$MAILPIT_API_URL" \
+			bash "$SCRIPT_DIR/api-dev.sh" >"$API_LOG_PATH" 2>&1 &
+	else
+		SKIP_EMAIL_VERIFICATION="$SKIP_EMAIL_VERIFICATION" \
+			API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION="$API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION" \
+			bash "$SCRIPT_DIR/api-dev.sh" >"$API_LOG_PATH" 2>&1 &
+	fi
 	api_pid="$!"
 	started_api="1"
 

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/svelte';
+import { getAccessibilityViolations } from '../../tests/a11y';
 import ForgotPasswordPage from './+page.svelte';
 
 vi.mock('$app/forms', () => ({
@@ -13,6 +14,27 @@ function renderForgotPasswordPage(form?: Record<string, unknown>) {
 }
 
 describe('Forgot password page', () => {
+	it('has no structural accessibility violations for initial, success, and cooldown states', async () => {
+		const { container } = renderForgotPasswordPage();
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+
+		cleanup();
+		const { container: successContainer } = renderForgotPasswordPage({
+			sent: true,
+			email: 'user@example.com'
+		});
+		await expect(getAccessibilityViolations(successContainer)).resolves.toEqual([]);
+
+		cleanup();
+		const { container: cooldownContainer } = renderForgotPasswordPage({
+			sent: true,
+			email: 'user@example.com',
+			resendStatus: 'cooldown',
+			retryAfterSeconds: 90
+		});
+		await expect(getAccessibilityViolations(cooldownContainer)).resolves.toEqual([]);
+	});
+
 	it('renders the initial submit state with email input and submit button', () => {
 		renderForgotPasswordPage();
 

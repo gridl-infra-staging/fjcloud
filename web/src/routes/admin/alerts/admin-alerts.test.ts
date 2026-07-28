@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
 import { invalidate } from '$app/navigation';
+import { getAccessibilityViolations } from '../../../tests/a11y';
 
 vi.mock('$app/forms', () => ({
 	enhance: () => ({ destroy: () => {} })
@@ -76,6 +77,28 @@ afterEach(() => {
 });
 
 describe('Admin alerts page', () => {
+	it('has no structural accessibility violations for populated, filtered, and expanded metadata states', async () => {
+		const AlertsPage = (await import('./+page.svelte')).default;
+
+		const { container } = render(AlertsPage, {
+			data: {
+				environment: 'test',
+				isAuthenticated: true,
+				alerts: ALERTS_FIXTURE,
+				selectedSeverity: 'all'
+			}
+		});
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+
+		await fireEvent.change(screen.getByTestId('severity-filter'), {
+			target: { value: 'critical' }
+		});
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+
+		await fireEvent.click(screen.getByRole('button', { name: 'View metadata' }));
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
 	it('renders alerts table and filters rows by severity dropdown', async () => {
 		const AlertsPage = (await import('./+page.svelte')).default;
 

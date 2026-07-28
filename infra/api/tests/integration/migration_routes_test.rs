@@ -456,13 +456,21 @@ async fn setup_algolia_cloud_discovery_app_with_flag(
     let customer_repo = mock_repo();
     let customer = customer_repo.seed_verified_free_customer("Alice", "alice@example.com");
     let jwt = create_test_jwt(customer.id);
-    let app = build_router(
-        TestStateBuilder::new()
-            .with_customer_repo(customer_repo)
-            .with_algolia_source_service(service)
-            .with_algolia_migration_enabled(algolia_migration_enabled)
-            .build(),
-    );
+    let state = TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_algolia_source_service(service)
+        .with_algolia_migration_enabled(algolia_migration_enabled)
+        .build();
+    let app = axum::Router::new()
+        .route(
+            "/migration/:source_provider/list-indexes",
+            post(api::routes::migration::list_source_indexes),
+        )
+        .route(
+            "/migration/:source_provider/destination-eligibility",
+            post(api::routes::migration::check_destination_eligibility),
+        )
+        .with_state(state);
     (app, jwt)
 }
 
@@ -478,8 +486,8 @@ async fn setup_algolia_cloud_job_test_app(
         .build();
     let app = axum::Router::new()
         .route(
-            "/migration/algolia/destination-eligibility",
-            post(api::routes::migration::check_algolia_destination_eligibility),
+            "/migration/:source_provider/destination-eligibility",
+            post(api::routes::migration::check_destination_eligibility),
         )
         .with_state(state);
 
@@ -502,8 +510,8 @@ async fn setup_algolia_cloud_job_eligibility_app_with_pool(
         .build();
     let app = axum::Router::new()
         .route(
-            "/migration/algolia/destination-eligibility",
-            post(api::routes::migration::check_algolia_destination_eligibility),
+            "/migration/:source_provider/destination-eligibility",
+            post(api::routes::migration::check_destination_eligibility),
         )
         .with_state(state);
 
@@ -594,17 +602,17 @@ async fn setup_algolia_cloud_job_create_app_with_alerts(
     let harness = setup_algolia_cloud_job_create_harness(pool, source_service).await;
     let app = axum::Router::new()
         .route(
-            "/migration/algolia/destination-eligibility",
-            post(api::routes::migration::check_algolia_destination_eligibility),
+            "/migration/:source_provider/destination-eligibility",
+            post(api::routes::migration::check_destination_eligibility),
         )
         .route(
-            "/migration/algolia/jobs",
-            post(api::routes::migration::create_algolia_import_job)
-                .get(api::routes::migration::list_algolia_import_jobs),
+            "/migration/:source_provider/jobs",
+            post(api::routes::migration::create_import_job)
+                .get(api::routes::migration::list_import_jobs),
         )
         .route(
-            "/migration/algolia/jobs/:id",
-            axum::routing::get(api::routes::migration::get_algolia_import_job),
+            "/migration/:source_provider/jobs/:id",
+            axum::routing::get(api::routes::migration::get_import_job),
         )
         .with_state(harness.state);
     (

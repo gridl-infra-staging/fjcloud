@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const {
 	installBrowserRuntimeFailureListenersMock,
@@ -28,6 +30,11 @@ vi.mock('$app/paths', () => ({
 }));
 
 import Layout from './+layout.svelte';
+
+const rootLayoutSource = readFileSync(
+	join(process.cwd(), 'src', 'routes', '+layout.svelte'),
+	'utf8'
+);
 
 const childSnippet = createRawSnippet(() => ({
 	render: () => '<div data-testid="child-content">child</div>',
@@ -72,6 +79,13 @@ describe('root layout shared toast seam', () => {
 });
 
 describe('root layout public trust chrome ownership', () => {
+	it('delegates footer markup to the shared SiteFooter component', () => {
+		expect(rootLayoutSource).toContain('SiteFooter');
+		expect(rootLayoutSource).not.toContain('<footer');
+		expect(rootLayoutSource).not.toContain('READER_DOCS_URL');
+		expect(rootLayoutSource).not.toContain('COMMUNITY_DISCUSSIONS_URL');
+	});
+
 	it.each(['/', '/pricing', '/terms', '/privacy', '/dpa'])(
 		'renders shared public trust chrome on %s',
 		(pathname) => {

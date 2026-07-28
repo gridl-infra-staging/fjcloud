@@ -62,14 +62,19 @@ run_migrations_with_runner() {
             2>/dev/null || true)
 
         if [ "$has_user_tables" = "1" ]; then
-            log "Pre-tracking database detected — seeding migration history"
+            # Seeding records migrations that were never executed here, so the
+            # follow-up probe must verify the legacy schema matches the oracle.
+            log "Pre-tracking database detected — seeding migration history; verify with scripts/probe_local_schema_drift.sh"
             for migration in "${migrations[@]}"; do
                 local seed_name seed_name_sql
                 seed_name="$(basename "$migration")"
                 seed_name_sql="$(sql_escape_literal "$seed_name")"
-                "${runner_cmd[@]}" -c \
+                if ! "${runner_cmd[@]}" -c \
                     "INSERT INTO _schema_migrations (filename) VALUES ('$seed_name_sql') ON CONFLICT DO NOTHING" \
-                    -v ON_ERROR_STOP=1 >/dev/null 2>&1 || true
+                    -v ON_ERROR_STOP=1 >/dev/null 2>&1; then
+                    log "Failed to seed migration history"
+                    return 1
+                fi
             done
         fi
     fi

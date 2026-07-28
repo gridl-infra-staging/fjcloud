@@ -6,6 +6,7 @@ import type { InternalRegion } from '$lib/api/types';
 import { layoutTestDefaults } from '../layout-test-context';
 import { applyAction } from '$app/forms';
 import { TOAST_DURATION_MS } from '$lib/toast_contract';
+import { getAccessibilityViolations } from '../../../tests/a11y';
 
 let latestEnhanceResultHandler:
 	| ((args: {
@@ -143,6 +144,26 @@ describe('Index list page', () => {
 		formData.set('name', name);
 		return formData;
 	}
+
+	it('has no structural accessibility violations for a populated index list', async () => {
+		const { container } = render(IndexesPage, {
+			data: { ...layoutTestDefaults, user: null, indexes: sampleIndexes, regions: sampleRegions },
+			form: null
+		});
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
+	it('has no structural accessibility violations while the create dialog is open', async () => {
+		const { container } = render(IndexesPage, {
+			data: { ...layoutTestDefaults, user: null, indexes: sampleIndexes, regions: sampleRegions },
+			form: null
+		});
+
+		await fireEvent.click(screen.getByRole('button', { name: /create index/i }));
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
 
 	it('renders index table with name, region, status, entries, and data size', () => {
 		render(IndexesPage, {

@@ -66,6 +66,172 @@ async fn algolia_cloud_job_eligibility_provider_rejects_non_aws_create_targets()
 }
 
 #[tokio::test]
+async fn source_provider_rejection_never_uses_migration_provider_unsupported() {
+    let source_service = FakeAlgoliaSourceLister::with_inspect([]);
+    let (app, jwt) =
+        setup_algolia_cloud_discovery_app_with_flag(source_service.clone(), true).await;
+
+    for source_provider in ["meilisearch", "typesense", "unsupported"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(http::Method::POST)
+                    .uri(format!(
+                        "/migration/{source_provider}/destination-eligibility"
+                    ))
+                    .header("authorization", format!("Bearer {jwt}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        json!({
+                            "phase": "provider",
+                            "mode": "create",
+                            "target": { "region": "us-east-1", "name": "products" }
+                        })
+                        .to_string(),
+                    ))
+                    .expect("build unsupported source-provider request"),
+            )
+            .await
+            .expect("unsupported source-provider response");
+        let (status, body) = response_json(response).await;
+
+        assert_eq!(
+            status,
+            StatusCode::BAD_REQUEST,
+            "unsupported source provider {source_provider} must be rejected before admission"
+        );
+        assert_eq!(
+            body,
+            json!({
+                "error": "source_provider_unsupported",
+                "code": "source_provider_unsupported",
+            }),
+            "source identity errors must remain distinct from destination placement errors"
+        );
+    }
+
+    assert!(
+        source_service.requests().is_empty(),
+        "unsupported source-provider rejection must precede source discovery"
+    );
+    assert!(
+        source_service.inspect_requests().is_empty(),
+        "unsupported source-provider rejection must precede source inspection"
+    );
+    assert_eq!(
+        AlgoliaImportErrorCode::MigrationProviderUnsupported.as_str(),
+        "migration_provider_unsupported",
+        "the existing code remains reserved for unsupported destination placement"
+    );
+}
+
+fn unsupported_provider_route_requests(
+    job_id: Uuid,
+) -> [(http::Method, String, serde_json::Value); 8] {
+    [
+        (
+            http::Method::GET,
+            "/migration/typesense/availability".to_string(),
+            json!(null),
+        ),
+        (
+            http::Method::POST,
+            "/migration/typesense/list-indexes".to_string(),
+            json!({"appId": "CANARYAPP", "apiKey": "source-key-canary"}),
+        ),
+        (
+            http::Method::POST,
+            "/migration/typesense/destination-eligibility".to_string(),
+            json!({
+                "phase": "provider",
+                "mode": "create",
+                "target": {"region": "us-east-1", "name": "products"}
+            }),
+        ),
+        (
+            http::Method::POST,
+            "/migration/typesense/jobs".to_string(),
+            json!({
+                "mode": "create",
+                "appId": "CANARYAPP",
+                "apiKey": "source-key-canary",
+                "sourceName": "products",
+                "target": {"eligibilityToken": "must-not-be-read"}
+            }),
+        ),
+        (
+            http::Method::GET,
+            "/migration/typesense/jobs".to_string(),
+            json!(null),
+        ),
+        (
+            http::Method::GET,
+            format!("/migration/typesense/jobs/{job_id}"),
+            json!(null),
+        ),
+        (
+            http::Method::POST,
+            format!("/migration/typesense/jobs/{job_id}/cancel"),
+            json!({}),
+        ),
+        (
+            http::Method::POST,
+            format!("/migration/typesense/jobs/{job_id}/resume"),
+            json!({"apiKey": "resume-key-canary"}),
+        ),
+    ]
+}
+
+#[tokio::test]
+async fn unsupported_source_provider_short_circuits_every_route_collaborator() {
+    let db = connect_and_migrate_required("unsupported_source_provider_routes").await;
+    let source_service = FakeAlgoliaSourceLister::with_inspect([]);
+    let harness =
+        setup_algolia_cloud_job_create_harness(db.pool.clone(), source_service.clone()).await;
+    let jwt = harness.jwt.clone();
+    let flapjack_http = harness.flapjack_http.clone();
+    let app = build_router(harness.state);
+    let job_id = Uuid::parse_str("11111111-1111-4111-8111-111111111134").unwrap();
+
+    for (method, uri, body) in unsupported_provider_route_requests(job_id) {
+        let mut request = Request::builder()
+            .method(method)
+            .uri(&uri)
+            .header("authorization", format!("Bearer {jwt}"))
+            .header("content-type", "application/json");
+        if uri == "/migration/typesense/jobs" {
+            request = request.header("idempotency-key", "unsupported-provider");
+        }
+        let response = app
+            .clone()
+            .oneshot(
+                request
+                    .body(Body::from(body.to_string()))
+                    .expect("build unsupported-provider request"),
+            )
+            .await
+            .expect("unsupported-provider response");
+        let (status, body) = response_json(response).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}: {body}");
+        assert_eq!(
+            body,
+            json!({
+                "error": "source_provider_unsupported",
+                "code": "source_provider_unsupported",
+            }),
+            "{uri}"
+        );
+    }
+
+    assert!(source_service.requests().is_empty());
+    assert!(source_service.inspect_requests().is_empty());
+    assert_eq!(count_algolia_import_jobs(&db.pool).await, 0);
+    assert_eq!(flapjack_http.request_count(), 0);
+    assert!(flapjack_http.take_sensitive_requests().is_empty());
+}
+
+#[tokio::test]
 async fn algolia_cloud_job_eligibility_exposure_disabled_returns_retryable_backend_unavailable() {
     let (app, jwt) = setup_algolia_cloud_job_test_app(false).await;
 
@@ -306,6 +472,33 @@ async fn algolia_cloud_job_eligibility_target_rejects_cross_customer_envelope() 
         body,
         json!({
             "error": "eligibility_customer_mismatch",
+            "code": AlgoliaImportErrorCode::DestinationChanged.as_str(),
+        })
+    );
+}
+
+#[tokio::test]
+async fn algolia_cloud_job_eligibility_target_rejects_provider_name_mismatch() {
+    let (app, jwt, _other_jwt) = setup_two_customer_eligibility_app().await;
+    let provider_token = provider_eligibility_token(&app, &jwt).await;
+
+    let (status, _headers, body) = post_destination_eligibility(
+        app,
+        Some(&jwt),
+        json!({
+            "phase": "target",
+            "mode": "create",
+            "target": { "region": "us-east-1", "name": "products-copy" },
+            "eligibilityToken": provider_token,
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        body,
+        json!({
+            "error": "destination_changed",
             "code": AlgoliaImportErrorCode::DestinationChanged.as_str(),
         })
     );

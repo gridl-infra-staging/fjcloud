@@ -40,6 +40,12 @@ Show current infrastructure only at region granularity. The page may consume onl
   reveal a raw capacity/load value.
 - Privacy: DOM content and raw public JSON stay region-granular. Hostnames, IP addresses,
   machine or VM identifiers, Flapjack URLs, capacity, and current-load details are forbidden.
+  Tenantless standby capacity and terminated deployments are also forbidden from anonymous
+  totals, rows, and availability calculations.
+
+## Mobile Narrow Contract
+
+Baseline viewport: 390px wide (iPhone 14). Summary figures remain readable before the region table, the table may use horizontal scrolling for its allowed region columns, and no private identifiers, per-machine details, or management controls appear in the first viewport or overflow area.
 
 ## Navigation
 
@@ -78,10 +84,12 @@ Show current infrastructure only at region granularity. The page may consume onl
 
 ## Current Implementation Gaps
 
-- None known for the current region-granularity page and privacy contract.
+- Product gaps: None known for the current region-granularity page and privacy contract.
+- JSDOM axe coverage now proves populated and empty infrastructure states in `web/src/routes/infrastructure/infrastructure.test.ts`.
+- Browser proof gap: PUBUX-003 remains handed off to the existing public infrastructure browser-test owner; the live browser command is blocked/inconclusive until it proves both successful UI and raw public JSON allowlist states without route interception.
 
 ## Automated Coverage
 
 - Client contract: `web/src/lib/api/public_infrastructure.test.ts`
 - Route contract, rendering, and server load: `web/src/routes/infrastructure/infrastructure.test.ts`
-- Browser-unmocked UI and raw JSON privacy contract: `web/tests/fixtures/fixtures.ts::arrangePublicInfrastructureCanaryVm` owns the tethered canary. In `web/tests/e2e-ui/full/public-infrastructure.spec.ts`, `renders current region-level infrastructure for an anonymous visitor` proves the tethered private-value exclusions plus the one-VM `vm_count = 1` / utilization `—` k-anonymity behavior, and `raw public JSON is anonymous and contains only the public region contract` proves the closed response shape.
+- Browser-unmocked UI and raw JSON privacy contract: `web/tests/fixtures/fixtures.ts::arrangePublicInfrastructureCanaryVm` owns the tethered canary. `web/tests/e2e-ui/full/public-infrastructure.spec.ts` is the required owner for proving the successful seven-field region UI and raw JSON allowlist; per PUBUX-003, that owner remains handed off and must not be reported green until the exact browser command proves both states at HEAD.

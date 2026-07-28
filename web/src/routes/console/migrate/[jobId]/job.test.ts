@@ -5,6 +5,7 @@ import type {
 	AlgoliaMigrationCapabilities,
 	PublicAlgoliaImportJob
 } from '$lib/api/types';
+import { getAccessibilityViolations } from '../../../../tests/a11y';
 
 const { applyActionMock, deserializeMock, fetchMock, invalidateAllMock } = vi.hoisted(() => ({
 	applyActionMock: vi.fn(),
@@ -124,6 +125,23 @@ describe('[jobId] job detail page presentation', () => {
 		expect(screen.queryByTestId('migration-job-resume-deadline')).not.toBeInTheDocument();
 		expect(screen.queryByLabelText(/algolia api key/i)).not.toBeInTheDocument();
 		expect(screen.queryByTestId('migration-job-retry-panel')).not.toBeInTheDocument();
+	});
+
+	it('has no structural accessibility violations for running and failed job states', async () => {
+		const { container } = renderJobPage(
+			publicJob({ status: 'copying_documents' }),
+			RUNNING_CAPABILITIES
+		);
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+		cleanup();
+
+		const { container: failedContainer } = renderJobPage(
+			publicJob({ status: 'failed', error: { code: 'invalid_credentials' } }),
+			RUNNING_CAPABILITIES
+		);
+
+		await expect(getAccessibilityViolations(failedContainer)).resolves.toEqual([]);
 	});
 });
 

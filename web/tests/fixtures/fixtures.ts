@@ -2643,6 +2643,7 @@ export const __fixtureTestSeams = {
 	createSeededIndexViaCustomerToken,
 	ensureLocalSharedVmInventoryForRegion,
 	getStaleFixtureIndexCleanupState,
+	loginConfirmsFreshSignupAlreadyVerified,
 	reconcileIndexPrimaryVmTelemetry,
 	resolveFixtureContractPath,
 	resetStaleFixtureIndexCleanupState,
@@ -3503,7 +3504,33 @@ async function loginConfirmsFreshSignupAlreadyVerified(
 			await sleep(getRetryDelayMs(attempt, loginResponse.headers.get('retry-after')));
 			continue;
 		}
-		return loginResponse.ok;
+		if (!loginResponse.ok) {
+			return false;
+		}
+
+		const loginPayload = (await loginResponse.json().catch(() => null)) as {
+			token?: unknown;
+		} | null;
+		const token = typeof loginPayload?.token === 'string' ? loginPayload.token.trim() : '';
+		if (!token) {
+			return false;
+		}
+
+		const accountResponse = await callJsonApi(fetch, fixtureEnv.apiUrl, 'GET', '/account', {
+			Authorization: `Bearer ${token}`
+		});
+		if (accountResponse.status === 429) {
+			await sleep(getRetryDelayMs(attempt, accountResponse.headers.get('retry-after')));
+			continue;
+		}
+		if (!accountResponse.ok) {
+			return false;
+		}
+
+		const accountPayload = (await accountResponse.json().catch(() => null)) as {
+			email_verified?: unknown;
+		} | null;
+		return accountPayload?.email_verified === true;
 	}
 	return false;
 }
@@ -3593,7 +3620,7 @@ async function completeFreshSignupEmailVerificationViaRoute(
 		// auth cookies before exercising the verify-email success contract.
 		await page.context().clearCookies();
 		await page.goto(`/verify-email/${verificationToken}`);
-		await expect(page.getByRole('heading', { name: 'Email Verified' })).toBeVisible({
+		await expect(page.getByRole('heading', { name: 'Email verified' })).toBeVisible({
 			timeout: 30_000
 		});
 		return { verificationToken };

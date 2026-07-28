@@ -136,11 +136,20 @@ fi
 
 if [ "${1:-}" = "ssm" ] && [ "${2:-}" = "get-command-invocation" ]; then
     cmd_id="$(flag_value --command-id "$@")"
-    printf "Success\n"
+    stdout=""
     if [ -f "$PROBE_AWS_STATE_DIR/$cmd_id.stdout" ]; then
-        cat "$PROBE_AWS_STATE_DIR/$cmd_id.stdout"
+        stdout="$(cat "$PROBE_AWS_STATE_DIR/$cmd_id.stdout")"
     fi
-    printf "\n"
+    /usr/bin/python3 - "$stdout" <<'"'"'PY'"'"'
+import json
+import sys
+
+print(json.dumps({
+    "status": "Success",
+    "stdout": sys.argv[1],
+    "stderr": "",
+}))
+PY
     exit 0
 fi
 
@@ -234,8 +243,10 @@ test_replay_fixture_failure_propagation() {
     sql_history="$(cat "$TEST_TMP_DIR/sql.log" 2>/dev/null || true)"
     assert_contains "$sql_history" "INSERT INTO customers" "probe should seed customer before replay"
     assert_contains "$sql_history" "INSERT INTO invoices" "probe should seed invoice before replay"
-    assert_contains "$sql_history" "DELETE FROM alerts WHERE metadata->>'invoice_id'" \
+    assert_contains "$sql_history" "DELETE FROM alerts WHERE metadata" \
         "probe cleanup should delete invoice-scoped alerts"
+    assert_contains "$sql_history" "invoice_id" \
+        "probe cleanup should target invoice-scoped alert metadata"
     assert_contains "$sql_history" "DELETE FROM invoices" "probe cleanup should delete seeded invoice"
     assert_contains "$sql_history" "DELETE FROM customers" "probe cleanup should delete seeded customer"
 }

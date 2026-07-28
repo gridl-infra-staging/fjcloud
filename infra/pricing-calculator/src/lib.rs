@@ -162,6 +162,27 @@ mod tests {
         );
     }
 
+    #[test]
+    fn compare_all_carries_canonical_verification_labels() {
+        let result = compare_all(&valid_workload()).unwrap();
+        let serialized = serde_json::to_value(result).unwrap();
+        let estimates = serialized["estimates"]
+            .as_array()
+            .expect("estimates must serialize as an array");
+
+        let algolia = estimates
+            .iter()
+            .find(|estimate| estimate["provider"] == "Algolia")
+            .expect("Algolia estimate must be present");
+        assert_eq!(algolia["verification_label"], "2026-07-06");
+
+        let griddle = estimates
+            .iter()
+            .find(|estimate| estimate["provider"] == "Flapjack Cloud")
+            .expect("Flapjack Cloud estimate must be present");
+        assert_eq!(griddle["verification_label"], "unverified");
+    }
+
     /// Locks in the public contract that compare_all returns estimates sorted by ascending monthly cost for deterministic ranking.
     #[test]
     fn compare_all_sorted_cheapest_first() {

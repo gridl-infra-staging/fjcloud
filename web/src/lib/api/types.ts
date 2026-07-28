@@ -160,7 +160,6 @@ export type { SecuritySource, SecuritySourcesResponse } from './types/security_s
 export type {
 	PublicRegionHealth,
 	PublicRegionUtilization,
-	PublicTopologyCounts,
 	PublicRegionInfrastructure,
 	PublicInfrastructureOverall,
 	PublicInfrastructureResponse

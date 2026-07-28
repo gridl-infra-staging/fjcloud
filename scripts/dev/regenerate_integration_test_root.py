@@ -148,6 +148,7 @@ ROOT_GROUPS: dict[str, tuple[str, ...]] = {
         "migration_059_vm_inventory_reference_guard_test",
         "migration_062_algolia_erased_vm_retirement_blocker_test",
         "migration_066_algolia_terminal_outcome_presence_test",
+        "migration_068_provider_neutral_algolia_import_jobs_test",
         "migration_routes_test",
         "migration_test",
         "multi_provisioner_test",

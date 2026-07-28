@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
+import { getAccessibilityViolations } from '../../tests/a11y';
 
 import DpaLayoutTestWrapper from './dpa_layout_test_wrapper.svelte';
 import { LEGAL_SUPPORT_MAILTO, SUPPORT_EMAIL } from '$lib/format';
@@ -24,6 +25,13 @@ vi.mock('$app/state', () => ({
 afterEach(cleanup);
 
 describe('DPA page legal contract', () => {
+	it('has no structural accessibility violations', async () => {
+		pageState.url = new URL('http://localhost/dpa');
+		const { container } = render(DpaLayoutTestWrapper);
+
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
 	it('renders finalized DPA copy without draft markers and preserves core sections', () => {
 		pageState.url = new URL('http://localhost/dpa');
 		render(DpaLayoutTestWrapper);

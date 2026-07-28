@@ -23,7 +23,9 @@ pub use algolia_import_job::{
     AlgoliaImportJob, AlgoliaImportJobState, AlgoliaImportJobStatus,
     AlgoliaImportPublicationDisposition, AlgoliaImportSource, AlgoliaImportSourceMetadata,
     AlgoliaImportSummary, AlgoliaImportTombstoneCleanupPhase, AlgoliaSealScrubWork,
-    NewAlgoliaImportJob, NewAlgoliaReplaceImportJob, UNKNOWN_ALGOLIA_SOURCE_SIZE_BYTES,
+    NewAlgoliaImportJob, NewAlgoliaReplaceImportJob, NewSourceMigrationJob,
+    NewSourceReplacementMigrationJob, SourceImportProvider, SourceMigrationErrorCode,
+    SourceMigrationJob, SourceMigrationSource, UNKNOWN_ALGOLIA_SOURCE_SIZE_BYTES,
 };
 pub use api_key::ApiKeyRow;
 pub use cold_snapshot::{ColdSnapshot, NewColdSnapshot};

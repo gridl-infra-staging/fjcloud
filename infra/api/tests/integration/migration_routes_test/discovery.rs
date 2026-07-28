@@ -523,6 +523,120 @@ async fn algolia_cloud_job_routes_are_mounted_but_admission_stays_disabled_befor
     }
 }
 
+fn migration_route_registration<'a>(source: &'a str, path: &str) -> Option<&'a str> {
+    let quoted_path = format!("\"{path}\"");
+    let path_start = source.find(&quoted_path)?;
+    let route_start = source[..path_start].rfind(".route(")?;
+    let after_path = path_start + quoted_path.len();
+    let route_end = source[after_path..]
+        .find(".route(")
+        .map(|offset| after_path + offset)
+        .unwrap_or(source.len());
+    Some(&source[route_start..route_end])
+}
+
+fn migration_handler_owners(registration: &str) -> Vec<&str> {
+    registration
+        .split(|character: char| {
+            !(character.is_ascii_alphanumeric() || character == '_' || character == ':')
+        })
+        .filter(|token| token.starts_with("migration::"))
+        .collect()
+}
+
+#[test]
+fn legacy_algolia_routes_share_parameterized_neutral_handler_owners() {
+    const ROUTE_OWNER: &str = include_str!("../../../src/router/route_assembly.rs");
+    const MIGRATION_ROOT: &str = include_str!("../../../src/routes/migration.rs");
+    const CAPABILITIES_OWNER: &str = include_str!("../../../src/routes/migration/capabilities.rs");
+    const ELIGIBILITY_OWNER: &str = include_str!("../../../src/routes/migration/eligibility.rs");
+    const JOBS_OWNER: &str = include_str!("../../../src/routes/migration/jobs.rs");
+    const SOURCE_OWNER: &str = include_str!("../../../src/routes/migration/source.rs");
+
+    let route_aliases = [
+        (
+            "/migration/algolia/availability",
+            "/migration/:source_provider/availability",
+        ),
+        (
+            "/migration/algolia/list-indexes",
+            "/migration/:source_provider/list-indexes",
+        ),
+        (
+            "/migration/algolia/destination-eligibility",
+            "/migration/:source_provider/destination-eligibility",
+        ),
+        (
+            "/migration/algolia/jobs",
+            "/migration/:source_provider/jobs",
+        ),
+        (
+            "/migration/algolia/jobs/:id",
+            "/migration/:source_provider/jobs/:id",
+        ),
+        (
+            "/migration/algolia/jobs/:id/cancel",
+            "/migration/:source_provider/jobs/:id/cancel",
+        ),
+        (
+            "/migration/algolia/jobs/:id/resume",
+            "/migration/:source_provider/jobs/:id/resume",
+        ),
+    ];
+
+    for (legacy_path, parameterized_path) in route_aliases {
+        let legacy_registration = migration_route_registration(ROUTE_OWNER, legacy_path)
+            .unwrap_or_else(|| panic!("legacy migration route {legacy_path} is not registered"));
+        let parameterized_registration =
+            migration_route_registration(ROUTE_OWNER, parameterized_path).unwrap_or_else(|| {
+                panic!(
+                    "parameterized migration route {parameterized_path} is missing; \
+                     source_provider must be routed through the same neutral owner as {legacy_path}"
+                )
+            });
+        let legacy_handlers = migration_handler_owners(legacy_registration);
+        let parameterized_handlers = migration_handler_owners(parameterized_registration);
+        assert!(
+            !legacy_handlers.is_empty(),
+            "legacy migration route {legacy_path} must have a handler owner"
+        );
+        assert_eq!(
+            legacy_handlers, parameterized_handlers,
+            "legacy route {legacy_path} and parameterized route {parameterized_path} \
+             must invoke the same neutral handler owner"
+        );
+    }
+
+    for algolia_only_handler in [
+        "migration::algolia_availability",
+        "migration::list_algolia_indexes",
+        "migration::check_algolia_destination_eligibility",
+        "migration::create_algolia_import_job",
+        "migration::list_algolia_import_jobs",
+        "migration::get_algolia_import_job",
+        "migration::cancel_algolia_import_job",
+        "migration::resume_algolia_import_job",
+    ] {
+        assert!(
+            !ROUTE_OWNER.contains(algolia_only_handler),
+            "legacy aliases must not retain Algolia-only handler owner {algolia_only_handler}"
+        );
+    }
+
+    let migration_handler_modules = [
+        MIGRATION_ROOT,
+        CAPABILITIES_OWNER,
+        ELIGIBILITY_OWNER,
+        JOBS_OWNER,
+        SOURCE_OWNER,
+    ]
+    .join("\n");
+    assert!(
+        !migration_handler_modules.contains("PgAlgoliaImportJobRepo::new"),
+        "legacy alias handlers must not construct a private Algolia lifecycle repository"
+    );
+}
+
 fn assert_schema_exists(spec: &serde_json::Value, schema: &str) {
     assert!(
         spec.pointer(&format!("/components/schemas/{schema}"))

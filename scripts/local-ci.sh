@@ -44,7 +44,10 @@
 #                    engine-exposure-probe-contract,
 #                    fleet-dataplane-probe-contract,
 #                    usage-rollup-freshness-contract,
+#                    launch-evidence-freshness-contract,
+#                    test-reachability-contract,
 #                    local-real-pipeline-contract,
+#                    local-schema-drift-contract,
 #                    local-multinode-migration-contract,
 #                    package-manager-consistency,
 #                    dirmap-merge-driver).
@@ -156,7 +159,7 @@ render_prod_drift() {
 # preserved and no gates are scheduled or executed.
 if [ "$SUMMARY_ONLY" -eq 1 ]; then
     printf '=== local-ci summary (summary-only) ===\n'
-    printf 'Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape web-lint secret-scan evidence-secret-hygiene index-export-clientside-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract usage-rollup-freshness-contract local-real-pipeline-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver\n'
+    printf 'Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape web-lint secret-scan evidence-secret-hygiene index-export-clientside-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract usage-rollup-freshness-contract launch-evidence-freshness-contract test-reachability-contract local-real-pipeline-contract local-schema-drift-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver\n'
     render_prod_drift
     exit 0
 fi
@@ -726,10 +729,252 @@ gate_usage_rollup_freshness_contract() {
     bash "$REPO_ROOT/scripts/test_probe_live_state.sh" || return $?
 }
 
+gate_launch_evidence_freshness_contract() {
+    local rc probe_stdout probe_stderr summary stale_count malformed_count rejected_count missing_count
+    local missing_section_count unparseable_count
+    local stderr_file
+    bash "$REPO_ROOT/scripts/tests/probe_launch_evidence_freshness_test.sh" || return $?
+
+    stderr_file="$(mktemp)"
+    set +e
+    probe_stdout="$(bash "$REPO_ROOT/scripts/probe_launch_evidence_freshness.sh" 2>"$stderr_file")"
+    rc=$?
+    set -e
+    probe_stderr="$(cat "$stderr_file")"
+    rm -f "$stderr_file"
+    if [ -n "$probe_stdout" ]; then
+        printf '%s\n' "$probe_stdout"
+    fi
+    if [ -n "$probe_stderr" ]; then
+        printf '%s\n' "$probe_stderr" >&2
+    fi
+
+    # The rejected/malformed diagnostics are compared against a closed baseline
+    # rather than required to be zero. They can never reach zero without
+    # deleting preserved NONGREEN soak evidence, so requiring zero made this
+    # gate permanently red and unable to distinguish "evidence is old" from
+    # "evidence is malformed". See scripts/tests/launch_evidence_legacy_bundles.txt
+    # for why, and for the both-directions comparison that keeps this a real
+    # guard: a new diagnostic fails, and a baseline line the probe no longer
+    # reports also fails.
+    if ! printf '%s\n' "$probe_stderr" \
+        | bash "$REPO_ROOT/scripts/check_launch_evidence_corpus_baseline.sh"; then
+        return 1
+    fi
+
+    case "$rc" in
+        0)
+            ;;
+        1)
+            summary="$(printf '%s\n' "$probe_stdout" | tail -n 1)"
+            stale_count="$(printf '%s\n' "$summary" | awk '
+                /^sections=/ {
+                    for (i = 1; i <= NF; i++) {
+                        split($i, parts, "=")
+                        if (parts[1] == "stale") {
+                            print parts[2]
+                            exit
+                        }
+                    }
+                }
+            ')"
+            missing_count="$(printf '%s\n' "$summary" | awk '
+                /^sections=/ {
+                    for (i = 1; i <= NF; i++) {
+                        split($i, parts, "=")
+                        if (parts[1] == "missing") {
+                            print parts[2]
+                            exit
+                        }
+                    }
+                }
+            ')"
+            missing_section_count="$(printf '%s\n' "$summary" | awk '
+                /^sections=/ {
+                    for (i = 1; i <= NF; i++) {
+                        split($i, parts, "=")
+                        if (parts[1] == "missing_section") {
+                            print parts[2]
+                            exit
+                        }
+                    }
+                }
+            ')"
+            unparseable_count="$(printf '%s\n' "$summary" | awk '
+                /^sections=/ {
+                    for (i = 1; i <= NF; i++) {
+                        split($i, parts, "=")
+                        if (parts[1] == "unparseable") {
+                            print parts[2]
+                            exit
+                        }
+                    }
+                }
+            ')"
+            malformed_count="$(printf '%s\n' "$summary" | awk '
+                /^sections=/ {
+                    for (i = 1; i <= NF; i++) {
+                        split($i, parts, "=")
+                        if (parts[1] == "malformed_names") {
+                            print parts[2]
+                            exit
+                        }
+                    }
+                }
+            ')"
+            rejected_count="$(printf '%s\n' "$summary" | awk '
+                /^sections=/ {
+                    for (i = 1; i <= NF; i++) {
+                        split($i, parts, "=")
+                        if (parts[1] == "rejected_bundles") {
+                            print parts[2]
+                            exit
+                        }
+                    }
+                }
+            ')"
+            # malformed_count/rejected_count are deliberately absent from this
+            # match: they are already accounted for exactly by the baseline
+            # comparison above, which fails on any diagnostic outside the closed
+            # registry. The three counts that remain are the ones that mean
+            # "freshness could not be DETERMINED for a section" — a section with
+            # no accepted bundle, a section absent from the matrix, or a matrix
+            # row the probe cannot parse. Those are never shadowed.
+            case "$summary:$stale_count:$missing_count:$missing_section_count:$unparseable_count" in
+                sections=*:[1-9]*:0:0:0)
+                    echo "SHADOW_WARN: launch evidence freshness probe found stale-but-well-formed evidence only; refresh owner remains open"
+                    echo "SHADOW_WARN: ${malformed_count:-0} malformed and ${rejected_count:-0} rejected legacy bundle(s) matched the closed baseline registry and were excluded, not shadowed"
+                    ;;
+                *)
+                    echo "launch evidence freshness gate: a section's freshness could not be determined; this is never shadowed" >&2
+                    return 1
+                    ;;
+            esac
+            ;;
+        *)
+            return "$rc"
+            ;;
+    esac
+}
+
+gate_test_reachability_contract() {
+    # The manifest holds ~142 hermetic suites that jul27_pm_4 wired up after
+    # finding them reachable from nothing. Run SERIALLY this took 1260s — one
+    # gate costing more than the entire 37-gate --fast run did before, which
+    # breaks fast feedback and, in practice, means the gate gets skipped.
+    #
+    # They are run concurrently instead of split into a --full tier, because
+    # dropping suites out of --fast would partially recreate the defect
+    # jul27_pm_4 closed: tests that exist but do not run on the routine lane.
+    # Concurrency is safe here by construction — every suite in this manifest is
+    # classified hermetic (no shared database, no fixed port, own temp dirs) —
+    # and the slowest suites are dominated by probe backoff sleeps, which
+    # overlap almost perfectly.
+    #
+    # Correctness oracle: the serial run of this exact manifest exits 0 with all
+    # suites passing. The concurrent run must produce the same pass/fail set, and
+    # every failing suite is named rather than collapsed into one exit code, so a
+    # concurrency-induced failure is visible instead of looking like a flake.
+    local test_path pids=() failed=() jobs=0 max_jobs rc
+    local results_dir serial_registry serial_list
+
+    bash "$REPO_ROOT/scripts/tests/probe_test_reachability_test.sh" || return $?
+    bash "$REPO_ROOT/scripts/probe_test_reachability.sh" || return $?
+    source "$REPO_ROOT/scripts/lib/test_reachability_manifest.sh"
+
+    max_jobs="${TEST_REACHABILITY_MAX_JOBS:-$MAX_PARALLEL}"
+    if [ "$max_jobs" -lt 1 ] 2>/dev/null; then
+        max_jobs=1
+    fi
+    results_dir="$(mktemp -d)"
+
+    # A measured minority of the manifest is not isolated from its siblings and
+    # fails only under concurrency. Those run sequentially after the concurrent
+    # batch drains; see scripts/tests/serial_only_tests.txt for the list, the
+    # evidence, and why this is a scheduling fact rather than a skip list.
+    serial_registry="$REPO_ROOT/scripts/tests/serial_only_tests.txt"
+    if [ ! -f "$serial_registry" ]; then
+        echo "reachability gate: serial registry missing: scripts/tests/serial_only_tests.txt" >&2
+        rm -rf "$results_dir"
+        return 1
+    fi
+    serial_list="$(sed -e 's/[[:space:]]*#.*$//' -e 's/[[:space:]]*$//' -e '/^[[:space:]]*$/d' \
+        "$serial_registry")"
+
+    # macOS ships bash 3.2, which cannot wait for only the next completed job,
+    # so a true worker pool that refills one slot at a time is not available
+    # (this repo already pins bash
+    # 3.2 compatibility elsewhere in the reachability probe). Batching is used
+    # instead: launch max_jobs suites, wait for ALL of them, repeat. A batch
+    # costs its slowest member, so this is slower than a refilling pool but has
+    # no bash-4 dependency and no counter bookkeeping to get wrong.
+    #
+    # The counter MUST reset to 0 rather than decrement here — `wait` with no
+    # argument reaps every background job, so decrementing by one would leave
+    # the counter pinned at the cap and force a full barrier after every single
+    # subsequent launch, silently collapsing this back to serial execution.
+    for test_path in "${TEST_REACHABILITY_HERMETIC_TESTS[@]}"; do
+        if printf '%s\n' "$serial_list" | grep -Fxq "$test_path"; then
+            continue
+        fi
+        (
+            bash "$REPO_ROOT/$test_path" >"$results_dir/$(echo "$test_path" | tr '/' '_').log" 2>&1
+            printf '%s\n' "$?" >"$results_dir/$(echo "$test_path" | tr '/' '_').rc"
+        ) &
+        jobs=$((jobs + 1))
+        if [ "$jobs" -ge "$max_jobs" ]; then
+            wait
+            jobs=0
+        fi
+    done
+    wait
+
+    # Serial tail. Every registry entry must be in the manifest — an entry that
+    # is not would otherwise be silently skipped, which is the exact class of
+    # defect this whole gate exists to prevent.
+    while IFS= read -r test_path; do
+        [ -n "$test_path" ] || continue
+        if ! printf '%s\n' "${TEST_REACHABILITY_HERMETIC_TESTS[@]}" | grep -Fxq "$test_path"; then
+            echo "reachability gate: serial registry names a test not in the hermetic manifest: $test_path" >&2
+            rm -rf "$results_dir"
+            return 1
+        fi
+        bash "$REPO_ROOT/$test_path" >"$results_dir/$(echo "$test_path" | tr '/' '_').log" 2>&1
+        printf '%s\n' "$?" >"$results_dir/$(echo "$test_path" | tr '/' '_').rc"
+    done <<EOF
+$serial_list
+EOF
+
+    for test_path in "${TEST_REACHABILITY_HERMETIC_TESTS[@]}"; do
+        rc="$(cat "$results_dir/$(echo "$test_path" | tr '/' '_').rc" 2>/dev/null || echo 1)"
+        if [ "$rc" != "0" ]; then
+            failed+=("$test_path (exit $rc)")
+            echo "--- FAILING hermetic suite: $test_path (exit $rc) ---" >&2
+            tail -n 30 "$results_dir/$(echo "$test_path" | tr '/' '_').log" >&2 || true
+        fi
+    done
+
+    printf 'reachability gate: %s hermetic suite(s) run at concurrency %s, %s failed\n' \
+        "${#TEST_REACHABILITY_HERMETIC_TESTS[@]}" "$max_jobs" "${#failed[@]}"
+    rm -rf "$results_dir"
+
+    if [ "${#failed[@]}" -gt 0 ]; then
+        echo "reachability gate: ${#failed[@]} hermetic suite(s) failed; each is named above" >&2
+        return 1
+    fi
+    return 0
+}
+
 gate_local_real_pipeline_contract() {
     node_modules_fresh_or_fail || return $?
     bash "$REPO_ROOT/scripts/tests/local_real_pipeline_probe_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/aggregation_kat_probe_contract_test.sh" || return $?
+}
+
+gate_local_schema_drift_contract() {
+    bash "$REPO_ROOT/scripts/tests/probe_local_schema_drift_test.sh" || return $?
+    bash "$REPO_ROOT/scripts/tests/migrate_test.sh" || return $?
+    bash "$REPO_ROOT/scripts/tests/local_dev_migrate_test.sh" || return $?
 }
 
 gate_local_multinode_migration_contract() {
@@ -789,19 +1034,21 @@ schedule() {
 # `cargo check` + lint to catch most things). Use --full or
 # `--gate rust-test` to run it.
 #
-# web-test and rust-test are scheduled SEPARATELY (not in this parallel
-# batch) because CPU-heavy Rust gates can starve vitest, which has tight
-# 5s per-test timeouts. CI doesn't see this because each CI job runs on
-# its own runner — locally, running CPU-heavy gates concurrently produced
-# false-FAIL on web-test that CI wouldn't have seen. See the post-wait
-# section below for the sequential invocations.
+# rc-wrapper, test-reachability-contract, local-schema-drift, rust-lint,
+# web-test, and rust-test are scheduled SEPARATELY (not in this parallel
+# batch). The first three execute fixtures that mutate checkout-root
+# .env.local/.local state, and rust-lint includes an isolation guard that must not
+# overlap gates whose contract fixtures temporarily replace repo-local env/Vite
+# paths. CPU-heavy Rust gates can also starve vitest, which has tight 5s
+# per-test timeouts. CI doesn't see these interactions because each CI job runs
+# on its own runner. See the post-wait section below for the sequential
+# invocations.
 schedule check-sizes
 schedule script-exec-bits
 schedule port-collision-diagnose
 schedule compose-project
 schedule mirror-sync-contract
 schedule deploy-currency-check-contract
-schedule rc-wrapper-contract
 schedule ses-coverage-a1
 schedule wave3-phase-receipt
 schedule launch-closeout
@@ -816,7 +1063,6 @@ schedule secret-scan
 schedule evidence-secret-hygiene
 schedule web-lint
 schedule index-export-clientside-contract
-schedule rust-lint
 schedule migration-test
 schedule validate-bootstrap-parser
 schedule validate-bootstrap-env-local
@@ -826,8 +1072,39 @@ schedule flapjack-ami-pointer-contract
 schedule engine-exposure-probe-contract
 schedule fleet-dataplane-probe-contract
 schedule usage-rollup-freshness-contract
+schedule launch-evidence-freshness-contract
 schedule local-real-pipeline-contract
 schedule local-multinode-migration-contract
+
+# Run rc-wrapper after the parallel batch because its nested paid-beta RC
+# fixtures write under repo-local .local artifact paths.
+RUN_RC_WRAPPER_SEQUENTIAL=0
+if [ -z "$SINGLE_GATE" ] || [ "$SINGLE_GATE" = "rc-wrapper-contract" ]; then
+    RUN_RC_WRAPPER_SEQUENTIAL=1
+fi
+
+# Run test-reachability-contract after the parallel batch. Its manifest has its
+# own internal parallel/serial split, but the whole gate must be isolated from
+# other local-ci gates that mutate checkout-root local state.
+RUN_TEST_REACHABILITY_SEQUENTIAL=0
+if [ -z "$SINGLE_GATE" ] || [ "$SINGLE_GATE" = "test-reachability-contract" ]; then
+    RUN_TEST_REACHABILITY_SEQUENTIAL=1
+fi
+
+# Run local-schema-drift-contract after the parallel batch. Its
+# local_dev_migrate_test fixture temporarily replaces checkout-root .env.local
+# and .local, which races the reachability gate's checkout-mutating suites.
+RUN_LOCAL_SCHEMA_DRIFT_SEQUENTIAL=0
+if [ -z "$SINGLE_GATE" ] || [ "$SINGLE_GATE" = "local-schema-drift-contract" ]; then
+    RUN_LOCAL_SCHEMA_DRIFT_SEQUENTIAL=1
+fi
+
+# Run rust-lint after the parallel batch so its checkout-isolation guard cannot
+# observe temporary fixture mutations from another gate.
+RUN_RUST_LINT_SEQUENTIAL=0
+if [ -z "$SINGLE_GATE" ] || [ "$SINGLE_GATE" = "rust-lint" ]; then
+    RUN_RUST_LINT_SEQUENTIAL=1
+fi
 
 # Run web-test after the parallel batch so local CPU contention cannot turn
 # Vitest's tight per-test timeout into a false deploy-gate failure.
@@ -848,11 +1125,15 @@ elif [ "$MODE" = "full" ] && [ -z "$SINGLE_GATE" ]; then
 fi
 
 if [ "${#SCHEDULED_GATES[@]}" -eq 0 ] \
+    && [ "$RUN_RC_WRAPPER_SEQUENTIAL" -eq 0 ] \
+    && [ "$RUN_LOCAL_SCHEMA_DRIFT_SEQUENTIAL" -eq 0 ] \
+    && [ "$RUN_RUST_LINT_SEQUENTIAL" -eq 0 ] \
     && [ "$RUN_WEB_TEST_SEQUENTIAL" -eq 0 ] \
+    && [ "$RUN_TEST_REACHABILITY_SEQUENTIAL" -eq 0 ] \
     && [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 0 ]; then
     if [ -n "$SINGLE_GATE" ]; then
         echo "ERROR: --gate '$SINGLE_GATE' did not match any known gate" >&2
-        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape web-lint secret-scan evidence-secret-hygiene index-export-clientside-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract usage-rollup-freshness-contract local-real-pipeline-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver" >&2
+        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape web-lint secret-scan evidence-secret-hygiene index-export-clientside-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract usage-rollup-freshness-contract launch-evidence-freshness-contract test-reachability-contract local-real-pipeline-contract local-schema-drift-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver" >&2
         exit 2
     fi
     echo "ERROR: no gates scheduled" >&2
@@ -862,7 +1143,19 @@ fi
 start_all=$(now_seconds)
 
 total_gates="${#SCHEDULED_GATES[@]}"
+if [ "$RUN_RC_WRAPPER_SEQUENTIAL" -eq 1 ]; then
+    total_gates=$((total_gates + 1))
+fi
+if [ "$RUN_LOCAL_SCHEMA_DRIFT_SEQUENTIAL" -eq 1 ]; then
+    total_gates=$((total_gates + 1))
+fi
+if [ "$RUN_RUST_LINT_SEQUENTIAL" -eq 1 ]; then
+    total_gates=$((total_gates + 1))
+fi
 if [ "$RUN_WEB_TEST_SEQUENTIAL" -eq 1 ]; then
+    total_gates=$((total_gates + 1))
+fi
+if [ "$RUN_TEST_REACHABILITY_SEQUENTIAL" -eq 1 ]; then
     total_gates=$((total_gates + 1))
 fi
 if [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 1 ]; then
@@ -870,8 +1163,20 @@ if [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 1 ]; then
 fi
 
 gate_label_list="${SCHEDULED_GATES[*]:-}"
+if [ "$RUN_RC_WRAPPER_SEQUENTIAL" -eq 1 ]; then
+    gate_label_list="${gate_label_list:+$gate_label_list }rc-wrapper-contract (sequential)"
+fi
+if [ "$RUN_LOCAL_SCHEMA_DRIFT_SEQUENTIAL" -eq 1 ]; then
+    gate_label_list="${gate_label_list:+$gate_label_list }local-schema-drift-contract (sequential)"
+fi
+if [ "$RUN_RUST_LINT_SEQUENTIAL" -eq 1 ]; then
+    gate_label_list="${gate_label_list:+$gate_label_list }rust-lint (sequential)"
+fi
 if [ "$RUN_WEB_TEST_SEQUENTIAL" -eq 1 ]; then
     gate_label_list="${gate_label_list:+$gate_label_list }web-test (sequential)"
+fi
+if [ "$RUN_TEST_REACHABILITY_SEQUENTIAL" -eq 1 ]; then
+    gate_label_list="${gate_label_list:+$gate_label_list }test-reachability-contract (sequential)"
 fi
 if [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 1 ]; then
     gate_label_list="${gate_label_list:+$gate_label_list } rust-test (sequential)"
@@ -891,7 +1196,6 @@ if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
             compose-project) run_gate compose-project gate_compose_project ;;
             mirror-sync-contract) run_gate mirror-sync-contract gate_mirror_sync_contract ;;
             deploy-currency-check-contract) run_gate deploy-currency-check-contract gate_deploy_currency_check_contract ;;
-            rc-wrapper-contract) run_gate rc-wrapper-contract gate_rc_wrapper_contract ;;
             ses-coverage-a1) run_gate ses-coverage-a1 gate_ses_coverage_a1 ;;
             wave3-phase-receipt) run_gate wave3-phase-receipt gate_wave3_phase_receipt ;;
             launch-closeout) run_gate launch-closeout gate_launch_closeout ;;
@@ -906,7 +1210,6 @@ if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
             evidence-secret-hygiene) run_gate evidence-secret-hygiene gate_evidence_secret_hygiene ;;
             web-lint)        run_gate web-lint        gate_web_lint ;;
             index-export-clientside-contract) run_gate index-export-clientside-contract gate_index_export_clientside_contract ;;
-            rust-lint)       run_gate rust-lint       gate_rust_lint ;;
             migration-test)  run_gate migration-test  gate_migration_test ;;
             validate-bootstrap-parser) run_gate validate-bootstrap-parser gate_validate_bootstrap_parser ;;
             validate-bootstrap-env-local) run_gate validate-bootstrap-env-local gate_validate_bootstrap_env_local ;;
@@ -916,12 +1219,39 @@ if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
             engine-exposure-probe-contract) run_gate engine-exposure-probe-contract gate_engine_exposure_probe_contract ;;
             fleet-dataplane-probe-contract) run_gate fleet-dataplane-probe-contract gate_fleet_dataplane_probe_contract ;;
             usage-rollup-freshness-contract) run_gate usage-rollup-freshness-contract gate_usage_rollup_freshness_contract ;;
+            launch-evidence-freshness-contract) run_gate launch-evidence-freshness-contract gate_launch_evidence_freshness_contract ;;
             local-real-pipeline-contract) run_gate local-real-pipeline-contract gate_local_real_pipeline_contract ;;
             local-multinode-migration-contract) run_gate local-multinode-migration-contract gate_local_multinode_migration_contract ;;
         esac
     done
     # Wait for all backgrounded fast gates to finish before launching
     # the heavy sequential gate.
+    wait
+fi
+
+# Run checkout-mutating gates after every parallel gate has drained. They are
+# individually hermetic enough for single-gate use, but their aggregate fast-CI
+# false reds came from overlapping repo-local .env.local/.local mutations.
+if [ "$RUN_RC_WRAPPER_SEQUENTIAL" -eq 1 ]; then
+    run_gate rc-wrapper-contract gate_rc_wrapper_contract
+    wait
+fi
+
+if [ "$RUN_TEST_REACHABILITY_SEQUENTIAL" -eq 1 ]; then
+    run_gate test-reachability-contract gate_test_reachability_contract
+    wait
+fi
+
+if [ "$RUN_LOCAL_SCHEMA_DRIFT_SEQUENTIAL" -eq 1 ]; then
+    run_gate local-schema-drift-contract gate_local_schema_drift_contract
+    wait
+fi
+
+# Run rust-lint only after every parallel gate has drained. Its preflight
+# isolation test intentionally watches repo-local env and Vite paths while a
+# fixture runs, so concurrent checkout-mutating gates would create false reds.
+if [ "$RUN_RUST_LINT_SEQUENTIAL" -eq 1 ]; then
+    run_gate rust-lint gate_rust_lint
     wait
 fi
 
@@ -978,6 +1308,18 @@ if [ "$skip_count" -gt 0 ]; then
         if [ "$status" = "SKIP" ]; then
             local_skip_msg="$(grep -m1 '^SKIPPED:' "$log" 2>/dev/null || true)"
             printf '%b%s%b: %s\n' "$C_YEL" "$name" "$C_RESET" "${local_skip_msg:-(see log)}"
+        fi
+    done < <(sort "$RESULTS_FILE")
+fi
+
+# Shadow gates are intentionally non-fatal for one batch, but their would-fail
+# reports must be visible in the command output, not buried in a PASS log.
+if grep -q '^SHADOW_WARN:' "$LOG_DIR"/*.log 2>/dev/null; then
+    printf '\n%b=== SHADOW warnings ===%b\n' "$C_BOLD" "$C_RESET"
+    while IFS='|' read -r name status seconds log; do
+        if grep -q '^SHADOW_WARN:' "$log" 2>/dev/null; then
+            printf '\n%b--- %s (%ss) ---%b\n' "$C_YEL" "$name" "$seconds" "$C_RESET"
+            cat "$log"
         fi
     done < <(sort "$RESULTS_FILE")
 fi

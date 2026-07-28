@@ -23,6 +23,7 @@ readonly CHAOS_RESTART_REGION_SUITE_PATH="scripts/tests/chaos_restart_region_tes
 readonly CHAOS_HA_FAILOVER_SUITE_PATH="scripts/tests/chaos_ha_failover_proof_test.sh"
 readonly CHAOS_STRUCTURE_AUDIT_PATH="scripts/tests/chaos_split_structure_test.sh"
 readonly CHAOS_TESTS_DIRMAP_PATH="scripts/tests/DIRMAP.md"
+readonly TEST_WIRING_AUDIT_DIR="docs/audits/test-wiring"
 readonly CHAOS_HELPERS_PATH="scripts/tests/lib/chaos_test_helpers.sh"
 readonly SHARED_TEST_HELPERS_PATH="scripts/tests/lib/test_helpers.sh"
 readonly PROJECT_OVERVIEW_PATH="PROJECT_OVERVIEW.md"
@@ -281,6 +282,9 @@ assert_file_does_not_contain_literal() {
 is_path_allowed_for_focused_suite_reference() {
     local rel_path="$1"
     local allowed_path
+    if [[ "$rel_path" = "$TEST_WIRING_AUDIT_DIR/"* ]]; then
+        return 0
+    fi
     for allowed_path in "${CHAOS_FOCUSED_SUITE_REFERENCE_ALLOWLIST[@]}"; do
         if [ "$allowed_path" = "$rel_path" ]; then
             return 0
@@ -319,7 +323,7 @@ assert_focused_suite_references_scoped_to_allowlist() {
         done <<< "$matches"
     done
 
-    pass "focused suite filename references stay scoped to wrapper, structure audit, focused suites, and scripts/tests/DIRMAP.md"
+    pass "focused suite filename references stay scoped to canonical split files and test-wiring audits"
 }
 
 test_split_structure_paths_and_sizes() {

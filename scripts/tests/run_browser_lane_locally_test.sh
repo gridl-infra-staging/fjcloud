@@ -33,6 +33,16 @@ assert_source_absent() {
   if grep -Fq -- "$needle" "$TARGET"; then fail "$message (source unexpectedly contains: $needle)"; else pass "$message"; fi
 }
 
+assert_both_dispatch_contains() {
+  local needle="$1" message="$2" both_dispatch
+  both_dispatch="$(awk '/^  both\)$/,/^    ;;$/' "$TARGET")"
+  if grep -Fq -- "$needle" <<<"$both_dispatch"; then
+    pass "$message"
+  else
+    fail "$message (both dispatch missing: $needle)"
+  fi
+}
+
 # --- Existence / executability -------------------------------------------
 [ -f "$TARGET" ] && pass "launcher exists" || { fail "launcher missing at $TARGET"; echo "1 fatal"; exit 1; }
 [ -x "$TARGET" ] && pass "launcher is executable" || fail "launcher not executable"
@@ -43,10 +53,10 @@ assert_exit_code 0  "--help exits 0"                     bash "$TARGET" --help
 assert_exit_code 64 "missing --lane exits 64"            bash "$TARGET"
 assert_exit_code 64 "unknown --lane value exits 64"      bash "$TARGET" --lane bogus_lane
 assert_exit_code 64 "unknown flag exits 64"              bash "$TARGET" --nope
-# --help must document the three lanes.
+# --help must document the routine local browser lanes.
 help_out="$(bash "$TARGET" --help 2>&1)"
 case "$help_out" in
-  *signup_to_paid_invoice*billing_portal_payment_method_update*both*) pass "--help lists all three lanes" ;;
+  *signup_to_paid_invoice*billing_portal_payment_method_update*upgrade_to_shared_unmocked*both*) pass "--help lists all routine local browser lanes" ;;
   *) fail "--help missing one of the lane names" ;;
 esac
 
@@ -66,13 +76,26 @@ assert_source_contains 'SKIP_EMAIL_VERIFICATION=1' "sets SKIP_EMAIL_VERIFICATION
 assert_source_contains '/fjcloud/staging/stripe_publishable_key' "hydrates publishable key from SSM"
 assert_source_contains '/fjcloud/staging/stripe_secret_key' "hydrates secret key from SSM"
 assert_source_contains '/fjcloud/staging/stripe_webhook_secret' "hydrates webhook secret from SSM"
+assert_source_contains 'failed to fetch $1 from SSM' "reports exact SSM fetch failures"
+assert_source_contains 'aws exit' "reports AWS CLI exit status on SSM failures"
+assert_source_contains 'set +e' "captures AWS SSM exit status without set -e short-circuit"
+assert_source_contains 'set -e' "restores fail-closed shell mode after SSM status capture"
+assert_source_absent '--output text 2>/dev/null' "does not suppress AWS SSM error diagnostics"
 # Runs the specs with the required flags.
 assert_source_contains '--no-deps' "runs Playwright with --no-deps"
 assert_source_contains '--reporter=list' "runs Playwright with --reporter=list"
 assert_source_contains '--trace on' "runs Playwright with --trace on"
-# Launches the API directly (NOT api-dev.sh) so our SSM pk_test wins over the
-# .env.local pk_live_ that api-dev.sh would force. Clearing STRIPE_LOCAL_MODE is
-# what makes the real Stripe client engage.
+assert_source_contains 'signup_to_paid_invoice|billing_portal_payment_method_update|upgrade_to_shared_unmocked|both' \
+  "accepts B7 upgrade_to_shared_unmocked lane"
+assert_source_contains 'upgrade_to_shared_unmocked) spec_file="tests/e2e-ui/full/upgrade_to_shared_unmocked.spec.ts"' \
+  "maps B7 lane to upgrade_to_shared_unmocked spec"
+assert_source_contains 'upgrade_to_shared_unmocked) run_one_lane upgrade_to_shared_unmocked || OVERALL_EXIT=$? ;;' \
+  "dispatches standalone B7 lane to run_one_lane"
+assert_both_dispatch_contains 'run_one_lane upgrade_to_shared_unmocked || OVERALL_EXIT=$?' \
+  "both lane includes B7 upgrade_to_shared_unmocked"
+# Launches the API directly so this evidence lane owns its SSM-hydrated proof
+# env and pinned ports. Clearing STRIPE_LOCAL_MODE is what makes the real
+# Stripe client engage.
 assert_source_contains 'cargo run --manifest-path infra/Cargo.toml -p api' "launches the API via direct cargo run"
 assert_source_contains 'unset STRIPE_LOCAL_MODE' "clears STRIPE_LOCAL_MODE for real Stripe"
 # Always tears down on exit; only its own PIDs.

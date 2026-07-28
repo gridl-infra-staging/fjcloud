@@ -98,6 +98,7 @@ async fn scrub_algolia_jobs(
     let rows = sqlx::query_as::<_, SealScrubWorkRow>(
         "UPDATE algolia_import_jobs
          SET customer_id = NULL, tenant_id = NULL, algolia_app_id = NULL,
+             source_provider = NULL,
              destination_kind = NULL, logical_target = NULL, destination_region = NULL,
              destination_deployment_id = NULL, physical_uid = NULL, source_name = NULL,
              cloud_job_id = NULL, dispatch_intent_state = NULL, lifecycle_generation = NULL,

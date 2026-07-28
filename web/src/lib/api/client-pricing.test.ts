@@ -27,6 +27,7 @@ describe('ApiClient pricing comparison (public)', () => {
 		estimates: [
 			{
 				provider: 'Algolia',
+				verification_label: '2026-07-06',
 				monthly_total_cents: 50000,
 				line_items: [
 					{
@@ -78,6 +79,7 @@ describe('ApiClient pricing comparison (public)', () => {
 			estimates: [
 				{
 					provider: 'TypesenseCloud',
+					verification_label: 'unverified',
 					monthly_total_cents: 3000,
 					line_items: [],
 					assumptions: [],
@@ -85,6 +87,7 @@ describe('ApiClient pricing comparison (public)', () => {
 				},
 				{
 					provider: 'Algolia',
+					verification_label: '2026-07-06',
 					monthly_total_cents: 50000,
 					line_items: [],
 					assumptions: [],

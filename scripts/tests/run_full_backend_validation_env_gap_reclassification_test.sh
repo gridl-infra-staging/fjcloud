@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Tests for the env-gap reclassification logic in
-# scripts/launch/run_full_backend_validation.sh.
+# Tests for the env-gap reclassification logic in the backend-validation step
+# helper sourced by scripts/launch/run_full_backend_validation.sh.
 #
 # Each step function the harness runs now distinguishes harness-env failures
 # (missing local-dev preconditions, unreachable services, missing deps,
@@ -15,6 +15,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 HARNESS_SCRIPT="$REPO_ROOT/scripts/launch/run_full_backend_validation.sh"
+STEP_HELPERS_SCRIPT="$REPO_ROOT/scripts/lib/full_backend_validation_steps.sh"
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -55,9 +56,9 @@ source_harness_for_helpers() {
 # isolated testing. Conservative: only re-defines _log_matches_env_gap_pattern.
 extract_and_eval_helper() {
     local helper_source
-    helper_source="$(awk '/^_log_matches_env_gap_pattern\(\)/{flag=1} flag{print} flag && /^}/{exit}' "$HARNESS_SCRIPT")"
+    helper_source="$(awk '/^_log_matches_env_gap_pattern\(\)/{flag=1} flag{print} flag && /^}/{exit}' "$STEP_HELPERS_SCRIPT")"
     if [ -z "$helper_source" ]; then
-        fail "could not extract _log_matches_env_gap_pattern from $HARNESS_SCRIPT"
+        fail "could not extract _log_matches_env_gap_pattern from $STEP_HELPERS_SCRIPT"
         return 1
     fi
     eval "$helper_source"
@@ -69,9 +70,9 @@ extract_and_eval_canary_skip_helper() {
         /^canonical_canary_customer_loop_skip_reason_from_log\(\)/ {flag=1}
         flag {print}
         flag && /^}/ {exit}
-    ' "$HARNESS_SCRIPT")"
+    ' "$STEP_HELPERS_SCRIPT")"
     if [ -z "$helper_source" ]; then
-        fail "could not extract canonical_canary_customer_loop_skip_reason_from_log from $HARNESS_SCRIPT"
+        fail "could not extract canonical_canary_customer_loop_skip_reason_from_log from $STEP_HELPERS_SCRIPT"
         return 1
     fi
     TEST_INBOX_AWS_CREDENTIALS_UNAVAILABLE_TOKEN="probe_env_gap_aws_credentials_unavailable"

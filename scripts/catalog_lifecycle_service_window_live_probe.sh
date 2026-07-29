@@ -353,7 +353,13 @@ expected_oracles = {
 require_exact_keys(
     "catalog lifecycle acceptance oracle",
     oracles,
-    {"version", "oracle_kind", "lane_composition", "oracles"},
+    {
+        "version",
+        "oracle_kind",
+        "lane_composition",
+        "privacy_erasure_dependencies",
+        "oracles",
+    },
 )
 lane_composition = oracles.get("lane_composition")
 require_exact_keys(

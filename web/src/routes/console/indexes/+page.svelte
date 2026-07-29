@@ -26,6 +26,10 @@
 		return regions.length > 0 ? regions[0].id : '';
 	}
 
+	function indexDetailHref(indexName: string): `/console/indexes/${string}` {
+		return `/console/indexes/${encodeURIComponent(indexName)}`;
+	}
+
 	function resetCreateFormState({ open }: { open: boolean }): void {
 		showCreateForm = open;
 		selectedRegion = defaultRegionId();
@@ -186,7 +190,7 @@
 	{#if indexes.length === 0}
 		<div class="rounded-lg bg-white p-12 text-center shadow">
 			<p class="font-medium text-flapjack-ink">No indexes yet.</p>
-			<p class="mt-2 text-flapjack-ink/60">
+			<p class="mt-2 text-flapjack-ink/75">
 				Create your first index to add searchable documents and start testing queries.
 			</p>
 		</div>
@@ -194,7 +198,7 @@
 		<div class="overflow-hidden rounded-lg bg-white shadow">
 			<table class="w-full text-left text-sm">
 				<thead
-					class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60"
+					class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/75"
 				>
 					<tr>
 						<th class="px-4 py-3">Name</th>
@@ -211,7 +215,7 @@
 						<tr>
 							<td class="px-4 py-3 font-medium text-flapjack-ink">
 								<a
-									href={resolve(`/console/indexes/${idx.name}`)}
+									href={resolve(indexDetailHref(idx.name))}
 									class="text-flapjack-rose hover:text-flapjack-plum hover:underline"
 								>
 									{idx.name}

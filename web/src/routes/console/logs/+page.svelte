@@ -40,7 +40,7 @@
 		<button
 			type="button"
 			class="rounded border px-3 py-1 text-xs font-medium {logViewMode === 'detailed'
-				? 'border-flapjack-blue bg-flapjack-blue text-white'
+				? 'border-flapjack-ink bg-flapjack-ink text-white'
 				: 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100'}"
 			aria-pressed={logViewMode === 'detailed'}
 			onclick={() => activateLogViewMode('detailed')}
@@ -50,7 +50,7 @@
 		<button
 			type="button"
 			class="rounded border px-3 py-1 text-xs font-medium {logViewMode === 'compact'
-				? 'border-flapjack-blue bg-flapjack-blue text-white'
+				? 'border-flapjack-ink bg-flapjack-ink text-white'
 				: 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100'}"
 			aria-pressed={logViewMode === 'compact'}
 			onclick={() => activateLogViewMode('compact')}

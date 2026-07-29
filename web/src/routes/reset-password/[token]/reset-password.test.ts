@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import ResetPasswordPage from './+page.svelte';
-import { getAccessibilityViolations } from '../../../tests/a11y';
+import { getAccessibilityViolations, getPageMainLandmarkCount } from '../../../tests/a11y';
 
 vi.mock('$app/forms', () => ({
 	enhance: () => ({ destroy: () => {} })
@@ -18,6 +18,7 @@ describe('Reset password page', () => {
 		const { container } = renderResetPasswordPage();
 
 		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+		expect(getPageMainLandmarkCount(container)).toBe(1);
 	});
 
 	it('has no structural accessibility violations for the success state', async () => {

@@ -252,9 +252,9 @@
 						<div>
 							<p class="font-mono text-sm text-flapjack-ink">{entry.source}</p>
 							{#if entry.description}
-								<p class="text-xs text-flapjack-ink/60">{entry.description}</p>
+								<p class="text-xs text-flapjack-ink/75">{entry.description}</p>
 							{:else}
-								<p class="text-xs text-flapjack-ink/60">No description</p>
+								<p class="text-xs text-flapjack-ink/75">No description</p>
 							{/if}
 						</div>
 						<form method="POST" action="?/deleteSecuritySource" use:enhance>
@@ -283,7 +283,7 @@
 				{/each}
 			</div>
 		{:else}
-			<p class="text-sm text-flapjack-ink/60" data-testid="security-sources-empty-state">
+			<p class="text-sm text-flapjack-ink/75" data-testid="security-sources-empty-state">
 				No security sources configured yet.
 			</p>
 		{/if}

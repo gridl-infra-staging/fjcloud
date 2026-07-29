@@ -26,9 +26,10 @@ describe('fresh-signup verification state probe', () => {
 				'TestPassword123!'
 			)
 		).resolves.toBe(false);
-		expect(
-			fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname)
-		).toEqual(['/auth/login', '/account']);
+		expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
+			'/auth/login',
+			'/account'
+		]);
 	});
 
 	it('accepts the sentinel path only when the account endpoint reports verified email', async () => {

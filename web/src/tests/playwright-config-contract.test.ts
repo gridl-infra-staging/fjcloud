@@ -661,6 +661,104 @@ describe('playwright config contract', () => {
 		expect(runtime.webServer?.reuseExistingServer).toBe(false);
 	});
 
+	it.each([
+		['equals project flag', ['--project=chromium:public']],
+		['split project flag', ['--project', 'chromium:public']]
+	])(
+		'uses the local stack launcher for the public infrastructure browser owner with %s',
+		(_name, projectArgs) => {
+			const workspacePath = '/tmp/fjcloud-worktree-public-infrastructure';
+			const expectedPort = resolveDefaultPlaywrightWebPort(workspacePath);
+			const expectedApiPort = resolveDefaultPlaywrightApiPort(workspacePath);
+			const expectedApiUrl = `http://127.0.0.1:${expectedApiPort}`;
+			const processEnv: MutableEnv = {};
+			const runtime = resolvePlaywrightRuntime({
+				processEnv,
+				repoEnv: {},
+				webEnv: {},
+				fallbackJwtSecret: 'fallback-jwt',
+				argv: ['test', 'tests/e2e-ui/full/public-infrastructure.spec.ts', ...projectArgs],
+				workspacePath
+			});
+
+			expect(runtime.webServer?.command).toBe(
+				`${PLAYWRIGHT_WEB_SERVER_COMMAND} --host localhost --port ${expectedPort} --strictPort`
+			);
+			expect(processEnv.API_BASE_URL).toBe(expectedApiUrl);
+			expect(processEnv.API_URL).toBe(expectedApiUrl);
+			expect(processEnv[PLAYWRIGHT_API_PORT_ENV]).toBe(String(expectedApiPort));
+			expect(runtime.webServerEnv.API_BASE_URL).toBe(expectedApiUrl);
+			expect(runtime.webServerEnv.API_URL).toBe(expectedApiUrl);
+			expect(runtime.webServerEnv[PLAYWRIGHT_API_PORT_ENV]).toBe(String(expectedApiPort));
+			expect(runtime.webServerEnv.LISTEN_ADDR).toBe(`127.0.0.1:${expectedApiPort}`);
+			expect(runtime.webServerEnv.S3_LISTEN_ADDR).toBe(`127.0.0.1:${expectedApiPort + 1}`);
+		}
+	);
+
+	it.each([
+		['equals project flag', ['--project=chromium:public']],
+		['split project flag', ['--project', 'chromium:public']]
+	])(
+		'uses the local stack launcher for line-targeted public infrastructure reruns with %s',
+		(_name, projectArgs) => {
+			const workspacePath = '/tmp/fjcloud-worktree-public-infrastructure-line-filter';
+			const expectedPort = resolveDefaultPlaywrightWebPort(workspacePath);
+			const expectedApiPort = resolveDefaultPlaywrightApiPort(workspacePath);
+			const expectedApiUrl = `http://127.0.0.1:${expectedApiPort}`;
+			const processEnv: MutableEnv = {};
+			const runtime = resolvePlaywrightRuntime({
+				processEnv,
+				repoEnv: {},
+				webEnv: {},
+				fallbackJwtSecret: 'fallback-jwt',
+				argv: [
+					'test',
+					'tests/e2e-ui/full/public-infrastructure.spec.ts:10:4',
+					...projectArgs
+				],
+				workspacePath
+			});
+
+			expect(runtime.webServer?.command).toBe(
+				`${PLAYWRIGHT_WEB_SERVER_COMMAND} --host localhost --port ${expectedPort} --strictPort`
+			);
+			expect(processEnv.API_BASE_URL).toBe(expectedApiUrl);
+			expect(processEnv.API_URL).toBe(expectedApiUrl);
+			expect(runtime.webServerEnv.API_BASE_URL).toBe(expectedApiUrl);
+			expect(runtime.webServerEnv.API_URL).toBe(expectedApiUrl);
+		}
+	);
+
+	it.each([
+		['equals project flag', ['--project=chromium:public']],
+		['split project flag', ['--project', 'chromium:public']]
+	])(
+		'fails closed to the local stack launcher for grep-only chromium:public reruns with %s',
+		(_name, projectArgs) => {
+			const workspacePath = '/tmp/fjcloud-worktree-public-infrastructure-grep-filter';
+			const expectedPort = resolveDefaultPlaywrightWebPort(workspacePath);
+			const expectedApiPort = resolveDefaultPlaywrightApiPort(workspacePath);
+			const expectedApiUrl = `http://127.0.0.1:${expectedApiPort}`;
+			const processEnv: MutableEnv = {};
+			const runtime = resolvePlaywrightRuntime({
+				processEnv,
+				repoEnv: {},
+				webEnv: {},
+				fallbackJwtSecret: 'fallback-jwt',
+				argv: ['test', ...projectArgs, '--grep', 'raw public JSON is anonymous'],
+				workspacePath
+			});
+
+			expect(runtime.webServer?.command).toBe(
+				`${PLAYWRIGHT_WEB_SERVER_COMMAND} --host localhost --port ${expectedPort} --strictPort`
+			);
+			expect(processEnv.API_BASE_URL).toBe(expectedApiUrl);
+			expect(processEnv.API_URL).toBe(expectedApiUrl);
+			expect(runtime.webServerEnv.API_BASE_URL).toBe(expectedApiUrl);
+			expect(runtime.webServerEnv.API_URL).toBe(expectedApiUrl);
+		}
+	);
+
 	it('uses explicit PLAYWRIGHT_WEB_PORT override for webServer and baseURL', () => {
 		const processEnv: MutableEnv = {
 			[PLAYWRIGHT_WEB_PORT_ENV]: '6123'
@@ -732,6 +830,13 @@ describe('playwright config contract', () => {
 		expect(projectContractsByName.chromium?.dependencies).toEqual(['setup:user']);
 		expect(projectContractsByName.chromium?.use?.desktopBrowser).toBe('chromium');
 		expect(projectContractsByName.chromium?.use?.storageState).toBe(PLAYWRIGHT_STORAGE_STATE.user);
+
+		expect(projectContractsByName['chromium:accessibility']?.dependencies).toEqual([
+			'setup:user',
+			'setup:admin'
+		]);
+		expect(projectContractsByName['chromium:accessibility']?.use?.desktopBrowser).toBe('chromium');
+		expect(projectContractsByName['chromium:accessibility']?.use?.storageState).toBeUndefined();
 
 		expect(projectContractsByName['chromium:onboarding']?.dependencies).toEqual([
 			'setup:onboarding'
@@ -1084,6 +1189,22 @@ describe('playwright config contract', () => {
 	});
 
 	describe('PLAYWRIGHT_PROJECT_CONTRACTS spec file routing', () => {
+		it('routes the browser accessibility catalog to its sole project owner', () => {
+			const specPath = 'tests/e2e-ui/full/accessibility.spec.ts';
+
+			expect(projectContractsByName['chromium:accessibility']?.testMatch.test(specPath)).toBe(true);
+			for (const projectName of [
+				'chromium',
+				'chromium:public',
+				'chromium:admin',
+				'chromium:mocked'
+			]) {
+				expect(projectContractsByName[projectName]?.testMatch.test(specPath), projectName).toBe(
+					false
+				);
+			}
+		});
+
 		it('keeps API-backed blank-browser lifecycle specs out of the web-only public owner', () => {
 			const fullSpecDir = join(process.cwd(), 'tests/e2e-ui/full');
 			const fullStackLifecycleSpecs = [

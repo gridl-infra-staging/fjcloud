@@ -106,37 +106,39 @@
 	}
 </script>
 
-<h1>Editor Dialog Demo</h1>
-<p data-testid="demo-status">{statusText}</p>
+<main>
+	<h1>Editor Dialog Demo</h1>
+	<p data-testid="demo-status">{statusText}</p>
 
-<div>
-	<button type="button" data-testid="demo-open-create" on:click={openCreateScenario}
-		>Open create mode</button
-	>
-	<button type="button" data-testid="demo-open-edit" on:click={openEditScenario}
-		>Open edit mode</button
-	>
-	<button type="button" data-testid="demo-open-dirty-dismiss" on:click={openDirtyDismissScenario}
-		>Open dirty dismiss</button
-	>
-	<button type="button" data-testid="demo-open-pending-save" on:click={openPendingSaveScenario}
-		>Open pending save</button
-	>
-	<button type="button" data-testid="demo-open-rejected-save" on:click={openRejectedSaveScenario}
-		>Open rejected save</button
-	>
-	<button
-		type="button"
-		data-testid="demo-open-successful-save"
-		on:click={openSuccessfulSaveScenario}>Open successful save</button
-	>
-	<button type="button" data-testid="demo-resolve-pending-save" on:click={resolvePendingSave}
-		>Resolve pending save</button
-	>
-	<button type="button" data-testid="demo-trigger-toast" on:click={triggerDemoToast}
-		>Trigger toast</button
-	>
-</div>
+	<div>
+		<button type="button" data-testid="demo-open-create" on:click={openCreateScenario}
+			>Open create mode</button
+		>
+		<button type="button" data-testid="demo-open-edit" on:click={openEditScenario}
+			>Open edit mode</button
+		>
+		<button type="button" data-testid="demo-open-dirty-dismiss" on:click={openDirtyDismissScenario}
+			>Open dirty dismiss</button
+		>
+		<button type="button" data-testid="demo-open-pending-save" on:click={openPendingSaveScenario}
+			>Open pending save</button
+		>
+		<button type="button" data-testid="demo-open-rejected-save" on:click={openRejectedSaveScenario}
+			>Open rejected save</button
+		>
+		<button
+			type="button"
+			data-testid="demo-open-successful-save"
+			on:click={openSuccessfulSaveScenario}>Open successful save</button
+		>
+		<button type="button" data-testid="demo-resolve-pending-save" on:click={resolvePendingSave}
+			>Resolve pending save</button
+		>
+		<button type="button" data-testid="demo-trigger-toast" on:click={triggerDemoToast}
+			>Trigger toast</button
+		>
+	</div>
+</main>
 
 <EditorDialog
 	title={mode === 'create' ? 'Create Demo Rule' : 'Edit Demo Rule'}
@@ -151,5 +153,7 @@
 	testId="editor-dialog-demo"
 />
 
-<h2>Last saved payload</h2>
-<pre data-testid="demo-last-payload">{lastPayloadText}</pre>
+<section aria-labelledby="demo-last-payload-heading">
+	<h2 id="demo-last-payload-heading">Last saved payload</h2>
+	<pre data-testid="demo-last-payload">{lastPayloadText}</pre>
+</section>

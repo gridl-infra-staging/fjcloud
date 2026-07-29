@@ -29,6 +29,10 @@
 		return new Date(customer.created_at).getTime();
 	}
 
+	function customerDetailHref(customerId: string): `/admin/customers/${string}` {
+		return `/admin/customers/${encodeURIComponent(customerId)}`;
+	}
+
 	const filteredCustomers = $derived.by(() => {
 		const filtered = customers.filter((customer) => {
 			const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -56,7 +60,7 @@
 
 	/** Build the detail-route action URL for a given customer and action name. */
 	function detailActionUrl(customerId: string, action: string): string {
-		return resolve(`/admin/customers/${customerId}?/${action}`);
+		return resolve(`${customerDetailHref(customerId)}?/${action}`);
 	}
 
 	function toggleBillingHealthSort(): void {
@@ -145,7 +149,7 @@
 								class="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-slate-400 transition hover:text-slate-200"
 							>
 								Billing health
-								<span class="text-[10px] text-slate-500">
+								<span class="text-[10px] text-slate-300">
 									{sortMode === 'health' ? 'sorted' : 'default'}
 								</span>
 							</button>
@@ -161,7 +165,7 @@
 						>
 							<td class="px-4 py-3">
 								<a
-									href={resolve(`/admin/customers/${customer.id}`)}
+									href={resolve(customerDetailHref(customer.id))}
 									class="font-medium text-violet-300 hover:text-violet-200"
 								>
 									{customer.name}

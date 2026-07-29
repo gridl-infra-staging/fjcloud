@@ -219,7 +219,7 @@
 					Parsed records: {parsedUploadRecords.length}
 				</p>
 				<div class="mb-4 space-y-2 rounded-md border border-flapjack-ink/20 p-3">
-					<p class="text-xs font-semibold uppercase tracking-wide text-flapjack-ink/60">Preview</p>
+					<p class="text-xs font-semibold uppercase tracking-wide text-flapjack-ink/75">Preview</p>
 					{#each uploadPreviewRecords as record, previewIndex (`preview-${previewIndex}`)}
 						<pre
 							class="overflow-x-auto rounded bg-flapjack-cream/80 p-2 text-xs text-flapjack-ink/80">{JSON.stringify(

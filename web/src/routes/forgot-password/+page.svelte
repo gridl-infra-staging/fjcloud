@@ -21,7 +21,7 @@
 	<title>Forgot Password — Flapjack Cloud</title>
 </svelte:head>
 
-<div class="flex min-h-screen items-center justify-center bg-gray-50">
+<main class="flex min-h-screen items-center justify-center bg-gray-50">
 	<div class="w-full max-w-md rounded-lg bg-white p-8 shadow">
 		<h1 class="mb-2 text-2xl font-bold text-gray-900">Forgot your password?</h1>
 		<p class="mb-6 text-sm text-gray-600">
@@ -110,4 +110,4 @@
 			</p>
 		{/if}
 	</div>
-</div>
+</main>

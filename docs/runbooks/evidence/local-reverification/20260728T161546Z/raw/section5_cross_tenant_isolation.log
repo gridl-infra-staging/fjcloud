@@ -1,0 +1,32 @@
+
+===== attempt 1 start 2026-07-28T16:18:29Z =====
+command: cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform cross_tenant_isolation -- --nocapture
+validation_cache_module: /Users/stuart/repos/gridl/mike_dev/matt_root/matt/validation_cache.py
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.27s
+     Running tests/platform.rs (target/debug/deps/platform-37f769d90126a00c)
+
+running 19 tests
+test cross_tenant_isolation_test::classic_search_post_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_dictionaries_settings_get_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_dictionaries_languages_get_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::ai_personalization_profile_get_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::ai_personalization_strategy_get_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::ai_chat_post_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::ai_personalization_strategy_delete_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::ai_personalization_strategy_put_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::ai_recommendations_post_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_settings_put_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_dictionaries_batch_post_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::ai_personalization_profile_delete_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_dictionaries_settings_put_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_suggestions_put_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_suggestions_get_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_dictionaries_search_post_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_settings_get_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_suggestions_delete_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_suggestions_status_get_blocked_for_foreign_tenant ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 1564 filtered out; finished in 0.05s
+
+
+===== attempt 1 end exit_code=0 elapsed_seconds=0.37 =====

@@ -697,6 +697,9 @@ function infrastructureBrowserContract(
 
 type PublicInfrastructureCanaryVm = {
 	vmId: string;
+	customerId: string;
+	deploymentId: string;
+	tenantId: string;
 	displacedVmIds: string[];
 	kAnonymityRegion: string;
 	forbiddenText: string[];
@@ -716,6 +719,10 @@ function seedPublicInfrastructureCanaryVm(
 
 	const seed = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 	const hostname = `e2e-public-infra-canary-${seed}`;
+	const customerName = `E2E public infrastructure canary ${seed}`;
+	const customerEmail = `e2e-public-infra-canary-${seed}@example.invalid`;
+	const nodeId = `e2e-public-infra-canary-node-${seed}`;
+	const tenantId = `e2e-public-infra-canary-tenant-${seed}`;
 	const ipLiteral = `127.64.${Math.floor(Math.random() * 200) + 20}.${
 		Math.floor(Math.random() * 200) + 20
 	}`;
@@ -735,7 +742,7 @@ function seedPublicInfrastructureCanaryVm(
 	        updated_at = NOW()
 	    WHERE id IN (SELECT id FROM prior_active)
 	    RETURNING 1
-	), inserted AS (
+	), inserted_vm AS (
 	    INSERT INTO vm_inventory (
 	        provider,
 	        hostname,
@@ -760,11 +767,61 @@ function seedPublicInfrastructureCanaryVm(
 	        NOW(),
 	        'active'
 	    )
-	    RETURNING id::text AS id_text
+	    RETURNING id, id::text AS id_text
+	), inserted_customer AS (
+	    INSERT INTO customers (name, email, status)
+	    VALUES (
+	        ${quoteSqlLiteral(customerName)},
+	        ${quoteSqlLiteral(customerEmail)},
+	        'active'
+	    )
+	    RETURNING id, id::text AS id_text
+	), inserted_deployment AS (
+	    INSERT INTO customer_deployments (
+	        customer_id,
+	        node_id,
+	        region,
+	        vm_type,
+	        vm_provider,
+	        status,
+	        hostname,
+	        flapjack_url
+	    )
+	    SELECT
+	        inserted_customer.id,
+	        ${quoteSqlLiteral(nodeId)},
+	        ${quoteSqlLiteral(PUBLIC_INFRASTRUCTURE_CANARY_REGION)},
+	        'local.e2e',
+	        'local',
+	        'running',
+	        ${quoteSqlLiteral(hostname)},
+	        ${quoteSqlLiteral(flapjackUrl)}
+	    FROM inserted_customer
+	    RETURNING id, id::text AS id_text
+	), inserted_tenant AS (
+	    INSERT INTO customer_tenants (
+	        customer_id,
+	        tenant_id,
+	        deployment_id,
+	        vm_id
+	    )
+	    SELECT
+	        inserted_customer.id,
+	        ${quoteSqlLiteral(tenantId)},
+	        inserted_deployment.id,
+	        inserted_vm.id
+	    FROM inserted_customer, inserted_deployment, inserted_vm
+	    RETURNING tenant_id
 	)
 	SELECT json_build_object(
 	    'vm_id',
-	    (SELECT id_text FROM inserted),
+	    (SELECT id_text FROM inserted_vm),
+	    'customer_id',
+	    (SELECT id_text FROM inserted_customer),
+	    'deployment_id',
+	    (SELECT id_text FROM inserted_deployment),
+	    'tenant_id',
+	    (SELECT tenant_id FROM inserted_tenant),
 	    'displaced_vm_ids',
 	    COALESCE((SELECT json_agg(id_text ORDER BY id_text) FROM prior_active), '[]'::json)
 	)::text;
@@ -777,9 +834,15 @@ function seedPublicInfrastructureCanaryVm(
 		throw new Error('seed public Infrastructure canary VM returned no seed metadata');
 	}
 
-	let seedMetadata: { vm_id?: unknown; displaced_vm_ids?: unknown };
+	let seedMetadata: {
+		vm_id?: unknown;
+		customer_id?: unknown;
+		deployment_id?: unknown;
+		tenant_id?: unknown;
+		displaced_vm_ids?: unknown;
+	};
 	try {
-		seedMetadata = JSON.parse(output) as { vm_id?: unknown; displaced_vm_ids?: unknown };
+		seedMetadata = JSON.parse(output) as typeof seedMetadata;
 	} catch (error) {
 		throw new Error(
 			`seed public Infrastructure canary VM returned invalid JSON metadata: ${setupFailureDetailsFromError(error)}`
@@ -788,6 +851,9 @@ function seedPublicInfrastructureCanaryVm(
 
 	if (
 		typeof seedMetadata.vm_id !== 'string' ||
+		typeof seedMetadata.customer_id !== 'string' ||
+		typeof seedMetadata.deployment_id !== 'string' ||
+		typeof seedMetadata.tenant_id !== 'string' ||
 		!Array.isArray(seedMetadata.displaced_vm_ids) ||
 		!seedMetadata.displaced_vm_ids.every((value) => typeof value === 'string')
 	) {
@@ -796,11 +862,20 @@ function seedPublicInfrastructureCanaryVm(
 
 	return {
 		vmId: seedMetadata.vm_id,
+		customerId: seedMetadata.customer_id,
+		deploymentId: seedMetadata.deployment_id,
+		tenantId: seedMetadata.tenant_id,
 		displacedVmIds: seedMetadata.displaced_vm_ids,
 		kAnonymityRegion: PUBLIC_INFRASTRUCTURE_CANARY_REGION,
 		forbiddenText: [
 			seedMetadata.vm_id,
+			seedMetadata.customer_id,
+			seedMetadata.deployment_id,
+			seedMetadata.tenant_id,
 			hostname,
+			customerName,
+			customerEmail,
+			nodeId,
 			flapjackUrl,
 			ipLiteral,
 			String(PUBLIC_INFRASTRUCTURE_CANARY_CAPACITY.mem_rss_bytes),
@@ -838,11 +913,26 @@ WHERE id IN (${canary.displacedVmIds.map((vmId) => `${quoteSqlLiteral(vmId)}::uu
 	(deps?.runSql ?? runSqlWithPsqlFallback)(
 		localDatabaseUrl,
 		`
+BEGIN;
+DELETE FROM customer_tenants
+WHERE customer_id = ${quoteSqlLiteral(canary.customerId)}::uuid
+  AND tenant_id = ${quoteSqlLiteral(canary.tenantId)}
+  AND deployment_id = ${quoteSqlLiteral(canary.deploymentId)}::uuid
+  AND vm_id = ${quoteSqlLiteral(canary.vmId)}::uuid;
+
+DELETE FROM customer_deployments
+WHERE id = ${quoteSqlLiteral(canary.deploymentId)}::uuid
+  AND customer_id = ${quoteSqlLiteral(canary.customerId)}::uuid;
+
+DELETE FROM customers
+WHERE id = ${quoteSqlLiteral(canary.customerId)}::uuid;
+
 UPDATE vm_inventory
 SET status = 'decommissioned',
     updated_at = NOW()
 WHERE id = ${quoteSqlLiteral(canary.vmId)}::uuid;
 ${restoreDisplacedSql}
+COMMIT;
 	`,
 		`restore public Infrastructure canary VM ${canary.vmId}`
 	);
@@ -2333,12 +2423,6 @@ function seedAdminVmLifecycleTimelineSql(): void {
 
 	runFixtureSql(
 		`
-	DELETE FROM vm_lifecycle_events
-	WHERE vm_id IN (
-	    ${quoteSqlLiteral(ADMIN_VM_TIMELINE_DEAD_VM_ID)}::uuid,
-	    ${quoteSqlLiteral(ADMIN_VM_TIMELINE_REPLACEMENT_VM_ID)}::uuid
-	);
-
 	INSERT INTO vm_inventory (
 	    id,
 	    provider,

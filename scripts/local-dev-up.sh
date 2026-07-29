@@ -273,8 +273,9 @@ fi
 # 4. Run migrations
 # ---------------------------------------------------------------------------
 log "Applying migrations to: $(redact_db_url "$DATABASE_URL")"
-CONTAINER_MIGRATIONS_DIR="/migrations"
-run_container_migrations "$REPO_ROOT/infra/migrations" "$CONTAINER_MIGRATIONS_DIR" \
+HOST_MIGRATIONS_DIR="${FJCLOUD_HOST_MIGRATIONS_DIR:-$REPO_ROOT/infra/migrations}"
+CONTAINER_MIGRATIONS_DIR="${FJCLOUD_DOCKER_MIGRATIONS_DIR:-/migrations}"
+run_container_migrations "$HOST_MIGRATIONS_DIR" "$CONTAINER_MIGRATIONS_DIR" \
     || die "migrations failed"
 
 # ---------------------------------------------------------------------------

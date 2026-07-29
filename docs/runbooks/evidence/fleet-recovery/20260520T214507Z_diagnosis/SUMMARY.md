@@ -65,8 +65,8 @@ Explicit owner-contract expectations (source anchored):
 - Persisted deployment linkage contract in shared placement currently bypasses a `running` transition: `create_shared_deployment` inserts via `DeploymentRepo::create` then calls `update_provisioning` with `provider_vm_id=vm_inventory.id` and endpoint fields in [`infra/api/src/routes/indexes/shared_vm.rs:299`](../../../../../infra/api/src/routes/indexes/shared_vm.rs); `PgDeploymentRepo::update_provisioning` writes linkage fields only and does not mutate status in [`infra/api/src/repos/pg_deployment_repo.rs:209`](../../../../../infra/api/src/repos/pg_deployment_repo.rs).
 
 Test contract grounding:
-- Shared placement returns immediate 201 and shared endpoint: [`infra/api/tests/indexes_test.rs:4048`](../../../../../infra/api/tests/indexes_test.rs)
-- Auto-provision cleanup behavior on failure: [`infra/api/tests/provisioning_service_test.rs:302`](../../../../../infra/api/tests/provisioning_service_test.rs)
+- Shared placement returns immediate 201 and shared endpoint: [`infra/api/tests/indexes_test.rs:4048`](../../../../../infra/api/tests/integration/indexes_test.rs)
+- Auto-provision cleanup behavior on failure: [`infra/api/tests/provisioning_service_test.rs:302`](../../../../../infra/api/tests/integration/provisioning_service_test.rs)
 
 Gap: existing tests do not assert a shared deployment status transition out of `provisioning` after `create_shared_deployment` linkage update.
 

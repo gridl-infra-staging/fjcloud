@@ -1,0 +1,35 @@
+
+===== attempt 1 start 2026-07-28T16:18:28Z =====
+command: cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test auth_admin api_key_auth -- --nocapture
+validation_cache_module: /Users/stuart/repos/gridl/mike_dev/matt_root/matt/validation_cache.py
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.25s
+     Running tests/auth_admin.rs (target/debug/deps/auth_admin-1eb5d7725e55e84e)
+
+running 22 tests
+test api_key_auth_test::active_stage1_decision_matches_audited_verdict ... ok
+test api_key_auth_test::stage1_token_parser_accepts_hard_cut_literals ... ok
+test api_key_auth_test::gridl_live_extractor_rejects_when_decision_is_hard_cut_ok ... ok
+test api_key_auth_test::gridl_live_ignores_request_extension_override ... ok
+test api_key_auth_test::short_key_returns_401 ... ok
+test api_key_auth_test::non_fj_live_prefix_returns_401 ... ok
+test api_key_auth_test::invalid_key_returns_401 ... ok
+test api_key_auth_test::api_key_legacy_fj_live_key_rejected_under_hard_cut ... ok
+test api_key_auth_test::deleted_customer_returns_401 ... ok
+test api_key_auth_test::suspended_customer_returns_403 ... ok
+test api_key_auth_test::api_key_fj_live_extractor_rejects_when_decision_is_hard_cut_ok ... ok
+test api_key_auth_test::unrecognized_prefix_returns_401 ... ok
+test api_key_auth_test::gridl_live_behavior_matches_stage1_decision_token ... ok
+test api_key_auth_test::missing_auth_header_returns_401 ... ok
+test api_key_auth_test::revoked_key_returns_401 ... ok
+test api_key_auth_test::fjc_live_key_authenticates ... ok
+test api_key_auth_test::scope_check_passes ... ok
+test api_key_auth_test::api_key_fj_live_extractor_accepts_when_decision_is_keep_legacy_accept ... ok
+test api_key_auth_test::scope_check_fails_returns_403 ... ok
+test api_key_auth_test::wrong_hash_returns_401 ... ok
+test api_key_auth_test::valid_key_authenticates ... ok
+test api_key_auth_test::last_used_at_updated ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 333 filtered out; finished in 0.06s
+
+
+===== attempt 1 end exit_code=0 elapsed_seconds=0.35 =====

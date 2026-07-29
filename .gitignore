@@ -70,6 +70,7 @@ composer.lock
 !docs/runbooks/evidence/billing_coverage_a2/**/*.log
 !docs/runbooks/evidence/ses-coverage-a1/**/*.log
 !docs/runbooks/evidence/local-p0-coverage/**/*.log
+!docs/runbooks/evidence/local-reverification/**/*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

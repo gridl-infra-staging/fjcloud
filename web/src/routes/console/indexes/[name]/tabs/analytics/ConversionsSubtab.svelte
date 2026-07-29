@@ -242,7 +242,7 @@
 		<div class="mb-4 flex flex-col gap-2">
 			<label
 				for="conversion-country-filter"
-				class="text-xs font-semibold uppercase tracking-wide text-flapjack-ink/60"
+				class="text-xs font-semibold uppercase tracking-wide text-flapjack-ink/75"
 			>
 				Country filter
 			</label>
@@ -264,7 +264,7 @@
 		<div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
 			{#each KPI_CARDS as card (card.key)}
 				<div class="rounded-lg border border-flapjack-ink/20 p-4" data-testid={card.testId}>
-					<p class="text-sm font-medium text-flapjack-ink/60">{card.label}</p>
+					<p class="text-sm font-medium text-flapjack-ink/75">{card.label}</p>
 					<p class="mt-1 text-3xl font-semibold text-flapjack-ink">
 						{formatRatePercent(conversionPayload.kpis[card.key].current)}
 					</p>
@@ -285,7 +285,7 @@
 				{:else}
 					<table class="w-full text-left text-sm">
 						<thead
-							class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60"
+							class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/75"
 						>
 							<tr>
 								<th class="px-3 py-2">Date</th>

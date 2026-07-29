@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { fireEvent, render, screen, cleanup } from '@testing-library/svelte';
-import { getAccessibilityViolations } from '../../tests/a11y';
+import { getAccessibilityViolations, getPageMainLandmarkCount } from '../../tests/a11y';
 
 vi.mock('$app/forms', () => ({
 	enhance: () => ({ destroy: () => {} })
@@ -37,6 +37,7 @@ describe('Login page', () => {
 		const { container } = renderLoginPage();
 
 		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+		expect(getPageMainLandmarkCount(container)).toBe(1);
 	});
 
 	it('has no structural accessibility violations when login errors are rendered', async () => {
@@ -67,7 +68,7 @@ describe('Login page', () => {
 
 	it('uses Flapjack token classes for the login shell and alternate links', () => {
 		const { container } = renderLoginPage();
-		const loginCanvas = container.querySelector('div.min-h-screen');
+		const loginCanvas = container.querySelector('main.min-h-screen');
 
 		expect(loginCanvas).not.toBeNull();
 		expect(loginCanvas).toHaveClass('bg-flapjack-mint');

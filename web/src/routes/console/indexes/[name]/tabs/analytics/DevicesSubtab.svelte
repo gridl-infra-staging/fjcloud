@@ -129,15 +129,15 @@
 
 		<div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
 			<div class="rounded-lg border border-flapjack-ink/20 p-4" data-testid="device-card-desktop">
-				<p class="text-sm font-medium text-flapjack-ink/60">Desktop</p>
+				<p class="text-sm font-medium text-flapjack-ink/75">Desktop</p>
 				<p class="mt-1 text-3xl font-semibold text-flapjack-ink">{formatNumber(devices.desktop)}</p>
 			</div>
 			<div class="rounded-lg border border-flapjack-ink/20 p-4" data-testid="device-card-mobile">
-				<p class="text-sm font-medium text-flapjack-ink/60">Mobile</p>
+				<p class="text-sm font-medium text-flapjack-ink/75">Mobile</p>
 				<p class="mt-1 text-3xl font-semibold text-flapjack-ink">{formatNumber(devices.mobile)}</p>
 			</div>
 			<div class="rounded-lg border border-flapjack-ink/20 p-4" data-testid="device-card-tablet">
-				<p class="text-sm font-medium text-flapjack-ink/60">Tablet</p>
+				<p class="text-sm font-medium text-flapjack-ink/75">Tablet</p>
 				<p class="mt-1 text-3xl font-semibold text-flapjack-ink">{formatNumber(devices.tablet)}</p>
 			</div>
 		</div>
@@ -163,7 +163,7 @@
 				{:else}
 					<table class="w-full text-left text-sm">
 						<thead
-							class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60"
+							class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/75"
 						>
 							<tr>
 								<th class="px-3 py-2">Device</th>

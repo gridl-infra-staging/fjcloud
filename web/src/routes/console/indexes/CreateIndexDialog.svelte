@@ -157,7 +157,7 @@
 
 		<fieldset class="mb-4">
 			<legend class="mb-2 text-sm font-medium text-flapjack-ink/80">Template</legend>
-			<p class="mb-3 text-sm text-flapjack-ink/60">
+			<p class="mb-3 text-sm text-flapjack-ink/75">
 				Templates only choose starter content and settings; the submitted value stays in
 				template_id.
 			</p>
@@ -179,7 +179,7 @@
 							aria-label={template.label}
 						/>
 						<span class="block text-sm font-medium text-flapjack-ink">{template.label}</span>
-						<span class="mt-1 block text-xs text-flapjack-ink/60">{template.description}</span>
+						<span class="mt-1 block text-xs text-flapjack-ink/75">{template.description}</span>
 					</label>
 				{/each}
 			</div>
@@ -189,7 +189,7 @@
 			<label for="index-name" class="mb-1 block text-sm font-medium text-flapjack-ink/80"
 				>Index name</label
 			>
-			<p class="mb-2 text-sm text-flapjack-ink/60">
+			<p class="mb-2 text-sm text-flapjack-ink/75">
 				The name is the stable handle your app will use for indexing and search requests.
 			</p>
 			<input
@@ -207,7 +207,7 @@
 
 		<fieldset class="mb-4">
 			<legend class="mb-2 text-sm font-medium text-flapjack-ink/80">Region</legend>
-			<p class="mb-3 text-sm text-flapjack-ink/60">
+			<p class="mb-3 text-sm text-flapjack-ink/75">
 				Choose the region closest to your users or application servers.
 			</p>
 			<div class="grid grid-cols-2 gap-3">
@@ -229,7 +229,7 @@
 						<div class="flex items-center justify-between gap-2">
 							<span class="block text-sm font-medium text-flapjack-ink">{region.display_name}</span>
 						</div>
-						<span class="mt-0.5 block text-xs text-flapjack-ink/60">{region.id}</span>
+						<span class="mt-0.5 block text-xs text-flapjack-ink/75">{region.id}</span>
 					</label>
 				{/each}
 			</div>

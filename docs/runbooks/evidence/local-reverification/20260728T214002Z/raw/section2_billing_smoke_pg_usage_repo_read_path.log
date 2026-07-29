@@ -1,0 +1,24 @@
+command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform integration_metering_pipeline_test::billing_smoke_uses_pg_usage_repo_read_path -- --exact --nocapture
+head_sha=b7dddead4a367682bf16cf4de37bdaf686af4d99
+clean_tree=False
+attempt=1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.55s
+     Running tests/platform.rs (target/debug/deps/platform-37f769d90126a00c)
+
+running 1 test
+
+thread 'integration_metering_pipeline_test::billing_smoke_uses_pg_usage_repo_read_path' (429901579) panicked at api/tests/integration/integration_metering_pipeline_test.rs:598:5:
+[BACKEND_LIVE_GATE] required precondition failed: Database unreachable
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test integration_metering_pipeline_test::billing_smoke_uses_pg_usage_repo_read_path ... FAILED
+
+failures:
+
+failures:
+    integration_metering_pipeline_test::billing_smoke_uses_pg_usage_repo_read_path
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1593 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p api --test platform`
+
+exit_code=101

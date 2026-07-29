@@ -1,0 +1,14 @@
+command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform integration_metering_pipeline_test::billing_smoke_uses_pg_usage_repo_read_path -- --exact --nocapture
+head_sha=b7dddead4a367682bf16cf4de37bdaf686af4d99
+clean_tree=False
+db_env=local_dev_loopback_fjcloud_dev_redacted
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.35s
+     Running tests/platform.rs (target/debug/deps/platform-37f769d90126a00c)
+
+running 1 test
+test integration_metering_pipeline_test::billing_smoke_uses_pg_usage_repo_read_path ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1593 filtered out; finished in 0.32s
+
+
+exit_code=0

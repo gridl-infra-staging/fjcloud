@@ -194,7 +194,7 @@
 	</nav>
 	<!-- P.brand_palette_consistency, M.universal.1: help section border/label/link tones cited by docs/runbooks/evidence/ui-polish/20260505T021650Z_first_run/judgments/auth__dashboard__loading__desktop.json and docs/runbooks/evidence/ui-polish/20260505T021650Z_first_run/judgments/auth__dashboard__success__mobile_narrow.json -->
 	<div class="mt-6 border-t pt-4 border-flapjack-ink/20">
-		<p class="mb-2 text-xs font-semibold uppercase tracking-wide text-flapjack-ink/60">Help</p>
+		<p class="mb-2 text-xs font-semibold uppercase tracking-wide text-flapjack-ink/75">Help</p>
 		<div class="space-y-1">
 			<div class="rounded-lg px-3 py-2 text-sm text-flapjack-ink" data-testid="support-routing">
 				<button
@@ -383,7 +383,11 @@
 			</div>
 		{/if}
 
-		<div class="border-b border-flapjack-ink/15 bg-flapjack-cream px-6 py-2">
+		<div
+			class="border-b border-flapjack-ink/15 bg-flapjack-cream px-6 py-2"
+			role="region"
+			aria-label="Public beta support"
+		>
 			<BetaSupportBadge dataTestid="dashboard-beta-support-badge" betaLinkLabel="View beta scope" />
 		</div>
 

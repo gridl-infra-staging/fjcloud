@@ -1,0 +1,23 @@
+
+===== attempt 1 start 2026-07-28T16:18:29Z =====
+command: cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test auth_admin internal_auth -- --nocapture
+validation_cache_module: /Users/stuart/repos/gridl/mike_dev/matt_root/matt/validation_cache.py
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.26s
+     Running tests/auth_admin.rs (target/debug/deps/auth_admin-1eb5d7725e55e84e)
+
+running 10 tests
+test internal_auth_test::cold_storage_usage_rejects_wrong_key ... ok
+test internal_auth_test::tenant_map_requires_internal_key ... ok
+test internal_auth_test::tenant_map_rejects_wrong_key ... ok
+test internal_auth_test::regions_rejects_wrong_key ... ok
+test internal_auth_test::cold_storage_usage_requires_internal_key ... ok
+test internal_auth_test::tenant_map_rejects_when_internal_auth_not_configured ... ok
+test internal_auth_test::regions_requires_internal_key ... ok
+test internal_auth_test::cold_storage_usage_accepts_valid_key ... ok
+test internal_auth_test::tenant_map_accepts_valid_key ... ok
+test internal_auth_test::regions_accepts_valid_key ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 345 filtered out; finished in 0.03s
+
+
+===== attempt 1 end exit_code=0 elapsed_seconds=0.33 =====

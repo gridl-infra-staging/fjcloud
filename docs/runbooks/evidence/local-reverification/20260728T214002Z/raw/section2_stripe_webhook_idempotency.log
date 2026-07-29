@@ -1,0 +1,21 @@
+command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test billing stripe_webhook_idempotency_test:: -- --nocapture
+head_sha=b7dddead4a367682bf16cf4de37bdaf686af4d99
+clean_tree=False
+attempt=1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.45s
+     Running tests/billing.rs (target/debug/deps/billing-29dd8e0de5e09bb0)
+
+running 8 tests
+test stripe_webhook_idempotency_test::replayed_checkout_completed_event_is_noop_once ... ok
+test stripe_webhook_idempotency_test::replayed_invoice_event_is_processed_once ... ok
+test stripe_webhook_idempotency_test::retry_after_first_handler_failure_stays_unprocessed_and_not_acknowledged ... ok
+test stripe_webhook_idempotency_test::replayed_subscription_event_is_noop_once ... ok
+test stripe_webhook_idempotency_test::resume_before_pause_waiter_exists_does_not_deadlock_mark_paid ... ok
+test stripe_webhook_idempotency_test::seeded_unprocessed_invoice_event_short_circuits_without_handler_side_effects ... ok
+test stripe_webhook_idempotency_test::concurrent_duplicate_invoice_event_loser_stays_out_of_handler ... ok
+test stripe_webhook_idempotency_test::resume_waits_for_pause_handshake_internally ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 366 filtered out; finished in 0.14s
+
+
+exit_code=0

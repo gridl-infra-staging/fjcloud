@@ -1,0 +1,19 @@
+
+===== attempt 1 start 2026-07-28T16:17:42Z =====
+command: cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test billing stripe_webhook_signature -- --nocapture
+validation_cache_module: /Users/stuart/repos/gridl/mike_dev/matt_root/matt/validation_cache.py
+   Compiling api v0.1.0 (infra/api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.69s
+     Running tests/billing.rs (target/debug/deps/billing-29dd8e0de5e09bb0)
+
+running 5 tests
+test stripe_webhook_signature_test::valid_signature_processes_event ... ok
+test stripe_webhook_signature_test::missing_signature_header_returns_bad_request ... ok
+test stripe_webhook_signature_test::mock_stripe_service_accepts_any_signature_value ... ok
+test stripe_webhook_signature_test::local_stripe_service_rejects_invalid_signature_with_bad_request ... ok
+test stripe_webhook_signature_test::valid_signature_accepts_deprecated_subscription_event ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 369 filtered out; finished in 0.04s
+
+
+===== attempt 1 end exit_code=0 elapsed_seconds=23.22 =====

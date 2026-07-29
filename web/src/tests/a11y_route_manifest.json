@@ -129,7 +129,7 @@
 		{
 			"route": "/admin/fleet",
 			"testFile": "web/src/routes/admin/fleet/admin_fleet_a11y.test.ts",
-			"testName": "has no structural accessibility violations for populated, filtered, and unavailable states"
+			"testName": "has no structural accessibility violations for the populated state"
 		},
 		{
 			"route": "/admin/fleet/[id]",

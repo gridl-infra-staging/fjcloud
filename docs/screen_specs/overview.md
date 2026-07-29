@@ -77,9 +77,9 @@ Inspect one index's high-level state, run per-index export/import, and jump into
 
 - Structural accessibility for the rendered Overview and populated Analytics states is covered by
   `web/src/routes/console/indexes/[name]/detail.a11y.test.ts`.
-- Current: no analytics summary section on the Overview tab. Customers must click into the Analytics tab to see any usage signal.
-  Target: 3 KPI cards (Searches 7d, No-results rate 7d, Top query 7d) + 7-day sparkline + `View Details →` link.
-  Evidence: `web/src/routes/console/indexes/[name]/tabs/OverviewTab.svelte` (no matches for `analytics summary|KPI|sparkline`); parent audit rows "Analytics summary section displays data" / "Analytics chart renders in overview analytics section" (both `absent`).
+- Current: the Overview tab includes an analytics summary with Searches 7d, No-results rate 7d, Top query 7d, a sparkline, and a `View Details →` link into the Analytics tab.
+  Target: retain Overview-local usage signal without duplicating the full Analytics sub-tab surface.
+  Evidence: `web/src/routes/console/indexes/[name]/tabs/OverviewTab.svelte`; `web/src/routes/console/indexes/[name]/tabs/OverviewTab.test.ts`; `web/tests/e2e-ui/full/overview_enrichment.spec.ts`.
 
 - Current: no per-index Export or Import controls on the Overview tab. fjcloud's API has NO snapshot/export proxy endpoint today (the upstream flapjack engine has `/1/indexes/<name>/snapshot` but fjcloud does not surface it).
   Target: `Data Management` card per Layout #4. Export ships as a CLIENT-SIDE paginate-and-concat using the existing `?/browseDocuments` action, gated at 10,000 documents (see Export-too-large state). A proper backend export endpoint is parked in [docs/post_launch_followups.md](../post_launch_followups.md) for indexes beyond that threshold.

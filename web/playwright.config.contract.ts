@@ -79,6 +79,21 @@ export type PlaywrightRuntimeContract = {
 	webServer: PlaywrightWebServerContract | undefined;
 };
 
+const API_BACKED_PUBLIC_SPEC_NAMES = new Set(['public-infrastructure.spec.ts']);
+const PLAYWRIGHT_SPEC_LOCATION_SUFFIX_PATTERN = /:\d+(?::\d+)?$/;
+
+function publicSpecRequiresApiStack(specFilter: string): boolean {
+	const normalizedFilter = specFilter
+		.replaceAll('\\', '/')
+		.replace(PLAYWRIGHT_SPEC_LOCATION_SUFFIX_PATTERN, '');
+	const specName = normalizedFilter.slice(normalizedFilter.lastIndexOf('/') + 1);
+	return API_BACKED_PUBLIC_SPEC_NAMES.has(specName);
+}
+
+/**
+ * Return true only when the requested public-project specs can run against the
+ * web server without the local API stack.
+ */
 function isPublicOnlyPlaywrightSelection(argv: string[]): boolean {
 	let hasPublicProjectSelection = false;
 	for (let index = 0; index < argv.length; index += 1) {
@@ -98,10 +113,15 @@ function isPublicOnlyPlaywrightSelection(argv: string[]): boolean {
 
 	const specFilters = argv.filter((arg) => arg.includes('.spec.ts'));
 	if (specFilters.length === 0) {
-		return true;
+		// Fail closed when chromium:public is selected without concrete spec paths.
+		// Grep-only reruns can still include API-backed owners such as
+		// public-infrastructure.spec.ts, and argv text alone cannot disambiguate them.
+		return false;
 	}
 
-	return specFilters.every((filterArg) => filterArg.includes('public-'));
+	return specFilters.every(
+		(filterArg) => filterArg.includes('public-') && !publicSpecRequiresApiStack(filterArg)
+	);
 }
 
 const PLAYWRIGHT_DEFAULT_PORT_HASH_MIN = 5600;
@@ -261,7 +281,7 @@ export const PLAYWRIGHT_PROJECT_CONTRACTS: PlaywrightProjectContract[] = [
 	{
 		name: 'chromium',
 		testMatch:
-			/e2e-ui\/(smoke|full)\/(?!admin|public-|onboarding\.|customer-journeys\.|signup_to_paid_invoice\.).+\.spec\.ts/,
+			/e2e-ui\/(smoke|full)\/(?!accessibility\.|admin|public-|onboarding\.|customer-journeys\.|signup_to_paid_invoice\.).+\.spec\.ts/,
 		dependencies: ['setup:user'],
 		use: {
 			desktopBrowser: 'chromium',
@@ -297,6 +317,14 @@ export const PLAYWRIGHT_PROJECT_CONTRACTS: PlaywrightProjectContract[] = [
 		use: {
 			desktopBrowser: 'chromium',
 			storageState: PLAYWRIGHT_STORAGE_STATE.admin
+		}
+	},
+	{
+		name: 'chromium:accessibility',
+		testMatch: /e2e-ui\/full\/accessibility\.spec\.ts/,
+		dependencies: ['setup:user', 'setup:admin'],
+		use: {
+			desktopBrowser: 'chromium'
 		}
 	}
 ];

@@ -3,7 +3,7 @@
 > **Purpose**: Operational runbook for the backend go-live event. Covers rollout
 > steps, post-launch verification, rollback procedures, and monitoring guidance.
 >
-> **Prerequisites**: [Backend Go-Live Checklist](../launch/BACKEND_GO_LIVE_CHECKLIST.md)
+> **Prerequisites**: Backend Go-Live Checklist
 > must have a **PASS** or **CONDITIONAL PASS** verdict before proceeding.
 >
 > **Audience**: Ops team / on-call engineer performing the production deploy.
@@ -136,7 +136,7 @@ Complete all items before beginning the rollout.
   ```bash
   bash scripts/launch/run_full_backend_validation.sh --dry-run --sha=<GIT_SHA>
   ```
-- [ ] Backend Go-Live Checklist verdict is **PASS** (see [`docs/launch/BACKEND_GO_LIVE_CHECKLIST.md`](../launch/BACKEND_GO_LIVE_CHECKLIST.md))
+- [ ] Backend Go-Live Checklist verdict is **PASS** (see `docs/launch/BACKEND_GO_LIVE_CHECKLIST.md`)
   - **Observed**: `CONDITIONAL` (environment checks failed in this sandbox: missing Stripe keys, DB URL, and stripe forwarder).
 - [ ] Run Stripe validation script and confirm JSON indicates success:
 

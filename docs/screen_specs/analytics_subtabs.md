@@ -94,17 +94,13 @@ Diagnose how customers are searching one index — across overview KPIs, raw que
   Target: 7-tab sub-surface per Layout.
   Evidence: `web/src/routes/console/indexes/[name]/tabs/AnalyticsTab.svelte:62-200` (single-view layout); parent audit Recommendation 3.
 
-- Current: no Devices / Geography / Filters / Conversions data path through fjcloud (neither Rust API nor TS client).
-  Target: lane consumer (3E) is CROSS-LAYER:
-  1. **Rust additions in `infra/api/src/routes/indexes/analytics.rs`** — 4 new route handlers, each calling the existing `proxy_analytics_endpoint` helper with a different `endpoint` name (`devices`, `countries`, `filters`, `conversions/conversionRate`). Pattern matches the existing `get_analytics_searches` / `get_analytics_searches_count` handlers in the same file (~30 lines per route × 4 = ~120 lines added). File currently 277 lines — well under the 850-line limit after additions.
-  2. **TS client additions in `web/src/lib/api/client.ts`** — 4 new methods (~5 lines each) calling the new fjcloud routes, mirroring the existing `getAnalyticsTopSearches` / `getAnalyticsSearchCount` shape.
-  3. **Server load + Svelte sub-tab rendering** — the main parity work.
-  Underlying flapjack-engine endpoints already exist (`/2/conversions/conversionRate`, `/2/filters`, `/2/devices`, `/2/countries`) per upstream `useAnalytics.ts:159-383` — fjcloud's `proxy_analytics_endpoint` already knows how to call `/2/<endpoint>`; the Rust work is purely additive wrapper handlers.
-  Evidence: `web/src/lib/api/client.ts` (no matches for `devices|countries|filters|conversion` in analytics methods); `infra/api/src/routes/indexes/analytics.rs:77` (existing `proxy_analytics_endpoint`); upstream `flapjack_dev/engine/dashboard/src/hooks/useAnalytics.ts:159,189,263,383`.
+- Current: Devices / Geography / Filters / Conversions now route through fjcloud's API, TS client, server load, and Svelte sub-tabs.
+  Target: keep the cross-layer sub-tab data path wired through fjcloud-owned endpoints rather than directly coupling the browser to upstream engine routes.
+  Evidence: `infra/api/src/routes/indexes/analytics.rs`; `web/src/lib/api/client.ts`; `web/src/routes/console/indexes/[name]/analytics-management.server.ts`; `web/src/routes/console/indexes/[name]/tabs/AnalyticsTab.svelte`; component/API coverage in `web/src/lib/api/client-analytics.test.ts` and `web/src/routes/console/indexes/[name]/detail.server.actions.test.ts`.
 
-- Current: 0 of upstream's analytics e2e tests covered.
-  Target: `web/tests/e2e-ui/full/analytics.spec.ts` extended + `web/tests/e2e-ui/full/analytics_<subtab>.spec.ts` per sub-tab (or one combined spec — implementation choice).
-  Evidence: `web/tests/e2e-ui/full/` (no analytics.spec.ts file); parent audit row "Analytics :: Overview tab loads with KPI cards showing data" (`partial`).
+- Current: Analytics sub-tabs have dedicated browser coverage for navigation and each promoted sub-surface.
+  Target: retain the route-level E2E owners for sub-tab behavior and seeded data rendering.
+  Evidence: `web/tests/e2e-ui/full/analytics_subtabs.spec.ts`; `web/tests/e2e-ui/full/analytics_devices.spec.ts`; `web/tests/e2e-ui/full/analytics_geography.spec.ts`; `web/tests/e2e-ui/full/analytics_filters.spec.ts`; `web/tests/e2e-ui/full/analytics_conversions.spec.ts`.
 
 ## Automated Coverage
 

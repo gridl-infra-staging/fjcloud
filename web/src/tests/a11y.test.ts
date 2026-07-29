@@ -7,10 +7,36 @@ vi.mock('axe-core', () => ({
 	}
 }));
 
-import { getAccessibilityViolations } from './a11y';
+import {
+	BROWSER_ACCESSIBILITY_RULE_IDS,
+	getAccessibilityViolations,
+	getBrowserAccessibilityRunOptions
+} from './a11y';
 
 type AxeRun = (context: axe.ElementContext, options: axe.RunOptions) => Promise<axe.AxeResults>;
 const axeRunMock = vi.mocked(axe.run as AxeRun);
+
+describe('browser accessibility rule selection', () => {
+	it('owns the exact browser-deferred rule catalog', () => {
+		expect([...BROWSER_ACCESSIBILITY_RULE_IDS].sort()).toEqual([
+			'color-contrast',
+			'landmark-one-main',
+			'region'
+		]);
+	});
+
+	it('runs color contrast in the browser without inheriting jsdom exclusions', () => {
+		const options = getBrowserAccessibilityRunOptions();
+
+		expect(options).toEqual({
+			runOnly: {
+				type: 'rule',
+				values: ['color-contrast', 'landmark-one-main', 'region']
+			}
+		});
+		expect(options.rules?.['color-contrast']).toBeUndefined();
+	});
+});
 
 describe('getAccessibilityViolations', () => {
 	afterEach(() => {

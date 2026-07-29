@@ -33,6 +33,7 @@ setup_workspace() {
   WORK_DIR="$(mktemp -d)"
   mkdir -p "$WORK_DIR/bin" "$WORK_DIR/flapjack_dev/engine" "$WORK_DIR/runtime" "$WORK_DIR/pids"
   : > "$WORK_DIR/curl.log"
+  : > "$WORK_DIR/public_job_projections.log"
   : > "$WORK_DIR/psql.log"
   : > "$WORK_DIR/sleep.log"
   : > "$WORK_DIR/up.log"
@@ -146,6 +147,15 @@ printf "sleep %s\n" "${1:-}" >> "$SLEEP_LOG"
   write_fake_command "$WORK_DIR/bin/curl" '#!/usr/bin/env bash
 set -euo pipefail
 printf "%s\n" "$*" >> "$CURL_LOG"
+
+emit_public_job_response() {
+  local status="$1"
+  local payload
+  payload="$(cat)"
+  printf "%s\n" "$payload" >> "$PUBLIC_JOB_PROJECTION_LOG"
+  printf "%s\n%s" "$payload" "$status"
+}
+
 method="GET"
 data_file=""
 url=""
@@ -278,16 +288,16 @@ case "$method $url" in
     job_id="job-123"
     [ "${CURL_SCENARIO:-success}" = "unsafe_job_id" ] && job_id="job-123;DROP_TABLE"
     [ -n "$header_dump_file" ] && printf "HTTP/1.1 202 Accepted\r\nLocation: /migration/algolia/jobs/%s\r\n\r\n" "$job_id" > "$header_dump_file"
-    printf "{\"id\":\"%s\",\"status\":\"queued\",\"mode\":\"create\",\"destination\":{\"kind\":\"create\",\"target\":\"target\",\"region\":\"us-east-1\"},\"source\":{\"appId\":\"TESTAPP123\",\"name\":\"source\"},\"summary\":{\"documentsExpected\":1,\"documentsImported\":0,\"documentsRejected\":0,\"settingsApplied\":0,\"settingsUnsupported\":0,\"synonymsExpected\":0,\"synonymsImported\":0,\"synonymsRejected\":0,\"rulesExpected\":0,\"rulesImported\":0,\"rulesRejected\":0},\"warnings\":[],\"error\":null,\"cancelRequestedAt\":null,\"resumeProvenance\":null,\"resumeDeadline\":null,\"resumable\":false,\"resumeCount\":0,\"publicationDisposition\":\"not_started\",\"createdAt\":\"2026-07-22T00:00:00Z\",\"updatedAt\":\"2026-07-22T00:00:00Z\"}\n202" "$job_id"
+    printf "{\"id\":\"%s\",\"status\":\"queued\",\"mode\":\"create\",\"destination\":{\"kind\":\"create\",\"target\":\"target\",\"region\":\"us-east-1\"},\"source\":{\"appId\":\"TESTAPP123\",\"name\":\"source\"},\"summary\":{\"documentsExpected\":1,\"documentsImported\":0,\"documentsRejected\":0,\"settingsApplied\":0,\"settingsUnsupported\":0,\"synonymsExpected\":0,\"synonymsImported\":0,\"synonymsRejected\":0,\"rulesExpected\":0,\"rulesImported\":0,\"rulesRejected\":0},\"terminalOutcomeObserved\":false,\"warnings\":[],\"error\":null,\"cancelRequestedAt\":null,\"resumeProvenance\":null,\"resumeDeadline\":null,\"resumable\":false,\"resumeCount\":0,\"publicationDisposition\":\"not_started\",\"createdAt\":\"2026-07-22T00:00:00Z\",\"updatedAt\":\"2026-07-22T00:00:00Z\"}" "$job_id" | emit_public_job_response 202
     ;;
   "GET http://127.0.0.1:3099/migration/algolia/jobs/job-123")
-    printf "{\"id\":\"job-123\",\"status\":\"queued\",\"mode\":\"create\",\"destination\":{\"kind\":\"create\",\"target\":\"target\",\"region\":\"us-east-1\"},\"source\":{\"appId\":\"TESTAPP123\",\"name\":\"source\"},\"summary\":{\"documentsExpected\":1,\"documentsImported\":0,\"documentsRejected\":0,\"settingsApplied\":0,\"settingsUnsupported\":0,\"synonymsExpected\":0,\"synonymsImported\":0,\"synonymsRejected\":0,\"rulesExpected\":0,\"rulesImported\":0,\"rulesRejected\":0},\"warnings\":[],\"error\":null,\"cancelRequestedAt\":null,\"resumeProvenance\":null,\"resumeDeadline\":null,\"resumable\":false,\"resumeCount\":0,\"publicationDisposition\":\"not_started\",\"createdAt\":\"2026-07-22T00:00:00Z\",\"updatedAt\":\"2026-07-22T00:00:00Z\"}\n200"
+    printf "{\"id\":\"job-123\",\"status\":\"queued\",\"mode\":\"create\",\"destination\":{\"kind\":\"create\",\"target\":\"target\",\"region\":\"us-east-1\"},\"source\":{\"appId\":\"TESTAPP123\",\"name\":\"source\"},\"summary\":{\"documentsExpected\":1,\"documentsImported\":0,\"documentsRejected\":0,\"settingsApplied\":0,\"settingsUnsupported\":0,\"synonymsExpected\":0,\"synonymsImported\":0,\"synonymsRejected\":0,\"rulesExpected\":0,\"rulesImported\":0,\"rulesRejected\":0},\"terminalOutcomeObserved\":false,\"warnings\":[],\"error\":null,\"cancelRequestedAt\":null,\"resumeProvenance\":null,\"resumeDeadline\":null,\"resumable\":false,\"resumeCount\":0,\"publicationDisposition\":\"not_started\",\"createdAt\":\"2026-07-22T00:00:00Z\",\"updatedAt\":\"2026-07-22T00:00:00Z\"}" | emit_public_job_response 200
     ;;
   "GET http://127.0.0.1:3099/migration/algolia/jobs?limit=10")
     if [ "${CURL_SCENARIO:-success}" = "list_extra_field" ]; then
-      printf "{\"jobs\":[{\"id\":\"job-123\",\"status\":\"queued\",\"mode\":\"create\",\"destination\":{\"kind\":\"create\",\"target\":\"target\",\"region\":\"us-east-1\"},\"source\":{\"appId\":\"TESTAPP123\",\"name\":\"source\"},\"summary\":{\"documentsExpected\":1,\"documentsImported\":0,\"documentsRejected\":0,\"settingsApplied\":0,\"settingsUnsupported\":0,\"synonymsExpected\":0,\"synonymsImported\":0,\"synonymsRejected\":0,\"rulesExpected\":0,\"rulesImported\":0,\"rulesRejected\":0},\"warnings\":[],\"error\":null,\"cancelRequestedAt\":null,\"resumeProvenance\":null,\"resumeDeadline\":null,\"resumable\":false,\"resumeCount\":0,\"publicationDisposition\":\"not_started\",\"engineJobId\":\"leaked\",\"createdAt\":\"2026-07-22T00:00:00Z\",\"updatedAt\":\"2026-07-22T00:00:00Z\"}],\"nextCursor\":null}\n200"
+      printf "{\"jobs\":[{\"id\":\"job-123\",\"status\":\"queued\",\"mode\":\"create\",\"destination\":{\"kind\":\"create\",\"target\":\"target\",\"region\":\"us-east-1\"},\"source\":{\"appId\":\"TESTAPP123\",\"name\":\"source\"},\"summary\":{\"documentsExpected\":1,\"documentsImported\":0,\"documentsRejected\":0,\"settingsApplied\":0,\"settingsUnsupported\":0,\"synonymsExpected\":0,\"synonymsImported\":0,\"synonymsRejected\":0,\"rulesExpected\":0,\"rulesImported\":0,\"rulesRejected\":0},\"terminalOutcomeObserved\":false,\"warnings\":[],\"error\":null,\"cancelRequestedAt\":null,\"resumeProvenance\":null,\"resumeDeadline\":null,\"resumable\":false,\"resumeCount\":0,\"publicationDisposition\":\"not_started\",\"engineJobId\":\"leaked\",\"createdAt\":\"2026-07-22T00:00:00Z\",\"updatedAt\":\"2026-07-22T00:00:00Z\"}],\"nextCursor\":null}" | emit_public_job_response 200
     else
-      printf "{\"jobs\":[{\"id\":\"job-123\",\"status\":\"queued\",\"mode\":\"create\",\"destination\":{\"kind\":\"create\",\"target\":\"target\",\"region\":\"us-east-1\"},\"source\":{\"appId\":\"TESTAPP123\",\"name\":\"source\"},\"summary\":{\"documentsExpected\":1,\"documentsImported\":0,\"documentsRejected\":0,\"settingsApplied\":0,\"settingsUnsupported\":0,\"synonymsExpected\":0,\"synonymsImported\":0,\"synonymsRejected\":0,\"rulesExpected\":0,\"rulesImported\":0,\"rulesRejected\":0},\"warnings\":[],\"error\":null,\"cancelRequestedAt\":null,\"resumeProvenance\":null,\"resumeDeadline\":null,\"resumable\":false,\"resumeCount\":0,\"publicationDisposition\":\"not_started\",\"createdAt\":\"2026-07-22T00:00:00Z\",\"updatedAt\":\"2026-07-22T00:00:00Z\"}],\"nextCursor\":null}\n200"
+      printf "{\"jobs\":[{\"id\":\"job-123\",\"status\":\"queued\",\"mode\":\"create\",\"destination\":{\"kind\":\"create\",\"target\":\"target\",\"region\":\"us-east-1\"},\"source\":{\"appId\":\"TESTAPP123\",\"name\":\"source\"},\"summary\":{\"documentsExpected\":1,\"documentsImported\":0,\"documentsRejected\":0,\"settingsApplied\":0,\"settingsUnsupported\":0,\"synonymsExpected\":0,\"synonymsImported\":0,\"synonymsRejected\":0,\"rulesExpected\":0,\"rulesImported\":0,\"rulesRejected\":0},\"terminalOutcomeObserved\":false,\"warnings\":[],\"error\":null,\"cancelRequestedAt\":null,\"resumeProvenance\":null,\"resumeDeadline\":null,\"resumable\":false,\"resumeCount\":0,\"publicationDisposition\":\"not_started\",\"createdAt\":\"2026-07-22T00:00:00Z\",\"updatedAt\":\"2026-07-22T00:00:00Z\"}],\"nextCursor\":null}" | emit_public_job_response 200
     fi
     ;;
   "POST http://127.0.0.1:3099/migration/algolia/jobs/job-123/cancel")
@@ -295,9 +305,9 @@ case "$method $url" in
       printf "{\"error\":\"backend unavailable\"}\n503"
     elif [ ! -f "$WORK_DIR/cancel.once" ]; then
       touch "$WORK_DIR/cancel.once"
-      printf "{\"id\":\"job-123\",\"status\":\"cancelling\",\"mode\":\"create\",\"destination\":{\"kind\":\"create\",\"target\":\"target\",\"region\":\"us-east-1\"},\"source\":{\"appId\":\"TESTAPP123\",\"name\":\"source\"},\"summary\":{\"documentsExpected\":1,\"documentsImported\":0,\"documentsRejected\":0,\"settingsApplied\":0,\"settingsUnsupported\":0,\"synonymsExpected\":0,\"synonymsImported\":0,\"synonymsRejected\":0,\"rulesExpected\":0,\"rulesImported\":0,\"rulesRejected\":0},\"warnings\":[],\"error\":null,\"cancelRequestedAt\":\"2026-07-22T00:00:01Z\",\"resumeProvenance\":null,\"resumeDeadline\":null,\"resumable\":false,\"resumeCount\":0,\"publicationDisposition\":\"not_started\",\"createdAt\":\"2026-07-22T00:00:00Z\",\"updatedAt\":\"2026-07-22T00:00:01Z\"}\n202"
+      printf "{\"id\":\"job-123\",\"status\":\"cancelling\",\"mode\":\"create\",\"destination\":{\"kind\":\"create\",\"target\":\"target\",\"region\":\"us-east-1\"},\"source\":{\"appId\":\"TESTAPP123\",\"name\":\"source\"},\"summary\":{\"documentsExpected\":1,\"documentsImported\":0,\"documentsRejected\":0,\"settingsApplied\":0,\"settingsUnsupported\":0,\"synonymsExpected\":0,\"synonymsImported\":0,\"synonymsRejected\":0,\"rulesExpected\":0,\"rulesImported\":0,\"rulesRejected\":0},\"terminalOutcomeObserved\":false,\"warnings\":[],\"error\":null,\"cancelRequestedAt\":\"2026-07-22T00:00:01Z\",\"resumeProvenance\":null,\"resumeDeadline\":null,\"resumable\":false,\"resumeCount\":0,\"publicationDisposition\":\"not_started\",\"createdAt\":\"2026-07-22T00:00:00Z\",\"updatedAt\":\"2026-07-22T00:00:01Z\"}" | emit_public_job_response 202
     else
-      printf "{\"id\":\"job-123\",\"status\":\"cancelling\",\"mode\":\"create\",\"destination\":{\"kind\":\"create\",\"target\":\"target\",\"region\":\"us-east-1\"},\"source\":{\"appId\":\"TESTAPP123\",\"name\":\"source\"},\"summary\":{\"documentsExpected\":1,\"documentsImported\":0,\"documentsRejected\":0,\"settingsApplied\":0,\"settingsUnsupported\":0,\"synonymsExpected\":0,\"synonymsImported\":0,\"synonymsRejected\":0,\"rulesExpected\":0,\"rulesImported\":0,\"rulesRejected\":0},\"warnings\":[],\"error\":null,\"cancelRequestedAt\":\"2026-07-22T00:00:01Z\",\"resumeProvenance\":null,\"resumeDeadline\":null,\"resumable\":false,\"resumeCount\":0,\"publicationDisposition\":\"not_started\",\"createdAt\":\"2026-07-22T00:00:00Z\",\"updatedAt\":\"2026-07-22T00:00:01Z\"}\n200"
+      printf "{\"id\":\"job-123\",\"status\":\"cancelling\",\"mode\":\"create\",\"destination\":{\"kind\":\"create\",\"target\":\"target\",\"region\":\"us-east-1\"},\"source\":{\"appId\":\"TESTAPP123\",\"name\":\"source\"},\"summary\":{\"documentsExpected\":1,\"documentsImported\":0,\"documentsRejected\":0,\"settingsApplied\":0,\"settingsUnsupported\":0,\"synonymsExpected\":0,\"synonymsImported\":0,\"synonymsRejected\":0,\"rulesExpected\":0,\"rulesImported\":0,\"rulesRejected\":0},\"terminalOutcomeObserved\":false,\"warnings\":[],\"error\":null,\"cancelRequestedAt\":\"2026-07-22T00:00:01Z\",\"resumeProvenance\":null,\"resumeDeadline\":null,\"resumable\":false,\"resumeCount\":0,\"publicationDisposition\":\"not_started\",\"createdAt\":\"2026-07-22T00:00:00Z\",\"updatedAt\":\"2026-07-22T00:00:01Z\"}" | emit_public_job_response 200
     fi
     ;;
   *)
@@ -314,6 +324,7 @@ run_probe() {
     PATH="$WORK_DIR/bin:$PATH" \
     WORK_DIR="$WORK_DIR" \
     CURL_LOG="$WORK_DIR/curl.log" \
+    PUBLIC_JOB_PROJECTION_LOG="$WORK_DIR/public_job_projections.log" \
     PSQL_LOG="$WORK_DIR/psql.log" \
     SLEEP_LOG="$WORK_DIR/sleep.log" \
     UP_LOG="$WORK_DIR/up.log" \
@@ -337,6 +348,27 @@ test_success_emits_phase_evidence_and_cleans_up() {
   run_probe --phases dispatch,cancel,lease_retention,restart_reconciliation
 
   assert_eq "$RUN_EXIT_CODE" "0" "complete mocked run should pass"
+  if python3 - "$WORK_DIR/public_job_projections.log" <<'PY'
+import json
+import sys
+
+public_jobs = []
+with open(sys.argv[1], encoding="utf-8") as handle:
+    for line in handle:
+        payload = json.loads(line)
+        public_jobs.extend(payload.get("jobs", [payload]))
+queued_jobs = [job for job in public_jobs if job.get("status") == "queued"]
+if len(queued_jobs) != 4 or any(
+    job.get("terminalOutcomeObserved") is not False
+    for job in queued_jobs
+):
+    raise SystemExit(1)
+PY
+  then
+    pass "create, GET, and list queued-job projections report terminalOutcomeObserved=false"
+  else
+    fail "create, GET, and list queued-job projection contract requires terminalOutcomeObserved=false"
+  fi
   assert_contains "$RUN_STDOUT" "PHASE|name=dispatch|expected=accepted_202_location|observed=accepted_202_location|pass=true" "dispatch phase marker"
   assert_contains "$RUN_STDOUT" "PHASE|name=cancel|expected=first_202_replay_200_single_intent|observed=first_202_replay_200_single_intent|pass=true" "cancel phase marker"
   assert_contains "$RUN_STDOUT" "PHASE|name=lease_retention|expected=reserved_through_claim_expiry|observed=reserved_through_claim_expiry|pass=true" "lease retention phase marker"

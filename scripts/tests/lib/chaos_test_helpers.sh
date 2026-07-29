@@ -168,14 +168,14 @@ append_minimal_ha_alert_routes() {
         fi
         alert_count=\$(cat "\$alert_count_file")
         case "\$alert_count" in
-            0)
+            0|1)
                 cat <<'JSON'
 [
   {"title":"Region down — us-east-1","message":"old","created_at":"2026-03-29T12:00:01Z"}
 ]
 JSON
                 ;;
-            1)
+            2)
                 cat <<'JSON'
 [
   {"title":"Region down — us-east-1","message":"old","created_at":"2026-03-29T12:00:01Z"},
@@ -191,6 +191,49 @@ JSON
   {"title":"Region down — us-east-1","message":"new","created_at":"2026-03-30T12:00:01Z"},
   {"title":"Index failed over — products","message":"new","created_at":"2026-03-30T12:00:02Z"},
   {"title":"Region recovered — us-east-1","message":"new","created_at":"2026-03-30T12:00:03Z"}
+]
+JSON
+                ;;
+        esac
+        echo \$((alert_count + 1)) > "\$alert_count_file"
+        ;;
+EOF
+}
+
+append_pre_satisfied_ha_alert_routes() {
+    local path="$1"
+    local alert_state_dir="$2"
+    cat >> "$path" <<EOF
+    "GET http://localhost:3001/admin/alerts")
+        alert_count_file="$alert_state_dir/alerts.count"
+        if [ ! -f "\$alert_count_file" ]; then
+            echo 0 > "\$alert_count_file"
+        fi
+        alert_count=\$(cat "\$alert_count_file")
+        case "\$alert_count" in
+            0)
+                cat <<'JSON'
+[
+  {"title":"Region down — eu-west-1","message":"Older unrelated alert.","created_at":"2026-03-29T12:00:01Z"}
+]
+JSON
+                ;;
+            1)
+                cat <<'JSON'
+[
+  {"title":"Region down — eu-west-1","message":"Older unrelated alert.","created_at":"2026-03-29T12:00:01Z"},
+  {"title":"Region down — us-east-1","message":"Pre-satisfied alert for region us-east-1.","created_at":"2026-03-30T12:00:01Z"},
+  {"title":"Index failed over — products","message":"Pre-satisfied alert for tenant products.","created_at":"2026-03-30T12:00:02Z"}
+]
+JSON
+                ;;
+            *)
+                cat <<'JSON'
+[
+  {"title":"Region down — eu-west-1","message":"Older unrelated alert.","created_at":"2026-03-29T12:00:01Z"},
+  {"title":"Region down — us-east-1","message":"Pre-satisfied alert for region us-east-1.","created_at":"2026-03-30T12:00:01Z"},
+  {"title":"Index failed over — products","message":"Pre-satisfied alert for tenant products.","created_at":"2026-03-30T12:00:02Z"},
+  {"title":"Region recovered — us-east-1","message":"Recovery alert for region us-east-1.","created_at":"2026-03-30T12:00:03Z"}
 ]
 JSON
                 ;;
@@ -256,7 +299,7 @@ append_lowest_lag_ha_alert_routes() {
         fi
         alert_count=\$(cat "\$alert_count_file")
         case "\$alert_count" in
-            0)
+            0|1)
                 cat <<'JSON'
 [
   {"title":"Region down — us-east-1","message":"Old proof alert for region us-east-1.","created_at":"2026-03-29T12:00:01Z"},
@@ -264,7 +307,7 @@ append_lowest_lag_ha_alert_routes() {
 ]
 JSON
                 ;;
-            1)
+            2)
                 cat <<'JSON'
 [
   {"title":"Region down — us-east-1","message":"Old proof alert for region us-east-1.","created_at":"2026-03-29T12:00:01Z"},
@@ -320,6 +363,18 @@ write_minimal_ha_failover_curl_mock() {
     write_ha_curl_mock_header "$path" "$call_log"
     append_minimal_ha_inventory_routes "$path"
     append_minimal_ha_alert_routes "$path" "$alert_state_dir"
+    append_minimal_ha_vm_detail_routes "$path"
+    append_ha_curl_mock_footer "$path"
+    chmod +x "$path"
+}
+
+write_pre_satisfied_ha_failover_curl_mock() {
+    local path="$1"
+    local alert_state_dir="$2"
+    local call_log="$3"
+    write_ha_curl_mock_header "$path" "$call_log"
+    append_minimal_ha_inventory_routes "$path"
+    append_pre_satisfied_ha_alert_routes "$path" "$alert_state_dir"
     append_minimal_ha_vm_detail_routes "$path"
     append_ha_curl_mock_footer "$path"
     chmod +x "$path"

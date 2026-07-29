@@ -8,7 +8,7 @@
 	<title>Admin Login - Flapjack Cloud</title>
 </svelte:head>
 
-<div class="flex min-h-screen items-center justify-center bg-slate-950 px-4">
+<main class="flex min-h-screen items-center justify-center bg-slate-950 px-4">
 	<div
 		class="w-full max-w-md rounded-xl border border-violet-900/50 bg-slate-900/90 p-8 shadow-2xl shadow-violet-950/40"
 	>
@@ -45,4 +45,4 @@
 			</button>
 		</form>
 	</div>
-</div>
+</main>

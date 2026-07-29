@@ -20,6 +20,10 @@ async fn stripe_test_clock_full_cycle_bills_expected_amount() {
         "INTEGRATION=1 must be set for stripe test-clock nightly coverage"
     );
     crate::require_live!(
+        std::env::var("BACKEND_LIVE_GATE").as_deref() == Ok("1"),
+        "BACKEND_LIVE_GATE=1 must be set for stripe test-clock nightly coverage"
+    );
+    crate::require_live!(
         crate::common::live_stripe_helpers::validate_stripe_key_live()
             .await
             .is_ok(),
@@ -102,9 +106,14 @@ async fn stripe_test_clock_full_cycle_bills_expected_amount() {
             crate::common::live_stripe_helpers::expected_first_cycle_amount_cents_from_contract(
                 EXPECTED_SUBSCRIPTION_QUANTITY,
             )?;
+        let actual_amount_paid_cents = paid_invoice.amount_paid.unwrap_or_default();
+        println!(
+            "actual_amount_paid_cents={} expected_amount_paid_cents={}",
+            actual_amount_paid_cents, expected_first_cycle_amount_cents
+        );
 
         assert_eq!(
-            paid_invoice.amount_paid.unwrap_or_default(),
+            actual_amount_paid_cents,
             expected_first_cycle_amount_cents,
             "hand-calculated first-cycle amount (unit price x quantity) must match Stripe paid amount after advancing test clock past trial end"
         );

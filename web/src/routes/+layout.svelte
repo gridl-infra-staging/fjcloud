@@ -99,7 +99,12 @@
 			</div>
 		</header>
 
-		<div class="border-b border-flapjack-ink/20 bg-flapjack-cream" data-testid="public-beta-banner">
+		<div
+			class="border-b border-flapjack-ink/20 bg-flapjack-cream"
+			data-testid="public-beta-banner"
+			role="region"
+			aria-label="Public beta support"
+		>
 			<div
 				class="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-3 text-sm text-flapjack-ink/80 sm:flex-row sm:items-center sm:justify-between"
 			>
@@ -111,7 +116,7 @@
 			<main class="mx-auto max-w-4xl px-6 py-12" data-testid="public-legal-shell">
 				<a
 					href={resolve('/')}
-					class="text-sm font-medium text-flapjack-rose hover:text-flapjack-plum"
+					class="text-sm font-medium text-flapjack-plum hover:text-flapjack-ink"
 				>
 					Back to Flapjack Cloud
 				</a>

@@ -291,13 +291,13 @@
 							<dl class="mt-3 grid gap-2 text-sm sm:grid-cols-2">
 								{#each detailRows as row (`${event.id}:${row.key}`)}
 									<div>
-										<dt class="text-xs uppercase tracking-wide text-slate-500">{row.label}</dt>
+										<dt class="text-xs uppercase tracking-wide text-slate-400">{row.label}</dt>
 										<dd class="mt-0.5 break-words text-slate-200">{row.value}</dd>
 									</div>
 								{/each}
 								{#if replacement.id}
 									<div>
-										<dt class="text-xs uppercase tracking-wide text-slate-500">Replacement VM</dt>
+										<dt class="text-xs uppercase tracking-wide text-slate-400">Replacement VM</dt>
 										<dd class="mt-0.5 break-words text-slate-200">
 											<a
 												href={resolve(replacementVmHref(replacement.id))}
@@ -310,7 +310,7 @@
 									</div>
 								{:else if replacement.hostname}
 									<div>
-										<dt class="text-xs uppercase tracking-wide text-slate-500">Replacement VM</dt>
+										<dt class="text-xs uppercase tracking-wide text-slate-400">Replacement VM</dt>
 										<dd class="mt-0.5 break-words text-slate-200">{replacement.hostname}</dd>
 									</div>
 								{/if}

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render } from '@testing-library/svelte';
-import { getAccessibilityViolations } from '../../../tests/a11y';
+import { getAccessibilityViolations, getPageMainLandmarkCount } from '../../../tests/a11y';
 import AdminLoginPage from './+page.svelte';
 
 vi.mock('$app/forms', () => ({
@@ -13,6 +13,7 @@ describe('Admin login page accessibility', () => {
 	it('has no structural accessibility violations for initial and error states', async () => {
 		const { container } = render(AdminLoginPage);
 		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+		expect(getPageMainLandmarkCount(container)).toBe(1);
 
 		cleanup();
 		const { container: errorContainer } = render(AdminLoginPage, {

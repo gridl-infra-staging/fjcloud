@@ -115,7 +115,7 @@ describe('root layout public trust chrome ownership', () => {
 				'/terms'
 			);
 			expect(within(legalFooterNav).getByRole('link', { name: 'Terms' })).toHaveClass(
-				'text-flapjack-rose'
+				'text-flapjack-plum'
 			);
 			expect(within(legalFooterNav).getByRole('link', { name: 'Privacy' })).toHaveAttribute(
 				'href',

@@ -7,7 +7,7 @@ Estimated time: 60–90 minutes.
 
 Before running anything here, complete:
 
-- [`docs/runbooks/local-dev.md`](../LOCAL_SIGNOFF_CHECKLIST.md)
+- [`docs/runbooks/local-dev.md`](../checklists/LOCAL_SIGNOFF_CHECKLIST.md)
 - [`docs/checklists/LOCAL_SIGNOFF_CHECKLIST.md`](../checklists/LOCAL_SIGNOFF_CHECKLIST.md)
 
 This page is a legacy manual credential-validation guide. For machine-readable

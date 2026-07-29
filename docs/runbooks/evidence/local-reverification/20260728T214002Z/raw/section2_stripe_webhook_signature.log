@@ -1,0 +1,18 @@
+command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test billing stripe_webhook_signature_test:: -- --nocapture
+head_sha=b7dddead4a367682bf16cf4de37bdaf686af4d99
+clean_tree=False
+attempt=1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.43s
+     Running tests/billing.rs (target/debug/deps/billing-29dd8e0de5e09bb0)
+
+running 5 tests
+test stripe_webhook_signature_test::valid_signature_accepts_deprecated_subscription_event ... ok
+test stripe_webhook_signature_test::missing_signature_header_returns_bad_request ... ok
+test stripe_webhook_signature_test::local_stripe_service_rejects_invalid_signature_with_bad_request ... ok
+test stripe_webhook_signature_test::valid_signature_processes_event ... ok
+test stripe_webhook_signature_test::mock_stripe_service_accepts_any_signature_value ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 369 filtered out; finished in 0.02s
+
+
+exit_code=0

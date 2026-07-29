@@ -143,25 +143,25 @@
 	data-region-count={regions.length}
 >
 	<div class="rounded-lg bg-white p-4 shadow">
-		<p class="text-sm font-medium text-flapjack-ink/60">Entries</p>
+		<p class="text-sm font-medium text-flapjack-ink/75">Entries</p>
 		<p class="mt-1 text-2xl font-semibold text-flapjack-ink" data-testid="stat-entries-value">
 			{formatNumber(index.entries)}
 		</p>
 	</div>
 	<div class="rounded-lg bg-white p-4 shadow">
-		<p class="text-sm font-medium text-flapjack-ink/60">Data Size</p>
+		<p class="text-sm font-medium text-flapjack-ink/75">Data Size</p>
 		<p class="mt-1 text-2xl font-semibold text-flapjack-ink" data-testid="stat-data-size-value">
 			{formatBytes(index.data_size_bytes)}
 		</p>
 	</div>
 	<div class="rounded-lg bg-white p-4 shadow">
-		<p class="text-sm font-medium text-flapjack-ink/60">Region</p>
+		<p class="text-sm font-medium text-flapjack-ink/75">Region</p>
 		<p class="mt-1 text-2xl font-semibold text-flapjack-ink" data-testid="stat-region-value">
 			{index.region}
 		</p>
 	</div>
 	<div class="rounded-lg bg-white p-4 shadow">
-		<p class="text-sm font-medium text-flapjack-ink/60">Endpoint</p>
+		<p class="text-sm font-medium text-flapjack-ink/75">Endpoint</p>
 		{#if index.endpoint}
 			<div class="mt-1 flex items-center gap-2">
 				<code class="truncate text-sm text-flapjack-ink">{index.endpoint}</code>
@@ -193,15 +193,15 @@
 	</div>
 	<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
 		<div class="rounded-md border border-flapjack-ink/10 bg-flapjack-cream/60 p-3">
-			<p class="text-xs uppercase tracking-wide text-flapjack-ink/60">Searches (7d)</p>
+			<p class="text-xs uppercase tracking-wide text-flapjack-ink/75">Searches (7d)</p>
 			<p class="mt-1 text-xl font-semibold text-flapjack-ink">{formatNumber(totalSearchCount)}</p>
 		</div>
 		<div class="rounded-md border border-flapjack-ink/10 bg-flapjack-cream/60 p-3">
-			<p class="text-xs uppercase tracking-wide text-flapjack-ink/60">No Results</p>
+			<p class="text-xs uppercase tracking-wide text-flapjack-ink/75">No Results</p>
 			<p class="mt-1 text-xl font-semibold text-flapjack-ink">{noResultRatePercent}</p>
 		</div>
 		<div class="rounded-md border border-flapjack-ink/10 bg-flapjack-cream/60 p-3">
-			<p class="text-xs uppercase tracking-wide text-flapjack-ink/60">Top Queries</p>
+			<p class="text-xs uppercase tracking-wide text-flapjack-ink/75">Top Queries</p>
 			<p class="mt-1 text-xl font-semibold text-flapjack-ink">{formatNumber(topSearchCount)}</p>
 		</div>
 	</div>
@@ -313,14 +313,14 @@
 	{/if}
 
 	{#if replicas.length === 0}
-		<p class="text-sm text-flapjack-ink/60">
+		<p class="text-sm text-flapjack-ink/75">
 			No read replicas. Add a replica in another region for lower-latency reads.
 		</p>
 	{:else}
 		<div class="overflow-hidden rounded-lg border">
 			<table class="w-full text-left text-sm">
 				<thead
-					class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60"
+					class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/75"
 				>
 					<tr>
 						<th class="px-4 py-2">Region</th>

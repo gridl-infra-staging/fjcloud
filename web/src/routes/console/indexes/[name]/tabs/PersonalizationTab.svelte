@@ -325,7 +325,7 @@
 			</div>
 		{:else}
 			<p
-				class="mb-4 text-sm text-flapjack-ink/60"
+				class="mb-4 text-sm text-flapjack-ink/75"
 				data-testid="personalization-strategy-state-untouched"
 			>
 				No strategy changes yet.
@@ -342,7 +342,7 @@
 					The editor is showing a default strategy so you can repair and save a valid version.
 				</p>
 				<div class="mt-3 rounded-md border border-flapjack-ink/10 bg-white/85 p-3">
-					<p class="mb-2 text-xs font-semibold uppercase text-flapjack-ink/60">Example JSON</p>
+					<p class="mb-2 text-xs font-semibold uppercase text-flapjack-ink/75">Example JSON</p>
 					<pre
 						class="max-h-56 overflow-auto whitespace-pre-wrap break-words text-xs text-flapjack-ink"
 						data-testid="personalization-strategy-example-json">{strategyExamplePayloadText}</pre>
@@ -498,7 +498,7 @@
 				{personalizationError}
 			</div>
 		{:else if profileState === 'loading'}
-			<p class="text-sm text-flapjack-ink/60" data-testid="personalization-profile-state-loading">
+			<p class="text-sm text-flapjack-ink/75" data-testid="personalization-profile-state-loading">
 				Loading profile…
 			</p>
 		{:else if profileState === 'found' && personalizationProfile}
@@ -514,7 +514,7 @@
 								class="grid grid-cols-[8rem_1fr] gap-2 text-sm"
 								data-testid={metadataRow.rowTestId}
 							>
-								<dt class="text-flapjack-ink/60">{metadataRow.label}</dt>
+								<dt class="text-flapjack-ink/75">{metadataRow.label}</dt>
 								<dd class="font-medium text-flapjack-ink" data-testid={metadataRow.valueTestId}>
 									{metadataRow.value}
 								</dd>
@@ -569,11 +569,11 @@
 				</form>
 			</div>
 		{:else if profileState === 'empty'}
-			<p class="text-sm text-flapjack-ink/60" data-testid="personalization-profile-state-empty">
+			<p class="text-sm text-flapjack-ink/75" data-testid="personalization-profile-state-empty">
 				No personalization profile found for this user token.
 			</p>
 		{:else}
-			<p class="text-sm text-flapjack-ink/60" data-testid="personalization-profile-state-untouched">
+			<p class="text-sm text-flapjack-ink/75" data-testid="personalization-profile-state-untouched">
 				No profile loaded.
 			</p>
 		{/if}

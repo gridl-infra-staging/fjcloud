@@ -115,7 +115,7 @@
 										<p class="font-medium text-flapjack-ink">
 											{formatPaymentMethodLabel(paymentMethod)}
 										</p>
-										<p class="text-sm text-flapjack-ink/60">{formatExpiry(paymentMethod)}</p>
+										<p class="text-sm text-flapjack-ink/75">{formatExpiry(paymentMethod)}</p>
 									</div>
 									{#if paymentMethod.is_default}
 										<span

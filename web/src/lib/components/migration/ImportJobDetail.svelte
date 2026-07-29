@@ -153,17 +153,17 @@
 
 	<section class="grid gap-3 sm:grid-cols-3" aria-label="Import fields">
 		<div>
-			<p class="text-xs font-medium uppercase text-flapjack-ink/60">Source</p>
+			<p class="text-xs font-medium uppercase text-flapjack-ink/75">Source</p>
 			<p data-testid="migration-job-source" class="text-sm text-flapjack-ink">{job.source.name}</p>
 		</div>
 		<div>
-			<p class="text-xs font-medium uppercase text-flapjack-ink/60">Destination</p>
+			<p class="text-xs font-medium uppercase text-flapjack-ink/75">Destination</p>
 			<p data-testid="migration-job-destination" class="text-sm text-flapjack-ink">
 				{job.destination.target}
 			</p>
 		</div>
 		<div>
-			<p class="text-xs font-medium uppercase text-flapjack-ink/60">Updated</p>
+			<p class="text-xs font-medium uppercase text-flapjack-ink/75">Updated</p>
 			<p data-testid="migration-job-updated" class="text-sm text-flapjack-ink">
 				{formatDate(job.updatedAt)}
 			</p>
@@ -281,7 +281,7 @@
 				<p data-testid="migration-job-resume-deadline" class="text-sm text-flapjack-ink/70">
 					Resume before {resumeDeadline}.
 					{#if job.resumeProvenance}
-						<span class="block text-flapjack-ink/60">{job.resumeProvenance}</span>
+						<span class="block text-flapjack-ink/75">{job.resumeProvenance}</span>
 					{/if}
 				</p>
 			{/if}

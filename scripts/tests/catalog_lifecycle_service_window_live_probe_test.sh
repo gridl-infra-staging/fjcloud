@@ -20,6 +20,8 @@ WORK_DIR=""
 RUN_STDOUT=""
 RUN_EXIT_CODE=0
 COPIED_PROBE_ROOT=""
+PARALLEL_CHILD_PIDS=()
+PARALLEL_RESULTS_DIR=""
 SELECTED_ROUTE_WRITER="catalog_writer__infra_api_src_routes_indexes_lifecycle__delete_index__flapjack_proxy_delete_index"
 SELECTED_SERVICE_WRITER="catalog_writer__infra_api_src_services_replica__create_replica__replica_repo_create"
 SELECTED_SOFT_DELETE_REPO_WRITER="catalog_writer__infra_api_src_repos_pg_customer_repo_lifecycle__soft_delete__pg_customer_repo_soft_delete"
@@ -43,6 +45,16 @@ HARD_ERASE_CASE_NAMES=(
 )
 
 cleanup() {
+  local child_pid
+  for child_pid in "${PARALLEL_CHILD_PIDS[@]}"; do
+    if kill -0 "$child_pid" 2>/dev/null; then
+      kill "$child_pid"
+      wait "$child_pid" 2>/dev/null || true
+    fi
+  done
+  if [ -n "$PARALLEL_RESULTS_DIR" ] && [ -d "$PARALLEL_RESULTS_DIR" ]; then
+    rm -rf "$PARALLEL_RESULTS_DIR"
+  fi
   if [ -n "$WORK_DIR" ] && [ -d "$WORK_DIR" ]; then
     rm -rf "$WORK_DIR"
   fi
@@ -120,6 +132,7 @@ METERING
 chmod +x "$(pwd)/target/debug/fj-metering-agent"
 exit 0
 '
+  write_mock_script "$WORK_DIR/bin/sleep" 'exit 0'
   write_mock_script "$WORK_DIR/bin/psql" '
 stdin_payload="$(cat)"
 printf "PSQL %s\n%s\n" "$*" "$stdin_payload" >> "$CATALOG_SERVICE_WINDOW_PSQL_LOG"
@@ -203,6 +216,9 @@ url="${*: -1}"
 case "$url" in
   *"/health")
     exit 0
+    ;;
+  *"/task/"*)
+    printf "{\"status\":\"published\"}\n200"
     ;;
   *"/auth/register")
     if [[ "$*" == *"hard-erase"* ]]; then
@@ -1086,6 +1102,9 @@ test_default_inventory_and_rejects_engine_inventory_shape() {
 
   run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
   assert_eq "$RUN_EXIT_CODE" "0" "default catalog lifecycle inventory should pass"
+  assert_not_contains "$RUN_STDOUT" \
+    "catalog lifecycle acceptance oracle has unknown fields: privacy_erasure_dependencies" \
+    "canonical privacy_erasure_dependencies is an accepted top-level oracle key"
   assert_contains "$RUN_STDOUT" "\"inventory\":\"scripts/tests/fixtures/catalog_lifecycle_writers.json\"" \
     "success output names default inventory"
   assert_contains "$RUN_STDOUT" "\"oracle\":\"scripts/tests/fixtures/catalog_lifecycle_acceptance_oracles.json\"" \
@@ -1169,6 +1188,8 @@ test_catalog_oracle_validator_fails_closed() {
         ;;
       unknown_top_level_field)
         expected="catalog lifecycle acceptance oracle has unknown fields"
+        assert_not_contains "$RUN_STDOUT" "privacy_erasure_dependencies" \
+          "unknown-field rejection does not misclassify the canonical privacy dependency key"
         ;;
       unknown_lane_composition_field)
         expected="catalog lifecycle acceptance oracle lane_composition has unknown fields"
@@ -1695,50 +1716,26 @@ test_hard_erase_tombstone_matrix_route_and_evidence_contract() {
 }
 
 test_hard_erase_tombstone_matrix_mutations_fail_closed() {
-  assert_hard_erase_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_HARD_ERASE_EMPTY_SEED" \
-    "hard erase matrix seed returned no rows" \
-    "empty hard-erasure seed should fail"
-  assert_hard_erase_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_HARD_ERASE_DUPLICATE_SEED_ID" \
-    "hard erase matrix seed IDs must be unique" \
-    "duplicate hard-erasure seed IDs should fail"
-  assert_hard_erase_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_HARD_ERASE_MISSING_CLOCK" \
-    "hard erase matrix before DB clock missing" \
-    "missing hard-erasure DB clock should fail"
-  assert_hard_erase_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_HARD_ERASE_MALFORMED_CLOCK" \
-    "hard erase matrix before DB clock malformed" \
-    "malformed hard-erasure DB clock should fail"
-  assert_hard_erase_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_HARD_ERASE_REVERSED_CLOCK" \
-    "hard erase matrix DB clock bounds are reversed" \
-    "reversed hard-erasure DB clock bounds should fail"
-  assert_hard_erase_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_HARD_ERASE_SNAPSHOT_MISSING_CASE" \
-    "hard erase matrix snapshot must retain exactly 12 scoped rows" \
-    "missing hard-erasure tombstone case should fail"
-  assert_hard_erase_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_HARD_ERASE_SNAPSHOT_DUPLICATE_ID" \
-    "hard erase matrix snapshot IDs must match seeded IDs exactly once" \
-    "duplicate hard-erasure snapshot ID should fail"
-  assert_hard_erase_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_HARD_ERASE_SNAPSHOT_MUTATE_OPAQUE" \
-    "committed cleanup_phase expected exact_target_absence_required" \
-    "mutated hard-erasure opaque tombstone state should fail"
-  assert_hard_erase_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_HARD_ERASE_OUT_OF_WINDOW" \
-    "committed erased_at outside hard-erasure DB clock window" \
-    "out-of-window erased_at should fail"
-  assert_hard_erase_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_HARD_ERASE_SNAPSHOT_UNSCRUBBED" \
-    "committed non-opaque Algolia columns must be scrubbed" \
-    "unscrubbed hard-erasure PII columns should fail"
-  assert_hard_erase_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_HARD_ERASE_DEPENDENTS_RETAINED" \
-    "hard erase matrix target-dependent rows must be absent" \
-    "retained hard-erasure dependent rows should fail"
+  local selected_case="${1:-}"
+  local mutation_spec case_id mutation_env expected message
+  local -a mutation_specs=(
+    "empty_seed|CATALOG_SERVICE_WINDOW_HARD_ERASE_EMPTY_SEED|hard erase matrix seed returned no rows|empty hard-erasure seed should fail"
+    "duplicate_seed_id|CATALOG_SERVICE_WINDOW_HARD_ERASE_DUPLICATE_SEED_ID|hard erase matrix seed IDs must be unique|duplicate hard-erasure seed IDs should fail"
+    "missing_clock|CATALOG_SERVICE_WINDOW_HARD_ERASE_MISSING_CLOCK|hard erase matrix before DB clock missing|missing hard-erasure DB clock should fail"
+    "malformed_clock|CATALOG_SERVICE_WINDOW_HARD_ERASE_MALFORMED_CLOCK|hard erase matrix before DB clock malformed|malformed hard-erasure DB clock should fail"
+    "reversed_clock|CATALOG_SERVICE_WINDOW_HARD_ERASE_REVERSED_CLOCK|hard erase matrix DB clock bounds are reversed|reversed hard-erasure DB clock bounds should fail"
+    "snapshot_missing_case|CATALOG_SERVICE_WINDOW_HARD_ERASE_SNAPSHOT_MISSING_CASE|hard erase matrix snapshot must retain exactly 12 scoped rows|missing hard-erasure tombstone case should fail"
+    "snapshot_duplicate_id|CATALOG_SERVICE_WINDOW_HARD_ERASE_SNAPSHOT_DUPLICATE_ID|hard erase matrix snapshot IDs must match seeded IDs exactly once|duplicate hard-erasure snapshot ID should fail"
+    "snapshot_mutate_opaque|CATALOG_SERVICE_WINDOW_HARD_ERASE_SNAPSHOT_MUTATE_OPAQUE|committed cleanup_phase expected exact_target_absence_required|mutated hard-erasure opaque tombstone state should fail"
+    "out_of_window|CATALOG_SERVICE_WINDOW_HARD_ERASE_OUT_OF_WINDOW|committed erased_at outside hard-erasure DB clock window|out-of-window erased_at should fail"
+    "snapshot_unscrubbed|CATALOG_SERVICE_WINDOW_HARD_ERASE_SNAPSHOT_UNSCRUBBED|committed non-opaque Algolia columns must be scrubbed|unscrubbed hard-erasure PII columns should fail"
+    "dependents_retained|CATALOG_SERVICE_WINDOW_HARD_ERASE_DEPENDENTS_RETAINED|hard erase matrix target-dependent rows must be absent|retained hard-erasure dependent rows should fail"
+  )
+  for mutation_spec in "${mutation_specs[@]}"; do
+    IFS='|' read -r case_id mutation_env expected message <<< "$mutation_spec"
+    catalog_mutation_case_selected "$selected_case" "$case_id" || continue
+    assert_hard_erase_mutation_fails "$mutation_env" "$expected" "$message"
+  done
 }
 
 test_hard_erase_success_output_mutations_fail_closed() {
@@ -1889,37 +1886,174 @@ PY
 # shellcheck source=scripts/tests/catalog_lifecycle_service_window_soft_delete_cases.sh
 source "$SCRIPT_DIR/catalog_lifecycle_service_window_soft_delete_cases.sh"
 
-test_rejects_unknown_and_incomplete_arguments
-test_probe_rejects_non_source_built_binary_provenance
-test_help_documents_environment_contract_and_default_inventory
-test_default_inventory_and_rejects_engine_inventory_shape
-test_catalog_oracle_dependency_fails_closed
-test_catalog_oracle_validator_fails_closed
-test_soft_delete_inventory_denominator_success_contract
-test_soft_delete_inventory_denominator_mutations_fail_closed
-test_soft_delete_generation_fence_transition_contract
-test_soft_delete_stale_operation_matrix_contract
-test_soft_delete_generation_fence_mutations_fail_closed
-test_soft_delete_stale_operation_mutations_fail_closed
-test_soft_delete_hidden_target_mutations_fail_closed
-test_soft_delete_observer_and_verdict_mutations_fail_closed
-test_hard_erase_tombstone_matrix_route_and_evidence_contract
-test_hard_erase_tombstone_matrix_mutations_fail_closed
-test_hard_erase_success_output_mutations_fail_closed
-test_recovery_seam_env_is_scoped_to_local_api_process
-test_probe_drives_required_service_window_routes
-test_restore_conflict_outcomes_are_probe_evidence
-test_expired_worker_claim_reservation_blocks_route_and_service_writers
-test_expired_worker_claim_reservation_mutations_fail_closed
-test_expired_worker_claim_success_output_mutations_fail_closed
-test_admin_cold_restore_filters_to_probe_snapshot
-test_admin_cold_restore_uses_independent_index
-test_migration_probes_use_active_source_index
-test_existing_state_rerun_and_nonprovisioning_replica_are_accepted
-test_no_start_stack_requires_dedicated_integration_runtime_identity
-test_cold_seed_uses_database_url_docker_fallback_without_host_psql
-test_probe_rejects_missing_catalog_row_evidence
-test_probe_counts_calls_and_rejects_unrelated_state_change
-test_catalog_inventory_validator_fails_closed
+CATALOG_TEST_CASES=(
+  test_rejects_unknown_and_incomplete_arguments
+  test_probe_rejects_non_source_built_binary_provenance
+  test_help_documents_environment_contract_and_default_inventory
+  test_default_inventory_and_rejects_engine_inventory_shape
+  test_catalog_oracle_dependency_fails_closed
+  test_catalog_oracle_validator_fails_closed
+  test_soft_delete_inventory_denominator_success_contract
+  test_soft_delete_generation_fence_transition_contract
+  test_soft_delete_stale_operation_matrix_contract
+  test_soft_delete_hidden_target_mutations_fail_closed
+  test_hard_erase_tombstone_matrix_route_and_evidence_contract
+  test_hard_erase_success_output_mutations_fail_closed
+  test_recovery_seam_env_is_scoped_to_local_api_process
+  test_probe_drives_required_service_window_routes
+  test_restore_conflict_outcomes_are_probe_evidence
+  test_expired_worker_claim_reservation_blocks_route_and_service_writers
+  test_expired_worker_claim_reservation_mutations_fail_closed
+  test_expired_worker_claim_success_output_mutations_fail_closed
+  test_admin_cold_restore_filters_to_probe_snapshot
+  test_admin_cold_restore_uses_independent_index
+  test_migration_probes_use_active_source_index
+  test_existing_state_rerun_and_nonprovisioning_replica_are_accepted
+  test_no_start_stack_requires_dedicated_integration_runtime_identity
+  test_cold_seed_uses_database_url_docker_fallback_without_host_psql
+  test_probe_rejects_missing_catalog_row_evidence
+  test_probe_counts_calls_and_rejects_unrelated_state_change
+  test_catalog_inventory_validator_fails_closed
+)
 
-run_test_summary
+for catalog_label in repo account admin; do
+  for catalog_mutation in remove duplicate wrong_disposition wrong_owner wrong_anchor; do
+    CATALOG_TEST_CASES+=("inventory__${catalog_mutation}_${catalog_label}")
+  done
+done
+CATALOG_TEST_CASES+=(inventory__extra_matching_soft_delete inventory__noncanonical_inventory)
+
+for catalog_mutation in \
+  bad_first_status bad_first_generation missing_deleted_at repeat_bump_generation \
+  repeat_change_timestamp missing_evidence_row missing_catalog_row missing_routing_row \
+  missing_customer_row mutate_retained_evidence; do
+  CATALOG_TEST_CASES+=("generation__${catalog_mutation}")
+done
+
+for catalog_status_key in "${SOFT_DELETE_STALE_STATUS_KEYS[@]}"; do
+  CATALOG_TEST_CASES+=(
+    "stale__${catalog_status_key}_accepted"
+    "stale__${catalog_status_key}_omitted"
+  )
+done
+CATALOG_TEST_CASES+=(stale__retained_evidence stale__engine_call stale__verdict)
+
+for catalog_mutation in \
+  missing_artifact malformed_artifact absent_checks empty_checks unknown_only_checks \
+  unchecked_checks missing_callers malformed_caller missing_caller_id verdict; do
+  CATALOG_TEST_CASES+=("observer__${catalog_mutation}")
+done
+
+for catalog_mutation in \
+  empty_seed duplicate_seed_id missing_clock malformed_clock reversed_clock \
+  snapshot_missing_case snapshot_duplicate_id snapshot_mutate_opaque out_of_window \
+  snapshot_unscrubbed dependents_retained; do
+  CATALOG_TEST_CASES+=("hard_erase__${catalog_mutation}")
+done
+
+run_catalog_test_case() {
+  local selected_case="$1"
+  local registered_case registered=0
+  for registered_case in "${CATALOG_TEST_CASES[@]}"; do
+    if [ "$selected_case" = "$registered_case" ]; then
+      registered=1
+      break
+    fi
+  done
+  if [ "$registered" -ne 1 ]; then
+    fail "unknown catalog test case: $selected_case"
+    run_test_summary
+    return
+  fi
+
+  case "$selected_case" in
+    inventory__*)
+      test_soft_delete_inventory_denominator_mutations_fail_closed \
+        "${selected_case#inventory__}"
+      ;;
+    generation__*)
+      test_soft_delete_generation_fence_mutations_fail_closed \
+        "${selected_case#generation__}"
+      ;;
+    stale__*)
+      test_soft_delete_stale_operation_mutations_fail_closed \
+        "${selected_case#stale__}"
+      ;;
+    observer__*)
+      test_soft_delete_observer_and_verdict_mutations_fail_closed \
+        "${selected_case#observer__}"
+      ;;
+    hard_erase__*)
+      test_hard_erase_tombstone_matrix_mutations_fail_closed \
+        "${selected_case#hard_erase__}"
+      ;;
+    *)
+      "$selected_case"
+      ;;
+  esac
+  run_test_summary
+}
+
+record_catalog_child_result() {
+  local selected_case="$1"
+  local child_pid="$2"
+  local results_dir="$3"
+  local child_status=0
+  wait "$child_pid" || child_status=$?
+  if [ "$child_status" -ne 0 ] \
+    && ! grep -q '^FAIL:' "$results_dir/$selected_case.log"; then
+    printf 'FAIL: catalog test case %s exited with status %s\n' \
+      "$selected_case" "$child_status" >>"$results_dir/$selected_case.log"
+  fi
+}
+
+run_catalog_test_cases_in_parallel() {
+  local results_dir selected_case
+  local max_parallel_cases=12
+  local -a active_cases=()
+  local -a active_pids=()
+  PARALLEL_RESULTS_DIR="$(mktemp -d)"
+  results_dir="$PARALLEL_RESULTS_DIR"
+
+  for selected_case in "${CATALOG_TEST_CASES[@]}"; do
+    CATALOG_LIFECYCLE_TEST_CASE="$selected_case" bash "$0" \
+      >"$results_dir/$selected_case.log" 2>&1 &
+    PARALLEL_CHILD_PIDS+=("$!")
+    active_cases+=("$selected_case")
+    active_pids+=("$!")
+    if [ "${#active_pids[@]}" -lt "$max_parallel_cases" ]; then
+      continue
+    fi
+    record_catalog_child_result "${active_cases[0]}" "${active_pids[0]}" "$results_dir"
+    active_cases=("${active_cases[@]:1}")
+    active_pids=("${active_pids[@]:1}")
+    PARALLEL_CHILD_PIDS=("${PARALLEL_CHILD_PIDS[@]:1}")
+  done
+
+  while [ "${#active_pids[@]}" -gt 0 ]; do
+    record_catalog_child_result "${active_cases[0]}" "${active_pids[0]}" "$results_dir"
+    active_cases=("${active_cases[@]:1}")
+    active_pids=("${active_pids[@]:1}")
+    PARALLEL_CHILD_PIDS=("${PARALLEL_CHILD_PIDS[@]:1}")
+  done
+
+  local pass_count fail_count result_file
+  pass_count="$(awk '/^PASS:/ { total++ } END { print total + 0 }' "$results_dir"/*.log)"
+  fail_count="$(awk '/^FAIL:/ { total++ } END { print total + 0 }' "$results_dir"/*.log)"
+  for selected_case in "${CATALOG_TEST_CASES[@]}"; do
+    result_file="$results_dir/$selected_case.log"
+    sed '/^=== Results:/d' "$result_file"
+  done
+  rm -rf "$results_dir"
+  PARALLEL_RESULTS_DIR=""
+
+  echo ""
+  echo "=== Results: $pass_count passed, $fail_count failed ==="
+  [ "$fail_count" -eq 0 ]
+}
+
+if [ -n "${CATALOG_LIFECYCLE_TEST_CASE:-}" ]; then
+  run_catalog_test_case "$CATALOG_LIFECYCLE_TEST_CASE"
+else
+  run_catalog_test_cases_in_parallel
+fi

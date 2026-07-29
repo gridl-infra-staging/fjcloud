@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, within } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
-import { getAccessibilityViolations } from '../../tests/a11y';
+import { getAccessibilityViolations, getPageMainLandmarkCount } from '../../tests/a11y';
 
 vi.mock('$app/forms', () => ({
 	enhance: () => ({ destroy: () => {} })
@@ -28,6 +28,7 @@ describe('Signup page', () => {
 		const { container } = renderSignupPage();
 
 		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+		expect(getPageMainLandmarkCount(container)).toBe(1);
 	});
 
 	it('has no structural accessibility violations when validation errors are rendered', async () => {

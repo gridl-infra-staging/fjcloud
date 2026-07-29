@@ -1,0 +1,108 @@
+check command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test billing stripe_webhook_signature -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+cache_hit=no
+record command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test billing stripe_webhook_signature -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+passed=True
+summary=5 passed, 0 failed, 0 ignored, 0 measured, 369 filtered out; cargo_exit=0
+check command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test auth_admin auth_rate_limit_returns_429_after_threshold -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+cache_hit=no
+record command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test auth_admin auth_rate_limit_returns_429_after_threshold -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+passed=True
+summary=1 passed, 0 failed, 0 ignored, 0 measured, 354 filtered out; cargo_exit=0
+check command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test auth_admin s3_rate_limit_enforces_retry_after_and_slowdown_payload -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+cache_hit=no
+record command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test auth_admin s3_rate_limit_enforces_retry_after_and_slowdown_payload -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+passed=True
+summary=1 passed, 0 failed, 0 ignored, 0 measured, 354 filtered out; cargo_exit=0
+check command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform noisy_neighbor -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+cache_hit=no
+record command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform noisy_neighbor -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+passed=True
+summary=19 passed, 0 failed, 0 ignored, 0 measured, 1564 filtered out; cargo_exit=0
+check command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test auth_admin auth_lockout -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+cache_hit=no
+record command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test auth_admin auth_lockout -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+passed=True
+summary=8 passed, 0 failed, 0 ignored, 0 measured, 347 filtered out; cargo_exit=0
+check command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test auth_admin api_key_auth -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+cache_hit=no
+record command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test auth_admin api_key_auth -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+passed=True
+summary=22 passed, 0 failed, 0 ignored, 0 measured, 333 filtered out; cargo_exit=0
+check command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test auth_admin tenant_wrong_secret_returns_401 -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+cache_hit=no
+record command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test auth_admin tenant_wrong_secret_returns_401 -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+passed=True
+summary=1 passed, 0 failed, 0 ignored, 0 measured, 354 filtered out; cargo_exit=0
+check command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test auth_admin internal_auth -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+cache_hit=no
+record command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test auth_admin internal_auth -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+passed=True
+summary=10 passed, 0 failed, 0 ignored, 0 measured, 345 filtered out; cargo_exit=0
+check command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform cross_tenant_isolation -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+cache_hit=no
+record command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform cross_tenant_isolation -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+passed=True
+summary=19 passed, 0 failed, 0 ignored, 0 measured, 1564 filtered out; cargo_exit=0
+check command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform metering_multitenant -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+cache_hit=no
+record command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform metering_multitenant -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+passed=True
+summary=5 passed, 0 failed, 0 ignored, 0 measured, 1578 filtered out; cargo_exit=0
+check command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform storage_s3_object_metering_concurrency -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+cache_hit=no
+record command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform storage_s3_object_metering_concurrency -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+passed=True
+summary=3 passed, 0 failed, 0 ignored, 0 measured, 1580 filtered out; cargo_exit=0
+check command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform --features proptest-tests tenant_isolation_proptest:: -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+cache_hit=no
+record command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform --features proptest-tests tenant_isolation_proptest:: -- --nocapture
+head=f8e09a73b94fef307517c69ffd78a3606e5f1554
+clean_tree=False
+passed=True
+summary=6 passed, 0 failed, 0 ignored, 0 measured, 1583 filtered out; cargo_exit=0

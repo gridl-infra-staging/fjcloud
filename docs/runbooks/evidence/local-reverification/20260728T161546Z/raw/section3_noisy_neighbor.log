@@ -1,0 +1,32 @@
+
+===== attempt 1 start 2026-07-28T16:18:25Z =====
+command: cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform noisy_neighbor -- --nocapture
+validation_cache_module: /Users/stuart/repos/gridl/mike_dev/matt_root/matt/validation_cache.py
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.27s
+     Running tests/platform.rs (target/debug/deps/platform-37f769d90126a00c)
+
+running 19 tests
+test cold_tier_integration_test::scheduler_skips_cold_indexes_in_noisy_neighbor ... ok
+test scheduler_test::noisy_neighbor_no_capacity_fires_admin_attention_alert ... ok
+test scheduler_test::noisy_neighbor_migration_after_prolonged_quota_overage ... ok
+test scheduler_test::noisy_neighbor_uses_default_quotas_when_override_missing ... ok
+test scheduler_test::noisy_neighbor_no_capacity_flag_prevents_duplicate_alerts ... ok
+test scheduler_test::noisy_neighbor_warning_alert_after_sustained_quota_overage ... ok
+test noisy_neighbor_test::admin_get_quotas_returns_404_for_unknown_tenant ... ok
+test noisy_neighbor_test::admin_get_quotas_returns_defaults_and_overrides ... ok
+test noisy_neighbor_test::quota_enforcement_rejects_excess_indexes ... ok
+test noisy_neighbor_test::admin_put_quotas_rejects_empty_update ... ok
+test noisy_neighbor_test::zero_query_quota_override_is_clamped_safely ... ok
+test noisy_neighbor_test::admin_put_quotas_returns_404_for_unknown_tenant ... ok
+test noisy_neighbor_test::proxy_throttle_429_includes_retry_after ... ok
+test noisy_neighbor_test::proxy_throttles_tenant_at_query_rate_limit ... ok
+test noisy_neighbor_test::proxy_throttle_does_not_affect_other_tenants ... ok
+test noisy_neighbor_test::proxy_throttles_tenant_at_write_rate_limit ... ok
+test noisy_neighbor_test::unknown_index_quota_lookup_does_not_poison_future_quota_cache ... ok
+test noisy_neighbor_test::proxy_throttle_uses_per_index_quota_override ... ok
+test noisy_neighbor_test::admin_put_quotas_updates_resource_quota ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 1564 filtered out; finished in 0.33s
+
+
+===== attempt 1 end exit_code=0 elapsed_seconds=0.67 =====

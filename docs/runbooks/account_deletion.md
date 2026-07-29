@@ -34,7 +34,7 @@ The codebase has two related but separate "delete a customer" concepts. Confusin
 
 | Behavior | Test | Status |
 |---|---|---|
-| `soft_delete` flips `status` AND stamps `deleted_at` | [pg_customer_repo_test.rs::soft_delete_retains_row_and_is_idempotent](../../infra/api/tests/pg_customer_repo_test.rs#L214) | shipped |
+| `soft_delete` flips `status` AND stamps `deleted_at` | [pg_customer_repo_test.rs::soft_delete_retains_row_and_is_idempotent](../../infra/api/tests/integration/pg_customer_repo_test.rs#L214) | shipped |
 | Auth gate maps `status='deleted'` → `Missing` (401) | [models::customer::tests::customer_auth_state_deleted_status_is_missing](../../infra/api/src/models/customer.rs) | shipped (T0.3) |
 | Auth gate distinguishes `Suspended` (403) from `Missing` (401) | [models::customer::tests::customer_auth_state_suspended_status_is_suspended](../../infra/api/src/models/customer.rs) | shipped (T0.3) |
 | Hard erasure flow | not implemented | T2.2 follow-up |

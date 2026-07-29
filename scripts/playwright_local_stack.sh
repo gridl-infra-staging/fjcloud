@@ -16,6 +16,12 @@ LISTEN_ADDR="${LISTEN_ADDR:-127.0.0.1:${PLAYWRIGHT_API_PORT}}"
 API_START_TIMEOUT_SECONDS="${PLAYWRIGHT_API_READY_TIMEOUT_SECONDS:-180}"
 FORCE_API_RESTART="${PLAYWRIGHT_FORCE_API_RESTART:-0}"
 MAILPIT_READY_TIMEOUT_SECONDS="${PLAYWRIGHT_MAILPIT_READY_TIMEOUT_SECONDS:-30}"
+PUBLIC_INFRASTRUCTURE_CACHE_SETTLE_SECONDS="${PLAYWRIGHT_PUBLIC_INFRASTRUCTURE_CACHE_SETTLE_SECONDS:-11}"
+
+if ! [[ "$PUBLIC_INFRASTRUCTURE_CACHE_SETTLE_SECONDS" =~ ^[0-9]+$ ]]; then
+	echo "[playwright_local_stack] ERROR: PLAYWRIGHT_PUBLIC_INFRASTRUCTURE_CACHE_SETTLE_SECONDS must be a non-negative integer." >&2
+	exit 1
+fi
 
 parse_port_from_http_url() {
 	local url="$1"
@@ -32,13 +38,8 @@ parse_port_from_http_url() {
 }
 
 FLAPJACK_URL="${FLAPJACK_URL:-${LOCAL_DEV_FLAPJACK_URL:-http://127.0.0.1:7700}}"
-FLAPJACK_PORT="$(parse_port_from_http_url "$FLAPJACK_URL")"
-FLAPJACK_HEALTH_URL="${FLAPJACK_URL%/}/health"
-FLAPJACK_EXPERIMENTS_API_URL="${FLAPJACK_URL%/}/2/abtests"
 FLAPJACK_START_TIMEOUT_SECONDS="${PLAYWRIGHT_FLAPJACK_READY_TIMEOUT_SECONDS:-30}"
 FLAPJACK_LOG_PATH="$LOCAL_DIR/playwright_flapjack.log"
-FLAPJACK_DATA_DIR="${PLAYWRIGHT_FLAPJACK_DATA_DIR:-$LOCAL_DIR/flapjack-data-playwright-$FLAPJACK_PORT}"
-FLAPJACK_EXPERIMENTS_DATA_DIR="$FLAPJACK_DATA_DIR/.experiments"
 
 # shellcheck source=lib/env.sh
 source "$SCRIPT_DIR/lib/env.sh"
@@ -52,6 +53,20 @@ source "$SCRIPT_DIR/lib/local_stack_contract.sh"
 source "$SCRIPT_DIR/lib/compose_project.sh"
 # shellcheck source=lib/local_url.sh
 source "$SCRIPT_DIR/lib/local_url.sh"
+
+configure_loopback_flapjack_url() {
+	if ! loopback_http_url_is_valid "$FLAPJACK_URL"; then
+		echo "[playwright_local_stack] ERROR: FLAPJACK_URL must be a loopback HTTP URL because the Playwright launcher sends a local admin key to the Flapjack experiments API." >&2
+		exit 1
+	fi
+}
+
+configure_loopback_flapjack_url
+FLAPJACK_PORT="$(parse_port_from_http_url "$FLAPJACK_URL")"
+FLAPJACK_HEALTH_URL="${FLAPJACK_URL%/}/health"
+FLAPJACK_EXPERIMENTS_API_URL="${FLAPJACK_URL%/}/2/abtests"
+FLAPJACK_DATA_DIR="${PLAYWRIGHT_FLAPJACK_DATA_DIR:-$LOCAL_DIR/flapjack-data-playwright-$FLAPJACK_PORT}"
+FLAPJACK_EXPERIMENTS_DATA_DIR="$FLAPJACK_DATA_DIR/.experiments"
 
 export PLAYWRIGHT_API_PORT
 export API_BASE_URL
@@ -407,6 +422,18 @@ if ! api_supports_capability "$API_BASE_URL" "$FJCLOUD_API_PREVIEW_EVENTS_CAPABI
 	echo "[playwright_local_stack] ERROR: API at $API_BASE_URL is live but does not advertise $FJCLOUD_API_PREVIEW_EVENTS_CAPABILITY." >&2
 	echo "[playwright_local_stack] ERROR: restart the API from this checkout before running Playwright." >&2
 	exit 1
+fi
+
+if ! api_public_infrastructure_is_ready "$API_BASE_URL"; then
+	echo "[playwright_local_stack] ERROR: API public infrastructure route is not ready for Playwright." >&2
+	exit 1
+fi
+# The readiness GET populates the API's ten-second in-memory public
+# infrastructure cache before Playwright fixtures seed their VM canary. Leave a
+# one-second margin so the first browser request recomputes from the seeded DB.
+if [ "$PUBLIC_INFRASTRUCTURE_CACHE_SETTLE_SECONDS" -gt 0 ]; then
+	log "Waiting ${PUBLIC_INFRASTRUCTURE_CACHE_SETTLE_SECONDS}s for the public infrastructure readiness cache to expire."
+	sleep "$PUBLIC_INFRASTRUCTURE_CACHE_SETTLE_SECONDS"
 fi
 
 bash "$SCRIPT_DIR/web-dev.sh" "$@" &

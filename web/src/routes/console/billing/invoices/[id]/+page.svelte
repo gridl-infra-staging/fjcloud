@@ -51,7 +51,7 @@
 			<div class="text-right">
 				<p class="text-2xl font-bold text-flapjack-ink">{formatCents(invoice.total_cents)}</p>
 				{#if invoice.subtotal_cents !== invoice.total_cents}
-					<p class="text-sm text-flapjack-ink/60">
+					<p class="text-sm text-flapjack-ink/75">
 						Subtotal: {formatCents(invoice.subtotal_cents)}
 					</p>
 				{/if}
@@ -60,15 +60,15 @@
 
 		<div class="mt-4 grid grid-cols-3 gap-4 border-t border-flapjack-ink/20 pt-4 text-sm">
 			<div>
-				<p class="text-flapjack-ink/60">Created</p>
+				<p class="text-flapjack-ink/75">Created</p>
 				<p class="text-flapjack-ink">{formatDate(invoice.created_at)}</p>
 			</div>
 			<div>
-				<p class="text-flapjack-ink/60">Finalized</p>
+				<p class="text-flapjack-ink/75">Finalized</p>
 				<p class="text-flapjack-ink">{formatDate(invoice.finalized_at)}</p>
 			</div>
 			<div>
-				<p class="text-flapjack-ink/60">Paid</p>
+				<p class="text-flapjack-ink/75">Paid</p>
 				<p class="text-flapjack-ink">{formatDate(invoice.paid_at)}</p>
 			</div>
 		</div>
@@ -105,7 +105,7 @@
 		<div class="overflow-x-auto">
 			<table class="w-full text-sm">
 				<thead>
-					<tr class="border-b border-flapjack-ink/20 text-left text-flapjack-ink/60">
+					<tr class="border-b border-flapjack-ink/20 text-left text-flapjack-ink/75">
 						<th class="pb-2 font-medium">Description</th>
 						<th class="pb-2 font-medium">Quantity</th>
 						<th class="pb-2 font-medium">Unit Price</th>

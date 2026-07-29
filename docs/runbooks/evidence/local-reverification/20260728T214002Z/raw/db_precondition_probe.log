@@ -1,0 +1,30 @@
+db_precondition_probe_start
+.env.local=missing
+DATABASE_URL=missing
+INTEGRATION_DB_URL=missing
+INTEGRATION_DB_HOST=missing
+INTEGRATION_DB_PORT=missing
+INTEGRATION_DB_USER=missing
+INTEGRATION_DB_PASSWORD=missing
+INTEGRATION_DB=missing
+psql=present
+docker=present
+docker_ps_ok charming_lamarr Up 25 minutes
+docker_ps_ok determined_swanson Up 25 minutes
+docker_ps_ok naughty_kapitsa Up 26 minutes
+docker_ps_ok frosty_curran Up 27 minutes
+docker_ps_ok infra-db-1 Up 3 hours (healthy)
+docker_ps_ok fjcloud_stage3_b21_s31-postgres-1 Up 9 hours (healthy)
+docker_ps_ok ayb-testpg-2925001680-1 Up 22 hours
+docker_ps_ok ayb-testpg-599307270-1 Up 32 hours
+docker_ps_ok ayb-testpg-3558155744-1 Up 35 hours
+docker_ps_ok ayb-testpg-2009997641-1 Up 39 hours
+docker_ps_ok ayb-testpg-3881913499-1 Up 39 hours
+docker_ps_ok ayb-testpg-3050202225-1 Up 42 hours
+docker_ps_ok ayb-testpg-3675040916-1 Up 43 hours
+docker_ps_ok ayb-testpg-352534019-1 Up 2 days
+docker_ps_ok buildx_buildkit_flapjack_stage3_builder0 Up 2 days
+docker_ps_ok supabase_storage_uff_dev Restarting (1) 2 seconds ago
+docker_ps_ok supabase_realtime_uff_dev Restarting (1) 43 seconds ago
+docker_ps_ok supabase_inbucket_uff_dev Up 2 days (healthy)
+compose_file=present

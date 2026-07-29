@@ -1,0 +1,14 @@
+command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test billing billing_regression_test::multi_region_storage_attachment_regression -- --exact --nocapture
+head_sha=b7dddead4a367682bf16cf4de37bdaf686af4d99
+clean_tree=False
+attempt=1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.54s
+     Running tests/billing.rs (target/debug/deps/billing-29dd8e0de5e09bb0)
+
+running 1 test
+test billing_regression_test::multi_region_storage_attachment_regression ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 373 filtered out; finished in 0.00s
+
+
+exit_code=0

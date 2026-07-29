@@ -40,17 +40,17 @@
 	</h5>
 	<dl class="grid gap-3 sm:grid-cols-2">
 		<div>
-			<dt class="text-xs font-medium uppercase text-flapjack-ink/60">Source</dt>
+			<dt class="text-xs font-medium uppercase text-flapjack-ink/75">Source</dt>
 			<dd class="text-sm text-flapjack-ink">{sourceName}</dd>
 		</div>
 		<div>
-			<dt class="text-xs font-medium uppercase text-flapjack-ink/60">Destination</dt>
+			<dt class="text-xs font-medium uppercase text-flapjack-ink/75">Destination</dt>
 			<dd class="text-sm text-flapjack-ink">
 				{targetEligibility.target.name} in {targetEligibility.target.region}
 			</dd>
 		</div>
 		<div>
-			<dt class="text-xs font-medium uppercase text-flapjack-ink/60">Scope</dt>
+			<dt class="text-xs font-medium uppercase text-flapjack-ink/75">Scope</dt>
 			<dd class="text-sm text-flapjack-ink">
 				{#if isReplace}
 					Replace the existing destination index. Primary index records, settings, synonyms, and
@@ -64,7 +64,7 @@
 			</dd>
 		</div>
 		<div>
-			<dt class="text-xs font-medium uppercase text-flapjack-ink/60">Admission</dt>
+			<dt class="text-xs font-medium uppercase text-flapjack-ink/75">Admission</dt>
 			<dd class="text-sm text-flapjack-ink">
 				{admissionPresentation.title}
 				{#if admissionPresentation.message}
@@ -98,7 +98,7 @@
 				bind:value={confirmationName}
 				class="w-full rounded border border-flapjack-ink/30 px-3 py-2"
 			/>
-			<p class="text-xs text-flapjack-ink/60">
+			<p class="text-xs text-flapjack-ink/75">
 				Enter {targetEligibility.target.name} exactly to enable Start.
 			</p>
 		</div>

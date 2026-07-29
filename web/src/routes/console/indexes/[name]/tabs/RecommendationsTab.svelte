@@ -312,16 +312,16 @@
 								{/each}
 							</ul>
 						{:else}
-							<p class="text-sm text-flapjack-ink/60">No hits for this request.</p>
+							<p class="text-sm text-flapjack-ink/75">No hits for this request.</p>
 						{/if}
 					</div>
 				{/each}
 			</div>
 		{:else}
-			<p class="text-sm text-flapjack-ink/60">No recommendations found.</p>
+			<p class="text-sm text-flapjack-ink/75">No recommendations found.</p>
 		{/if}
 	{:else}
-		<p class="text-sm text-flapjack-ink/60">No recommendations requested yet.</p>
+		<p class="text-sm text-flapjack-ink/75">No recommendations requested yet.</p>
 	{/if}
 </div>
 

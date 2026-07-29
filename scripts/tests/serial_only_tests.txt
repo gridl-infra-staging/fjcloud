@@ -46,6 +46,7 @@ scripts/tests/integration_up_test.sh # temporarily replaces checkout-root .env.l
 scripts/tests/local_demo_test.sh # temporarily replaces checkout-root .env.local throughout prepare-env fixtures
 scripts/tests/local_dev_down_test.sh # drives the shared local dev stack lifecycle
 scripts/tests/local_dev_migrate_test.sh # temporarily replaces checkout-root .env.local and .local throughout its suite
+scripts/tests/local_dev_up_test.sh # temporarily replaces checkout-root .env.local and .local throughout its suite
 scripts/tests/run_aggregation_job_test.sh # temporarily replaces checkout-root .env.local and .local throughout its suite
 scripts/tests/run_browser_lane_against_staging_test.sh # 1s watchdog contract is timing-sensitive under concurrent suite load
 scripts/tests/seed_local_test.sh # temporarily removes/replaces checkout-root .env.local throughout seed fixtures

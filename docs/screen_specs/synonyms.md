@@ -91,15 +91,15 @@ Browse, search, create, edit, and delete the synonym groups that influence relev
 - Current: per-row Delete posts directly to `?/deleteSynonym` with no confirmation — one click destroys the synonym.
   Target: Delete opens `ConfirmDialog` (standard mode, warn) per the Delete-confirm sub-state.
   Evidence: `web/src/routes/console/indexes/[name]/tabs/SynonymsTab.svelte:149-158` (`<form method="POST" action="?/deleteSynonym" use:enhance>` direct submit); [audit tab_synonyms.md row 9](../audits/feature-parity/20260525T165423Z_fjcloud_vs_engine_dashboard_extension/tab_synonyms.md).
-- Current: no Clear All button; bulk delete requires iterating row-by-row.
-  Target: `Clear All` in header row opens `ConfirmDialog` typed-severe (`CLEAR`) and invokes a new `?/clearSynonyms` server action.
-  Evidence: no matches for `Clear All` / `clearSynonyms` in `SynonymsTab.svelte` or `+page.server.ts`; [audit row 10](../audits/feature-parity/20260525T165423Z_fjcloud_vs_engine_dashboard_extension/tab_synonyms.md).
+- Current: `Clear All` in the header opens `ConfirmDialog` typed-severe (`CLEAR`) and invokes the `?/clearSynonyms` server action.
+  Target: preserve typed confirmation for bulk destructive synonym deletion.
+  Evidence: `web/src/routes/console/indexes/[name]/tabs/SynonymsTab.svelte`; `web/src/routes/console/indexes/[name]/+page.server.ts`; `web/src/routes/console/indexes/[name]/detail.server.actions.synonyms.test.ts`; `web/src/lib/api/client-indexes.test.ts`; `web/tests/e2e-ui/full/index-detail.spec.ts`.
 - Current: create/edit uses a flat, always-visible form with a free-text JSON textarea (`bind:value={newSynonymJson}`) that requires hand-editing Algolia JSON with brackets and commas.
   Target: `EditorDialog` (create/edit modes) with per-type structured sub-states and dynamic Add Word / X-remove rows; no JSON visible to the user.
   Evidence: `SynonymsTab.svelte:188-208` (textarea bound to `newSynonymJson`); [audit rows 4, 5, 7](../audits/feature-parity/20260525T165423Z_fjcloud_vs_engine_dashboard_extension/tab_synonyms.md).
-- Current: header reads literal text `Synonyms` with no count.
-  Target: inline count badge showing `nbHits` (`data-testid="synonym-count"`).
-  Evidence: no matches for `nbHits` or `synonym-count` in `SynonymsTab.svelte`; [audit row 3](../audits/feature-parity/20260525T165423Z_fjcloud_vs_engine_dashboard_extension/tab_synonyms.md).
+- Current: the header renders the synonym count from `nbHits`.
+  Target: keep the count badge visible beside the Synonyms heading.
+  Evidence: `web/src/routes/console/indexes/[name]/tabs/SynonymsTab.svelte`; `web/src/routes/console/indexes/[name]/tabs/SynonymsTab.test.ts`.
 - Current: no inline search/filter; server load calls `api.searchSynonyms(name)` with no query.
   Target: debounced search input bound to `?q=`, server action passes through.
   Evidence: `+page.server.ts:135` calls `api.searchSynonyms(name)` with no args; [audit row 6](../audits/feature-parity/20260525T165423Z_fjcloud_vs_engine_dashboard_extension/tab_synonyms.md).

@@ -25,6 +25,50 @@ if not isinstance(capabilities, list) or sys.argv[1] not in capabilities:
 PY
 }
 
+api_public_infrastructure_response_is_valid() {
+    local body="$1"
+    python3 - "$body" <<'PY'
+import json
+import sys
+
+try:
+    payload = json.loads(sys.argv[1])
+except (json.JSONDecodeError, TypeError):
+    raise SystemExit(1)
+
+if (
+    not isinstance(payload, dict)
+    or set(payload) != {"regions", "overall"}
+    or not isinstance(payload["regions"], list)
+    or not isinstance(payload["overall"], dict)
+):
+    raise SystemExit(1)
+PY
+}
+
+api_public_infrastructure_is_ready() {
+    local api_base_url="$1" route_url response body http_status body_tail curl_status=0
+    route_url="${api_base_url%/}/public/infrastructure"
+    response="$(curl -sS -m 10 -w $'\n%{http_code}' "$route_url" 2>&1)" || curl_status=$?
+
+    if [ "$curl_status" -eq 0 ]; then
+        http_status="${response##*$'\n'}"
+        body="${response%$'\n'*}"
+    else
+        http_status="curl_error_${curl_status}"
+        body="$response"
+    fi
+
+    if [ "$http_status" = "200" ] && api_public_infrastructure_response_is_valid "$body"; then
+        return 0
+    fi
+
+    body_tail="$(printf '%s' "$body" | tail -c 1000)"
+    printf '[local_stack_contract] public infrastructure readiness failed: base_url=%s route=%s status=%s body_tail=%s\n' \
+        "$api_base_url" "$route_url" "$http_status" "$body_tail" >&2
+    return 1
+}
+
 flapjack_runtime_version() {
     local flapjack_base_url="$1" body
     body="$(curl -fsS -m 10 "${flapjack_base_url%/}/health" 2>/dev/null)" || return 1

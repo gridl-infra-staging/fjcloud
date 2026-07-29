@@ -39,7 +39,7 @@
 	<title>Sign Up — Flapjack Cloud</title>
 </svelte:head>
 
-<div class="flex min-h-screen items-center justify-center bg-flapjack-cream/80">
+<main class="flex min-h-screen items-center justify-center bg-flapjack-cream/80">
 	<div class="w-full max-w-md rounded-lg bg-white p-8 shadow">
 		<h1 class="mb-6 text-2xl font-bold text-flapjack-ink">Create your account</h1>
 		<p class="mb-6 text-sm text-flapjack-ink/70">{MARKETING_PRICING.free_tier_promise}</p>
@@ -142,4 +142,4 @@
 			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		</p>
 	</div>
-</div>
+</main>

@@ -9,9 +9,9 @@
 	const borderClass = $derived(
 		tone === 'publicTrust' ? 'border-flapjack-ink/20' : 'border-gray-200'
 	);
-	const textClass = $derived(tone === 'publicTrust' ? 'text-flapjack-ink/60' : 'text-gray-500');
+	const textClass = $derived(tone === 'publicTrust' ? 'text-flapjack-ink/75' : 'text-gray-500');
 	const linkClass = $derived(
-		tone === 'publicTrust' ? 'text-flapjack-rose hover:text-flapjack-plum' : 'hover:text-gray-900'
+		tone === 'publicTrust' ? 'text-flapjack-plum hover:text-flapjack-ink' : 'hover:text-gray-900'
 	);
 </script>
 

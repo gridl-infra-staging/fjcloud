@@ -21,6 +21,10 @@ SOFT_DELETE_TRANSITION_EVIDENCE_KEYS=(
   soft_delete_admin_transition
 )
 
+catalog_mutation_case_selected() {
+  [ -z "$1" ] || [ "$1" = "$2" ]
+}
+
 assert_stdout_occurrences() {
   local needle="$1"
   local expected="$2"
@@ -223,96 +227,140 @@ test_soft_delete_inventory_denominator_success_contract() {
 }
 
 test_soft_delete_inventory_denominator_mutations_fail_closed() {
+  local selected_case="${1:-}"
+  local label mutation expected message
   for label in repo account admin; do
-    assert_inventory_mutation_fails "remove:$label" "missing F5P1 soft-delete writers" \
-      "missing $label soft-delete writer should fail"
-    assert_inventory_mutation_fails "duplicate:$label" "expected exactly one F5P1 soft-delete writer" \
-      "duplicate $label soft-delete writer should fail"
-    assert_inventory_mutation_fails "wrong_disposition:$label" "missing F5P1 soft-delete writers" \
-      "wrong $label soft-delete disposition should fail"
-    assert_inventory_mutation_fails "wrong_owner:$label" "missing F5P1 soft-delete writers" \
-      "wrong $label soft-delete owner should fail"
-    assert_inventory_mutation_fails "wrong_anchor:$label" "missing F5P1 soft-delete writers" \
-      "wrong $label soft-delete anchor should fail"
+    for mutation in remove duplicate wrong_disposition wrong_owner wrong_anchor; do
+      catalog_mutation_case_selected "$selected_case" "${mutation}_${label}" || continue
+      case "$mutation" in
+        remove)
+          expected="missing F5P1 soft-delete writers"
+          message="missing $label soft-delete writer should fail"
+          ;;
+        duplicate)
+          expected="expected exactly one F5P1 soft-delete writer"
+          message="duplicate $label soft-delete writer should fail"
+          ;;
+        wrong_disposition)
+          expected="missing F5P1 soft-delete writers"
+          message="wrong $label soft-delete disposition should fail"
+          ;;
+        wrong_owner)
+          expected="missing F5P1 soft-delete writers"
+          message="wrong $label soft-delete owner should fail"
+          ;;
+        wrong_anchor)
+          expected="missing F5P1 soft-delete writers"
+          message="wrong $label soft-delete anchor should fail"
+          ;;
+      esac
+      assert_inventory_mutation_fails "${mutation}:$label" "$expected" "$message"
+    done
   done
-  assert_inventory_mutation_fails "extra_matching_soft_delete" \
-    "expected exactly one F5P1 soft-delete writer" \
-    "extra matching soft-delete writer should fail"
+  if catalog_mutation_case_selected "$selected_case" "extra_matching_soft_delete"; then
+    assert_inventory_mutation_fails "extra_matching_soft_delete" \
+      "expected exactly one F5P1 soft-delete writer" \
+      "extra matching soft-delete writer should fail"
+  fi
 
-  setup_workspace
-  local copied_inventory="$WORK_DIR/fixtures/copied_inventory.json"
-  cp "$DEFAULT_INVENTORY" "$copied_inventory"
-  run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack" \
-    --inventory "$copied_inventory"
-  assert_eq "$RUN_EXIT_CODE" "1" "non-canonical inventory path should fail"
-  assert_contains "$RUN_STDOUT" "canonical inventory path" \
-    "non-canonical inventory path failure is explicit"
+  if catalog_mutation_case_selected "$selected_case" "noncanonical_inventory"; then
+    setup_workspace
+    local copied_inventory="$WORK_DIR/fixtures/copied_inventory.json"
+    cp "$DEFAULT_INVENTORY" "$copied_inventory"
+    run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack" \
+      --inventory "$copied_inventory"
+    assert_eq "$RUN_EXIT_CODE" "1" "non-canonical inventory path should fail"
+    assert_contains "$RUN_STDOUT" "canonical inventory path" \
+      "non-canonical inventory path failure is explicit"
+  fi
 }
 
 test_soft_delete_observer_and_verdict_mutations_fail_closed() {
-  setup_workspace
-  rm -f "$WORK_DIR/observed-callers.json"
-  run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
-  assert_eq "$RUN_EXIT_CODE" "1" "missing observed-callers artifact should fail"
-  assert_contains "$RUN_STDOUT" "observed callers artifact missing" \
-    "missing observer artifact failure is explicit"
+  local selected_case="${1:-}"
+  if catalog_mutation_case_selected "$selected_case" "missing_artifact"; then
+    setup_workspace
+    rm -f "$WORK_DIR/observed-callers.json"
+    run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
+    assert_eq "$RUN_EXIT_CODE" "1" "missing observed-callers artifact should fail"
+    assert_contains "$RUN_STDOUT" "observed callers artifact missing" \
+      "missing observer artifact failure is explicit"
+  fi
 
-  setup_workspace
-  printf '{not-json\n' > "$WORK_DIR/observed-callers.json"
-  run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
-  assert_eq "$RUN_EXIT_CODE" "1" "malformed observed-callers artifact should fail"
-  assert_contains "$RUN_STDOUT" "observed callers artifact is not structured JSON" \
-    "malformed observer artifact failure is explicit"
+  if catalog_mutation_case_selected "$selected_case" "malformed_artifact"; then
+    setup_workspace
+    printf '{not-json\n' > "$WORK_DIR/observed-callers.json"
+    run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
+    assert_eq "$RUN_EXIT_CODE" "1" "malformed observed-callers artifact should fail"
+    assert_contains "$RUN_STDOUT" "observed callers artifact is not structured JSON" \
+      "malformed observer artifact failure is explicit"
+  fi
 
-  setup_workspace
-  printf '{"status":"observed","callers":[]}\n' > "$WORK_DIR/observed-callers.json"
-  run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
-  assert_eq "$RUN_EXIT_CODE" "1" "absent observer checks window should fail"
-  assert_contains "$RUN_STDOUT" "observed callers artifact reports skipped or unchecked state" \
-    "absent observer checks window failure is explicit"
+  if catalog_mutation_case_selected "$selected_case" "absent_checks"; then
+    setup_workspace
+    printf '{"status":"observed","callers":[]}\n' > "$WORK_DIR/observed-callers.json"
+    run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
+    assert_eq "$RUN_EXIT_CODE" "1" "absent observer checks window should fail"
+    assert_contains "$RUN_STDOUT" "observed callers artifact reports skipped or unchecked state" \
+      "absent observer checks window failure is explicit"
+  fi
 
-  setup_workspace
-  printf '{"status":"observed","callers":[],"checks":{}}\n' > "$WORK_DIR/observed-callers.json"
-  run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
-  assert_eq "$RUN_EXIT_CODE" "1" "empty observer checks window should fail"
-  assert_contains "$RUN_STDOUT" "observed callers artifact reports skipped or unchecked state" \
-    "empty observer checks window failure is explicit"
+  if catalog_mutation_case_selected "$selected_case" "empty_checks"; then
+    setup_workspace
+    printf '{"status":"observed","callers":[],"checks":{}}\n' > "$WORK_DIR/observed-callers.json"
+    run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
+    assert_eq "$RUN_EXIT_CODE" "1" "empty observer checks window should fail"
+    assert_contains "$RUN_STDOUT" "observed callers artifact reports skipped or unchecked state" \
+      "empty observer checks window failure is explicit"
+  fi
 
-  setup_workspace
-  printf '{"status":"observed","callers":[],"checks":{"extra":"checked"}}\n' > "$WORK_DIR/observed-callers.json"
-  run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
-  assert_eq "$RUN_EXIT_CODE" "1" "unknown-only observer checks window should fail"
-  assert_contains "$RUN_STDOUT" "observed callers artifact reports skipped or unchecked state" \
-    "unknown-only observer checks window failure is explicit"
+  if catalog_mutation_case_selected "$selected_case" "unknown_only_checks"; then
+    setup_workspace
+    printf '{"status":"observed","callers":[],"checks":{"extra":"checked"}}\n' > "$WORK_DIR/observed-callers.json"
+    run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
+    assert_eq "$RUN_EXIT_CODE" "1" "unknown-only observer checks window should fail"
+    assert_contains "$RUN_STDOUT" "observed callers artifact reports skipped or unchecked state" \
+      "unknown-only observer checks window failure is explicit"
+  fi
 
-  setup_workspace
-  printf '{"status":"observed","callers":[],"checks":{"identity":"checked","auth":"skipped","status":"checked"}}\n' > "$WORK_DIR/observed-callers.json"
-  run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
-  assert_eq "$RUN_EXIT_CODE" "1" "unchecked observer window should fail"
-  assert_contains "$RUN_STDOUT" "observed callers artifact reports skipped or unchecked state" \
-    "unchecked observer window failure is explicit"
+  if catalog_mutation_case_selected "$selected_case" "unchecked_checks"; then
+    setup_workspace
+    printf '{"status":"observed","callers":[],"checks":{"identity":"checked","auth":"skipped","status":"checked"}}\n' > "$WORK_DIR/observed-callers.json"
+    run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
+    assert_eq "$RUN_EXIT_CODE" "1" "unchecked observer window should fail"
+    assert_contains "$RUN_STDOUT" "observed callers artifact reports skipped or unchecked state" \
+      "unchecked observer window failure is explicit"
+  fi
 
-  setup_workspace
-  printf '{"status":"observed","checks":{"identity":"checked","auth":"checked","status":"checked"}}\n' > "$WORK_DIR/observed-callers.json"
-  run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
-  assert_eq "$RUN_EXIT_CODE" "1" "missing callers array should fail"
-  assert_contains "$RUN_STDOUT" "observed callers artifact missing callers array" \
-    "missing callers array failure is explicit"
+  if catalog_mutation_case_selected "$selected_case" "missing_callers"; then
+    setup_workspace
+    printf '{"status":"observed","checks":{"identity":"checked","auth":"checked","status":"checked"}}\n' > "$WORK_DIR/observed-callers.json"
+    run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
+    assert_eq "$RUN_EXIT_CODE" "1" "missing callers array should fail"
+    assert_contains "$RUN_STDOUT" "observed callers artifact missing callers array" \
+      "missing callers array failure is explicit"
+  fi
 
-  setup_workspace
-  printf '{"status":"observed","callers":[null],"checks":{"identity":"checked","auth":"checked","status":"checked"}}\n' > "$WORK_DIR/observed-callers.json"
-  run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
-  assert_eq "$RUN_EXIT_CODE" "1" "malformed caller row should fail"
-  assert_contains "$RUN_STDOUT" "observed callers artifact has malformed caller rows" \
-    "malformed caller row failure is explicit"
+  if catalog_mutation_case_selected "$selected_case" "malformed_caller"; then
+    setup_workspace
+    printf '{"status":"observed","callers":[null],"checks":{"identity":"checked","auth":"checked","status":"checked"}}\n' > "$WORK_DIR/observed-callers.json"
+    run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
+    assert_eq "$RUN_EXIT_CODE" "1" "malformed caller row should fail"
+    assert_contains "$RUN_STDOUT" "observed callers artifact has malformed caller rows" \
+      "malformed caller row failure is explicit"
+  fi
 
-  setup_workspace
-  printf '{"status":"observed","callers":[{"observed_upstream_kind":"physical_uid"}],"checks":{"identity":"checked","auth":"checked","status":"checked"}}\n' > "$WORK_DIR/observed-callers.json"
-  run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
-  assert_eq "$RUN_EXIT_CODE" "1" "caller row missing caller_id should fail"
-  assert_contains "$RUN_STDOUT" "observed callers artifact has malformed caller rows" \
-    "caller row missing caller_id failure is explicit"
+  if catalog_mutation_case_selected "$selected_case" "missing_caller_id"; then
+    setup_workspace
+    printf '{"status":"observed","callers":[{"observed_upstream_kind":"physical_uid"}],"checks":{"identity":"checked","auth":"checked","status":"checked"}}\n' > "$WORK_DIR/observed-callers.json"
+    run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
+    assert_eq "$RUN_EXIT_CODE" "1" "caller row missing caller_id should fail"
+    assert_contains "$RUN_STDOUT" "observed callers artifact has malformed caller rows" \
+      "caller row missing caller_id failure is explicit"
+  fi
 
+  if ! catalog_mutation_case_selected "$selected_case" "verdict"; then
+    return
+  fi
   setup_workspace
   run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
   assert_eq "$RUN_EXIT_CODE" "0" "soft-delete verdict mutation baseline should pass"
@@ -497,87 +545,67 @@ test_soft_delete_hidden_target_mutations_fail_closed() {
 }
 
 test_soft_delete_generation_fence_mutations_fail_closed() {
-  assert_soft_delete_fence_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_SOFT_DELETE_BAD_FIRST_STATUS" \
-    "soft delete fence first delete must set status=deleted" \
-    "first delete that does not set status=deleted should fail"
-
-  assert_soft_delete_fence_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_SOFT_DELETE_BAD_FIRST_GENERATION" \
-    "soft delete fence first delete must advance generation to G + 1" \
-    "first delete that does not advance generation to G + 1 should fail"
-
-  assert_soft_delete_fence_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_SOFT_DELETE_MISSING_DELETED_AT" \
-    "soft delete fence first delete must populate deleted_at" \
-    "first delete without a populated deleted_at should fail"
-
-  assert_soft_delete_fence_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_SOFT_DELETE_REPEAT_BUMP_GENERATION" \
-    "soft delete fence repeat delete must not change generation" \
-    "repeat delete that changes generation should fail"
-
-  assert_soft_delete_fence_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_SOFT_DELETE_REPEAT_CHANGE_TIMESTAMP" \
-    "soft delete fence repeat delete must not change deleted_at" \
-    "repeat delete that changes deleted_at should fail"
-
-  assert_soft_delete_fence_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_SOFT_DELETE_MISSING_EVIDENCE_ROW" \
-    "soft delete fence snapshot missing import_operation row" \
-    "missing retained import/reservation/dispatch-intent/ACK row should fail"
-
-  assert_soft_delete_fence_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_SOFT_DELETE_MISSING_CATALOG_ROW" \
-    "soft delete fence snapshot missing catalog row" \
-    "missing retained catalog row should fail"
-
-  assert_soft_delete_fence_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_SOFT_DELETE_MISSING_ROUTING_ROW" \
-    "soft delete fence snapshot missing routing row" \
-    "missing retained routing row should fail"
-
-  assert_soft_delete_fence_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_SOFT_DELETE_MISSING_CUSTOMER_ROW" \
-    "soft delete fence snapshot missing customer row" \
-    "missing customer row should fail"
-
-  assert_soft_delete_fence_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_SOFT_DELETE_MUTATE_RETAINED_EVIDENCE" \
-    "soft delete fence first delete mutated retained evidence" \
-    "any change to retained evidence across the delete should fail"
+  local selected_case="${1:-}"
+  local mutation_spec case_id mutation_env expected message
+  local -a mutation_specs=(
+    "bad_first_status|CATALOG_SERVICE_WINDOW_SOFT_DELETE_BAD_FIRST_STATUS|soft delete fence first delete must set status=deleted|first delete that does not set status=deleted should fail"
+    "bad_first_generation|CATALOG_SERVICE_WINDOW_SOFT_DELETE_BAD_FIRST_GENERATION|soft delete fence first delete must advance generation to G + 1|first delete that does not advance generation to G + 1 should fail"
+    "missing_deleted_at|CATALOG_SERVICE_WINDOW_SOFT_DELETE_MISSING_DELETED_AT|soft delete fence first delete must populate deleted_at|first delete without a populated deleted_at should fail"
+    "repeat_bump_generation|CATALOG_SERVICE_WINDOW_SOFT_DELETE_REPEAT_BUMP_GENERATION|soft delete fence repeat delete must not change generation|repeat delete that changes generation should fail"
+    "repeat_change_timestamp|CATALOG_SERVICE_WINDOW_SOFT_DELETE_REPEAT_CHANGE_TIMESTAMP|soft delete fence repeat delete must not change deleted_at|repeat delete that changes deleted_at should fail"
+    "missing_evidence_row|CATALOG_SERVICE_WINDOW_SOFT_DELETE_MISSING_EVIDENCE_ROW|soft delete fence snapshot missing import_operation row|missing retained import/reservation/dispatch-intent/ACK row should fail"
+    "missing_catalog_row|CATALOG_SERVICE_WINDOW_SOFT_DELETE_MISSING_CATALOG_ROW|soft delete fence snapshot missing catalog row|missing retained catalog row should fail"
+    "missing_routing_row|CATALOG_SERVICE_WINDOW_SOFT_DELETE_MISSING_ROUTING_ROW|soft delete fence snapshot missing routing row|missing retained routing row should fail"
+    "missing_customer_row|CATALOG_SERVICE_WINDOW_SOFT_DELETE_MISSING_CUSTOMER_ROW|soft delete fence snapshot missing customer row|missing customer row should fail"
+    "mutate_retained_evidence|CATALOG_SERVICE_WINDOW_SOFT_DELETE_MUTATE_RETAINED_EVIDENCE|soft delete fence first delete mutated retained evidence|any change to retained evidence across the delete should fail"
+  )
+  for mutation_spec in "${mutation_specs[@]}"; do
+    IFS='|' read -r case_id mutation_env expected message <<< "$mutation_spec"
+    catalog_mutation_case_selected "$selected_case" "$case_id" || continue
+    assert_soft_delete_fence_mutation_fails "$mutation_env" "$expected" "$message"
+  done
 }
 
 test_soft_delete_stale_operation_mutations_fail_closed() {
+  local selected_case="${1:-}"
   local key upper expected
 
   for key in "${SOFT_DELETE_STALE_STATUS_KEYS[@]}"; do
     upper="$(printf '%s' "$key" | tr '[:lower:]' '[:upper:]')"
-    assert_soft_delete_fence_mutation_fails \
-      "CATALOG_SERVICE_WINDOW_SOFT_DELETE_${upper}_ACCEPTED" \
-      "soft delete stale operation ${key} expected" \
-      "accepted ${key} should fail"
-    assert_soft_delete_fence_mutation_fails \
-      "CATALOG_SERVICE_WINDOW_SOFT_DELETE_${upper}_OMITTED" \
-      "soft delete stale operation ${key} missing" \
-      "omitted ${key} should fail"
+    if catalog_mutation_case_selected "$selected_case" "${key}_accepted"; then
+      assert_soft_delete_fence_mutation_fails \
+        "CATALOG_SERVICE_WINDOW_SOFT_DELETE_${upper}_ACCEPTED" \
+        "soft delete stale operation ${key} expected" \
+        "accepted ${key} should fail"
+    fi
+    if catalog_mutation_case_selected "$selected_case" "${key}_omitted"; then
+      assert_soft_delete_fence_mutation_fails \
+        "CATALOG_SERVICE_WINDOW_SOFT_DELETE_${upper}_OMITTED" \
+        "soft delete stale operation ${key} missing" \
+        "omitted ${key} should fail"
+    fi
   done
 
-  assert_soft_delete_fence_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_SOFT_DELETE_STALE_MUTATE_RETAINED_EVIDENCE" \
-    "soft delete stale operation retained evidence changed" \
-    "stale-operation retained evidence drift should fail"
+  if catalog_mutation_case_selected "$selected_case" "retained_evidence"; then
+    assert_soft_delete_fence_mutation_fails \
+      "CATALOG_SERVICE_WINDOW_SOFT_DELETE_STALE_MUTATE_RETAINED_EVIDENCE" \
+      "soft delete stale operation retained evidence changed" \
+      "stale-operation retained evidence drift should fail"
+  fi
 
-  assert_soft_delete_fence_mutation_fails \
-    "CATALOG_SERVICE_WINDOW_SOFT_DELETE_STALE_ENGINE_CALL" \
-    "soft delete stale operations produced engine observations" \
-    "stale-operation physical engine dispatch should fail"
+  if catalog_mutation_case_selected "$selected_case" "engine_call"; then
+    assert_soft_delete_fence_mutation_fails \
+      "CATALOG_SERVICE_WINDOW_SOFT_DELETE_STALE_ENGINE_CALL" \
+      "soft delete stale operations produced engine observations" \
+      "stale-operation physical engine dispatch should fail"
+  fi
 
-  setup_workspace
-  run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
-  assert_eq "$RUN_EXIT_CODE" "0" "soft-delete stale verdict mutation baseline should pass"
-  for key in "${SOFT_DELETE_STALE_STATUS_KEYS[@]}"; do
-    expected="$(RUN_STDOUT="$RUN_STDOUT" STALE_KEY="$key" python3 - <<'PY'
+  if catalog_mutation_case_selected "$selected_case" "verdict"; then
+    setup_workspace
+    run_probe --api-binary "$WORK_DIR/bin/api" --engine-binary "$WORK_DIR/bin/flapjack"
+    assert_eq "$RUN_EXIT_CODE" "0" "soft-delete stale verdict mutation baseline should pass"
+    for key in "${SOFT_DELETE_STALE_STATUS_KEYS[@]}"; do
+      expected="$(RUN_STDOUT="$RUN_STDOUT" STALE_KEY="$key" python3 - <<'PY'
 import json
 import os
 
@@ -590,10 +618,11 @@ for idx, line in enumerate(lines):
         break
 print("\n".join(lines))
 PY
-    )"
-    assert_soft_delete_verdict_contract_rejects "$expected" \
-      "public verdict without ${key} should fail"
-  done
+      )"
+      assert_soft_delete_verdict_contract_rejects "$expected" \
+        "public verdict without ${key} should fail"
+    done
+  fi
 }
 
 test_soft_delete_integration_up_enables_algolia_migration() {

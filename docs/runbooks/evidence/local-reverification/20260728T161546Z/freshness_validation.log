@@ -1,0 +1,29 @@
+validation_cache_check clean_tree=False cache_hit=False
+command=bash scripts/probe_launch_evidence_freshness.sh; echo "freshness_exit=$?"
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T092151Z_NONGREEN reason=missing_required_files files=soak_exit_code.txt
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T113011Z_NONGREEN reason=empty_required_files files=writes_attempted.count,visible_in_search_after.count,cross_tenant_leaks.count,noisy_neighbor_violations.count,fail_fast_during_restart_window.count
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T113108Z_NONGREEN reason=empty_required_files files=writes_attempted.count,visible_in_search_after.count,cross_tenant_leaks.count,noisy_neighbor_violations.count,fail_fast_during_restart_window.count
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T113146Z_NONGREEN reason=empty_required_files files=writes_attempted.count,visible_in_search_after.count,cross_tenant_leaks.count,noisy_neighbor_violations.count,fail_fast_during_restart_window.count
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T113225Z_NONGREEN reason=empty_required_files files=writes_attempted.count,visible_in_search_after.count,cross_tenant_leaks.count,noisy_neighbor_violations.count,fail_fast_during_restart_window.count
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T113837Z_NONGREEN reason=empty_required_files files=writes_attempted.count,visible_in_search_after.count,cross_tenant_leaks.count,noisy_neighbor_violations.count,fail_fast_during_restart_window.count
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T114611Z_NONGREEN reason=missing_required_files files=soak_exit_code.txt
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T122026Z_NONGREEN reason=empty_required_files files=writes_attempted.count,visible_in_search_after.count,cross_tenant_leaks.count,noisy_neighbor_violations.count,fail_fast_during_restart_window.count
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T122240Z_NONGREEN reason=missing_required_files files=soak_exit_code.txt
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T124913Z_NONGREEN reason=missing_required_files files=soak_exit_code.txt
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T125732Z_NONGREEN reason=missing_required_files files=soak_exit_code.txt
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T134807Z_NONGREEN reason=missing_required_files files=soak_exit_code.txt,writes_attempted.count,visible_in_search_after.count,cross_tenant_leaks.count,noisy_neighbor_violations.count,fail_fast_during_restart_window.count
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T134836Z_NONGREEN reason=empty_required_files files=writes_attempted.count,visible_in_search_after.count,cross_tenant_leaks.count,noisy_neighbor_violations.count,fail_fast_during_restart_window.count
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260529T090621Z_NONGREEN reason=empty_required_files files=writes_attempted.count,visible_in_search_after.count,cross_tenant_leaks.count,noisy_neighbor_violations.count,fail_fast_during_restart_window.count
+probe_launch_evidence_freshness: malformed bundle 6. Cross-cutting full-stack/fjcloud_post_deploy_evidence_20260502T033932Z_76792 reason=malformed_name
+probe_launch_evidence_freshness: malformed bundle 6. Cross-cutting full-stack/fjcloud_post_deploy_evidence_20260502T040808Z_72856 reason=malformed_name
+probe_launch_evidence_freshness: malformed bundle 6. Cross-cutting full-stack/fjcloud_post_deploy_evidence_20260502T042049Z_3829 reason=malformed_name
+probe_launch_evidence_freshness: malformed bundle 6. Cross-cutting full-stack/fjcloud_post_deploy_evidence_20260502T043733Z_75473 reason=malformed_name
+1. Email/SES delivery 20260722T204849Z_jul16_10am_s1_rerun age=5d FRESH
+2. Billing / Stripe / webhook 20260525T220959Z_TERMINUS age=63d STALE
+3. Security boundaries 20260526T154027Z_GREEN age=63d STALE
+4. Backup / restore + DB integrity 20260612T002802Z_current_main age=46d STALE
+5. HA / multi-tenant isolation 20260529T072151Z_GREEN age=60d STALE
+6. Cross-cutting full-stack 20260605T201644Z_paid_beta_rc_stage3_secret_selected age=52d STALE
+sections=6 fresh=1 stale=5 missing=0 missing_section=0 unparseable=0 malformed_names=4 rejected_bundles=14
+freshness_exit=1
+validation_cache_record passed=True summary=freshness wrapper rc=0; freshness_exit_1=True; section3_stale=True; section5_stale=True

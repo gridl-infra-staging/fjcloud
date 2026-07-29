@@ -344,9 +344,12 @@ fi
 printf '%s\n' "$ALERTS_BEFORE_JSON" > "$ARTIFACT_DIR/alerts_before.json"
 BASELINE_ALERT_CURSOR="$(printf '%s' "$ALERTS_BEFORE_JSON" | highest_alert_created_at)"
 
-# Refuse to run against alert state that already satisfies the proof: with a
-# complete failover pair already present, a passing run would prove nothing.
-if alerts_match_filter "$ALERTS_BEFORE_JSON" "$FAILOVER_DETECTED_FILTER" ""; then
+# Refuse when a complete failover pair appears after the baseline but before
+# mutation; alerts at or before the recorded cursor belong to earlier runs.
+if ! PREFLIGHT_ALERTS_JSON="$(api_get "/admin/alerts")"; then
+    finalize_failure "Failed to fetch preflight alerts"
+fi
+if alerts_match_filter "$PREFLIGHT_ALERTS_JSON" "$FAILOVER_DETECTED_FILTER" "$BASELINE_ALERT_CURSOR"; then
     finalize_failure "Dirty alert state for region ${TARGET_REGION} and tenant ${TENANT_ID} — clean up stale failover alerts before re-running"
 fi
 

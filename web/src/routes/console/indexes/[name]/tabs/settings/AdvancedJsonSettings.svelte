@@ -177,7 +177,7 @@
 						setHybridSemanticRatio((event.currentTarget as HTMLInputElement).value)}
 					class="w-full"
 				/>
-				<span class="text-xs text-flapjack-ink/60">{semanticRatioValue}</span>
+				<span class="text-xs text-flapjack-ink/75">{semanticRatioValue}</span>
 			</div>
 			<div>
 				<label for="settings-hybrid-embedder" class="mb-1 block text-sm text-flapjack-ink/80"

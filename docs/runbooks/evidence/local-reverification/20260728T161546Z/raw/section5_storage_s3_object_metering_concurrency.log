@@ -1,0 +1,16 @@
+
+===== attempt 1 start 2026-07-28T16:18:30Z =====
+command: cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform storage_s3_object_metering_concurrency -- --nocapture
+validation_cache_module: /Users/stuart/repos/gridl/mike_dev/matt_root/matt/validation_cache.py
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.26s
+     Running tests/platform.rs (target/debug/deps/platform-37f769d90126a00c)
+
+running 3 tests
+test storage_s3_object_metering_concurrency_test::same_key_delete_put_recreate_keeps_bucket_totals_correct ... ok
+test storage_s3_object_metering_concurrency_test::same_key_put_put_overwrite_keeps_bucket_totals_correct ... ok
+test storage_s3_object_metering_concurrency_test::same_key_put_delete_keeps_bucket_totals_correct ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 1580 filtered out; finished in 0.22s
+
+
+===== attempt 1 end exit_code=0 elapsed_seconds=0.52 =====

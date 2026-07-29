@@ -10,6 +10,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/lib/test_runner.sh"
 # shellcheck source=lib/assertions.sh
 source "$SCRIPT_DIR/lib/assertions.sh"
+# shellcheck source=lib/playwright_local_stack_harness.sh
+source "$SCRIPT_DIR/lib/playwright_local_stack_harness.sh"
 
 test_flapjack_bootstrap_initializes_experiment_storage() {
 	local script_text
@@ -36,13 +38,15 @@ test_flapjack_bootstrap_initializes_experiment_storage() {
 test_playwright_stack_static_contracts() {
 	local script_text harness_text logic_text
 	script_text="$(cat "$REPO_ROOT/scripts/playwright_local_stack.sh")"
-	harness_text="$(cat "$REPO_ROOT/scripts/tests/playwright_local_stack_test.sh")"
+	harness_text="$(cat "$REPO_ROOT/scripts/tests/lib/playwright_local_stack_harness.sh")"
 	logic_text="$(grep -v 'run: cargo build -p flapjack-server' "$REPO_ROOT/scripts/playwright_local_stack.sh")"
 
 	assert_contains "$script_text" 'FLAPJACK_PORT="$(parse_port_from_http_url "$FLAPJACK_URL")"' \
-		"playwright stack should derive the Flapjack port before choosing a data directory"
+			"playwright stack should derive the Flapjack port before choosing a data directory"
+	assert_contains "$script_text" 'FLAPJACK_URL must be a loopback HTTP URL' \
+			"playwright stack should reject remote Flapjack URLs before sending admin-keyed requests"
 	assert_contains "$script_text" 'FLAPJACK_DATA_DIR="${PLAYWRIGHT_FLAPJACK_DATA_DIR:-$LOCAL_DIR/flapjack-data-playwright-$FLAPJACK_PORT}"' \
-		"playwright stack should isolate default Flapjack data directories per port"
+			"playwright stack should isolate default Flapjack data directories per port"
 	assert_contains "$harness_text" 'mkdir -p "$REPO_ROOT/.local"' \
 		"playwright stack harness should create its repo-local scratch parent before mktemp"
 	assert_contains "$harness_text" 'mktemp -d "$REPO_ROOT/.local/playwright-stack-test.XXXXXX"' \
@@ -93,6 +97,7 @@ cat > "$temp_dir/scripts/lib/local_stack_contract.sh" <<'SH'
 flapjack_runtime_identity_reason() { printf 'match\n'; }
 flapjack_runtime_matches_required_version() { return 0; }
 api_supports_capability() { return 0; }
+api_public_infrastructure_is_ready() { return 0; }
 FJCLOUD_API_PREVIEW_EVENTS_CAPABILITY="preview_events_v1"
 SH
 	cat > "$fake_bin/curl" <<'SH'
@@ -186,6 +191,7 @@ flapjack_required_runtime_identity_evidence_available() {
 }
 flapjack_runtime_identity_reason() { printf 'match\n'; }
 api_supports_capability() { return 0; }
+api_public_infrastructure_is_ready() { return 0; }
 FJCLOUD_API_PREVIEW_EVENTS_CAPABILITY="preview_events_v1"
 SH
 	cat > "$fake_bin/curl" <<'SH'
@@ -213,70 +219,6 @@ SH
 		"playwright stack should reject a healthy runtime without exact identity evidence"
 	assert_contains "$output" "has no selected local Flapjack binary and no exact required identity evidence" \
 		"playwright stack should explain the missing exact identity evidence"
-}
-
-write_exit_zero_stub() {
-	cat > "$1" <<'SH'
-#!/usr/bin/env bash
-exit 0
-SH
-	chmod +x "$1"
-}
-
-prepare_playwright_stack_harness() {
-	mkdir -p "$REPO_ROOT/.local"
-	temp_dir="$(mktemp -d "$REPO_ROOT/.local/playwright-stack-test.XXXXXX")"
-	fake_bin="$temp_dir/bin"
-	mkdir -p "$fake_bin" "$temp_dir/scripts/lib" "$temp_dir/.local"
-	cp "$REPO_ROOT/scripts/playwright_local_stack.sh" "$temp_dir/scripts/playwright_local_stack.sh"
-	cp "$REPO_ROOT/scripts/lib/local_stack_contract.sh" "$temp_dir/scripts/lib/local_stack_contract.sh"
-	cp "$REPO_ROOT/scripts/lib/compose_project.sh" "$temp_dir/scripts/lib/compose_project.sh"
-	cp "$REPO_ROOT/scripts/lib/local_url.sh" "$temp_dir/scripts/lib/local_url.sh"
-	chmod +x "$temp_dir/scripts/playwright_local_stack.sh"
-	cat > "$temp_dir/scripts/lib/env.sh" <<'SH'
-DEFAULT_LOCAL_FLAPJACK_ADMIN_KEY="local-test-key"
-load_env_file() { :; }
-SH
-	cat > "$temp_dir/scripts/lib/health.sh" <<'SH'
-wait_for_health() {
-	for _ in $(seq 1 400); do
-		curl -fsS "$1" >/dev/null 2>&1 && return 0
-		sleep 0.05
-	done
-	return 1
-}
-SH
-	cat > "$temp_dir/scripts/lib/flapjack_binary.sh" <<'SH'
-FJCLOUD_FLAPJACK_VERSION="1.0.10"
-FJCLOUD_FLAPJACK_SOURCE_RESOLUTION_FAILURE_STATUS=2
-find_restart_ready_flapjack_binary() { printf '%s\n' "$TEST_STACK_RUN_DIR/flapjack-server"; }
-flapjack_source_provenance_summary() { printf 'test-source\n'; }
-flapjack_export_required_artifact_identity() {
-	export FJCLOUD_FLAPJACK_REQUIRED_SHA256="test-sha"
-}
-flapjack_export_required_runtime_identity() {
-	export FJCLOUD_FLAPJACK_REQUIRED_REVISION="test-revision"
-	export FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID="test-digest"
-	export FJCLOUD_FLAPJACK_REQUIRED_SHA256="test-sha"
-}
-SH
-	write_exit_zero_stub "$fake_bin/lsof"
-	write_stack_harness_sleeping_service "$temp_dir/flapjack-server" "flapjack"
-}
-
-run_playwright_stack_harness() {
-	local path_value="$1"
-	shift
-
-	env \
-		TEST_STACK_RUN_DIR="$temp_dir" \
-		PATH="$path_value" \
-		DATABASE_URL="postgresql://playwright:secret@127.0.0.1:5432/fjcloud" \
-		FLAPJACK_URL="http://127.0.0.1:7715" \
-		API_BASE_URL="http://127.0.0.1:3205" \
-		API_URL="http://127.0.0.1:3205" \
-		LISTEN_ADDR="127.0.0.1:3205" \
-		"$@" bash "$temp_dir/scripts/playwright_local_stack.sh"
 }
 
 test_playwright_stack_applies_migrations_before_api_start() {
@@ -330,6 +272,128 @@ SH
 		"playwright stack should invoke the local migration script"
 	assert_not_contains "$output" "api started before migrations" \
 		"API should not start before the migration prerequisite"
+}
+
+test_playwright_stack_rejects_unserved_public_infrastructure_before_web_start() {
+	local temp_dir fake_bin output exit_code=0
+	prepare_playwright_stack_harness
+	trap 'rm -rf "'"$temp_dir"'"' RETURN
+	write_stack_harness_curl "$fake_bin/curl"
+	touch "$temp_dir/api_ready" "$temp_dir/public_infrastructure_unserved"
+	cat > "$temp_dir/scripts/web-dev.sh" <<'SH'
+#!/usr/bin/env bash
+touch "${TEST_STACK_RUN_DIR:?}/web_started"
+SH
+	chmod +x "$temp_dir/scripts/web-dev.sh"
+
+	output="$(run_playwright_stack_harness "$fake_bin:$PATH" 2>&1)" || exit_code=$?
+
+	assert_eq "$exit_code" "1" \
+		"playwright stack should reject an API whose public infrastructure route is unserved"
+	assert_contains "$output" "http://127.0.0.1:3205/public/infrastructure" \
+		"public route readiness failure should name the selected stack-owned API route"
+	assert_contains "$output" "status=404" \
+		"public route readiness failure should report the HTTP status"
+	assert_contains "$output" 'body_tail={"error":"public route unavailable"}' \
+		"public route readiness failure should report the bounded response body tail"
+	[ ! -f "$temp_dir/web_started" ] || \
+		fail "playwright stack must reject public route mismatch before web-dev.sh starts"
+}
+
+test_playwright_stack_exports_ready_public_api_to_web() {
+	local temp_dir fake_bin output requests web_env exit_code=0
+	prepare_playwright_stack_harness
+	trap 'rm -rf "'"$temp_dir"'"' RETURN
+	write_stack_harness_curl "$fake_bin/curl"
+	touch "$temp_dir/api_ready"
+	cat > "$temp_dir/scripts/web-dev.sh" <<'SH'
+#!/usr/bin/env bash
+printf 'API_BASE_URL=%s\nAPI_URL=%s\n' "$API_BASE_URL" "$API_URL" \
+	> "${TEST_STACK_RUN_DIR:?}/web_env.log"
+SH
+	chmod +x "$temp_dir/scripts/web-dev.sh"
+
+	output="$(run_playwright_stack_harness "$fake_bin:$PATH" 2>&1)" || exit_code=$?
+	requests="$(cat "$temp_dir/api_requests.log")"
+	web_env="$(cat "$temp_dir/web_env.log" 2>/dev/null || true)"
+
+	assert_eq "$exit_code" "0" "playwright stack should accept the ready public API"
+	assert_contains "$requests" "http://127.0.0.1:3205/health" \
+		"playwright stack should check health on the selected API"
+	assert_contains "$requests" "http://127.0.0.1:3205/version" \
+		"playwright stack should check capabilities on the selected API"
+	assert_contains "$requests" "http://127.0.0.1:3205/public/infrastructure" \
+		"playwright stack should check the anonymous public route on the selected API"
+	assert_eq "$web_env" $'API_BASE_URL=http://127.0.0.1:3205\nAPI_URL=http://127.0.0.1:3205' \
+		"web-dev.sh should inherit the exact ready stack-owned API URL"
+}
+
+test_playwright_stack_settles_public_cache_before_web_start() {
+	local temp_dir fake_bin events output exit_code=0
+	prepare_playwright_stack_harness
+	trap 'rm -rf "'"$temp_dir"'"' RETURN
+	write_stack_harness_curl "$fake_bin/curl"
+	touch "$temp_dir/api_ready"
+	cat > "$fake_bin/sleep" <<'SH'
+#!/usr/bin/env bash
+if [ "${1:-}" = "17" ]; then
+	printf '%s\n' "cache_settled" >> "${TEST_STACK_RUN_DIR:?}/events.log"
+	exit 0
+fi
+exec /bin/sleep "$@"
+SH
+	chmod +x "$fake_bin/sleep"
+	cat > "$temp_dir/scripts/web-dev.sh" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "web_started" >> "${TEST_STACK_RUN_DIR:?}/events.log"
+SH
+	chmod +x "$temp_dir/scripts/web-dev.sh"
+
+	output="$(
+		run_playwright_stack_harness "$fake_bin:$PATH" \
+			PLAYWRIGHT_PUBLIC_INFRASTRUCTURE_CACHE_SETTLE_SECONDS="17" 2>&1
+	)" || exit_code=$?
+	events="$(cat "$temp_dir/events.log" 2>/dev/null || true)"
+
+	assert_eq "$exit_code" "0" \
+		"playwright stack should accept a ready API before settling its public cache"
+	assert_eq "$events" $'public_infrastructure\ncache_settled\nweb_started' \
+		"playwright stack should let readiness cache data expire before web startup"
+}
+
+test_playwright_stack_rejects_invalid_public_cache_settle_seconds() {
+	local temp_dir fake_bin output exit_code=0
+	prepare_playwright_stack_harness
+	trap 'rm -rf "'"$temp_dir"'"' RETURN
+
+	output="$(
+		run_playwright_stack_harness "$fake_bin:$PATH" \
+			PLAYWRIGHT_PUBLIC_INFRASTRUCTURE_CACHE_SETTLE_SECONDS="invalid" 2>&1
+	)" || exit_code=$?
+
+	assert_eq "$exit_code" "1" \
+		"playwright stack should reject an invalid public cache settle interval"
+	assert_contains "$output" \
+			"PLAYWRIGHT_PUBLIC_INFRASTRUCTURE_CACHE_SETTLE_SECONDS must be a non-negative integer" \
+			"invalid public cache settle intervals should have an actionable diagnostic"
+}
+
+test_playwright_stack_rejects_non_loopback_flapjack_url() {
+	local temp_dir fake_bin output exit_code=0
+	prepare_playwright_stack_harness
+	trap 'rm -rf "'"$temp_dir"'"' RETURN
+
+	output="$(
+		run_playwright_stack_harness "$fake_bin:$PATH" \
+			FLAPJACK_URL="http://flapjack.example.test:7715" 2>&1
+	)" || exit_code=$?
+
+	assert_eq "$exit_code" "1" \
+		"playwright stack should reject a non-loopback Flapjack URL before startup"
+	assert_contains "$output" "FLAPJACK_URL must be a loopback HTTP URL" \
+		"remote Flapjack rejection should explain the local-only contract"
+		[ ! -f "$temp_dir/api_requests.log" ] || \
+			fail "remote Flapjack rejection must happen before any API readiness requests"
 }
 
 test_verification_required_mode_starts_mailpit_and_requires_message_json() {
@@ -532,91 +596,6 @@ SH
 		"default stack path should preserve the API dev allow flag for routine fixtures"
 }
 
-write_stack_harness_curl() {
-	local curl_path="$1"
-
-	cat > "$curl_path" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-
-run_dir="${TEST_STACK_RUN_DIR:?}"
-args="$*"
-
-if [[ "$args" == *"/2/abtests"* ]]; then
-	for i in "$@"; do
-		if [ "$i" = "%{http_code}" ]; then
-			printf '200'
-			exit 0
-		fi
-	done
-	exit 0
-fi
-
-if [[ "$args" == *":3205/health"* ]]; then
-	[ -f "$run_dir/api_ready" ]
-	exit $?
-fi
-
-if [[ "$args" == *":3205/version"* ]]; then
-	printf '%s' '{"capabilities":["preview_events_v1"]}'
-	exit 0
-fi
-
-if [[ "$args" == *":8025/api/v1/messages"* ]]; then
-	output_path=""
-	while [ "$#" -gt 0 ]; do
-		if [ "$1" = "-o" ] && [ "$#" -ge 2 ]; then
-			output_path="$2"
-			shift 2
-			continue
-		fi
-		shift
-	done
-	if [ -n "$output_path" ]; then
-		printf '%s' '{"messages":[]}' > "$output_path"
-	else
-		printf '%s' '{"messages":[]}'
-	fi
-	exit 0
-fi
-
-if [[ "$args" == *":7715/health"* ]]; then
-	if [ -f "$run_dir/flapjack_ready" ]; then printf '{"status":"ok","version":"1.0.10","build":{"schemaVersion":1,"version":"1.0.10","revision":"%s","revisionKnown":true,"dirty":false,"dirtyKnown":true,"workspaceDigest":"%s","binary_sha256":"%s","profile":"debug","target":"test-target","features":[],"capabilities":{"vectorSearch":true,"vectorSearchLocal":true}}}' "${FJCLOUD_FLAPJACK_REQUIRED_REVISION:-test-revision}" "${FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID:-test-digest}" "${FJCLOUD_FLAPJACK_REQUIRED_SHA256:-test-sha}"; exit 0; fi
-	exit 1
-fi
-
-exit 1
-SH
-	chmod +x "$curl_path"
-}
-
-# Scaffold the shared Mailpit, API, migration, and web stubs.
-write_verification_required_stack_stubs() {
-	local temp_dir="$1" fake_bin="$2"
-	shift 2
-
-	cat > "$fake_bin/docker" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-printf '%s\n' "$*" >> "${TEST_STACK_RUN_DIR:?}/docker_calls.log"
-if [ "$1" = "compose" ] && [ "$2" = "ps" ]; then
-	exit 0
-fi
-if [ "$1" = "compose" ] && [ "$2" = "up" ] && [ "$3" = "-d" ] && [ "$4" = "mailpit" ]; then
-	exit 0
-fi
-if [ "$1" = "compose" ] && [ "$2" = "stop" ] && [ "$3" = "mailpit" ]; then
-	exit 0
-fi
-exit 1
-SH
-	chmod +x "$fake_bin/docker"
-	write_stack_harness_curl "$fake_bin/curl"
-	write_stack_harness_sleeping_service "$temp_dir/scripts/api-dev.sh" "api" "$@"
-	write_exit_zero_stub "$temp_dir/scripts/local-dev-migrate.sh"
-	write_exit_zero_stub "$temp_dir/scripts/web-dev.sh"
-}
-
 test_verification_required_mode_hands_local_email_delivery_contract_to_api_dev() {
 	local temp_dir fake_bin required_output default_output required_exit_code=0 default_exit_code=0
 	prepare_playwright_stack_harness
@@ -681,53 +660,6 @@ EOF
 		".env.local verification-required mode should not fall back to the routine auto-verification path"
 }
 
-# Write a stub service that records lifecycle state and selected environment.
-write_stack_harness_sleeping_service() {
-	local service_path="$1" state_prefix="$2"
-	shift 2
-	local env_dump="" env_key
-
-	for env_key in "$@"; do
-		env_dump+="printf '${env_key}=%s\\n' \"\${${env_key}-__absent__}\" >> \"\$run_dir/${state_prefix}_env.log\"
-"
-	done
-
-	cat > "$service_path" <<SH
-#!/usr/bin/env bash
-set -euo pipefail
-run_dir="\${TEST_STACK_RUN_DIR:?}"
-${env_dump}echo "\$\$" > "\$run_dir/${state_prefix}_child.pid"
-touch "\$run_dir/${state_prefix}_ready"
-trap 'touch "\$run_dir/${state_prefix}_terminated"; exit 0' TERM INT
-while true; do sleep 1; done
-SH
-	chmod +x "$service_path"
-}
-
-kill_stack_harness_pid() {
-	local pid="$1"
-
-	if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-		kill "$pid" 2>/dev/null || true
-		wait "$pid" 2>/dev/null || true
-	fi
-}
-
-assert_file_eventually_exists() {
-	local abs_path="$1" msg="$2"
-	local attempts="${3:-40}"
-
-	for _ in $(seq 1 "$attempts"); do
-		if [ -f "$abs_path" ]; then
-			pass "$msg"
-			return
-		fi
-		sleep 0.1
-	done
-
-	fail "$msg (missing '$abs_path')"
-}
-
 test_stack_pid_termination_cleans_children_after_web_start() {
 	local temp_dir fake_bin wrapper_pid api_pid flapjack_pid web_pid
 	prepare_playwright_stack_harness
@@ -790,6 +722,10 @@ test_flapjack_bootstrap_initializes_experiment_storage
 	test_playwright_stack_rejects_healthy_runtime_when_source_resolution_fails
 	test_playwright_stack_rejects_healthy_runtime_without_exact_identity_evidence
 	test_playwright_stack_applies_migrations_before_api_start
+	test_playwright_stack_rejects_unserved_public_infrastructure_before_web_start
+	test_playwright_stack_exports_ready_public_api_to_web
+	test_playwright_stack_settles_public_cache_before_web_start
+	test_playwright_stack_rejects_invalid_public_cache_settle_seconds
 	test_verification_required_mode_starts_mailpit_and_requires_message_json
 	test_verification_required_mode_removes_api_skip_env_but_default_preserves_it
 	test_verification_required_mode_hands_local_email_delivery_contract_to_api_dev

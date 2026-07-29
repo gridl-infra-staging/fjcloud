@@ -96,7 +96,7 @@
 		<div class="rounded-md border border-flapjack-ink/20 bg-flapjack-cream/80 p-4">
 			<h3 class="mb-2 text-sm font-semibold text-flapjack-ink">Response</h3>
 			<p class="mb-3 whitespace-pre-wrap text-sm text-flapjack-ink">{chatResponse.answer}</p>
-			<p class="mb-2 text-xs text-flapjack-ink/60">
+			<p class="mb-2 text-xs text-flapjack-ink/75">
 				Conversation ID: {chatResponse.conversationId} · Query ID: {chatResponse.queryID}
 			</p>
 			<pre
@@ -107,6 +107,6 @@
 				)}</pre>
 		</div>
 	{:else}
-		<p class="text-sm text-flapjack-ink/60">No chat response yet.</p>
+		<p class="text-sm text-flapjack-ink/75">No chat response yet.</p>
 	{/if}
 </div>

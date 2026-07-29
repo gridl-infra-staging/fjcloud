@@ -226,7 +226,7 @@
 				class="mb-4 rounded-lg border border-flapjack-ink/20 p-4"
 				data-testid="geo-countries-count"
 			>
-				<p class="text-xs font-medium uppercase tracking-wide text-flapjack-ink/60">Countries</p>
+				<p class="text-xs font-medium uppercase tracking-wide text-flapjack-ink/75">Countries</p>
 				<p class="mt-1 text-3xl font-semibold text-flapjack-ink">
 					{formatNumber(distinctCountryCount)}
 				</p>
@@ -238,7 +238,7 @@
 			>
 				<table class="w-full text-left text-sm">
 					<thead
-						class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60"
+						class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/75"
 					>
 						<tr>
 							<th class="px-3 py-2">Country</th>
@@ -258,7 +258,7 @@
 									<span class="ml-2 font-medium text-flapjack-ink"
 										>{COUNTRY_NAMES[row.code] ?? row.code}</span
 									>
-									<span class="ml-1 text-xs text-flapjack-ink/60">({row.code})</span>
+									<span class="ml-1 text-xs text-flapjack-ink/75">({row.code})</span>
 								</td>
 								<td class="px-3 py-2 text-right tabular-nums text-flapjack-ink">
 									{formatNumber(row.count)}

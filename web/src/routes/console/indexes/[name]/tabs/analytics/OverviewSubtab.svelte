@@ -61,13 +61,13 @@
 	{:else}
 		<div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
 			<div class="rounded-lg border border-flapjack-ink/20 p-4">
-				<p class="text-sm font-medium text-flapjack-ink/60">Total Searches</p>
+				<p class="text-sm font-medium text-flapjack-ink/75">Total Searches</p>
 				<p class="mt-1 text-3xl font-semibold text-flapjack-ink">
 					{formatNumber(resolvedSearchCount.count)}
 				</p>
 			</div>
 			<div class="rounded-lg border border-flapjack-ink/20 p-4">
-				<p class="text-sm font-medium text-flapjack-ink/60">No-Result Rate</p>
+				<p class="text-sm font-medium text-flapjack-ink/75">No-Result Rate</p>
 				<p class="mt-1 text-3xl font-semibold text-flapjack-ink">
 					{formatRatePercent(resolvedNoResultRate.rate)}
 				</p>
@@ -89,7 +89,7 @@
 			{:else}
 				<table class="w-full text-left text-sm">
 					<thead
-						class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60"
+						class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/75"
 					>
 						<tr>
 							<th class="px-3 py-2">Date</th>
@@ -113,7 +113,7 @@
 				<h3 class="mb-3 text-sm font-semibold text-flapjack-ink">Top Searches</h3>
 				<table class="w-full text-left text-sm">
 					<thead
-						class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60"
+						class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/75"
 					>
 						<tr>
 							<th class="px-3 py-2">Rank</th>
@@ -138,11 +138,11 @@
 			<div class="rounded-lg border border-flapjack-ink/20 p-4">
 				<h3 class="mb-3 text-sm font-semibold text-flapjack-ink">No-Result Queries</h3>
 				{#if noResultEntries.length === 0}
-					<p class="text-sm text-flapjack-ink/60">No data</p>
+					<p class="text-sm text-flapjack-ink/75">No data</p>
 				{:else}
 					<table class="w-full text-left text-sm">
 						<thead
-							class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60"
+							class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/75"
 						>
 							<tr>
 								<th class="px-3 py-2">Rank</th>

@@ -25,7 +25,7 @@
 	<title>Log In — Flapjack Cloud</title>
 </svelte:head>
 
-<div class="flex min-h-screen items-center justify-center bg-flapjack-mint text-flapjack-ink">
+<main class="flex min-h-screen items-center justify-center bg-flapjack-mint text-flapjack-ink">
 	<div class="w-full max-w-md rounded-lg bg-white p-8 shadow">
 		<h1 class="mb-6 text-2xl font-bold text-flapjack-ink">Log in to Flapjack Cloud</h1>
 
@@ -98,4 +98,4 @@
 			<!-- Signup discovery is withdrawn; see decisions/2026-05-23_beta_signup_gate.md. -->
 		</div>
 	</div>
-</div>
+</main>

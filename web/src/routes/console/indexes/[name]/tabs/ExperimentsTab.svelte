@@ -131,7 +131,7 @@
 		<div class="overflow-hidden rounded-lg border">
 			<table class="w-full text-left text-sm">
 				<thead
-					class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60"
+					class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/75"
 				>
 					<tr>
 						<th class="px-4 py-2">Name</th>

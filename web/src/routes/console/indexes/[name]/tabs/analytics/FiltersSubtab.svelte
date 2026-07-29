@@ -172,7 +172,7 @@
 			>
 				<table class="w-full text-left text-sm">
 					<thead
-						class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60"
+						class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/75"
 					>
 						<tr>
 							<th class="px-3 py-2">Filter attribute</th>
@@ -199,7 +199,7 @@
 											data-testid={`filter-values-${row.attribute}`}
 										>
 											<p
-												class="mb-2 text-xs font-semibold uppercase tracking-wide text-flapjack-ink/60"
+												class="mb-2 text-xs font-semibold uppercase tracking-wide text-flapjack-ink/75"
 											>
 												{row.attribute}
 											</p>

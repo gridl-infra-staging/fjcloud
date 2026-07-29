@@ -616,7 +616,9 @@ describe('e2e fixture user helpers', () => {
 	it('seeds the public infrastructure canary with restore metadata for displaced active VMs', () => {
 		const runSql = vi
 			.fn()
-			.mockReturnValue('{"vm_id":"canary-vm-1","displaced_vm_ids":["old-vm-1","old-vm-2"]}\n');
+			.mockReturnValue(
+				'{"vm_id":"canary-vm-1","customer_id":"canary-customer-1","deployment_id":"canary-deployment-1","tenant_id":"canary-tenant-1","displaced_vm_ids":["old-vm-1","old-vm-2"]}\n'
+			);
 
 		const canary = __fixtureTestSeams.seedPublicInfrastructureCanaryVm({
 			databaseUrl: 'postgres://127.0.0.1/fixture-db',
@@ -629,13 +631,25 @@ describe('e2e fixture user helpers', () => {
 		expect(context).toBe('seed public Infrastructure canary VM for us-west-1');
 		expect(sql).toContain('WITH prior_active AS');
 		expect(sql).toContain("WHERE region = 'us-west-1'");
+		expect(sql).toContain('INSERT INTO customers');
+		expect(sql).toContain('INSERT INTO customer_deployments');
+		expect(sql).toContain("'running'");
+		expect(sql).toContain('INSERT INTO customer_tenants');
+		expect(sql).toContain('deployment_id');
+		expect(sql).toContain('vm_id');
 		expect(sql).toContain("'displaced_vm_ids'");
 		expect(canary).toMatchObject({
 			vmId: 'canary-vm-1',
+			customerId: 'canary-customer-1',
+			deploymentId: 'canary-deployment-1',
+			tenantId: 'canary-tenant-1',
 			displacedVmIds: ['old-vm-1', 'old-vm-2'],
 			kAnonymityRegion: 'us-west-1'
 		});
 		expect(canary.forbiddenText).toContain('canary-vm-1');
+		expect(canary.forbiddenText).toContain('canary-customer-1');
+		expect(canary.forbiddenText).toContain('canary-deployment-1');
+		expect(canary.forbiddenText).toContain('canary-tenant-1');
 	});
 
 	it('restores the public infrastructure canary cleanup state after the proof', () => {
@@ -644,6 +658,9 @@ describe('e2e fixture user helpers', () => {
 		__fixtureTestSeams.restorePublicInfrastructureCanaryVm(
 			{
 				vmId: 'canary-vm-1',
+				customerId: 'canary-customer-1',
+				deploymentId: 'canary-deployment-1',
+				tenantId: 'canary-tenant-1',
 				displacedVmIds: ['old-vm-1', 'old-vm-2'],
 				kAnonymityRegion: 'us-west-1',
 				forbiddenText: ['canary-vm-1']
@@ -659,6 +676,10 @@ describe('e2e fixture user helpers', () => {
 		expect(databaseUrl).toBe('postgres://127.0.0.1/fixture-db');
 		expect(context).toBe('restore public Infrastructure canary VM canary-vm-1');
 		expect(sql).toContain("WHERE id = 'canary-vm-1'::uuid");
+		expect(sql).toContain("customer_id = 'canary-customer-1'::uuid");
+		expect(sql).toContain("tenant_id = 'canary-tenant-1'");
+		expect(sql).toContain("WHERE id = 'canary-deployment-1'::uuid");
+		expect(sql).toContain("WHERE id = 'canary-customer-1'::uuid");
 		expect(sql).toContain("'old-vm-1'::uuid");
 		expect(sql).toContain("'old-vm-2'::uuid");
 		expect(sql).toContain("SET status = 'active'");
@@ -690,6 +711,9 @@ describe('e2e fixture user helpers', () => {
 			__fixtureTestSeams.restorePublicInfrastructureCanaryVm(
 				{
 					vmId: 'canary-vm-1',
+					customerId: 'canary-customer-1',
+					deploymentId: 'canary-deployment-1',
+					tenantId: 'canary-tenant-1',
 					displacedVmIds: [],
 					kAnonymityRegion: 'us-west-1',
 					forbiddenText: []

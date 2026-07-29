@@ -1,0 +1,16 @@
+command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test billing integration_stripe_test::stripe_payment_failure_webhook_fires_on_declined_card -- --exact --nocapture
+head_sha=b7dddead4a367682bf16cf4de37bdaf686af4d99
+clean_tree=False
+attempt=1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.43s
+     Running tests/billing.rs (target/debug/deps/billing-29dd8e0de5e09bb0)
+
+running 1 test
+[skip] API endpoint unreachable at http://localhost:3099
+[skip] stripe webhook forwarding not available
+test integration_stripe_test::stripe_payment_failure_webhook_fires_on_declined_card ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 373 filtered out; finished in 0.15s
+
+
+exit_code=0

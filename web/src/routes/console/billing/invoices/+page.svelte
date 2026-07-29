@@ -6,6 +6,10 @@
 	let { data } = $props();
 
 	const invoices: InvoiceListItem[] = $derived(data.invoices ?? []);
+
+	function invoiceDetailHref(invoiceId: string): `/console/billing/invoices/${string}` {
+		return `/console/billing/invoices/${encodeURIComponent(invoiceId)}`;
+	}
 </script>
 
 <svelte:head>
@@ -19,14 +23,14 @@
 
 	{#if invoices.length === 0}
 		<div class="rounded-lg bg-white p-12 text-center shadow">
-			<p class="text-flapjack-ink/60">No invoices yet</p>
+			<p class="text-flapjack-ink/75">No invoices yet</p>
 		</div>
 	{:else}
 		<div class="overflow-hidden rounded-lg bg-white shadow">
 			<table class="w-full text-sm">
 				<thead>
 					<tr
-						class="border-b border-flapjack-ink/20 bg-flapjack-cream/80 text-left text-flapjack-ink/60"
+						class="border-b border-flapjack-ink/20 bg-flapjack-cream/80 text-left text-flapjack-ink/75"
 					>
 						<th class="px-6 py-3 font-medium">Period</th>
 						<th class="px-6 py-3 font-medium">Status</th>
@@ -50,7 +54,7 @@
 							<td class="px-6 py-4 text-flapjack-ink">{formatCents(invoice.total_cents)}</td>
 							<td class="px-6 py-4">
 								<a
-									href={resolve(`/console/billing/invoices/${invoice.id}`)}
+									href={resolve(invoiceDetailHref(invoice.id))}
 									data-testid="invoice-row-link-{invoice.id}"
 									class="font-medium text-flapjack-rose hover:text-flapjack-plum"
 								>

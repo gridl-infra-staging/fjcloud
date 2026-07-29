@@ -92,7 +92,7 @@ Baseline viewport: 390px wide. Header controls stack vertically (time-range, ind
 
 Citations from [tab_events.md](../audits/feature-parity/20260525T165423Z_fjcloud_vs_engine_dashboard_extension/tab_events.md) and [CRITICAL_BUGS.md](../audits/feature-parity/20260525T165423Z_fjcloud_vs_engine_dashboard_extension/CRITICAL_BUGS.md):
 
-- **Refresh-only model (P0-1):** `web/src/routes/console/indexes/[name]/tabs/EventsTab.svelte:82` is a `<form method="POST">` with no `setInterval`. No auto-poll, no visibility handling.
+- **Auto-poll model (P0-1):** the events tab now uses a 5s polling interval while live polling is active, pauses while the tab is hidden, and submits through the enhanced refresh form rather than a full-page reload. Shipped owners: `web/src/routes/console/indexes/[name]/tabs/EventsTab.svelte`; `web/src/routes/console/indexes/[name]/tabs/EventsTab.test.ts`; `web/tests/e2e-ui/full/events.spec.ts`.
 - **Silent 500 swallow (S1-2):** `web/src/routes/console/indexes/[name]/+page.server.ts:173` catches debug errors into `null`, indistinguishable from empty.
 - **Row-key collision (S3-1):** `EventsTab.svelte:200` uses `${ts}-${name}-${token}`; intra-ms duplicates collide. Port upstream `buildDebugEventRows` ordinal pattern from `flapjack_dev/engine/dashboard/src/pages/eventDebuggerUtils.ts:40`.
 - **Missing Index column:** table headers are Time/Type/Name/User/Status/Objects; spec requires Index between Time and Type (`EventsTab.svelte:190`).

@@ -9,7 +9,7 @@ in this same bundle.
 
 ## Why this plan exists alongside the runbook
 
-[`docs/runbooks/secret_rotation.md`](../../secret_rotation.md) §"Stripe Rotation"
+[`docs/runbooks/secret_rotation.md`](../../../secret_rotation.md) §"Stripe Rotation"
 documents the abstract contract (update secret storage → deploy → verify).
 The contract is intentionally environment-agnostic so it works for both
 staging and prod. This plan is the per-cutover concretion: the exact AWS
@@ -20,7 +20,7 @@ cutover.
 ## Why we do NOT introduce a new "stripe-only deploy" script
 
 `bash ops/scripts/deploy.sh staging <SHA>` already runs
-[`ops/scripts/lib/generate_ssm_env.sh`](../../../../ops/scripts/lib/generate_ssm_env.sh)
+[`ops/scripts/lib/generate_ssm_env.sh`](../../../../../ops/scripts/lib/generate_ssm_env.sh)
 on-instance which reads `/fjcloud/staging/stripe_secret_key` from SSM
 (see SSM_TO_ENV map line 62) and writes it into `/etc/fjcloud/env`,
 which the systemd unit consumes via `EnvironmentFile`. So rotating the
@@ -137,7 +137,7 @@ aws ssm put-parameter \
 **Blast radius:** restarts `fjcloud-api` and `fj-metering-agent` services
 on the staging EC2 instance. ~30-60s of downtime per deploy.sh's
 30-second health-check loop with auto-rollback on failure (see
-[deploy.sh:196-228](../../../../ops/scripts/deploy.sh#L196-L228) — if
+[deploy.sh:196-228](../../../../../ops/scripts/deploy.sh#L196-L228) — if
 the API doesn't return 200 on `/health` within 30s the instance script
 moves the `.old` binaries back and restarts).
 
@@ -186,7 +186,7 @@ test "$DEPLOYED" = "$SHA" \
 echo "Stage 3 OK — deployed $SHA"
 ```
 
-**Rollback Stage 3:** see [`ops/scripts/rollback.sh`](../../../../ops/scripts/rollback.sh).
+**Rollback Stage 3:** see [`ops/scripts/rollback.sh`](../../../../../ops/scripts/rollback.sh).
 Note: rollback reverts binaries but does NOT revert SSM secrets. To
 fully restore the previous key after a failed cutover, run Stage 2
 rollback FIRST, then rollback.sh, in that order.
@@ -195,7 +195,7 @@ rollback FIRST, then rollback.sh, in that order.
 
 **Blast radius:** none on fjcloud. Creates one disposable test customer
 + invoice in Stripe sandbox (real Stripe API calls but test mode, no
-money). See [validate-stripe.sh](../../../../scripts/validate-stripe.sh)
+money). See [validate-stripe.sh](../../../../../scripts/validate-stripe.sh)
 for the lifecycle: create customer → attach pm_card_visa → create+pay
 invoice → assert status=paid.
 
@@ -345,8 +345,8 @@ staging mirror push + staging CI green, which is the actual long-pole.
 
 ## Cross-references
 
-- Abstract contract: [`docs/runbooks/secret_rotation.md`](../../secret_rotation.md) §"Stripe Rotation"
-- Deploy mechanism: [`ops/scripts/deploy.sh`](../../../../ops/scripts/deploy.sh)
-- SSM-to-env mapping: [`ops/scripts/lib/generate_ssm_env.sh`](../../../../ops/scripts/lib/generate_ssm_env.sh) (line 62)
-- Stripe lifecycle test: [`scripts/validate-stripe.sh`](../../../../scripts/validate-stripe.sh)
+- Abstract contract: [`docs/runbooks/secret_rotation.md`](../../../secret_rotation.md) §"Stripe Rotation"
+- Deploy mechanism: [`ops/scripts/deploy.sh`](../../../../../ops/scripts/deploy.sh)
+- SSM-to-env mapping: [`ops/scripts/lib/generate_ssm_env.sh`](../../../../../ops/scripts/lib/generate_ssm_env.sh) (line 62)
+- Stripe lifecycle test: [`scripts/validate-stripe.sh`](../../../../../scripts/validate-stripe.sh)
 - Stage 1 prerequisites: `PREREQUISITE_STATUS.md` (this directory)

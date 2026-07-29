@@ -42,7 +42,7 @@ verification needed for this lane.
 
 ## Cross-references
 
-- Known-answer test: [billing_regression_test.rs](../../../../../infra/api/tests/billing_regression_test.rs)
+- Known-answer test: [billing_regression_test.rs](../../../../../infra/api/tests/integration/billing_regression_test.rs)
   test name: `shared_plan_staging_bundle_known_answer_regression`
 - Originally-deferred query: SUMMARY.md lines 99-106 (this directory)
 - Re-verification timestamp UTC: 20260429T191900Z (approximate)

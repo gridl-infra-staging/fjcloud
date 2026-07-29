@@ -135,7 +135,7 @@
 
 <div class="mx-auto max-w-2xl">
 	<h1 class="mb-2 text-2xl font-bold text-flapjack-ink">Get Started</h1>
-	<p class="mb-8 text-sm text-flapjack-ink/60">
+	<p class="mb-8 text-sm text-flapjack-ink/75">
 		Set up your first search index in a few simple steps.
 	</p>
 
@@ -155,7 +155,7 @@
 						? 'bg-flapjack-rose text-white'
 						: done
 							? 'bg-flapjack-mint text-white'
-							: 'bg-flapjack-cream/60 text-flapjack-ink/60'}"
+							: 'bg-flapjack-cream/60 text-flapjack-ink/75'}"
 				>
 					{stepNum}
 				</div>
@@ -217,7 +217,7 @@
 					<!-- Region picker -->
 					<fieldset class="mb-6">
 						<legend class="mb-3 text-sm font-medium text-flapjack-ink/80">Region</legend>
-						<p class="mb-3 text-sm text-flapjack-ink/60">
+						<p class="mb-3 text-sm text-flapjack-ink/75">
 							Pick the closest available region to keep search latency low.
 						</p>
 						<div class="grid grid-cols-2 gap-3">
@@ -236,7 +236,7 @@
 										class="sr-only"
 									/>
 									<span class="block text-sm font-medium text-flapjack-ink">{region.name}</span>
-									<span class="mt-1 block text-xs text-flapjack-ink/60">{region.id}</span>
+									<span class="mt-1 block text-xs text-flapjack-ink/75">{region.id}</span>
 								</label>
 							{/each}
 						</div>
@@ -247,7 +247,7 @@
 						<label for="index-name" class="mb-1 block text-sm font-medium text-flapjack-ink/80"
 							>Index name</label
 						>
-						<p class="mb-2 text-sm text-flapjack-ink/60">
+						<p class="mb-2 text-sm text-flapjack-ink/75">
 							This name becomes the handle your app uses when indexing documents and searching.
 						</p>
 						<input
@@ -310,7 +310,7 @@
 							</svg>
 						</div>
 						<h2 class="mb-2 text-lg font-medium text-flapjack-ink">Your index is ready!</h2>
-						<p class="mb-6 text-sm text-flapjack-ink/60">Creating your index now...</p>
+						<p class="mb-6 text-sm text-flapjack-ink/75">Creating your index now...</p>
 
 						<form method="POST" action="?/retryIndex" use:enhance={preserveWizardStepOnSuccess}>
 							<input type="hidden" name="name" value={savedIndexName} />
@@ -344,7 +344,7 @@
 							</svg>
 						</div>
 						<h2 class="mb-2 text-lg font-medium text-flapjack-ink">Taking longer than expected</h2>
-						<p class="text-sm text-flapjack-ink/60">
+						<p class="text-sm text-flapjack-ink/75">
 							Your index is still being prepared. This can occasionally take longer than usual.
 						</p>
 						<div class="mt-6 flex flex-col items-center gap-3">
@@ -357,7 +357,7 @@
 							</button>
 							<a
 								href="mailto:{SUPPORT_EMAIL}"
-								class="text-sm text-flapjack-ink/60 hover:text-flapjack-ink/80"
+								class="text-sm text-flapjack-ink/75 hover:text-flapjack-ink/80"
 							>
 								Contact support
 							</a>
@@ -387,7 +387,7 @@
 							</svg>
 						</div>
 						<h2 class="mb-2 text-lg font-medium text-flapjack-ink">Preparing index</h2>
-						<p class="text-sm text-flapjack-ink/60">{preparingMessage}</p>
+						<p class="text-sm text-flapjack-ink/75">{preparingMessage}</p>
 						<p class="mt-4 text-xs text-flapjack-ink/50">This usually takes a minute or two.</p>
 					</div>
 				{/if}
@@ -430,7 +430,7 @@
 						</svg>
 					</div>
 					<h2 class="text-lg font-medium text-flapjack-ink">You're all set!</h2>
-					<p class="mt-1 text-sm text-flapjack-ink/60">
+					<p class="mt-1 text-sm text-flapjack-ink/75">
 						Here are your credentials. Save them somewhere safe.
 					</p>
 				</div>
@@ -519,7 +519,7 @@ curl -X POST '${credentials.endpoint}/1/indexes/${savedIndexName}/batch' \\
 		<!-- Completed: already onboarded -->
 	{:else if wizardStep === 'completed'}
 		<div class="rounded-lg bg-white p-6 text-center shadow">
-			<p class="text-flapjack-ink/60">You've already completed onboarding.</p>
+			<p class="text-flapjack-ink/75">You've already completed onboarding.</p>
 			<a
 				href={resolve('/console')}
 				class="mt-4 inline-block text-sm font-medium text-flapjack-rose hover:text-flapjack-plum"

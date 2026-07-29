@@ -216,6 +216,10 @@
 		return `${count} ${count === 1 ? 'VM' : 'VMs'}`;
 	}
 
+	function vmDetailHref(vmId: string): `/admin/fleet/${string}` {
+		return `/admin/fleet/${encodeURIComponent(vmId)}`;
+	}
+
 	// Returns true if the URL is a localhost address (safe to kill).
 	// Matches the Rust is_localhost_url logic for UI consistency.
 	function isLocalUrl(url: string): boolean {
@@ -283,7 +287,7 @@
 	{:else if vms.length > 0}
 		<div class="space-y-3">
 			<h3 class="text-lg font-medium text-white">VM Capacity</h3>
-			<p class="text-xs text-slate-500">
+			<p class="text-xs text-slate-400">
 				Underlying Flapjack processes. Kill a VM to trigger health monitor detection and regional
 				failover.
 			</p>
@@ -339,7 +343,7 @@
 							<tr class="transition hover:bg-slate-800/40" data-testid={`capacity-row-${vm.id}`}>
 								<td class="px-4 py-3 font-mono text-sm text-violet-300">
 									<a
-										href={resolve(`/admin/fleet/${vm.id}`)}
+										href={resolve(vmDetailHref(vm.id))}
 										class="hover:text-violet-200 hover:underline"
 									>
 										{vm.hostname}

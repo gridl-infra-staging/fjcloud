@@ -11,6 +11,3 @@
 # entries failed owner validation at once and fell through to `unaccounted`.
 # The drawdown row remains the human-facing owner; see ROADMAP.md, row title
 # "Hermetic shell-test quarantine drawdown".
-scripts/tests/algolia_import_dispatch_live_probe_test.sh # owned by chats/icg/jul27_pm_4_test_wiring_reachability_gate.md
-scripts/tests/catalog_lifecycle_service_window_live_probe_test.sh # owned by chats/icg/jul27_pm_4_test_wiring_reachability_gate.md
-scripts/tests/local_dev_up_test.sh # owned by chats/icg/jul27_pm_4_test_wiring_reachability_gate.md

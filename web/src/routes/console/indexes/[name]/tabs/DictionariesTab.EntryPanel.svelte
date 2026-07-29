@@ -85,7 +85,7 @@
 			</button>
 		</div>
 	{:else if !hasEntries}
-		<p class="text-sm text-flapjack-ink/60">{DICTIONARY_EMPTY_STATES[activeDictionary]}</p>
+		<p class="text-sm text-flapjack-ink/75">{DICTIONARY_EMPTY_STATES[activeDictionary]}</p>
 	{:else}
 		<div class="space-y-3" data-testid={`dictionaries-${activeDictionary}-list`}>
 			{#each entries as entry (entry.objectID)}

@@ -1,0 +1,6 @@
+bundle_path=docs/runbooks/evidence/local-reverification/20260728T214002Z
+stripe_env_contract=docs/design/stripe_environments.md reread
+stripe_key_mode=sk_test_
+price_starter_set=price_
+expected_cents_set=yes
+webhook_secret_set=whsec_

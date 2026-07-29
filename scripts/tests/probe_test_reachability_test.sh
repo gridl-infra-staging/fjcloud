@@ -336,6 +336,22 @@ test_local_ci_registration_is_complete() {
     assert_file_exists "$manifest" \
         "classified hermetic reachability tests have a canonical manifest"
     assert_eq \
+        "$(grep -Fxc '    "scripts/tests/algolia_import_dispatch_live_probe_test.sh"' "$manifest" || true)" \
+        "1" \
+        "the repaired Algolia dispatch probe is registered exactly once"
+    assert_eq \
+        "$(grep -Fxc '    "scripts/tests/catalog_lifecycle_service_window_live_probe_test.sh"' "$manifest" || true)" \
+        "1" \
+        "the repaired catalog lifecycle service-window probe is registered exactly once"
+    assert_eq \
+        "$(grep -Fxc '    "scripts/tests/chaos_ha_failover_proof_test.sh"' "$manifest" || true)" \
+        "1" \
+        "focused HA failover proof suite runs exactly once through the hermetic manifest"
+    assert_eq \
+        "$(grep -Fxc '    "scripts/tests/chaos_test.sh"' "$manifest" || true)" \
+        "0" \
+        "aggregate chaos suite is absent so it cannot duplicate the focused HA execution"
+    assert_eq \
         "$(grep -Fxc '#                    test-reachability-contract,' "$local_ci" || true)" \
         "1" \
         "local-ci usage help names the reachability gate exactly once"

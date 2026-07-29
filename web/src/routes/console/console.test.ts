@@ -433,7 +433,7 @@ describe('Dashboard indexes card', () => {
 	});
 
 	it('keeps the rose primitive and brand pink alias in app.css', () => {
-		expect(appCssSource).toContain('--color-flapjack-rose: #d65479;');
+		expect(appCssSource).toContain('--color-flapjack-rose: #b83358;');
 		expect(appCssSource).toContain('--color-brand-pink: var(--color-flapjack-rose);');
 	});
 });

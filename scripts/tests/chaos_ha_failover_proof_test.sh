@@ -192,6 +192,38 @@ test_ha_failover_proof_accepts_later_candidate_binary_after_empty_dirs() {
 }
 
 
+test_ha_failover_proof_refuses_pre_satisfied_alert_pair_before_kill() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+
+    local alert_state_dir="$tmp_dir/state"
+    local call_log="$tmp_dir/calls.log"
+    mkdir -p "$tmp_dir/bin" "$alert_state_dir"
+    setup_ha_failover_test_root "$tmp_dir"
+    write_successful_restart_region_stub "$tmp_dir/scripts/chaos/restart-region.sh"
+
+    write_pre_satisfied_ha_failover_curl_mock \
+        "$tmp_dir/bin/curl" "$alert_state_dir" "$call_log"
+    write_mock_script "$tmp_dir/bin/flapjack" 'sleep 60'
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        bash "$tmp_dir/scripts/chaos/ha-failover-proof.sh" "us-east-1" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "1" \
+        "ha-failover-proof should refuse a pre-satisfied failover pair"
+    assert_contains "$output" "Dirty alert state" \
+        "ha-failover-proof should explain the pre-satisfied alert refusal"
+    local calls
+    calls="$(cat "$call_log" 2>/dev/null || true)"
+    assert_not_contains "$calls" "POST http://localhost:3001/admin/vms/11111111-1111-1111-1111-111111111111/kill" \
+        "ha-failover-proof should refuse dirty alert state before the mutating kill call"
+}
+
+
 test_ha_failover_proof_verifies_lowest_lag_replica() {
     local tmp_dir
     tmp_dir=$(mktemp -d)
@@ -238,6 +270,7 @@ main() {
     test_ha_failover_proof_fails_when_no_failover_target
     test_ha_failover_proof_fails_before_kill_when_flapjack_binary_missing
     test_ha_failover_proof_accepts_later_candidate_binary_after_empty_dirs
+    test_ha_failover_proof_refuses_pre_satisfied_alert_pair_before_kill
     test_ha_failover_proof_verifies_lowest_lag_replica
 
     run_test_summary

@@ -1,0 +1,14 @@
+command=cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test billing billing_endpoints_test::billing_upgrade_402_on_requires_action_and_rolls_back_free_plan -- --exact --nocapture
+head_sha=b7dddead4a367682bf16cf4de37bdaf686af4d99
+clean_tree=False
+attempt=1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.58s
+     Running tests/billing.rs (target/debug/deps/billing-29dd8e0de5e09bb0)
+
+running 1 test
+test billing_endpoints_test::billing_upgrade_402_on_requires_action_and_rolls_back_free_plan ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 373 filtered out; finished in 0.03s
+
+
+exit_code=0

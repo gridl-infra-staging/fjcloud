@@ -308,7 +308,7 @@
 
 	<div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
 		<div class="rounded-md border border-flapjack-ink/20 p-3">
-			<p class="text-xs font-medium uppercase text-flapjack-ink/60">Total events</p>
+			<p class="text-xs font-medium uppercase text-flapjack-ink/75">Total events</p>
 			<p class="mt-1 text-2xl font-semibold text-flapjack-ink" data-testid="event-count-total">
 				{eventCounts.total}
 			</p>
@@ -329,13 +329,13 @@
 
 	{#if !eventsLoadError && filteredEventsForChart.length > 0 && volumeSeries && volumeSeries.length > 0}
 		<div class="mb-4 rounded-md border border-flapjack-ink/20 p-3" data-testid="event-volume-chart">
-			<p class="mb-2 text-xs font-medium uppercase text-flapjack-ink/60">Event volume</p>
+			<p class="mb-2 text-xs font-medium uppercase text-flapjack-ink/75">Event volume</p>
 			{#if browser}
 				<div class="h-40">
 					<AreaChart data={volumeSeries} x="bucketStart" y="total" />
 				</div>
 			{:else}
-				<p class="text-sm text-flapjack-ink/60">
+				<p class="text-sm text-flapjack-ink/75">
 					{volumeSeries.length} buckets, {filteredEventsForChart.length} events
 				</p>
 			{/if}
@@ -373,7 +373,7 @@
 		<div class="overflow-hidden rounded-md border border-flapjack-ink/20">
 			<table class="w-full text-left text-sm" data-testid="events-table">
 				<thead
-					class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60"
+					class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/75"
 				>
 					<tr>
 						<th class="px-3 py-2">Time</th>
@@ -466,17 +466,17 @@
 				<dl
 					class="mb-3 grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-sm text-flapjack-ink/80"
 				>
-					<dt class="font-medium text-flapjack-ink/60">Event Name</dt>
+					<dt class="font-medium text-flapjack-ink/75">Event Name</dt>
 					<dd>{selectedDebugEvent.eventName}</dd>
-					<dt class="font-medium text-flapjack-ink/60">Type</dt>
+					<dt class="font-medium text-flapjack-ink/75">Type</dt>
 					<dd>{selectedDebugEvent.eventType}</dd>
-					<dt class="font-medium text-flapjack-ink/60">Subtype</dt>
+					<dt class="font-medium text-flapjack-ink/75">Subtype</dt>
 					<dd>{selectedDebugEvent.eventSubtype ?? '—'}</dd>
-					<dt class="font-medium text-flapjack-ink/60">Index</dt>
+					<dt class="font-medium text-flapjack-ink/75">Index</dt>
 					<dd>{selectedDebugEvent.index}</dd>
-					<dt class="font-medium text-flapjack-ink/60">User Token</dt>
+					<dt class="font-medium text-flapjack-ink/75">User Token</dt>
 					<dd class="font-mono text-xs">{selectedDebugEvent.userToken}</dd>
-					<dt class="font-medium text-flapjack-ink/60">Status</dt>
+					<dt class="font-medium text-flapjack-ink/75">Status</dt>
 					<dd>
 						{#if selectedDebugEvent.httpCode === 200}
 							<span
@@ -490,13 +490,13 @@
 							>
 						{/if}
 					</dd>
-					<dt class="font-medium text-flapjack-ink/60">Timestamp</dt>
+					<dt class="font-medium text-flapjack-ink/75">Timestamp</dt>
 					<dd class="font-mono text-xs">{formatEventTimestamp(selectedDebugEvent.timestampMs)}</dd>
 				</dl>
 				<div class="mb-3">
-					<p class="mb-1 text-xs font-medium uppercase text-flapjack-ink/60">Object IDs</p>
+					<p class="mb-1 text-xs font-medium uppercase text-flapjack-ink/75">Object IDs</p>
 					{#if selectedDebugEvent.objectIds.length === 0}
-						<p class="text-sm text-flapjack-ink/60">None</p>
+						<p class="text-sm text-flapjack-ink/75">None</p>
 					{:else}
 						<div class="flex flex-wrap gap-2">
 							{#each selectedDebugEvent.objectIds as objectId (objectId)}
@@ -509,9 +509,9 @@
 					{/if}
 				</div>
 				<div class="mb-3">
-					<p class="mb-1 text-xs font-medium uppercase text-flapjack-ink/60">Validation Errors</p>
+					<p class="mb-1 text-xs font-medium uppercase text-flapjack-ink/75">Validation Errors</p>
 					{#if selectedDebugEvent.validationErrors.length === 0}
-						<p class="text-sm text-flapjack-ink/60">None</p>
+						<p class="text-sm text-flapjack-ink/75">None</p>
 					{:else}
 						<ul class="list-disc space-y-1 pl-5 text-sm text-flapjack-plum">
 							{#each selectedDebugEvent.validationErrors as validationError (validationError)}
@@ -521,7 +521,7 @@
 					{/if}
 				</div>
 				<div>
-					<p class="mb-1 text-xs font-medium uppercase text-flapjack-ink/60">Raw JSON</p>
+					<p class="mb-1 text-xs font-medium uppercase text-flapjack-ink/75">Raw JSON</p>
 					<pre
 						class="overflow-x-auto rounded-md bg-flapjack-cream/80 p-3 text-xs text-flapjack-ink/80">{JSON.stringify(
 							selectedDebugEvent,

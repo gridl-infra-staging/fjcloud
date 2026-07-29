@@ -139,7 +139,7 @@
 					class="rounded-lg border border-flapjack-ink/10 bg-white/90 p-4 shadow-sm"
 					data-testid={card.testId}
 				>
-					<p class="text-xs uppercase tracking-wide text-flapjack-ink/60">{card.label}</p>
+					<p class="text-xs uppercase tracking-wide text-flapjack-ink/75">{card.label}</p>
 					<p class="mt-2 text-2xl font-semibold text-flapjack-ink">{card.value}</p>
 				</div>
 			{/each}

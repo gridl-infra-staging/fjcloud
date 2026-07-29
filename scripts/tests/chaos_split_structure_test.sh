@@ -23,6 +23,8 @@ readonly CHAOS_RESTART_REGION_SUITE_PATH="scripts/tests/chaos_restart_region_tes
 readonly CHAOS_HA_FAILOVER_SUITE_PATH="scripts/tests/chaos_ha_failover_proof_test.sh"
 readonly CHAOS_STRUCTURE_AUDIT_PATH="scripts/tests/chaos_split_structure_test.sh"
 readonly CHAOS_TESTS_DIRMAP_PATH="scripts/tests/DIRMAP.md"
+readonly TEST_REACHABILITY_MANIFEST_PATH="scripts/lib/test_reachability_manifest.sh"
+readonly TEST_REACHABILITY_PROBE_TEST_PATH="scripts/tests/probe_test_reachability_test.sh"
 readonly TEST_WIRING_AUDIT_DIR="docs/audits/test-wiring"
 readonly CHAOS_HELPERS_PATH="scripts/tests/lib/chaos_test_helpers.sh"
 readonly SHARED_TEST_HELPERS_PATH="scripts/tests/lib/test_helpers.sh"
@@ -55,6 +57,10 @@ CHAOS_FOCUSED_SUITE_REFERENCE_ALLOWLIST=(
     "$CHAOS_WRAPPER_PATH"
     "$CHAOS_STRUCTURE_AUDIT_PATH"
     "$CHAOS_TESTS_DIRMAP_PATH"
+    "$ROADMAP_PATH"
+    "$IMPLEMENTED_ROADMAP_PATH"
+    "$TEST_REACHABILITY_MANIFEST_PATH"
+    "$TEST_REACHABILITY_PROBE_TEST_PATH"
 )
 
 CHAOS_FOCUSED_SUITE_REFERENCE_ALLOWLIST+=("${CHAOS_FOCUSED_SUITES[@]}")

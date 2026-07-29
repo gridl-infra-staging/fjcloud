@@ -518,7 +518,7 @@ Capture deferred. Original lane was about UN-blocking the 403, not
 proving end-to-end usage_records flow on the deployed SHA. The proof
 lane requires:
 
-- Synthetic-traffic seeder: [scripts/launch/seed_synthetic_traffic.sh](../../../../scripts/launch/seed_synthetic_traffic.sh)
+- Synthetic-traffic seeder: [scripts/launch/seed_synthetic_traffic.sh](../../../../../scripts/launch/seed_synthetic_traffic.sh)
 - **WARNING:** that seeder is currently a SKELETON (lines 8-12 of the
   script). It has tenant definitions and CLI parsing wired but the
   staging-specific provisioning + document-write sections are TODO.
@@ -536,7 +536,7 @@ implementation work.
 ## Lane 2 — deployed alert delivery proof
 
 Capture deferred. The probe exists at
-[scripts/probe_alert_delivery.sh](../../../../scripts/probe_alert_delivery.sh)
+[scripts/probe_alert_delivery.sh](../../../../../scripts/probe_alert_delivery.sh)
 and is runnable from operator laptop with the configured webhook URLs:
 
 ```bash
@@ -555,7 +555,7 @@ evidence dir under `docs/runbooks/evidence/alert-delivery/`.
 ## Lane 3 — browser proof against current main
 
 **Root cause identified this session.** The previous failure at
-[web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:130](../../../../web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts) was a Stripe API 500 from
+[web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:130](../../../../../web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts) was a Stripe API 500 from
 `POST /admin/customers/{id}/sync-stripe`. The trace:
 
 ```
@@ -583,7 +583,7 @@ the lane originally used; capture in a fresh evidence dir.
 ## Lane 5 — SES bounce/complaint live probe
 
 Probe exists at
-[scripts/probe_ses_bounce_complaint_e2e.sh](../../../../scripts/probe_ses_bounce_complaint_e2e.sh).
+[scripts/probe_ses_bounce_complaint_e2e.sh](../../../../../scripts/probe_ses_bounce_complaint_e2e.sh).
 Usage:
 
 ```bash
@@ -624,7 +624,7 @@ Already merged and on main. No further action.
 # Paid-beta RC coordinator analysis
 
 Spawned an Explore agent for full analysis.
-[scripts/launch/run_full_backend_validation.sh](../../../../scripts/launch/run_full_backend_validation.sh)
+[scripts/launch/run_full_backend_validation.sh](../../../../../scripts/launch/run_full_backend_validation.sh)
 is the entry point; `--paid-beta-rc` mode runs ~20 gates plus a backend
 launch gate with 5 sub-gates (reliability/security/commerce/load/ci_cd).
 

@@ -24,7 +24,7 @@
 				href={resolve(tab.href)}
 				class="border-b-2 px-1 pb-3 text-sm font-medium transition-colors {isActive(tab.href)
 					? 'border-flapjack-rose text-flapjack-rose'
-					: 'border-transparent text-flapjack-ink/60 hover:border-flapjack-ink/30 hover:text-flapjack-ink/80'}"
+					: 'border-transparent text-flapjack-ink/75 hover:border-flapjack-ink/30 hover:text-flapjack-ink/80'}"
 			>
 				{tab.label}
 			</a>

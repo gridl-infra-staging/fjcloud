@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/svelte';
 import VerifyEmailPage from './+page.svelte';
 import { LEGAL_SUPPORT_MAILTO, SUPPORT_EMAIL } from '$lib/format';
-import { getAccessibilityViolations } from '../../../tests/a11y';
+import { getAccessibilityViolations, getPageMainLandmarkCount } from '../../../tests/a11y';
 
 afterEach(cleanup);
 
@@ -17,6 +17,7 @@ describe('Verify email page', () => {
 		const { container } = renderVerifyEmailPage(true, 'Email verified successfully');
 
 		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+		expect(getPageMainLandmarkCount(container)).toBe(1);
 	});
 
 	it('has no structural accessibility violations for failure outcomes', async () => {

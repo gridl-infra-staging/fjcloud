@@ -528,7 +528,7 @@
 </svelte:head>
 
 <div onsubmit={trackSubmittedPostAction}>
-	<nav class="mb-4 text-sm text-flapjack-ink/60" aria-label="Breadcrumb">
+	<nav class="mb-4 text-sm text-flapjack-ink/75" aria-label="Breadcrumb">
 		<a href={resolve('/console')} class="hover:text-flapjack-ink/80">Console</a>
 		<span class="mx-1">/</span>
 		<a href={resolve('/console/indexes')} class="hover:text-flapjack-ink/80">Indexes</a>

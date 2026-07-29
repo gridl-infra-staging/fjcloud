@@ -25,8 +25,8 @@ one of them; know which before you reason about "is it deployed?".
 |---|---|---|---|
 | What it is | `fjcloud-api` (axum) — the billing/metering/admin backend | the SvelteKit `web/` dashboard customers log into at `cloud.{staging.,}flapjack.foo` | The per-tenant **flapjack** search instances (one EC2 VM per tenant index region) that actually serve search |
 | Source | this repo (`infra/`) | this repo (`web/`) | upstream **flapjack** binary, baked into an AMI |
-| How it's built | `cargo build`, in mirror CI | `npm run build` (Vite → `.svelte-kit/cloudflare`), in mirror CI | Packer image build — [`ops/packer/flapjack-ami.pkr.hcl`](../../ops/packer/flapjack-ami.pkr.hcl) |
-| How it ships | dev repo → `debbie sync` → public mirror → mirror CI `deploy-staging` → `ops/scripts/deploy.sh` → SSM → live EC2. See [`infra-deploy.md`](infra-deploy.md). | dev repo → `debbie sync` → public mirror → mirror CI `deploy-staging`'s **`deploy-web` step** → **two** `wrangler pages deploy` runs from one build: `--branch=main` publishes the `flapjack-cloud` Pages **production alias** serving `cloud.flapjack.foo`, then `--branch=staging` publishes the **`staging` branch alias** (`staging.flapjack-cloud.pages.dev`) that `cloud.staging.flapjack.foo` CNAMEs to (single deployer, staging mirror only — see below). | bake AMI → set SSM `/fjcloud/<env>/aws_ami_id` → `fjcloud-api` launches new tenant VMs from that AMI. Per-VM lifecycle in [`deployment-lifecycle.md`](deployment-lifecycle.md). |
+| How it's built | `cargo build`, in mirror CI | `npm run build` (Vite → `.svelte-kit/cloudflare`), in mirror CI | Packer image build — [`ops/packer/flapjack-ami.pkr.hcl`](../../../../../ops/packer/flapjack-ami.pkr.hcl) |
+| How it ships | dev repo → `debbie sync` → public mirror → mirror CI `deploy-staging` → `ops/scripts/deploy.sh` → SSM → live EC2. See [`infra-deploy.md`](../../../infra-deploy.md). | dev repo → `debbie sync` → public mirror → mirror CI `deploy-staging`'s **`deploy-web` step** → **two** `wrangler pages deploy` runs from one build: `--branch=main` publishes the `flapjack-cloud` Pages **production alias** serving `cloud.flapjack.foo`, then `--branch=staging` publishes the **`staging` branch alias** (`staging.flapjack-cloud.pages.dev`) that `cloud.staging.flapjack.foo` CNAMEs to (single deployer, staging mirror only — see below). | bake AMI → set SSM `/fjcloud/<env>/aws_ami_id` → `fjcloud-api` launches new tenant VMs from that AMI. Per-VM lifecycle in [`deployment-lifecycle.md`](../../../deployment-lifecycle.md). |
 | Version readout | `GET /version` → `dev_sha` / `mirror_sha` (a **fjcloud_dev** commit) | the Pages deployment's `canonical_deployment.deployment_trigger.metadata.commit_hash` (the `--commit-hash=$GITHUB_SHA` the `deploy-web` step stamps) | the baked flapjack version inside the AMI; **not** exposed by `/version` |
 | "Is the fix live?" check | `bash scripts/deploy_status.sh` (diffs deployed `/version.dev_sha` vs dev `origin/main`) | `bash scripts/launch/wait_for_pages_parity.sh` (polls the Pages API `commit_hash` for the deployment owning the cloud alias) — staging parity now depends on the `--branch=staging` deploy refreshing the staging branch alias | provision a throwaway tenant and assert its EC2 `ImageId == <new AMI id>` |
 
@@ -74,8 +74,8 @@ change shipped — they are different planes built from different source trees.
 ## Shipping an engine-AMI change is not just "repoint SSM"
 
 The provisioner reads the AMI id **once at process start**: `AwsProvisionerConfig::from_env()` calls
-`required_env("AWS_AMI_ID")` at [`infra/api/src/provisioner/aws.rs:57`](../../infra/api/src/provisioner/aws.rs#L57),
-the value is mapped from SSM `aws_ami_id` by [`ops/scripts/lib/generate_ssm_env.sh:54`](../../ops/scripts/lib/generate_ssm_env.sh#L54),
+`required_env("AWS_AMI_ID")` at [`infra/api/src/provisioner/aws.rs:57`](../../../../../infra/api/src/provisioner/aws.rs#L57),
+the value is mapped from SSM `aws_ami_id` by [`ops/scripts/lib/generate_ssm_env.sh:54`](../../../../../ops/scripts/lib/generate_ssm_env.sh#L54),
 and the provisioner is built once in `main()` and shared as `Arc<dyn VmProvisioner>`. So:
 
 1. **Repointing SSM `/fjcloud/<env>/aws_ami_id` alone does nothing** to a running `fjcloud-api` — it has
@@ -97,15 +97,15 @@ There are two live environments, each with both planes:
 - **prod** — `cloud.flapjack.foo` (web) / `api.flapjack.foo` (api); SSM under `/fjcloud/prod/`.
 - **staging** — `cloud.staging.flapjack.foo` / `api.staging.flapjack.foo`; SSM under `/fjcloud/staging/`.
 
-(Note: [`infra-deploy.md`](infra-deploy.md)'s older "ONE live environment / no separate prod yet"
+(Note: [`infra-deploy.md`](../../../infra-deploy.md)'s older "ONE live environment / no separate prod yet"
 topology note predates the 2026-05-13/14 prod provision and is stale on that point; its **SHA model**
 section is still accurate and canonical for the control plane.)
 
 ## See also
 
-- [`infra-deploy.md`](infra-deploy.md) — canonical control-plane deploy/rollback + cross-repo SHA model.
-- [`deployment-lifecycle.md`](deployment-lifecycle.md) — per-tenant VM (engine) provision/stop/terminate.
-- [`git_push_with_sync.md`](git_push_with_sync.md) — the dev-repo push-and-sync operator contract.
+- [`infra-deploy.md`](../../../infra-deploy.md) — canonical control-plane deploy/rollback + cross-repo SHA model.
+- [`deployment-lifecycle.md`](../../../deployment-lifecycle.md) — per-tenant VM (engine) provision/stop/terminate.
+- [`git_push_with_sync.md`](../../../git_push_with_sync.md) — the dev-repo push-and-sync operator contract.
 
 
 ## git_push_with_sync.md

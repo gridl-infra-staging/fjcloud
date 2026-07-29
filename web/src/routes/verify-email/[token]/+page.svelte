@@ -9,7 +9,7 @@
 	<title>Verify Email — Flapjack Cloud</title>
 </svelte:head>
 
-<div class="flex min-h-screen items-center justify-center bg-flapjack-cream/80">
+<main class="flex min-h-screen items-center justify-center bg-flapjack-cream/80">
 	<div
 		class="w-full max-w-md rounded-lg bg-white p-8 text-center shadow"
 		data-testid="verify-result"
@@ -70,4 +70,4 @@
 			</p>
 		{/if}
 	</div>
-</div>
+</main>

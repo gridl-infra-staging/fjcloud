@@ -1,0 +1,37 @@
+
+===== attempt 1 start 2026-07-28T16:18:31Z =====
+command: cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform --features proptest-tests tenant_isolation_proptest:: -- --nocapture
+validation_cache_module: /Users/stuart/repos/gridl/mike_dev/matt_root/matt/validation_cache.py
+   Compiling wait-timeout v0.2.1
+   Compiling quick-error v1.2.3
+   Compiling bit-vec v0.8.0
+   Compiling rand_xorshift v0.4.0
+   Compiling unarray v0.1.4
+   Compiling api v0.1.0 (infra/api)
+   Compiling rusty-fork v0.3.1
+   Compiling bit-set v0.8.0
+   Compiling proptest v1.11.0
+   Compiling retention-job v0.1.0 (infra/retention-job)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 25s
+     Running tests/platform.rs (target/debug/deps/platform-5403718d675aadae)
+
+running 6 tests
+test tenant_isolation_proptest::tenant_isolation_proptest_config_uses_direct_failure_persistence ... ok
+test tenant_isolation_proptest::tenant_isolation_proptest_regression_artifact_has_durable_proof_markers ... ok
+proptest: Aborting shrinking after the PROPTEST_MAX_SHRINK_ITERS environment variable or ProptestConfig.max_shrink_iters iterations (set 0 to a large(r) value to shrink more; current configuration: 0 iterations)
+proptest: Aborting shrinking after the PROPTEST_MAX_SHRINK_ITERS environment variable or ProptestConfig.max_shrink_iters iterations (set 0 to a large(r) value to shrink more; current configuration: 0 iterations)
+test tenant_isolation_proptest::tenant_isolation_proptest_saved_case_replays_before_random_generation ... ok
+test tenant_isolation_proptest::tenant_isolation_proptest_saved_case_replays_committed_route_label_first ... ok
+
+thread 'tenant_isolation_proptest::tenant_isolation_proptest_deliberate_leaky_variant_trips_failure_signature' (408414488) panicked at api/tests/integration/tenant_isolation_proptest.rs:395:9:
+assertion `left == right` failed: bob-foreign-shared-helper-on-alice-index: foreign tenant should be denied
+  left: 200
+ right: 404
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test tenant_isolation_proptest::tenant_isolation_proptest_deliberate_leaky_variant_trips_failure_signature ... ok
+test tenant_isolation_proptest::tenant_isolation_proptest_route_family ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 1583 filtered out; finished in 0.23s
+
+
+===== attempt 1 end exit_code=0 elapsed_seconds=86.95 =====

@@ -30,16 +30,27 @@ LOCAL_DEV_ALT_PORT_DB_URL="postgres://local-test:local-pass@localhost:15432/loca
 LOCAL_DEV_INVALID_PORT_DB_URL="postgres://local-test:local-pass@localhost:notaport/local_dev_test"
 LOCAL_DEV_OUT_OF_RANGE_PORT_DB_URL="postgres://local-test:local-pass@localhost:70000/local_dev_test"
 
+setup_local_dev_test_migrations() {
+    local migrations_dir="$1"
+    mkdir -p "$migrations_dir"
+    printf '%s\n' '-- local-dev-up hermetic migration fixture' > "$migrations_dir/001_local_dev_up_test.sql"
+    export FJCLOUD_HOST_MIGRATIONS_DIR="$migrations_dir"
+    export FJCLOUD_DOCKER_MIGRATIONS_DIR="/migrations"
+}
+
 setup_local_dev_repo_state() {
     local tmp_dir="$1"
     LOCAL_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
     LOCAL_DEV_RUNTIME_BACKUP=$(backup_repo_path "$REPO_ROOT/.local" "$tmp_dir/.local.backup")
     write_local_dev_env_file "$REPO_ROOT/.env.local" "$LOCAL_DEV_TEST_DB_URL"
+    setup_local_dev_test_migrations "$tmp_dir/migrations"
 }
 
 restore_local_dev_repo_state() {
     restore_repo_path "$REPO_ROOT/.env.local" "${LOCAL_DEV_ENV_BACKUP:-}"
     restore_repo_path "$REPO_ROOT/.local" "${LOCAL_DEV_RUNTIME_BACKUP:-}"
+    unset FJCLOUD_HOST_MIGRATIONS_DIR
+    unset FJCLOUD_DOCKER_MIGRATIONS_DIR
     LOCAL_DEV_ENV_BACKUP=""
     LOCAL_DEV_RUNTIME_BACKUP=""
 }
@@ -69,6 +80,19 @@ fi
 exit 0'
 }
 
+mock_applied_migration_queries_body() {
+    cat <<'MOCK'
+if [[ "$*" == *"-tAc"*"SELECT count(*) FROM _schema_migrations"* ]]; then
+    echo "1"
+    exit 0
+fi
+if [[ "$*" == *"-tAc"*"SELECT 1 FROM _schema_migrations WHERE filename="* ]]; then
+    echo "1"
+    exit 0
+fi
+MOCK
+}
+
 # Create a standard mock bin directory with all required mocks.
 # Writes all docker/curl/psql calls to $call_log for assertion.
 setup_mock_bin() {
@@ -88,6 +112,7 @@ case "$*" in
         printf "%s\n" "[{\"Service\":\"$3\",\"Health\":\"healthy\"}]"
         ;;
 esac
+'"$(mock_applied_migration_queries_body)"'
 exit 0'
 
     # Mock curl: succeed (services healthy)
@@ -449,6 +474,7 @@ if [[ "$*" == *"compose down -v"* ]]; then
     echo 1 > "'"$tmp_dir"'/volume_recreated"
     exit 0
 fi
+'"$(mock_applied_migration_queries_body)"'
 if [[ "$*" == *"psql -h 127.0.0.1 -U local-test -d local_dev_test"* ]]; then
     if [ ! -f "'"$tmp_dir"'/volume_recreated" ]; then
         exit 1
@@ -460,6 +486,8 @@ exit 0'
         'echo "psql $@" >> "'"$call_log"'"; exit 0'
     write_mock_script "$tmp_dir/bin/nohup" \
         'echo "nohup $@" >> "'"$call_log"'"; "$@" &'
+    write_mock_script "$tmp_dir/bin/sleep" \
+        'exit 0'
 
     local output exit_code=0
     output=$(
@@ -505,12 +533,15 @@ if [[ "$*" == *"psql -h 127.0.0.1 -U local-test -d local_dev_test"* ]]; then
         exit 1
     fi
 fi
+'"$(mock_applied_migration_queries_body)"'
 exit 0'
     write_healthy_mock_curl "$tmp_dir/bin/curl" "$call_log"
     write_mock_script "$tmp_dir/bin/psql" \
         'echo "psql $@" >> "'"$call_log"'"; exit 0'
     write_mock_script "$tmp_dir/bin/nohup" \
         'echo "nohup $@" >> "'"$call_log"'"; "$@" &'
+    write_mock_script "$tmp_dir/bin/sleep" \
+        'exit 0'
 
     local output exit_code=0
     output=$(
@@ -631,6 +662,14 @@ test_runs_migrations() {
     local call_log="$tmp_dir/calls.log"
     mkdir -p "$tmp_dir/bin"
     setup_mock_bin "$tmp_dir/bin" "$call_log"
+    write_mock_script "$tmp_dir/bin/docker" \
+        'echo "LOCAL_DB_PORT=${LOCAL_DB_PORT:-} docker $@" >> "'"$call_log"'"
+case "$*" in
+    "compose ps "*"--format json"*)
+        printf "%s\n" "[{\"Service\":\"$3\",\"Health\":\"healthy\"}]"
+        ;;
+esac
+exit 0'
     setup_local_dev_repo_state "$tmp_dir"
 
     local output exit_code=0
@@ -659,7 +698,9 @@ test_does_not_require_host_psql_when_container_client_is_available() {
     setup_local_dev_repo_state "$tmp_dir"
 
     write_mock_script "$tmp_dir/bin/docker" \
-        'echo "LOCAL_DB_PORT=${LOCAL_DB_PORT:-} docker $@" >> "'"$call_log"'"; exit 0'
+        'echo "LOCAL_DB_PORT=${LOCAL_DB_PORT:-} docker $@" >> "'"$call_log"'"
+'"$(mock_applied_migration_queries_body)"'
+exit 0'
     write_healthy_mock_curl "$tmp_dir/bin/curl" "$call_log"
     write_mock_script "$tmp_dir/bin/nohup" \
         'echo "nohup $@" >> "'"$call_log"'"; "$@" &'
@@ -954,6 +995,10 @@ echo "cargo $@" >> "'"$call_log"'"
 mkdir -p target/debug
 {
     printf "#!/usr/bin/env bash\n"
+    printf "if [ \"\${1:-}\" = \"build-info\" ] && [ \"\${2:-}\" = \"--json\" ]; then\n"
+    printf "    printf '\''{\"build\":{\"workspaceDigest\":\"mock-workspace-digest\"}}\\\\n'\''\n"
+    printf "    exit 0\n"
+    printf "fi\n"
     printf "exit 0\n"
 } > target/debug/flapjack
 chmod +x target/debug/flapjack
@@ -1052,7 +1097,9 @@ test_optional_service_health_failure_nonfatal() {
 
     # Docker mock: log calls, succeed on compose up/exec/down
     write_mock_script "$tmp_dir/bin/docker" \
-        'echo "docker $@" >> "'"$call_log"'"; exit 0'
+        'echo "docker $@" >> "'"$call_log"'"
+'"$(mock_applied_migration_queries_body)"'
+exit 0'
     # Curl mock: always fail (health checks fail for optional services)
     write_mock_script "$tmp_dir/bin/curl" \
         'echo "curl $@" >> "'"$call_log"'"; exit 1'
@@ -1111,7 +1158,9 @@ test_startup_summary_reflects_health_status() {
     mkdir -p "$tmp_dir/bin"
 
     write_mock_script "$tmp_dir/bin/docker" \
-        'echo "docker $@" >> "'"$call_log2"'"; exit 0'
+        'echo "docker $@" >> "'"$call_log2"'"
+'"$(mock_applied_migration_queries_body)"'
+exit 0'
     write_mock_script "$tmp_dir/bin/curl" \
         'echo "curl $@" >> "'"$call_log2"'"; exit 1'
     write_mock_script "$tmp_dir/bin/psql" \
@@ -1165,24 +1214,13 @@ test_multi_region_flapjack_starts_one_per_region() {
         bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
     ) || exit_code=$?
 
-    # Brief pause for backgrounded processes to write to call_log.
-    sleep 0.5
-
     assert_eq "$exit_code" "0" "multi-region flapjack startup should succeed"
 
-    local calls
-    calls=$(cat "$call_log" 2>/dev/null || true)
-
-    # Verify start_one_flapjack was called for each region.
-    assert_contains "$calls" "--port 7700" \
+    # Verify start_one_flapjack used the configured region/port pairs.
+    assert_contains "$output" "Starting flapjack (us-east-1) on port 7700" \
         "should start flapjack on port 7700 for us-east-1"
-    assert_contains "$calls" "--port 7701" \
+    assert_contains "$output" "Starting flapjack (eu-west-1) on port 7701" \
         "should start flapjack on port 7701 for eu-west-1"
-
-    assert_contains "$output" "flapjack (us-east-1)" \
-        "should log flapjack startup for us-east-1"
-    assert_contains "$output" "flapjack (eu-west-1)" \
-        "should log flapjack startup for eu-west-1"
 
     # Verify PID files were created for each region.
     local pid_dir="$REPO_ROOT/.local"

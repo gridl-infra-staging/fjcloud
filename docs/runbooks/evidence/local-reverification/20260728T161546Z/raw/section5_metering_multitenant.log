@@ -1,0 +1,18 @@
+
+===== attempt 1 start 2026-07-28T16:18:30Z =====
+command: cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform metering_multitenant -- --nocapture
+validation_cache_module: /Users/stuart/repos/gridl/mike_dev/matt_root/matt/validation_cache.py
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.25s
+     Running tests/platform.rs (target/debug/deps/platform-37f769d90126a00c)
+
+running 5 tests
+test metering_multitenant_test::tenant_map_keeps_flapjack_url_null_when_neither_deployment_nor_vm_has_one ... ok
+test metering_multitenant_test::internal_regions_endpoint_returns_available_regions ... ok
+test metering_multitenant_test::tenant_map_falls_back_to_vm_inventory_url_when_deployment_has_none ... ok
+test metering_multitenant_test::internal_regions_endpoint_excludes_unconfigured_provider_regions ... ok
+test metering_multitenant_test::tenant_map_endpoint_returns_all_active_tenants ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 1578 filtered out; finished in 0.02s
+
+
+===== attempt 1 end exit_code=0 elapsed_seconds=0.31 =====

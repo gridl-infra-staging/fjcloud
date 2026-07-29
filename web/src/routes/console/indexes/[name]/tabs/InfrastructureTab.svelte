@@ -133,7 +133,7 @@
 				{refreshInFlight ? 'Refreshing...' : 'Refresh'}
 			</button>
 			{#if cooldownActive}
-				<p class="text-xs text-flapjack-ink/60">Refresh available after the safety interval.</p>
+				<p class="text-xs text-flapjack-ink/75">Refresh available after the safety interval.</p>
 			{/if}
 		</div>
 	</div>
@@ -222,7 +222,7 @@
 					class="min-w-0 rounded-md bg-flapjack-cream/50 p-3"
 					data-testid="infrastructure-footprint-documents"
 				>
-					<p class="text-xs uppercase tracking-wide text-flapjack-ink/60">Documents</p>
+					<p class="text-xs uppercase tracking-wide text-flapjack-ink/75">Documents</p>
 					<p class="mt-1 break-words text-xl font-semibold text-flapjack-ink">
 						{formatNumber(infrastructure.footprint.documents_count)}
 					</p>
@@ -231,7 +231,7 @@
 					class="min-w-0 rounded-md bg-flapjack-cream/50 p-3"
 					data-testid="infrastructure-footprint-storage"
 				>
-					<p class="text-xs uppercase tracking-wide text-flapjack-ink/60">Storage</p>
+					<p class="text-xs uppercase tracking-wide text-flapjack-ink/75">Storage</p>
 					<p class="mt-1 break-words text-xl font-semibold text-flapjack-ink">
 						{formatBytes(infrastructure.footprint.storage_bytes)}
 					</p>
@@ -240,7 +240,7 @@
 					class="min-w-0 rounded-md bg-flapjack-cream/50 p-3"
 					data-testid="infrastructure-footprint-search-requests"
 				>
-					<p class="text-xs uppercase tracking-wide text-flapjack-ink/60">Search requests</p>
+					<p class="text-xs uppercase tracking-wide text-flapjack-ink/75">Search requests</p>
 					<p class="mt-1 break-words text-xl font-semibold text-flapjack-ink">
 						{formatNumber(infrastructure.footprint.search_requests_total)}
 					</p>
@@ -249,7 +249,7 @@
 					class="min-w-0 rounded-md bg-flapjack-cream/50 p-3"
 					data-testid="infrastructure-footprint-write-operations"
 				>
-					<p class="text-xs uppercase tracking-wide text-flapjack-ink/60">Write operations</p>
+					<p class="text-xs uppercase tracking-wide text-flapjack-ink/75">Write operations</p>
 					<p class="mt-1 break-words text-xl font-semibold text-flapjack-ink">
 						{formatNumber(infrastructure.footprint.write_operations_total)}
 					</p>

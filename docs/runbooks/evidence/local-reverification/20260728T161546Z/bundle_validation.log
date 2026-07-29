@@ -1,0 +1,134 @@
+validation_cache_check clean_tree=False cache_hit=False
+command=bash -lc 'set -euo pipefail
+THIS="docs/runbooks/evidence/local-reverification/20260728T161546Z/"
+B="$(ls -d docs/runbooks/evidence/local-reverification/*/ | sort | tail -1)"
+echo "newest_bundle=${B}"
+if [ "${B}" != "${THIS}" ]; then echo "concurrent_newer_bundle=${B}"; B="${THIS}"; else echo "newest_bundle_matches_this_run=yes"; fi
+test -s "${B}owner_manifest.tsv"
+test -s "${B}SUMMARY.md"
+awk -F"\t" '\''NR==1{if(NF!=7 || $0!="section\trow_label\towner_path\tcommand\texit_code\tstatus\tresidual_reason") exit 10; next} {if(NF!=7) exit 11} END{if(NR!=22) exit 12}'\'' "${B}owner_manifest.tsv"
+awk -F"\t" '\''NR>1{if($6!="green" && $6!="red" && $6!="not_local") exit 20; if(($6=="green" || $6=="red") && ($4=="" || $5 !~ /^[0-9]+$/)) exit 21; if($6=="not_local" && ($4!="" || $5!="" || $7=="")) exit 22}'\'' "${B}owner_manifest.tsv"
+grep -qE "section3: rows_total=13 rows_run_locally=8 rows_green=8 rows_red=0 rows_not_local=5" "${B}SUMMARY.md"
+grep -qE "section5: rows_total=8 rows_run_locally=5 rows_green=5 rows_red=0 rows_not_local=3" "${B}SUMMARY.md"
+python3 - <<'PY2'
+from pathlib import Path
+import re, sys
+B=Path("docs/runbooks/evidence/local-reverification/20260728T161546Z")
+header="section\trow_label\towner_path\tcommand\texit_code\tstatus\tresidual_reason"
+lines=(B/"owner_manifest.tsv").read_text().splitlines()
+assert lines[0]==header
+rows=[line.split("\t") for line in lines[1:]]
+assert len(rows)==21
+assert sum(1 for r in rows if r[0]=="3")==13
+assert sum(1 for r in rows if r[0]=="5")==8
+for sec,total in [("3",13),("5",8)]:
+    subset=[r for r in rows if r[0]==sec]
+    green=sum(1 for r in subset if r[5]=="green")
+    red=sum(1 for r in subset if r[5]=="red")
+    nl=sum(1 for r in subset if r[5]=="not_local")
+    assert total==green+red+nl
+    assert green+red>0, f"section {sec} VACUOUS"
+log_map={
+ "stripe_webhook_signature":"section3_stripe_webhook_signature.log",
+ "auth_rate_limit_returns_429_after_threshold":"section3_security_auth_rate_limit.log",
+ "s3_rate_limit_enforces_retry_after_and_slowdown_payload":"section3_security_s3_rate_limit.log",
+ "noisy_neighbor":"section3_noisy_neighbor.log",
+ "auth_lockout":"section3_auth_lockout.log",
+ "api_key_auth":"section3_api_key_auth.log",
+ "tenant_wrong_secret_returns_401":"section3_tenant_wrong_secret_returns_401.log",
+ "internal_auth":"section3_internal_auth.log",
+ "cross_tenant_isolation":"section5_cross_tenant_isolation.log",
+ "metering_multitenant":"section5_metering_multitenant.log",
+ "storage_s3_object_metering_concurrency":"section5_storage_s3_object_metering_concurrency.log",
+ "tenant_isolation_proptest::":"section5_tenant_isolation_proptest.log",
+}
+for r in rows:
+    if r[5] in {"green","red"}:
+        cmd=r[3]
+        assert "BACKEND_LIVE_GATE=1" in cmd
+        matches=[(f,log) for f,log in log_map.items() if f in cmd]
+        assert matches, cmd
+        log=(B/"raw"/matches[0][1]).read_text(errors="replace")
+        assert cmd in log
+        m=list(re.finditer(r"test result: (ok|FAILED)\. ([^\n]*)", log))
+        assert m, matches[0][1]
+        body=m[-1].group(2)
+        passed=int(re.search(r"(\d+) passed", body).group(1))
+        failed=int(re.search(r"(\d+) failed", body).group(1))
+        assert passed > 0
+        assert failed == 0 if r[5]=="green" else True
+# identical stream check for shared noisy-neighbor evidence
+assert (B/"raw/section3_noisy_neighbor.log").read_text() == (B/"raw/section5_noisy_neighbor.log").read_text()
+print("automated_guard=PASS")
+PY2
+ls "${B}raw/" | wc -l
+' 
+newest_bundle=docs/runbooks/evidence/local-reverification/20260728T161546Z/
+newest_bundle_matches_this_run=yes
+automated_guard=PASS
+      13
+validation_cache_record passed=True summary=bundle validation rc=0; automated_guard=PASS
+
+===== final rerun after SUMMARY update =====
+validation_cache_check clean_tree=False cache_hit=False
+command=bash -lc 'set -euo pipefail
+B="docs/runbooks/evidence/local-reverification/20260728T161546Z/"
+NB="$(ls -d docs/runbooks/evidence/local-reverification/*/ | sort | tail -1)"
+echo "newest_bundle=${NB}"
+[ "${NB}" = "${B}" ]
+test -s "${B}owner_manifest.tsv"
+test -s "${B}SUMMARY.md"
+awk -F"\t" '\''NR==1{if(NF!=7 || $0!="section\trow_label\towner_path\tcommand\texit_code\tstatus\tresidual_reason") exit 10; next} {if(NF!=7) exit 11} END{if(NR!=22) exit 12}'\'' "${B}owner_manifest.tsv"
+awk -F"\t" '\''NR>1{if($6!="green" && $6!="red" && $6!="not_local") exit 20; if(($6=="green" || $6=="red") && ($4=="" || $5 !~ /^[0-9]+$/)) exit 21; if($6=="not_local" && ($4!="" || $5!="" || $7=="")) exit 22}'\'' "${B}owner_manifest.tsv"
+grep -qE "section3: rows_total=13 rows_run_locally=8 rows_green=8 rows_red=0 rows_not_local=5" "${B}SUMMARY.md"
+grep -qE "section5: rows_total=8 rows_run_locally=5 rows_green=5 rows_red=0 rows_not_local=3" "${B}SUMMARY.md"
+python3 - <<'PY2'
+from pathlib import Path
+import re
+B=Path("docs/runbooks/evidence/local-reverification/20260728T161546Z")
+rows=[line.split("\t") for line in (B/"owner_manifest.tsv").read_text().splitlines()[1:]]
+assert len(rows)==21
+for sec,total,green,red,nl in [("3",13,8,0,5),("5",8,5,0,3)]:
+    subset=[r for r in rows if r[0]==sec]
+    assert len(subset)==total
+    assert sum(r[5]=="green" for r in subset)==green
+    assert sum(r[5]=="red" for r in subset)==red
+    assert sum(r[5]=="not_local" for r in subset)==nl
+log_for={
+ "stripe_webhook_signature":"section3_stripe_webhook_signature.log",
+ "auth_rate_limit_returns_429_after_threshold":"section3_security_auth_rate_limit.log",
+ "s3_rate_limit_enforces_retry_after_and_slowdown_payload":"section3_security_s3_rate_limit.log",
+ "auth_lockout":"section3_auth_lockout.log",
+ "api_key_auth":"section3_api_key_auth.log",
+ "tenant_wrong_secret_returns_401":"section3_tenant_wrong_secret_returns_401.log",
+ "internal_auth":"section3_internal_auth.log",
+ "cross_tenant_isolation":"section5_cross_tenant_isolation.log",
+ "metering_multitenant":"section5_metering_multitenant.log",
+ "storage_s3_object_metering_concurrency":"section5_storage_s3_object_metering_concurrency.log",
+ "tenant_isolation_proptest::":"section5_tenant_isolation_proptest.log",
+}
+for r in rows:
+    if r[5] in {"green","red"}:
+        cmd=r[3]
+        if "noisy_neighbor" in cmd:
+            candidates=["section3_noisy_neighbor.log", "section5_noisy_neighbor.log"]
+        else:
+            candidates=[log for filt,log in log_for.items() if filt in cmd]
+        assert candidates, cmd
+        for log_name in candidates:
+            text=(B/"raw"/log_name).read_text(errors="replace")
+            assert cmd in text
+            m=list(re.finditer(r"test result: (ok|FAILED)\. ([^\n]*)", text))
+            assert m, log_name
+            body=m[-1].group(2)
+            assert int(re.search(r"(\d+) passed", body).group(1)) > 0
+            assert int(re.search(r"(\d+) failed", body).group(1)) == 0
+assert (B/"raw/section3_noisy_neighbor.log").read_text() == (B/"raw/section5_noisy_neighbor.log").read_text()
+print("final_bundle_guard=PASS")
+PY2
+ls "${B}raw/" | wc -l
+' 
+newest_bundle=docs/runbooks/evidence/local-reverification/20260728T161546Z/
+final_bundle_guard=PASS
+      13
+validation_cache_record passed=True summary=final bundle validation rc=0; final_bundle_guard=PASS

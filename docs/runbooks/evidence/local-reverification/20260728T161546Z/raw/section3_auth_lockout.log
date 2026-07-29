@@ -1,0 +1,22 @@
+
+===== attempt 1 start 2026-07-28T16:18:26Z =====
+command: cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test auth_admin auth_lockout -- --nocapture
+validation_cache_module: /Users/stuart/repos/gridl/mike_dev/matt_root/matt/validation_cache.py
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.27s
+     Running tests/auth_admin.rs (target/debug/deps/auth_admin-1eb5d7725e55e84e)
+
+running 8 tests
+SKIP: DATABASE_URL not set - skipping PostgreSQL schema harness test
+test migration_052_auth_lockout_state_test::auth_lockout_columns_schema_contract ... ok
+test migration_052_auth_lockout_state_test::migration_052_is_present_in_compiled_set ... ok
+test auth_lockout_test::oauth_only_account_does_not_increment_login_lockout_state ... ok
+test auth_lockout_test::login_prelocked_account_returns_429_with_retry_after ... ok
+test auth_lockout_test::login_returns_500_if_lockout_reset_write_is_not_applied ... ok
+test auth_lockout_test::lock_expiry_allows_login_again ... ok
+test auth_lockout_test::login_success_clears_failed_login_counters_and_lockout ... ok
+test auth_lockout_test::login_five_failed_attempts_trigger_lockout ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 347 filtered out; finished in 1.48s
+
+
+===== attempt 1 end exit_code=0 elapsed_seconds=1.81 =====

@@ -1,0 +1,130 @@
+[
+  {
+    "row": "stripe_test_clock_full_cycle_amount",
+    "command": "cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test billing stripe_test_clock_full_cycle_test::stripe_test_clock_full_cycle_bills_expected_amount -- --exact --nocapture",
+    "exit_code": 0,
+    "status": "green",
+    "residual_reason": "",
+    "log": "docs/runbooks/evidence/local-reverification/20260728T214002Z/raw/section2_stripe_test_clock_full_cycle.log",
+    "passed_count": 1,
+    "amount_line": "actual_amount_paid_cents=500 expected_amount_paid_cents=500"
+  },
+  {
+    "row": "integration_stripe_payment_failure_webhook",
+    "command": "cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test billing integration_stripe_test::stripe_payment_failure_webhook_fires_on_declined_card -- --exact --nocapture",
+    "exit_code": 0,
+    "status": "green",
+    "residual_reason": "",
+    "log": "docs/runbooks/evidence/local-reverification/20260728T214002Z/raw/section2_integration_stripe_payment_failure.log",
+    "passed_count": 1,
+    "amount_line": ""
+  },
+  {
+    "row": "stripe_webhook_signature_module",
+    "command": "cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test billing stripe_webhook_signature_test:: -- --nocapture",
+    "exit_code": 0,
+    "status": "green",
+    "residual_reason": "",
+    "log": "docs/runbooks/evidence/local-reverification/20260728T214002Z/raw/section2_stripe_webhook_signature.log",
+    "passed_count": 5,
+    "amount_line": ""
+  },
+  {
+    "row": "stripe_webhook_idempotency_module",
+    "command": "cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test billing stripe_webhook_idempotency_test:: -- --nocapture",
+    "exit_code": 0,
+    "status": "green",
+    "residual_reason": "",
+    "log": "docs/runbooks/evidence/local-reverification/20260728T214002Z/raw/section2_stripe_webhook_idempotency.log",
+    "passed_count": 8,
+    "amount_line": ""
+  },
+  {
+    "row": "stripe_webhook_charge_refunded_event_matrix",
+    "command": "cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test billing stripe_webhook_event_matrix_test::charge_refunded_marks_paid_invoice_refunded -- --exact --nocapture",
+    "exit_code": 0,
+    "status": "green",
+    "residual_reason": "",
+    "log": "docs/runbooks/evidence/local-reverification/20260728T214002Z/raw/section2_stripe_webhook_event_matrix_charge_refunded.log",
+    "passed_count": 1,
+    "amount_line": ""
+  },
+  {
+    "row": "billing_upgrade_requires_action_rollback",
+    "command": "cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test billing billing_endpoints_test::billing_upgrade_402_on_requires_action_and_rolls_back_free_plan -- --exact --nocapture",
+    "exit_code": 0,
+    "status": "green",
+    "residual_reason": "",
+    "log": "docs/runbooks/evidence/local-reverification/20260728T214002Z/raw/section2_billing_upgrade_requires_action.log",
+    "passed_count": 1,
+    "amount_line": ""
+  },
+  {
+    "row": "stripe_pay_invoice_requires_action_contract",
+    "command": "cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test billing stripe_pay_invoice_test::stripe_pay_invoice_local_requires_action_path_returns_action_required_contract -- --exact --nocapture",
+    "exit_code": 0,
+    "status": "green",
+    "residual_reason": "",
+    "log": "docs/runbooks/evidence/local-reverification/20260728T214002Z/raw/section2_stripe_pay_invoice_requires_action.log",
+    "passed_count": 1,
+    "amount_line": ""
+  },
+  {
+    "row": "legacy_subscription_routes_404",
+    "command": "cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test billing billing_endpoints_test::legacy_subscription_routes_return_404_and_preserved_billing_routes_remain_reachable -- --exact --nocapture",
+    "exit_code": 0,
+    "status": "green",
+    "residual_reason": "",
+    "log": "docs/runbooks/evidence/local-reverification/20260728T214002Z/raw/section2_legacy_subscription_routes.log",
+    "passed_count": 1,
+    "amount_line": ""
+  },
+  {
+    "row": "metering_rollup_next_day_boundary",
+    "command": "cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform integration_metering_pipeline_test::rollup_excludes_rows_on_next_day_boundary -- --exact --nocapture",
+    "exit_code": 0,
+    "status": "green",
+    "residual_reason": "",
+    "log": "docs/runbooks/evidence/local-reverification/20260728T214002Z/raw/section2_metering_rollup_next_day_boundary.db_env.log",
+    "passed_count": 1
+  },
+  {
+    "row": "billing_smoke_pg_usage_repo_read_path",
+    "command": "cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform integration_metering_pipeline_test::billing_smoke_uses_pg_usage_repo_read_path -- --exact --nocapture",
+    "exit_code": 0,
+    "status": "green",
+    "residual_reason": "",
+    "log": "docs/runbooks/evidence/local-reverification/20260728T214002Z/raw/section2_billing_smoke_pg_usage_repo_read_path.db_env.log",
+    "passed_count": 1
+  },
+  {
+    "row": "region_multiplier_hot_storage",
+    "command": "cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test billing billing_regression_test::region_multiplier_hot_storage_regression -- --exact --nocapture",
+    "exit_code": 0,
+    "status": "green",
+    "residual_reason": "",
+    "log": "docs/runbooks/evidence/local-reverification/20260728T214002Z/raw/section2_region_multiplier_hot_storage.log",
+    "passed_count": 1,
+    "amount_line": ""
+  },
+  {
+    "row": "multi_region_storage_attachment",
+    "command": "cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test billing billing_regression_test::multi_region_storage_attachment_regression -- --exact --nocapture",
+    "exit_code": 0,
+    "status": "green",
+    "residual_reason": "",
+    "log": "docs/runbooks/evidence/local-reverification/20260728T214002Z/raw/section2_multi_region_storage_attachment.log",
+    "passed_count": 1,
+    "amount_line": ""
+  },
+  {
+    "row": "compute_invoice_rate_override",
+    "command": "cd infra && INTEGRATION=1 BACKEND_LIVE_GATE=1 cargo test -p api --test platform invoicing_compute_test::compute_invoice_for_customer_applies_rate_override_when_present -- --exact --nocapture",
+    "exit_code": 0,
+    "status": "green",
+    "residual_reason": "",
+    "log": "docs/runbooks/evidence/local-reverification/20260728T214002Z/raw/section2_compute_invoice_rate_override.log",
+    "passed_count": 1,
+    "amount_line": ""
+  }
+]

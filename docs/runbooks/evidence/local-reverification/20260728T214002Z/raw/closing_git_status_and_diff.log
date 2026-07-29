@@ -1,0 +1,5 @@
+command=git status --short
+?? docs/runbooks/evidence/local-reverification/20260728T214002Z/
+command=git diff --name-only origin/main...HEAD
+chats/icg/jul28_11am_4_matrix_billing_reverification.md
+infra/api/tests/integration/stripe_test_clock_full_cycle_test.rs

@@ -12,11 +12,11 @@
 	</h3>
 	<div class="grid gap-3 sm:grid-cols-2">
 		<div>
-			<p class="text-xs font-medium uppercase text-flapjack-ink/60">Index</p>
+			<p class="text-xs font-medium uppercase text-flapjack-ink/75">Index</p>
 			<p class="text-sm text-flapjack-ink">{name}</p>
 		</div>
 		<div>
-			<p class="text-xs font-medium uppercase text-flapjack-ink/60">Region</p>
+			<p class="text-xs font-medium uppercase text-flapjack-ink/75">Region</p>
 			<p class="text-sm text-flapjack-ink">{region}</p>
 		</div>
 	</div>

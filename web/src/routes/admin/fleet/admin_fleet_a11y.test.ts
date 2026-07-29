@@ -19,23 +19,33 @@ afterEach(() => {
 });
 
 describe('Admin fleet page accessibility', () => {
-	it('has no structural accessibility violations for populated, filtered, and unavailable states', async () => {
+	it('has no structural accessibility violations for the populated state', async () => {
 		const { container } = render(FleetPage, {
 			data: fleetPageData({ fleet: FLEET_FIXTURES, vms: VM_FIXTURES }),
 			form: null
 		});
-		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
 
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
+	it('has no structural accessibility violations for the filtered state', async () => {
+		const { container } = render(FleetPage, {
+			data: fleetPageData({ fleet: FLEET_FIXTURES, vms: VM_FIXTURES }),
+			form: null
+		});
 		await fireEvent.change(document.querySelector('[data-testid="provider-filter"]')!, {
 			target: { value: 'aws' }
 		});
-		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
 
-		cleanup();
+		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
+	it('has no structural accessibility violations for unavailable states', async () => {
 		const { container: unavailableContainer } = render(FleetPage, {
 			data: fleetPageData({ fleetAvailable: false, vmCapacityAvailable: false }),
 			form: null
 		});
+
 		await expect(getAccessibilityViolations(unavailableContainer)).resolves.toEqual([]);
 	});
 });

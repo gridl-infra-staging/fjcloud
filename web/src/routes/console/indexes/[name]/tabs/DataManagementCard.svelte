@@ -236,7 +236,7 @@
 	</form>
 	{#if !indexProvisioned}
 		<div class="mt-3 flex items-center gap-2">
-			<p class="text-sm text-flapjack-ink/60">{unavailableControlTooltip}</p>
+			<p class="text-sm text-flapjack-ink/75">{unavailableControlTooltip}</p>
 			<Tooltip
 				triggerLabel="Why data management is unavailable"
 				message={unavailableControlTooltip}

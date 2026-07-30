@@ -32,6 +32,7 @@ import {
 import { readStripeDefaultPaymentMethod } from './staging_stripe_lookup';
 import {
 	DEFAULT_API_URL,
+	PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV,
 	REMOTE_TARGET_OPT_IN_ENV,
 	parseDotenvFile,
 	requireLoopbackHttpUrl,
@@ -466,7 +467,7 @@ async function forceTrackedCustomerEmailUnverifiedForLocal(email: string): Promi
 	assertSingleSqlUpdatedRow(output, 'arrangeTrackedCustomerSession local unverified setup');
 }
 
-async function ensureLocalSharedVmInventoryForRegion(
+export async function ensureLocalSharedVmInventoryForRegion(
 	region: string,
 	deps?: EnsureLocalSharedVmInventoryForRegionDeps
 ): Promise<void> {
@@ -2729,6 +2730,7 @@ export const __fixtureTestSeams = {
 	getStaleFixtureIndexCleanupState,
 	loginConfirmsFreshSignupAlreadyVerified,
 	reconcileIndexPrimaryVmTelemetry,
+	resolveFreshSignupVerificationTokenOrAutoVerifiedSentinel,
 	resolveFixtureContractPath,
 	resetStaleFixtureIndexCleanupState,
 	restorePublicInfrastructureCanaryVm,
@@ -3567,6 +3569,10 @@ async function findFreshSignupVerificationToken(email: string): Promise<string> 
 	return findVerificationTokenViaMailpit(email);
 }
 
+function isPlaywrightEmailVerificationRequired(): boolean {
+	return process.env[PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV] === '1';
+}
+
 async function loginConfirmsFreshSignupAlreadyVerified(
 	email: string,
 	password: string | undefined
@@ -3624,6 +3630,7 @@ async function resolveFreshSignupVerificationTokenOrAutoVerifiedSentinel(
 	password: string | undefined
 ): Promise<string> {
 	if (
+		!isPlaywrightEmailVerificationRequired() &&
 		process.env[REMOTE_TARGET_OPT_IN_ENV] !== '1' &&
 		(await loginConfirmsFreshSignupAlreadyVerified(email, password))
 	) {
@@ -3634,6 +3641,7 @@ async function resolveFreshSignupVerificationTokenOrAutoVerifiedSentinel(
 		return await findFreshSignupVerificationToken(email);
 	} catch (error) {
 		if (
+			!isPlaywrightEmailVerificationRequired() &&
 			process.env[REMOTE_TARGET_OPT_IN_ENV] !== '1' &&
 			(await loginConfirmsFreshSignupAlreadyVerified(email, password))
 		) {

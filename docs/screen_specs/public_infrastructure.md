@@ -86,10 +86,11 @@ Baseline viewport: 390px wide (iPhone 14). Summary figures remain readable befor
 
 - Product gaps: None known for the current region-granularity page and privacy contract.
 - JSDOM axe coverage now proves populated and empty infrastructure states in `web/src/routes/infrastructure/infrastructure.test.ts`.
-- Browser proof gap: PUBUX-003 remains handed off to the existing public infrastructure browser-test owner; the live browser command is blocked/inconclusive until it proves both successful UI and raw public JSON allowlist states without route interception.
+- Browser proof: PUBUX-003 is fixed. `cd web && npx playwright test tests/e2e-ui/full/public-infrastructure.spec.ts --project=chromium:public --reporter=line` exited `0` with exactly 2/2 tests passed and none skipped at verified source HEAD `0897579a99f391b3e8ea70bfbc4091a90c430156`; `docs/audits/public-page-ux/2026_07_29_stage_03_public_infrastructure_chromium.md` owns the complete receipt.
+- Proof-contract caveat: the later literal `public_infrastructure` token probe against `web/tests/e2e-ui/full/public-infrastructure.spec.ts` and `web/src/lib/api/types/public_infrastructure.ts` exited `1` because those owners use the hyphenated filename and `PublicInfrastructure` type names. That red token result does not reopen the browser disposition.
 
 ## Automated Coverage
 
 - Client contract: `web/src/lib/api/public_infrastructure.test.ts`
 - Route contract, rendering, and server load: `web/src/routes/infrastructure/infrastructure.test.ts`
-- Browser-unmocked UI and raw JSON privacy contract: `web/tests/fixtures/fixtures.ts::arrangePublicInfrastructureCanaryVm` owns the tethered canary. `web/tests/e2e-ui/full/public-infrastructure.spec.ts` is the required owner for proving the successful seven-field region UI and raw JSON allowlist; per PUBUX-003, that owner remains handed off and must not be reported green until the exact browser command proves both states at HEAD.
+- Browser-unmocked UI and raw JSON privacy contract: `web/tests/fixtures/fixtures.ts::arrangePublicInfrastructureCanaryVm` owns the tethered canary. `web/tests/e2e-ui/full/public-infrastructure.spec.ts` proved the successful seven-field region UI and raw JSON allowlist under the exact PUBUX-003 command recorded above.

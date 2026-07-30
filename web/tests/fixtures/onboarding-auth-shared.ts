@@ -5,6 +5,16 @@ import {
 	findVerificationTokenViaStagingSsm,
 	parseSingleColumnSingleRowOutput
 } from './staging_db_lookup';
+import { ensureLocalSharedVmInventoryForRegion } from './fixtures';
+
+const REMOTE_VERIFY_MAX_RETRIES = 10;
+
+function getRemoteVerifyRetryDelayMs(attempt: number, retryAfterHeader: string | null): number {
+	const retryAfterSeconds = Number(retryAfterHeader ?? '');
+	const retryAfterMs =
+		Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds * 1000 : 0;
+	return Math.max(retryAfterMs, Math.min(2000 * (attempt + 1), 10_000));
+}
 
 /** Verify the SQL output confirms exactly one customer row was email-verified. */
 export function assertSingleVerifiedCustomer(
@@ -33,6 +43,14 @@ function buildSafeVerifyEmailFailureMessage(response: Response): string {
 	);
 }
 
+function buildSafeVerifyEmailTransportFailureMessage(error: unknown): string {
+	const detail = error instanceof Error ? error.message : String(error);
+	return (
+		'Fresh signup email verification failed before onboarding setup could proceed. ' +
+		`transport_error=${detail}`
+	);
+}
+
 function assertRecognizedLocalVerificationState(state: string, email: string): void {
 	if (state === 'already_verified' || state === 'needs_verification') {
 		return;
@@ -42,19 +60,40 @@ function assertRecognizedLocalVerificationState(state: string, email: string): v
 	);
 }
 
+async function verifyFreshSignupEmailViaRemoteApi(email: string): Promise<void> {
+	const fixtureEnv = resolveFixtureEnv(process.env);
+	const verificationToken = await findVerificationTokenViaStagingSsm(email);
+	for (let attempt = 0; attempt < REMOTE_VERIFY_MAX_RETRIES; attempt += 1) {
+		let response: Response;
+		try {
+			response = await fetch(`${fixtureEnv.apiUrl}/auth/verify-email`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ token: verificationToken })
+			});
+		} catch (error) {
+			throw new Error(buildSafeVerifyEmailTransportFailureMessage(error));
+		}
+		if (response.ok) {
+			return;
+		}
+		if (response.status === 429) {
+			await new Promise((resolve) =>
+				setTimeout(resolve, getRemoteVerifyRetryDelayMs(attempt, response.headers.get('retry-after')))
+			);
+			continue;
+		}
+		throw new Error(buildSafeVerifyEmailFailureMessage(response));
+	}
+	throw new Error(
+		'Fresh signup email verification failed before onboarding setup could proceed. exhausted retries after 429 rate limiting'
+	);
+}
+
 /** Mark the freshly signed-up account as verified so onboarding can create an index. */
 export async function verifyFreshSignupEmail(email: string): Promise<void> {
 	if (process.env[REMOTE_TARGET_OPT_IN_ENV] === '1') {
-		const fixtureEnv = resolveFixtureEnv(process.env);
-		const verificationToken = await findVerificationTokenViaStagingSsm(email);
-		const response = await fetch(`${fixtureEnv.apiUrl}/auth/verify-email`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ token: verificationToken })
-		});
-		if (!response.ok) {
-			throw new Error(buildSafeVerifyEmailFailureMessage(response));
-		}
+		await verifyFreshSignupEmailViaRemoteApi(email);
 		return;
 	}
 
@@ -112,6 +151,16 @@ export async function verifyFreshSignupEmail(email: string): Promise<void> {
 	assertSingleVerifiedCustomer(output, email, 'psql');
 }
 
+type EnsureLocalSharedVmInventory = (region: string) => Promise<void>;
+
+export async function arrangeFreshOnboardingProjectPrerequisites(
+	email: string,
+	ensureLocalSharedVmInventory: EnsureLocalSharedVmInventory = ensureLocalSharedVmInventoryForRegion
+): Promise<void> {
+	await verifyFreshSignupEmail(email);
+	await ensureLocalSharedVmInventory(resolveFixtureEnv(process.env).testRegion);
+}
+
 export function registerFreshOnboardingAccount(setupName: string, storageStatePath: string): void {
 	setup(setupName, async ({ page }) => {
 		const timestamp = Date.now();
@@ -147,7 +196,7 @@ export function registerFreshOnboardingAccount(setupName: string, storageStatePa
 		await expect(page.getByRole('heading', { name: 'Console' })).toBeVisible();
 		await expect(page.getByTestId('onboarding-banner')).toBeVisible({ timeout: 5_000 });
 
-		await verifyFreshSignupEmail(email);
+		await arrangeFreshOnboardingProjectPrerequisites(email);
 
 		await page.context().storageState({ path: storageStatePath });
 	});

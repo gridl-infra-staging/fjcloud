@@ -9,6 +9,7 @@ export const PLAYWRIGHT_WEB_SERVER_COMMAND =
 export const PLAYWRIGHT_WEB_ONLY_SERVER_COMMAND = '../scripts/web-dev.sh';
 export const PLAYWRIGHT_WEB_PORT_ENV = 'PLAYWRIGHT_WEB_PORT';
 export const PLAYWRIGHT_API_PORT_ENV = 'PLAYWRIGHT_API_PORT';
+export const PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV = 'PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION';
 // Flapjack listens on a workspace-derived port (see resolveDefaultPlaywrightFlapjackPort)
 // so parallel worktrees do not collide on a single shared flapjack instance. Before
 // 2026-05-26 the flapjack URL was hardcoded to DEFAULT_FLAPJACK_URL (:7700) for every
@@ -81,6 +82,7 @@ export type PlaywrightRuntimeContract = {
 
 const API_BACKED_PUBLIC_SPEC_NAMES = new Set(['public-infrastructure.spec.ts']);
 const PLAYWRIGHT_SPEC_LOCATION_SUFFIX_PATTERN = /:\d+(?::\d+)?$/;
+const EMAIL_VERIFICATION_PROJECT_NAME = 'chromium:email-verification';
 
 function publicSpecRequiresApiStack(specFilter: string): boolean {
 	const normalizedFilter = specFilter
@@ -90,24 +92,56 @@ function publicSpecRequiresApiStack(specFilter: string): boolean {
 	return API_BACKED_PUBLIC_SPEC_NAMES.has(specName);
 }
 
+function getSelectedPlaywrightProjects(argv: string[]): string[] {
+	const selectedProjects: string[] = [];
+	for (let index = 0; index < argv.length; index += 1) {
+		const arg = argv[index];
+		if (arg === '--project' && argv[index + 1]) {
+			let projectIndex = index + 1;
+			while (projectIndex < argv.length && !argv[projectIndex].startsWith('-')) {
+				selectedProjects.push(argv[projectIndex]);
+				projectIndex += 1;
+			}
+			index = projectIndex - 1;
+			continue;
+		}
+		if (arg.startsWith('--project=')) {
+			selectedProjects.push(arg.slice('--project='.length));
+		}
+	}
+	return selectedProjects;
+}
+
+function wildcardProjectPatternMatches(pattern: string, projectName: string): boolean {
+	const escapedPattern = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replaceAll('*', '.*');
+	return new RegExp(`^${escapedPattern}$`).test(projectName);
+}
+
+function wildcardProjectSelectionTargetsEmailVerification(selectedProjects: string[]): boolean {
+	return selectedProjects.some(
+		(projectName) =>
+			projectName.includes('*') &&
+			projectName !== EMAIL_VERIFICATION_PROJECT_NAME &&
+			wildcardProjectPatternMatches(projectName, EMAIL_VERIFICATION_PROJECT_NAME)
+	);
+}
+
+function isSoleEmailVerificationProjectSelection(argv: string[]): boolean {
+	const selectedProjects = getSelectedPlaywrightProjects(argv);
+	if (wildcardProjectSelectionTargetsEmailVerification(selectedProjects)) {
+		throw new Error(
+			`${EMAIL_VERIFICATION_PROJECT_NAME} must be selected exactly; wildcard project selection is not allowed for email verification mode`
+		);
+	}
+	return selectedProjects.length === 1 && selectedProjects[0] === EMAIL_VERIFICATION_PROJECT_NAME;
+}
+
 /**
  * Return true only when the requested public-project specs can run against the
  * web server without the local API stack.
  */
 function isPublicOnlyPlaywrightSelection(argv: string[]): boolean {
-	let hasPublicProjectSelection = false;
-	for (let index = 0; index < argv.length; index += 1) {
-		const arg = argv[index];
-		if (arg === '--project' && argv[index + 1] === 'chromium:public') {
-			hasPublicProjectSelection = true;
-			continue;
-		}
-		if (arg.startsWith('--project=') && arg.slice('--project='.length) === 'chromium:public') {
-			hasPublicProjectSelection = true;
-		}
-	}
-
-	if (!hasPublicProjectSelection) {
+	if (!getSelectedPlaywrightProjects(argv).includes('chromium:public')) {
 		return false;
 	}
 
@@ -267,6 +301,11 @@ export const PLAYWRIGHT_PROJECT_CONTRACTS: PlaywrightProjectContract[] = [
 	{
 		name: 'chromium:signup',
 		testMatch: /e2e-ui\/full\/signup_to_paid_invoice\.spec\.ts/,
+		use: { desktopBrowser: 'chromium' }
+	},
+	{
+		name: EMAIL_VERIFICATION_PROJECT_NAME,
+		testMatch: /e2e-ui\/full\/auth-end-effects\.spec\.ts/,
 		use: { desktopBrowser: 'chromium' }
 	},
 	{
@@ -553,6 +592,8 @@ export function resolvePlaywrightRuntime({
 	// worktree's flapjack) while the stack ran its own — the 403 auth-mismatch source.
 	const defaultFlapjackUrl = buildPlaywrightLoopbackUrl(flapjackPort);
 	const hasExplicitBaseUrl = Boolean(processEnv.BASE_URL && processEnv.BASE_URL.trim().length > 0);
+	const requiresEmailVerification =
+		!hasExplicitBaseUrl && isSoleEmailVerificationProjectSelection(argv);
 	// Thread processEnv through so the LB-2/LB-3 remote-target opt-in
 	// (PLAYWRIGHT_TARGET_REMOTE=1) is observed deterministically by the
 	// loopback guard during runtime resolution.
@@ -600,6 +641,11 @@ export function resolvePlaywrightRuntime({
 			processEnv[PLAYWRIGHT_FLAPJACK_PORT_ENV] = String(flapjackPort);
 		}
 	}
+	if (requiresEmailVerification) {
+		processEnv[PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV] = '1';
+	} else {
+		delete processEnv[PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV];
+	}
 	const apiBaseUrl = requireLoopbackHttpUrl(
 		'API_BASE_URL',
 		processEnv.API_BASE_URL ?? repoEnv.API_BASE_URL ?? webEnv.API_BASE_URL ?? defaultApiBaseUrl,
@@ -612,6 +658,16 @@ export function resolvePlaywrightRuntime({
 	);
 	processEnv.API_BASE_URL = apiBaseUrl;
 	processEnv.API_URL = apiUrl;
+	const localEmailVerificationEnv = requiresEmailVerification
+		? {
+				[PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV]: '1',
+				SKIP_EMAIL_VERIFICATION: undefined,
+				API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION: undefined
+			}
+		: {
+				SKIP_EMAIL_VERIFICATION: '1',
+				API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION: '1'
+			};
 	const webServerEnv = sanitizeWebServerEnv({
 		...repoEnv,
 		...webEnv,
@@ -648,8 +704,7 @@ export function resolvePlaywrightRuntime({
 		// (this whole block is skipped when processEnv.BASE_URL is set, e.g.
 		// running playwright against a real remote deploy).
 		ENVIRONMENT: 'local',
-		SKIP_EMAIL_VERIFICATION: '1',
-		API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION: '1'
+		...localEmailVerificationEnv
 	});
 
 	return {

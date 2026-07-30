@@ -20,15 +20,27 @@ vi.mock('@playwright/test', () => ({
 	expect: vi.fn()
 }));
 
+vi.mock('../../tests/fixtures/staging_db_lookup', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('../../tests/fixtures/staging_db_lookup')>();
+	return {
+		...actual,
+		findVerificationTokenViaStagingSsm: vi.fn()
+	};
+});
+
 import { spawnSync, execFileSync } from 'child_process';
 import type { SpawnSyncReturns } from 'child_process';
+import { findVerificationTokenViaStagingSsm } from '../../tests/fixtures/staging_db_lookup';
+import { REMOTE_TARGET_OPT_IN_ENV } from '../../playwright.config.contract';
 import {
+	arrangeFreshOnboardingProjectPrerequisites,
 	assertSingleVerifiedCustomer,
 	verifyFreshSignupEmail
 } from '../../tests/fixtures/onboarding-auth-shared';
 
 const mockSpawnSync = vi.mocked(spawnSync);
 const mockExecFileSync = vi.mocked(execFileSync);
+const mockFindVerificationTokenViaStagingSsm = vi.mocked(findVerificationTokenViaStagingSsm);
 
 describe('onboarding auth setup helpers', () => {
 	const originalEnv = process.env;
@@ -39,6 +51,11 @@ describe('onboarding auth setup helpers', () => {
 	});
 
 	afterEach(() => {
+		mockSpawnSync.mockReset();
+		mockExecFileSync.mockReset();
+		mockFindVerificationTokenViaStagingSsm.mockReset();
+		vi.unstubAllGlobals();
+		vi.useRealTimers();
 		process.env = originalEnv;
 	});
 
@@ -74,6 +91,32 @@ describe('onboarding auth setup helpers', () => {
 			expect(() => assertSingleVerifiedCustomer('0\n', 'u@t.com', 'docker compose psql')).toThrow(
 				/docker compose psql/
 			);
+		});
+	});
+
+	describe('arrangeFreshOnboardingProjectPrerequisites', () => {
+		it('refreshes the selected local region after verifying the setup account', async () => {
+			process.env.DATABASE_URL = 'postgres://user:pass@localhost:5432/fjcloud';
+			process.env.E2E_TEST_REGION = 'eu-west-1';
+			mockSpawnSync.mockReturnValueOnce({
+				status: 0,
+				stdout: 'already_verified\n',
+				stderr: '',
+				pid: 1234,
+				output: [],
+				signal: null,
+				error: undefined
+			} as unknown as SpawnSyncReturns<string>);
+			const ensureLocalSharedVmInventory = vi.fn().mockResolvedValue(undefined);
+
+			await arrangeFreshOnboardingProjectPrerequisites(
+				'user@test.com',
+				ensureLocalSharedVmInventory
+			);
+
+			expect(mockSpawnSync).toHaveBeenCalledOnce();
+			expect(ensureLocalSharedVmInventory).toHaveBeenCalledOnce();
+			expect(ensureLocalSharedVmInventory).toHaveBeenCalledWith('eu-west-1');
 		});
 	});
 
@@ -147,6 +190,67 @@ describe('onboarding auth setup helpers', () => {
 			await expect(verifyFreshSignupEmail('user@test.com')).resolves.toBeUndefined();
 			expect(mockSpawnSync).toHaveBeenCalledOnce();
 			expect(mockExecFileSync).not.toHaveBeenCalled();
+		});
+
+		it('retries staging verify-email on 429 and succeeds on the next response', async () => {
+			vi.useFakeTimers();
+			process.env[REMOTE_TARGET_OPT_IN_ENV] = '1';
+			process.env.API_URL = 'https://api.staging.flapjack.foo';
+			mockFindVerificationTokenViaStagingSsm.mockResolvedValue('staging-token-123');
+			const fetchMock = vi
+				.fn<typeof fetch>()
+				.mockResolvedValueOnce(
+					new Response('', {
+						status: 429,
+						headers: { 'retry-after': '0' }
+					})
+				)
+				.mockResolvedValueOnce(new Response('', { status: 200 }));
+			vi.stubGlobal('fetch', fetchMock);
+
+			const pending = verifyFreshSignupEmail('user@test.com');
+			await vi.runAllTimersAsync();
+			await expect(pending).resolves.toBeUndefined();
+			expect(mockFindVerificationTokenViaStagingSsm).toHaveBeenCalledWith('user@test.com');
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+			expect(fetchMock).toHaveBeenNthCalledWith(
+				1,
+				'https://api.staging.flapjack.foo/auth/verify-email',
+				expect.objectContaining({
+					method: 'POST',
+					body: JSON.stringify({ token: 'staging-token-123' })
+				})
+			);
+		});
+
+		it('surfaces the staging request id when remote verify-email returns a hard failure', async () => {
+			process.env[REMOTE_TARGET_OPT_IN_ENV] = '1';
+			process.env.API_URL = 'https://api.staging.flapjack.foo';
+			mockFindVerificationTokenViaStagingSsm.mockResolvedValue('staging-token-123');
+			vi.stubGlobal(
+				'fetch',
+				vi.fn<typeof fetch>().mockResolvedValue(
+					new Response('', {
+						status: 503,
+						headers: { 'x-request-id': 'req-123' }
+					})
+				)
+			);
+
+			await expect(verifyFreshSignupEmail('user@test.com')).rejects.toThrow(
+				/status=503 request_id=req-123/
+			);
+		});
+
+		it('wraps remote transport failures with the onboarding setup context', async () => {
+			process.env[REMOTE_TARGET_OPT_IN_ENV] = '1';
+			process.env.API_URL = 'https://api.staging.flapjack.foo';
+			mockFindVerificationTokenViaStagingSsm.mockResolvedValue('staging-token-123');
+			vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockRejectedValue(new Error('socket hang up')));
+
+			await expect(verifyFreshSignupEmail('user@test.com')).rejects.toThrow(
+				/transport_error=socket hang up/
+			);
 		});
 
 		it('throws when host psql succeeds but updates zero rows', async () => {

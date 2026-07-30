@@ -15,6 +15,7 @@ import {
 	PLAYWRIGHT_PROJECT_CONTRACTS,
 	PLAYWRIGHT_API_PORT_ENV,
 	PLAYWRIGHT_FLAPJACK_PORT_ENV,
+	PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV,
 	PLAYWRIGHT_WEB_PORT_ENV,
 	PLAYWRIGHT_WEB_SERVER_COMMAND,
 	PLAYWRIGHT_WEB_ONLY_SERVER_COMMAND,
@@ -48,6 +49,7 @@ type EnvDefaultsInput = {
 const projectContractsByName = Object.fromEntries(
 	PLAYWRIGHT_PROJECT_CONTRACTS.map((project) => [project.name, project])
 );
+const EMAIL_VERIFICATION_PROJECT_NAME = 'chromium:email-verification';
 
 function applyEnvDefaults(input: EnvDefaultsInput): MutableEnv {
 	applyPlaywrightProcessEnvDefaults(input);
@@ -78,6 +80,20 @@ function withProcessEnv<T>(overrides: Record<string, string | undefined>, run: (
 			process.env[key] = value;
 		}
 	}
+}
+
+function expectLocalAutoVerificationBypass(env: Record<string, string | undefined>): void {
+	expect(env.ENVIRONMENT).toBe('local');
+	expect(env.SKIP_EMAIL_VERIFICATION).toBe('1');
+	expect(env.API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION).toBe('1');
+	expect(env[PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV]).toBeUndefined();
+}
+
+function expectRequiredEmailVerification(env: Record<string, string | undefined>): void {
+	expect(env.ENVIRONMENT).toBe('local');
+	expect(env[PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV]).toBe('1');
+	expect(env.SKIP_EMAIL_VERIFICATION).toBeUndefined();
+	expect(env.API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION).toBeUndefined();
 }
 
 async function withIsolatedProcessEnv<T>(
@@ -532,6 +548,171 @@ describe('playwright config contract', () => {
 		expect(runtime.webServerEnv.API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION).toBe('1');
 	});
 
+	it.each([
+		['equals project flag', ['--project=chromium:email-verification']],
+		['split project flag', ['--project', 'chromium:email-verification']]
+	])(
+		'resolvePlaywrightRuntime requires real email verification for sole %s selection',
+		(_name, projectArgs) => {
+			const workspacePath = '/tmp/fjcloud-worktree-email-verification';
+			const processEnv: MutableEnv = {};
+			const runtime = resolvePlaywrightRuntime({
+				processEnv,
+				repoEnv: {},
+				webEnv: {},
+				fallbackJwtSecret: 'fallback-jwt',
+				argv: [
+					'test',
+					'tests/e2e-ui/full/auth-end-effects.spec.ts',
+					...projectArgs,
+					'--grep',
+					'valid verification token shows success heading'
+				],
+				workspacePath
+			});
+
+			expect(runtime.webServer).toBeDefined();
+			expectRequiredEmailVerification(runtime.webServerEnv);
+			expect(processEnv[PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV]).toBe('1');
+		}
+	);
+
+	it('resolvePlaywrightRuntime keeps local bypass when no project is selected', () => {
+		const runtime = resolvePlaywrightRuntime({
+			processEnv: {},
+			repoEnv: {},
+			webEnv: {},
+			fallbackJwtSecret: 'fallback-jwt',
+			argv: ['test', 'tests/e2e-ui/full/auth-end-effects.spec.ts']
+		});
+
+		expectLocalAutoVerificationBypass(runtime.webServerEnv);
+	});
+
+	it.each([
+		'chromium',
+		'chromium:public',
+		'chromium:signup',
+		'chromium:mocked',
+		'chromium:onboarding',
+		'chromium:customer-journeys',
+		'chromium:admin',
+		'chromium:accessibility'
+	])('resolvePlaywrightRuntime keeps local bypass for %s', (projectName) => {
+		const runtime = resolvePlaywrightRuntime({
+			processEnv: {},
+			repoEnv: {},
+			webEnv: {},
+			fallbackJwtSecret: 'fallback-jwt',
+			argv: ['test', '--project', projectName]
+		});
+
+		expectLocalAutoVerificationBypass(runtime.webServerEnv);
+	});
+
+	it('resolvePlaywrightRuntime clears inherited email verification flag for ordinary local projects', () => {
+		const processEnv: MutableEnv = {
+			[PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV]: '1'
+		};
+		const runtime = resolvePlaywrightRuntime({
+			processEnv,
+			repoEnv: {},
+			webEnv: {},
+			fallbackJwtSecret: 'fallback-jwt',
+			argv: ['test', '--project', 'chromium:signup']
+		});
+
+		expectLocalAutoVerificationBypass(runtime.webServerEnv);
+		expect(processEnv[PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV]).toBeUndefined();
+	});
+
+	it('resolvePlaywrightRuntime deletes the inherited email verification flag from real process.env', async () => {
+		await withIsolatedProcessEnv(
+			{ [PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV]: '1' },
+			async () => {
+				const runtime = resolvePlaywrightRuntime({
+					processEnv: process.env,
+					repoEnv: {},
+					webEnv: {},
+					fallbackJwtSecret: 'fallback-jwt',
+					argv: ['test', '--project', 'chromium:signup']
+				});
+
+				expectLocalAutoVerificationBypass(runtime.webServerEnv);
+				expect(process.env[PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV]).toBeUndefined();
+			}
+		);
+	});
+
+	it('resolvePlaywrightRuntime keeps local bypass for mixed project selections', () => {
+		const runtime = resolvePlaywrightRuntime({
+			processEnv: {},
+			repoEnv: {},
+			webEnv: {},
+			fallbackJwtSecret: 'fallback-jwt',
+			argv: [
+				'test',
+				'--project=chromium:email-verification',
+				'--project',
+				'chromium:signup'
+			]
+		});
+
+		expectLocalAutoVerificationBypass(runtime.webServerEnv);
+	});
+
+	it('resolvePlaywrightRuntime keeps local bypass for variadic mixed project selections', () => {
+		const runtime = resolvePlaywrightRuntime({
+			processEnv: {},
+			repoEnv: {},
+			webEnv: {},
+			fallbackJwtSecret: 'fallback-jwt',
+			argv: [
+				'test',
+				'--project',
+				'chromium:email-verification',
+				'chromium:signup',
+				'--reporter=line'
+			]
+		});
+
+		expectLocalAutoVerificationBypass(runtime.webServerEnv);
+	});
+
+	it('resolvePlaywrightRuntime rejects wildcard selection of the email verification project', () => {
+		expect(() =>
+			resolvePlaywrightRuntime({
+				processEnv: {},
+				repoEnv: {},
+				webEnv: {},
+				fallbackJwtSecret: 'fallback-jwt',
+				argv: ['test', '--project=chromium:email*']
+			})
+		).toThrow(
+			'chromium:email-verification must be selected exactly; wildcard project selection is not allowed for email verification mode'
+		);
+	});
+
+	it('resolvePlaywrightRuntime clears verification mode for explicit BASE_URL runs', () => {
+		const processEnv: MutableEnv = {
+			BASE_URL: 'http://127.0.0.1:4174',
+			[PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV]: '1'
+		};
+		const runtime = resolvePlaywrightRuntime({
+			processEnv,
+			repoEnv: {},
+			webEnv: {},
+			fallbackJwtSecret: 'fallback-jwt',
+			argv: ['test', '--project', 'chromium:email-verification']
+		});
+
+		expect(runtime.webServer).toBeUndefined();
+		expect(runtime.webServerEnv[PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV]).toBeUndefined();
+		expect(runtime.webServerEnv.SKIP_EMAIL_VERIFICATION).toBe('1');
+		expect(runtime.webServerEnv.API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION).toBe('1');
+		expect(processEnv[PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV]).toBeUndefined();
+	});
+
 	it('resolvePlaywrightRuntime uses explicit PLAYWRIGHT_API_PORT override for API_BASE_URL and API_URL', () => {
 		const runtime = resolvePlaywrightRuntime({
 			processEnv: { [PLAYWRIGHT_API_PORT_ENV]: '6411' },
@@ -857,6 +1038,16 @@ describe('playwright config contract', () => {
 		expect(projectContractsByName['chromium:signup']?.dependencies).toBeUndefined();
 		expect(projectContractsByName['chromium:signup']?.use?.desktopBrowser).toBe('chromium');
 		expect(projectContractsByName['chromium:signup']?.use?.storageState).toBeUndefined();
+		expect(projectContractsByName[EMAIL_VERIFICATION_PROJECT_NAME]?.testMatch).toEqual(
+			/e2e-ui\/full\/auth-end-effects\.spec\.ts/
+		);
+		expect(projectContractsByName[EMAIL_VERIFICATION_PROJECT_NAME]?.dependencies).toBeUndefined();
+		expect(projectContractsByName[EMAIL_VERIFICATION_PROJECT_NAME]?.use?.desktopBrowser).toBe(
+			'chromium'
+		);
+		expect(
+			projectContractsByName[EMAIL_VERIFICATION_PROJECT_NAME]?.use?.storageState
+		).toBeUndefined();
 		expect(projectContractsByName['chromium:mocked']?.dependencies).toEqual(['setup:user']);
 		expect(projectContractsByName['chromium:mocked']?.use?.desktopBrowser).toBe('chromium');
 		expect(projectContractsByName['chromium:mocked']?.use?.storageState).toBe(

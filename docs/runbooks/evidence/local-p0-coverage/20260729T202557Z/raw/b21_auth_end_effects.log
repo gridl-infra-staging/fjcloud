@@ -1,0 +1,18 @@
+(node:87363) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[2m[WebServer] [22mNOTICE:  relation "_schema_migrations" already exists, skipping
+[2m[WebServer] [22mpsql:infra/migrations/059_vm_inventory_reference_guard.sql:187: NOTICE:  identifier "trg_algolia_import_jobs_destination_vm_id_vm_inventory_reference_guard" will be truncated to "trg_algolia_import_jobs_destination_vm_id_vm_inventory_referenc"
+[2m[WebServer] [22m(node:10808) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m(node:10808) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+
+Running 1 test using 1 worker
+
+(node:10958) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:10958) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:10958) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium:email-verification] › tests/e2e-ui/full/auth-end-effects.spec.ts:67:2 › Verify email end-effect › valid verification token shows success heading and login CTA @p0_coverage (5.0s)
+
+  1 passed (1.3m)

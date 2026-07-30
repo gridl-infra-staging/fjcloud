@@ -6,6 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+FIXTURE_ROOT="$SCRIPT_DIR/fixtures/source-migration"
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -24,6 +25,8 @@ fail() {
 source "$SCRIPT_DIR/lib/assertions.sh"
 # shellcheck source=lib/local_dev_test_state.sh
 source "$SCRIPT_DIR/lib/local_dev_test_state.sh"
+# shellcheck source=lib/source_provider_harness.sh
+source "$SCRIPT_DIR/lib/source_provider_harness.sh"
 
 LOCAL_DEV_TEST_DB_URL="postgres://local-test:local-pass@localhost:5432/local_dev_test"
 LOCAL_DEV_ALT_PORT_DB_URL="postgres://local-test:local-pass@localhost:15432/local_dev_test"
@@ -67,11 +70,31 @@ MOCK
 write_healthy_mock_curl() {
     local path="$1" call_log="$2"
     write_mock_script "$path" \
-        'echo "curl $@" >> "'"$call_log"'"
-if [[ "$*" == *"%{http_code}"* ]]; then
+        'args="$*"
+echo "curl $args" >> "'"$call_log"'"
+output="/dev/null"
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -o)
+            output="$2"
+            shift 2
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+if [ -n "${SOURCE_PROVIDER_CAPTURE_ROOT:-}" ] && [ "$output" != "/dev/null" ]; then
+    output_basename="$(basename "$output")"
+    if [ -f "${SOURCE_PROVIDER_CAPTURE_ROOT}/$output_basename" ]; then
+        cat "${SOURCE_PROVIDER_CAPTURE_ROOT}/$output_basename" > "$output"
+        exit 0
+    fi
+fi
+if [[ "$args" == *"%{http_code}"* ]]; then
     echo 200
 fi
-if [[ "$*" == *"/health"* ]]; then
+if [[ "$args" == *"/health"* ]]; then
     revision="${FJCLOUD_FLAPJACK_REQUIRED_REVISION:-test-revision}"
     digest="${FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID:-test-digest}"
     sha="${FJCLOUD_FLAPJACK_REQUIRED_SHA256:-test-sha}"
@@ -228,7 +251,7 @@ test_starts_flapjack_with_shared_local_admin_key_default() {
     write_mock_script "$mock_flapjack_dir/flapjack" 'exit 0'
 
     write_mock_script "$tmp_dir/bin/nohup" \
-        'echo "FLAPJACK_ADMIN_KEY=${FLAPJACK_ADMIN_KEY:-}" >> "'"$call_log"'"; "$@" &'
+        'echo "FLAPJACK_ADMIN_KEY=${FLAPJACK_ADMIN_KEY:-}" >> "'"$call_log"'"; exec "$@"'
 
     local output exit_code=0
     output=$(
@@ -243,7 +266,7 @@ test_starts_flapjack_with_shared_local_admin_key_default() {
 
     local calls wait_attempt
     calls=""
-    for wait_attempt in 1 2 3 4 5 6 7 8 9 10; do
+    for wait_attempt in $(seq 1 50); do
         calls=$(cat "$call_log" 2>/dev/null || true)
         [[ "$calls" == *"FLAPJACK_ADMIN_KEY="* ]] && break
         /bin/sleep 0.1
@@ -331,6 +354,7 @@ test_discovers_default_repo_relative_fresh_host_candidates_when_unset() {
     cp "$REPO_ROOT/scripts/lib/compose_project.sh" "$fixture_repo_root/scripts/lib/"
     cp "$REPO_ROOT/scripts/lib/process.sh" "$fixture_repo_root/scripts/lib/"
     cp "$REPO_ROOT/scripts/lib/docker.sh" "$fixture_repo_root/scripts/lib/"
+    cp "$REPO_ROOT/scripts/lib/local_source_providers.sh" "$fixture_repo_root/scripts/lib/"
     mkdir -p "$fixture_repo_root/infra"
     cp -R "$REPO_ROOT/infra/migrations" "$fixture_repo_root/infra/"
     write_local_dev_env_file "$fixture_repo_root/.env.local" "$LOCAL_DEV_TEST_DB_URL"
@@ -1087,6 +1111,115 @@ test_starts_seaweedfs_and_mailpit() {
         "should always start mailpit"
 }
 
+test_source_providers_are_default_off() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_local_dev_repo_state; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local call_log="$tmp_dir/calls.log"
+    mkdir -p "$tmp_dir/bin"
+    setup_mock_bin "$tmp_dir/bin" "$call_log"
+    setup_local_dev_repo_state "$tmp_dir"
+
+    local output exit_code=0 calls
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        FLAPJACK_DEV_DIR="/nonexistent" \
+        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+    ) || exit_code=$?
+    calls=$(cat "$call_log" 2>/dev/null || true)
+
+    assert_eq "$exit_code" "0" "default startup should succeed without source providers"
+    assert_not_contains "$calls" "docker compose up -d meilisearch typesense" \
+        "default startup should not start profile-gated source providers"
+    assert_not_contains "$output" "Meilisearch:" \
+        "default summary should omit Meilisearch"
+    assert_not_contains "$output" "Typesense:" \
+        "default summary should omit Typesense"
+}
+
+test_source_provider_profile_starts_and_reports_healthy_services() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_local_dev_repo_state; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local call_log="$tmp_dir/calls.log"
+    local capture_root="$tmp_dir/source-provider-captures"
+    mkdir -p "$tmp_dir/bin"
+    setup_mock_bin "$tmp_dir/bin" "$call_log"
+    setup_local_dev_repo_state "$tmp_dir"
+    write_mock_provider_capture_payloads "$capture_root"
+
+    local output exit_code=0 calls
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        COMPOSE_PROFILES="source-providers" \
+        LOCAL_MEILISEARCH_PORT=17700 \
+        LOCAL_TYPESENSE_PORT=18108 \
+        SOURCE_PROVIDER_CAPTURE_ROOT="$capture_root" \
+        SOURCE_PROVIDER_EVIDENCE_ROOT="$tmp_dir/evidence" \
+        SOURCE_PROVIDER_CREDENTIAL_ROOT="$tmp_dir/credentials" \
+        FLAPJACK_DEV_DIR="/nonexistent" \
+        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+    ) || exit_code=$?
+    calls=$(cat "$call_log" 2>/dev/null || true)
+
+    assert_eq "$exit_code" "0" "source-provider profile startup should succeed"
+    assert_contains "$calls" "docker compose up -d meilisearch typesense" \
+        "source-provider profile should start both providers together"
+    assert_contains "$calls" "http://127.0.0.1:17700/health" \
+        "source-provider startup should probe the configured Meilisearch port"
+    assert_contains "$calls" "http://127.0.0.1:18108/health" \
+        "source-provider startup should probe the configured Typesense port"
+    assert_contains "$output" "Meilisearch:    http://localhost:17700" \
+        "healthy source-provider summary should include Meilisearch"
+    assert_contains "$output" "Typesense:      http://localhost:18108" \
+        "healthy source-provider summary should include Typesense"
+}
+
+test_source_provider_health_failure_is_nonfatal() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_local_dev_repo_state; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local call_log="$tmp_dir/calls.log"
+    mkdir -p "$tmp_dir/bin"
+    setup_mock_bin "$tmp_dir/bin" "$call_log"
+    setup_local_dev_repo_state "$tmp_dir"
+    write_mock_script "$tmp_dir/bin/docker" \
+        'echo "docker $@" >> "'"$call_log"'"
+case "$*" in
+    "compose ps meilisearch "*|"compose ps typesense "*)
+        printf "%s\n" "[{\"Service\":\"$3\",\"Health\":\"unhealthy\"}]"
+        ;;
+    "compose ps "*"--format json"*)
+        printf "%s\n" "[{\"Service\":\"$3\",\"Health\":\"healthy\"}]"
+        ;;
+esac
+'"$(mock_applied_migration_queries_body)"'
+exit 0'
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        COMPOSE_PROFILES="source-providers" \
+        SOURCE_PROVIDER_HEALTH_TIMEOUT_SECONDS=2 \
+        SOURCE_PROVIDER_EVIDENCE_ROOT="$tmp_dir/evidence" \
+        SOURCE_PROVIDER_CREDENTIAL_ROOT="$tmp_dir/credentials" \
+        FLAPJACK_DEV_DIR="/nonexistent" \
+        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "0" \
+        "source-provider health failure should not fail the core local stack"
+    assert_contains "$output" "source providers failed health checks" \
+        "source-provider health failure should be reported"
+    assert_not_contains "$output" "Meilisearch:" \
+        "unhealthy source-provider summary should omit Meilisearch"
+    assert_not_contains "$output" "Typesense:" \
+        "unhealthy source-provider summary should omit Typesense"
+}
+
 test_optional_service_health_failure_nonfatal() {
     local tmp_dir
     tmp_dir=$(mktemp -d)
@@ -1284,6 +1417,9 @@ main() {
     test_local_dev_up_uses_shared_flapjack_helper_only
     test_prints_startup_instructions
     test_starts_seaweedfs_and_mailpit
+    test_source_providers_are_default_off
+    test_source_provider_profile_starts_and_reports_healthy_services
+    test_source_provider_health_failure_is_nonfatal
     test_optional_service_health_failure_nonfatal
     test_startup_summary_reflects_health_status
     test_multi_region_flapjack_starts_one_per_region

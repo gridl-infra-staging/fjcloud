@@ -10,6 +10,7 @@ import {
 	findResetTokenViaMailpit,
 	LOCAL_AUTO_VERIFIED_TOKEN_PREFIX
 } from '../../fixtures/fixtures';
+import { PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV } from '../../../playwright.config.contract';
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -87,7 +88,10 @@ test.describe('Verify email end-effect', () => {
 			signup.email,
 			signup.password
 		);
-		if (verificationToken.startsWith(LOCAL_AUTO_VERIFIED_TOKEN_PREFIX)) {
+		if (
+			process.env[PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV] !== '1' &&
+			verificationToken.startsWith(LOCAL_AUTO_VERIFIED_TOKEN_PREFIX)
+		) {
 			test.skip(true, 'local stack auto-verifies emails; no real Mailpit token available');
 			return;
 		}

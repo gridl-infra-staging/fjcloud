@@ -31,6 +31,18 @@ readonly SHARED_TEST_HELPERS_PATH="scripts/tests/lib/test_helpers.sh"
 readonly PROJECT_OVERVIEW_PATH="PROJECT_OVERVIEW.md"
 readonly ROADMAP_PATH="ROADMAP.md"
 readonly IMPLEMENTED_ROADMAP_PATH="implemented/2026-06-05_roadmap_v2_reshape_archive.md"
+# Dated closeout receipts under implemented/ are frozen archive records of a ROADMAP row,
+# so they legitimately name the suite whose row they close — the same reason
+# IMPLEMENTED_ROADMAP_PATH above is allowlisted. They cannot drift, because nothing edits
+# them after the row closes.
+#
+# NOTE for whoever moves ROADMAP rows into implemented/ in bulk: this allowlist is a list
+# of literal paths, so every migrated row that names a focused chaos suite trips this
+# assertion until its new path is added here. If that becomes more than a handful, the
+# right fix is to teach is_path_allowed_for_focused_suite_reference() about the archive
+# directory rather than appending paths one at a time — but do that as a deliberate
+# decision about how much the guard should still cover, not as a reflex to a red test.
+readonly IMPLEMENTED_CHAOS_CLOSEOUT_PATH="implemented/20260729_chaos_ha_failover_proof_closeout_completion.md"
 readonly PHASE6_RISK_REGISTER_PATH="docs/checklists/apr21_pm_2_post_phase6_gaps_and_risks.md"
 readonly WRAPPER_MAX_LINES=120
 readonly FOCUSED_SUITE_MAX_LINES=800
@@ -59,6 +71,7 @@ CHAOS_FOCUSED_SUITE_REFERENCE_ALLOWLIST=(
     "$CHAOS_TESTS_DIRMAP_PATH"
     "$ROADMAP_PATH"
     "$IMPLEMENTED_ROADMAP_PATH"
+    "$IMPLEMENTED_CHAOS_CLOSEOUT_PATH"
     "$TEST_REACHABILITY_MANIFEST_PATH"
     "$TEST_REACHABILITY_PROBE_TEST_PATH"
 )

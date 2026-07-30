@@ -60,6 +60,42 @@ services:
       timeout: 3s
       retries: 5
 
+  meilisearch:
+    profiles: ["source-providers"]
+    image: getmeili/meilisearch@sha256:9694a59df43ee3f54b3fda9c5de381a3ee9852678e3e31cadf37d6bddea7fc1b
+    environment:
+      MEILI_ENV: development
+      MEILI_MASTER_KEY: "${MEILI_MASTER_KEY:-local-source-provider-key}"
+    ports:
+      - "${LOCAL_MEILISEARCH_PORT:-7700}:7700"
+    tmpfs:
+      - /meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  typesense:
+    profiles: ["source-providers"]
+    image: typesense/typesense:30.2@sha256:610f2d34b1f93d00762869da2c67736775e5798d19a2c8b91b014b8a0cc1e110
+    environment:
+      TYPESENSE_API_KEY: "${TYPESENSE_API_KEY:-local-source-provider-key}"
+      TYPESENSE_DATA_DIR: /data
+    ports:
+      - "${LOCAL_TYPESENSE_PORT:-8108}:8108"
+    tmpfs:
+      - /data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/8108; printf \"GET /health HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3; grep -q \"200 OK\" <&3'",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
   api:
     build:
       context: ./infra

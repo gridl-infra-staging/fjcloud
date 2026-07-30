@@ -46,12 +46,14 @@ HARD_ERASE_CASE_NAMES=(
 
 cleanup() {
   local child_pid
-  for child_pid in "${PARALLEL_CHILD_PIDS[@]}"; do
-    if kill -0 "$child_pid" 2>/dev/null; then
-      kill "$child_pid"
-      wait "$child_pid" 2>/dev/null || true
-    fi
-  done
+  if [ "${#PARALLEL_CHILD_PIDS[@]}" -gt 0 ]; then
+    for child_pid in "${PARALLEL_CHILD_PIDS[@]}"; do
+      if kill -0 "$child_pid" 2>/dev/null; then
+        kill "$child_pid"
+        wait "$child_pid" 2>/dev/null || true
+      fi
+    done
+  fi
   if [ -n "$PARALLEL_RESULTS_DIR" ] && [ -d "$PARALLEL_RESULTS_DIR" ]; then
     rm -rf "$PARALLEL_RESULTS_DIR"
   fi
@@ -60,6 +62,14 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+
+test_parallel_cleanup_guards_empty_pid_array_under_nounset() {
+  local cleanup_body
+  cleanup_body="$(sed -n '/^cleanup()/,/^}/p' "$0")"
+
+  assert_contains "$cleanup_body" '[ "${#PARALLEL_CHILD_PIDS[@]}" -gt 0 ]' \
+    "parallel cleanup should guard empty pid arrays before nounset-sensitive expansion"
+}
 
 write_mock_binaries() {
   mkdir -p "$WORK_DIR/target/debug" "$WORK_DIR/flapjack-src/target/debug"
@@ -1914,6 +1924,7 @@ CATALOG_TEST_CASES=(
   test_probe_rejects_missing_catalog_row_evidence
   test_probe_counts_calls_and_rejects_unrelated_state_change
   test_catalog_inventory_validator_fails_closed
+  test_parallel_cleanup_guards_empty_pid_array_under_nounset
 )
 
 for catalog_label in repo account admin; do

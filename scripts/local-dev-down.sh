@@ -19,6 +19,8 @@ source "$SCRIPT_DIR/lib/process.sh"
 source "$SCRIPT_DIR/lib/compose_project.sh"
 # shellcheck source=lib/docker.sh
 source "$SCRIPT_DIR/lib/docker.sh"
+# shellcheck source=lib/local_source_providers.sh
+source "$SCRIPT_DIR/lib/local_source_providers.sh"
 
 PID_DIR="$REPO_ROOT/.local"
 
@@ -28,6 +30,7 @@ log() { echo "[local-dev-down] $*"; }
 # otherwise `docker compose down` would target the wrong project (default
 # basename) and leave the worktree's containers running.
 export COMPOSE_PROJECT_NAME="$(resolve_compose_project_name "$REPO_ROOT")"
+source_provider_configure_paths "$REPO_ROOT"
 
 # ---------------------------------------------------------------------------
 # 1. Stop flapjack (single-instance and multi-region)
@@ -74,6 +77,13 @@ kill_pid_file "$PID_DIR/web.pid" "web" "npm" "*npm*"
 # containers will remain "stopped from docker's POV but with no daemon to
 # stop them" — they'll get cleaned up when docker comes back via the next
 # `up`/`down` cycle.
+source_provider_teardown_active=0
+source_provider_teardown_profiles=""
+if source_provider_profile_enabled || source_provider_stack_owned; then
+    source_provider_teardown_active=1
+    source_provider_teardown_profiles="$(source_provider_profiles_for_teardown)"
+fi
+
 if ensure_docker_daemon_or_warn; then
     local_compose_args=("compose" "down")
     if [[ "${1:-}" == "--clean" ]]; then
@@ -81,11 +91,22 @@ if ensure_docker_daemon_or_warn; then
         log "Removing volumes (--clean)"
     fi
 
-    (cd "$REPO_ROOT" && docker "${local_compose_args[@]}") 2>&1 | while IFS= read -r line; do
-        log "$line"
-    done
+    if [ "$source_provider_teardown_active" = "1" ]; then
+        (
+            cd "$REPO_ROOT"
+            COMPOSE_PROFILES="$source_provider_teardown_profiles" \
+                docker "${local_compose_args[@]}"
+        ) 2>&1 | while IFS= read -r line; do log "$line"; done
+    else
+        (cd "$REPO_ROOT" && docker "${local_compose_args[@]}") 2>&1 \
+            | while IFS= read -r line; do log "$line"; done
+    fi
 else
     log "skipping 'docker compose down' — daemon unreachable (tracked PIDs above were still killed)"
+fi
+
+if [ "$source_provider_teardown_active" = "1" ]; then
+    source_provider_finalize_teardown "$source_provider_teardown_profiles"
 fi
 
 if [[ "${1:-}" == "--clean" ]]; then

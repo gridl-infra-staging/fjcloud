@@ -28,6 +28,8 @@ source "$SCRIPT_DIR/lib/local_stack_contract.sh"
 source "$SCRIPT_DIR/lib/compose_project.sh"
 # shellcheck source=lib/docker.sh
 source "$SCRIPT_DIR/lib/docker.sh"
+# shellcheck source=lib/local_source_providers.sh
+source "$SCRIPT_DIR/lib/local_source_providers.sh"
 
 # Each worktree gets its own docker compose project namespace so a second
 # worktree's `docker compose up` cannot clobber the first worktree's
@@ -121,6 +123,38 @@ start_seaweedfs_service() {
     fi
     log "seaweedfs failed health check after ${timeout}s (docker compose Health was not 'healthy') — non-fatal; API will fall back to InMemoryObjectStore"
     return 1
+}
+
+source_provider_is_healthy() {
+    local service="$1" health_url="$2"
+    [ "$(compose_service_health "$service")" = "healthy" ] \
+        && curl -fsS -o /dev/null "$health_url"
+}
+
+start_source_provider_services() {
+    local meili_port="$1" typesense_port="$2" timeout="${3:-60}"
+    local meili_url="http://127.0.0.1:${meili_port}"
+    local typesense_url="http://127.0.0.1:${typesense_port}"
+
+    source_provider_prepare_run "$REPO_ROOT" || return 1
+    source_provider_mark_stack_owned
+    log "Starting Meilisearch and Typesense source providers..."
+    (cd "$REPO_ROOT" && docker compose up -d meilisearch typesense) 2>&1 \
+        | while IFS= read -r line; do log "$line"; done \
+        || return 1
+
+    if ! wait_until_success "$timeout" 2 \
+        source_provider_is_healthy meilisearch "$meili_url/health"
+    then
+        return 1
+    fi
+    if ! wait_until_success "$timeout" 2 \
+        source_provider_is_healthy typesense "$typesense_url/health"
+    then
+        return 1
+    fi
+
+    source_provider_seed_and_capture "$meili_url" "$typesense_url"
 }
 
 start_postgres_service() {
@@ -255,6 +289,7 @@ ensure_postgres_volume_matches_env "$DB_USER" "$DB_PASSWORD" "$DB_NAME"
 # we intentionally avoid re-probing Docker state in section 6.
 SEAWEEDFS_HEALTHY=0
 MAILPIT_HEALTHY=0
+SOURCE_PROVIDERS_HEALTHY=0
 
 local_s3_port="${LOCAL_S3_PORT:-8333}"
 if start_seaweedfs_service "$local_s3_port" 15; then
@@ -267,6 +302,20 @@ fi
 
 if start_optional_service "mailpit" "http://localhost:${LOCAL_MAILPIT_UI_PORT:-8025}/api/v1/info" 15; then
     MAILPIT_HEALTHY=1
+fi
+
+if source_provider_profile_enabled; then
+    local_meilisearch_port="${LOCAL_MEILISEARCH_PORT:-7700}"
+    local_typesense_port="${LOCAL_TYPESENSE_PORT:-8108}"
+    if start_source_provider_services \
+        "$local_meilisearch_port" \
+        "$local_typesense_port" \
+        "${SOURCE_PROVIDER_HEALTH_TIMEOUT_SECONDS:-60}"
+    then
+        SOURCE_PROVIDERS_HEALTHY=1
+    else
+        log "source providers failed health checks or fixture seeding — non-fatal; source migration fixtures are unavailable"
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -369,6 +418,10 @@ if [ "$SEAWEEDFS_HEALTHY" = "1" ]; then
 fi
 if [ "$MAILPIT_HEALTHY" = "1" ]; then
     log "  Mailpit UI:     http://localhost:${LOCAL_MAILPIT_UI_PORT:-8025}"
+fi
+if [ "$SOURCE_PROVIDERS_HEALTHY" = "1" ]; then
+    log "  Meilisearch:    http://localhost:${LOCAL_MEILISEARCH_PORT:-7700}"
+    log "  Typesense:      http://localhost:${LOCAL_TYPESENSE_PORT:-8108}"
 fi
 log "  Admin key:      (${FLAPJACK_ADMIN_KEY_SUMMARY})"
 log "  Database:       $(redact_db_url "$DATABASE_URL")"

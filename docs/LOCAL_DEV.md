@@ -135,6 +135,57 @@ The full automated HA proof is run by `./scripts/local-signoff.sh` (which
 delegates to `scripts/chaos/ha-failover-proof.sh`). For a scoped rerun, use
 `./scripts/local-signoff.sh --only ha`.
 
+### Migration Source Providers (Meilisearch / Typesense)
+
+Disposable local Meilisearch and Typesense containers that stand in for a
+customer's existing search provider, so source-migration work can be proven
+without a vendor cloud account. Landed by lane
+`chats/icg/jul28_9pm_3_m3a_local_provider_source_containers.md`.
+
+They are **profile-gated and off by default** — `docker compose config` filters
+profile-gated services out, so the absence of these services from that output
+does not mean they are missing.
+
+```bash
+# Start the normal stack plus both source providers
+COMPOSE_PROFILES=source-providers bash scripts/local-dev-up.sh
+
+# Per-worktree port overrides, same habit as LOCAL_DB_PORT
+COMPOSE_PROFILES=source-providers \
+  LOCAL_MEILISEARCH_PORT=11701 LOCAL_TYPESENSE_PORT=11702 \
+  bash scripts/local-dev-up.sh
+
+# Teardown removes profile-gated containers even without the variable set,
+# because startup writes an ownership marker that teardown reads.
+bash scripts/local-dev-down.sh
+```
+
+Defaults: Meilisearch `7700`, Typesense `8108`. Health-check budget is
+`SOURCE_PROVIDER_HEALTH_TIMEOUT_SECONDS` (default `60`); **failure is
+non-fatal** — the stack continues and only the source fixtures are unavailable,
+so a green `local-dev-up.sh` does not by itself prove the providers started.
+Check the startup summary, which prints both URLs only when they are healthy.
+
+Credentials (`MEILI_MASTER_KEY`, `TYPESENSE_API_KEY`) are **generated per run**
+when unset, so nothing is committed. Set them explicitly only to reproduce a
+captured evidence bundle. All env vars are registered in
+[`env-vars.md`](env-vars.md).
+
+**Fixtures** live under `scripts/tests/fixtures/source-migration/{meilisearch,typesense}/`
+and are **vendored copies produced by `flapjack_dev`**, not authored here — each
+directory carries a `PROVENANCE.md` naming the producer repo, path, and commit
+SHA. Do not edit fixture values in this repo; change them at the producer and
+re-vendor. Seeding is owned by `scripts/lib/local_source_providers.sh`, with
+evidence capture in `scripts/lib/local_source_provider_evidence.py` writing to
+`SOURCE_PROVIDER_EVIDENCE_ROOT` (default `.local/source-provider-evidence`) with
+secrets and canaries redacted.
+
+`MEILI_TEST_SECRET_CANARY` and `TYPESENSE_STAGE2_BOOTSTRAP_CANARY` are seeded
+test-only strings that exist so secret-absence assertions have a specimen that
+can actually fail. Downstream parity proofs consume those exact variable names.
+
+Contract test: `bash scripts/tests/local_source_providers_test.sh`.
+
 ### Multi-Region Mode
 
 Set `FLAPJACK_REGIONS` in `.env.local` to start multiple Flapjack processes:

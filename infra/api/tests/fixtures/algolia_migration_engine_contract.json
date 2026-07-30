@@ -1,13 +1,13 @@
 {
-  "pinned_engine_sha": "eecd5c8ad166de972ea5225682e86ef7df0e7304",
+  "pinned_engine_sha": "c55740abf97b3fb702dc9f892771344f59034700",
   "openapi_artifacts": [
     {
       "path": "engine/docs2/openapi.json",
-      "sha256": "811c247749b55c2fd85bcc4ea39898a24bb496a2ad0b2ec225df3f8513335178"
+      "sha256": "0814cd64b8083e4d58f6444c0a95b94467069cc76d6db105c4a5e1014e1ba5f8"
     },
     {
       "path": "engine/demo-dualclient/public/openapi.json",
-      "sha256": "811c247749b55c2fd85bcc4ea39898a24bb496a2ad0b2ec225df3f8513335178"
+      "sha256": "0814cd64b8083e4d58f6444c0a95b94467069cc76d6db105c4a5e1014e1ba5f8"
     }
   ],
   "routes": {
@@ -185,10 +185,13 @@
     ],
     "optional_fields": [
       "exportProgress",
+      "objectsImported",
       "rulesImported",
       "settingsApplied",
       "synonymsImported",
+      "targetIndex",
       "terminalAt",
+      "topology",
       "warnings"
     ]
   },
@@ -302,7 +305,9 @@
   "provider_discriminator": {
     "field": "source_provider",
     "values": [
-      "algolia"
+      "algolia",
+      "meilisearch",
+      "typesense"
     ]
   },
   "provider_aliases": {
@@ -311,6 +316,18 @@
       "status": "/1/migrations/algolia/{job_id}",
       "cancel": "/1/migrations/algolia/{job_id}/cancel",
       "acknowledge": "/1/migrations/algolia/{job_id}/acknowledge"
+    },
+    "meilisearch": {
+      "submit": "/1/migrations/meilisearch",
+      "status": "/1/migrations/meilisearch/{job_id}",
+      "cancel": "/1/migrations/meilisearch/{job_id}/cancel",
+      "acknowledge": "/1/migrations/meilisearch/{job_id}/acknowledge"
+    },
+    "typesense": {
+      "submit": "/1/migrations/typesense",
+      "status": "/1/migrations/typesense/{job_id}",
+      "cancel": "/1/migrations/typesense/{job_id}/cancel",
+      "acknowledge": "/1/migrations/typesense/{job_id}/acknowledge"
     }
   }
 }

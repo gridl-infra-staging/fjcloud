@@ -9229,6 +9229,7 @@
         "type": "object",
         "required": [
           "id",
+          "sourceProvider",
           "status",
           "mode",
           "destination",
@@ -9296,6 +9297,9 @@
           },
           "source": {
             "$ref": "#/components/schemas/PublicAlgoliaImportSource"
+          },
+          "sourceProvider": {
+            "$ref": "#/components/schemas/SourceImportProvider"
           },
           "status": {
             "$ref": "#/components/schemas/AlgoliaImportJobStatus"
@@ -9588,6 +9592,14 @@
             "type": "string"
           }
         }
+      },
+      "SourceImportProvider": {
+        "type": "string",
+        "enum": [
+          "algolia",
+          "meilisearch",
+          "typesense"
+        ]
       },
       "SynonymsSearchRequest": {
         "type": "object",

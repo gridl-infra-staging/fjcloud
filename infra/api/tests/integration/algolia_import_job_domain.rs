@@ -303,6 +303,86 @@ async fn insert_minimal(pool: &PgPool, customer_id: Uuid, suffix: &str) -> Uuid 
     .expect("insert minimal import job")
 }
 
+async fn insert_minimal_with_source_provider(
+    schema_prefix: &str,
+    source_provider: &str,
+) -> Result<sqlx::postgres::PgQueryResult, sqlx::Error> {
+    let db = connect_and_migrate(schema_prefix)
+        .await
+        .expect("DATABASE_URL must be set for source-provider SQL CHECK coverage");
+    let customer_id = Uuid::new_v4();
+    insert_active_customer(&db.pool, customer_id, 1).await;
+    let destination_vm_id = Uuid::new_v4();
+    insert_vm_with_id(
+        &db.pool,
+        destination_vm_id,
+        &format!("{schema_prefix}-{destination_vm_id}"),
+        "active",
+    )
+    .await;
+
+    sqlx::query(
+        "INSERT INTO algolia_import_jobs
+         (customer_id, tenant_id, source_provider, algolia_app_id, destination_kind,
+          logical_target, destination_region, destination_deployment_id,
+          destination_vm_id, physical_uid, source_name, idempotency_key,
+          canonical_fingerprint, routing_identity, source_size_bytes, lifecycle_generation)
+         VALUES ($1, 'products', $2, 'AB12CD34EF', 'replace', 'products', 'us-east-1',
+                 $3, $4, 'physical', 'source', $5, 'sha256:fingerprint',
+                 'tenant/products', 100, 1)",
+    )
+    .bind(customer_id)
+    .bind(source_provider)
+    .bind(Uuid::new_v4())
+    .bind(destination_vm_id)
+    .bind(format!("key-{schema_prefix}"))
+    .execute(&db.pool)
+    .await
+}
+
+async fn assert_source_provider_sql_accepts(schema_prefix: &str, source_provider: &str) {
+    let result = insert_minimal_with_source_provider(schema_prefix, source_provider).await;
+    assert_eq!(
+        result
+            .unwrap_or_else(|error| panic!(
+                "source_provider={source_provider:?} must satisfy the current SQL CHECK: {error}"
+            ))
+            .rows_affected(),
+        1,
+        "the otherwise-valid provider row must be inserted exactly once"
+    );
+}
+
+#[tokio::test]
+async fn current_schema_accepts_algolia_source_provider() {
+    assert_source_provider_sql_accepts("provider_check_algolia", "algolia").await;
+}
+
+#[tokio::test]
+async fn current_schema_accepts_meilisearch_source_provider() {
+    assert_source_provider_sql_accepts("provider_check_meilisearch", "meilisearch").await;
+}
+
+#[tokio::test]
+async fn current_schema_accepts_typesense_source_provider() {
+    assert_source_provider_sql_accepts("provider_check_typesense", "typesense").await;
+}
+
+#[tokio::test]
+async fn current_schema_rejects_unsupported_source_provider() {
+    let error = insert_minimal_with_source_provider("provider_check_unsupported", "unsupported")
+        .await
+        .expect_err("source_provider=\"unsupported\" must violate the current SQL CHECK");
+    let database_error = error
+        .as_database_error()
+        .expect("unsupported source provider must fail as a PostgreSQL constraint violation");
+    assert_eq!(database_error.code().as_deref(), Some("23514"));
+    assert_eq!(
+        database_error.constraint(),
+        Some("algolia_import_jobs_source_provider_check")
+    );
+}
+
 async fn soft_delete_customer(pool: &PgPool, customer_id: Uuid) {
     assert!(
         PgCustomerRepo::new(pool.clone())
@@ -643,7 +723,7 @@ async fn repository_rejects_unknown_durable_source_provider_values() {
     .execute(&db.pool)
     .await
     .expect("remove current-stage provider CHECK to simulate a future persisted provider");
-    sqlx::query("UPDATE algolia_import_jobs SET source_provider = 'meilisearch' WHERE id = $1")
+    sqlx::query("UPDATE algolia_import_jobs SET source_provider = 'unsupported' WHERE id = $1")
         .bind(job.id)
         .execute(&db.pool)
         .await
@@ -655,7 +735,7 @@ async fn repository_rejects_unknown_durable_source_provider_values() {
         .expect_err("unknown durable source provider must fail closed");
     match error {
         RepoError::Other(message) => assert!(
-            message.contains("unsupported source provider") && message.contains("meilisearch"),
+            message.contains("unsupported source provider") && message.contains("unsupported"),
             "decode error should identify the unsupported source provider: {message}"
         ),
         other => panic!("unexpected repository error for unknown source provider: {other:?}"),

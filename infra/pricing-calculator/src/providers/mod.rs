@@ -19,6 +19,35 @@ struct ProviderRegistration {
     estimate: EstimateFn,
 }
 
+/// Explains why a provider is included in freshness-gate output.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProviderFreshnessReason {
+    NeverVerified,
+    StaleSince(NaiveDate),
+}
+
+impl ProviderFreshnessReason {
+    pub fn label(self) -> String {
+        match self {
+            Self::NeverVerified => "never-verified".to_string(),
+            Self::StaleSince(date) => format!("stale-since-{date}"),
+        }
+    }
+}
+
+/// A provider whose metadata needs source verification attention.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderFreshnessIssue {
+    pub provider: ProviderMetadata,
+    pub reason: ProviderFreshnessReason,
+}
+
+impl ProviderFreshnessIssue {
+    pub fn reason_label(&self) -> String {
+        self.reason.label()
+    }
+}
+
 fn provider_metadata(
     id: ProviderId,
     display_name: &str,
@@ -114,22 +143,30 @@ pub fn all_estimates(workload: &WorkloadProfile) -> Vec<EstimatedCost> {
         .collect()
 }
 
-/// Returns providers older than the freshness threshold using last_verified dates; providers without dates are excluded from stale output.
+/// Returns providers that are either older than the freshness threshold or have never been verified.
 pub(crate) fn stale_providers_from_metadata(
     metadata: &[ProviderMetadata],
     as_of: NaiveDate,
     threshold_days: i64,
-) -> Vec<ProviderMetadata> {
+) -> Vec<ProviderFreshnessIssue> {
     let effective_threshold_days = threshold_days.max(0);
 
     metadata
         .iter()
-        .filter(|provider| {
-            provider
-                .last_verified
-                .is_some_and(|date| (as_of - date).num_days() > effective_threshold_days)
+        .filter_map(|provider| {
+            let reason = match provider.last_verified {
+                Some(date) if (as_of - date).num_days() > effective_threshold_days => {
+                    ProviderFreshnessReason::StaleSince(date)
+                }
+                Some(_) => return None,
+                None => ProviderFreshnessReason::NeverVerified,
+            };
+
+            Some(ProviderFreshnessIssue {
+                provider: provider.clone(),
+                reason,
+            })
         })
-        .cloned()
         .collect()
 }
 
@@ -137,13 +174,13 @@ pub(crate) fn stale_providers_from_metadata(
 ///
 /// Staleness is derived solely from `all_metadata()` and `last_verified`,
 /// preserving registry order in the resulting list.
-pub fn stale_providers_as_of(as_of: NaiveDate, threshold_days: i64) -> Vec<ProviderMetadata> {
+pub fn stale_providers_as_of(as_of: NaiveDate, threshold_days: i64) -> Vec<ProviderFreshnessIssue> {
     let metadata = all_metadata();
     stale_providers_from_metadata(&metadata, as_of, threshold_days)
 }
 
 /// Returns providers whose pricing metadata is older than `threshold_days` as of the current UTC date.
-pub fn stale_providers(threshold_days: i64) -> Vec<ProviderMetadata> {
+pub fn stale_providers(threshold_days: i64) -> Vec<ProviderFreshnessIssue> {
     stale_providers_as_of(Utc::now().date_naive(), threshold_days)
 }
 
@@ -337,83 +374,86 @@ mod tests {
         }
     }
 
-    const TEMPORARILY_UNVERIFIED_COMPETITORS: &[(ProviderId, &str)] = &[
-        // reason: public pricing source did not return usable tier prices through the captured calculator requests
+    const STAGE_2_UNVERIFIED_COMPETITOR_EVIDENCE: &[(ProviderId, &str)] = &[
         (
             ProviderId::TypesenseCloud,
-            "20260728T110127Z evidence: pricing page and calculator fragments returned HTTP 200, but rendered modeled tier prices stayed N/A for tested public requests",
+            "20260729T170845Z evidence: pricing page returned HTTP 200 after redirect to calculator and confirms modeled RAM options plus 3-node HA, but the fetched public page did not expose modeled hourly tier prices",
         ),
-        // reason: public pricing source did not confirm the full modeled scaled hosted tier table
         (
             ProviderId::ElasticCloud,
-            "20260728T110127Z evidence: hosted pricing page confirms only the $99/month 120 GB 2-zone baseline, not the modeled scaled hosted tiers",
+            "20260729T170845Z evidence: hosted pricing page confirms only the $99/month 120 GB 2-zone Standard baseline, not the modeled scaled hosted tiers",
         ),
-        // reason: public pricing sources did not source-back every modeled charge
         (
             ProviderId::AwsOpenSearch,
-            "20260728T110127Z evidence: AWS page and offer confirm compute and gp3 rates, but OpenSearch page only delegates outbound transfer to standard AWS transfer charges",
+            "20260729T170845Z evidence: AWS page confirms gp3 examples and one r6g.xlarge example, but did not source-back every modeled instance rate and delegates outbound transfer to standard AWS transfer charges",
         ),
     ];
 
     #[test]
-    fn all_competitor_metadata_is_verified_or_explicitly_allowlisted() {
-        for (id, reason) in TEMPORARILY_UNVERIFIED_COMPETITORS {
+    fn undated_third_party_metadata_is_reported_as_never_verified() {
+        for (id, reason) in STAGE_2_UNVERIFIED_COMPETITOR_EVIDENCE {
             assert!(
                 !reason.trim().is_empty(),
-                "Temporary verification allowlist reason must be non-empty for {:?}",
+                "Stage 2 evidence reason must be non-empty for {:?}",
                 id
             );
         }
 
         let metadata = all_metadata();
-        let allowlisted: HashSet<ProviderId> = TEMPORARILY_UNVERIFIED_COMPETITORS
-            .iter()
-            .map(|(id, _reason)| *id)
-            .collect();
         let competitors: Vec<&ProviderMetadata> = metadata
             .iter()
+            // Flapjack Cloud owns its pricing inputs; third-party metadata must be source verifiable.
             .filter(|provider| provider.id != ProviderId::Griddle)
             .collect();
         let provider_count = competitors.len();
-        let verified_count = competitors
-            .iter()
-            .filter(|provider| provider.is_verified())
-            .count();
         let unverified: Vec<&ProviderMetadata> = competitors
             .iter()
             .copied()
-            .filter(|provider| !provider.is_verified() && !allowlisted.contains(&provider.id))
+            .filter(|provider| !provider.is_verified())
             .collect();
-        let unverified_details: Vec<(ProviderId, &str)> = unverified
-            .iter()
-            .map(|provider| (provider.id, provider.display_name.as_str()))
-            .collect();
+        let never_verified: HashSet<ProviderId> =
+            stale_providers_from_metadata(&metadata, NaiveDate::MAX, 90)
+                .iter()
+                .filter(|issue| issue.reason == ProviderFreshnessReason::NeverVerified)
+                .map(|issue| issue.provider.id)
+                .collect();
 
         assert!(
             provider_count > 0,
-            "competitor verification guard must inspect at least one provider; providers=0 verified=0 unverified=0"
+            "competitor verification guard must inspect at least one provider"
         );
-        assert!(
-            unverified.is_empty(),
-            "competitor pricing verification failed: providers={} verified={} unverified={} unverified_providers={:?}",
-            provider_count,
-            verified_count,
-            unverified.len(),
-            unverified_details
+        assert_eq!(provider_count, provider_registry().len() - 1);
+        assert_eq!(
+            unverified
+                .iter()
+                .map(|provider| provider.id)
+                .collect::<Vec<_>>(),
+            vec![
+                ProviderId::TypesenseCloud,
+                ProviderId::ElasticCloud,
+                ProviderId::AwsOpenSearch,
+            ]
         );
+        for provider in unverified {
+            assert!(
+                never_verified.contains(&provider.id),
+                "undated third-party provider {:?} missing never-verified freshness issue",
+                provider.id
+            );
+        }
     }
 
     #[test]
-    fn temporary_competitor_allowlist_reasons_record_observed_stage_2_status() {
-        for (id, reason) in TEMPORARILY_UNVERIFIED_COMPETITORS {
+    fn unverified_competitor_evidence_reasons_record_observed_stage_2_status() {
+        for (id, reason) in STAGE_2_UNVERIFIED_COMPETITOR_EVIDENCE {
             assert!(
                 !reason.contains("pending live source verification in Stage 2"),
-                "Temporary verification allowlist reason for {:?} must record the observed Stage 2 obstacle",
+                "Stage 2 evidence reason for {:?} must record the observed Stage 2 obstacle",
                 id
             );
             assert!(
-                reason.contains("20260728T110127Z"),
-                "Temporary verification allowlist reason for {:?} must point to the Stage 2 evidence bundle",
+                reason.contains("20260729T170845Z"),
+                "Stage 2 evidence reason for {:?} must point to the Stage 2 evidence bundle",
                 id
             );
         }
@@ -452,26 +492,28 @@ mod tests {
         );
     }
 
-    /// Verifies providers older than threshold_days are reported stale so freshness gating fails only for truly out-of-date data.
+    /// Verifies freshness issues explain both dated stale metadata and metadata that has never been verified.
     #[test]
-    fn stale_providers_over_threshold_is_reported() {
+    fn stale_providers_over_threshold_and_never_verified_are_reported() {
         let as_of = NaiveDate::from_ymd_opt(2026, 3, 16).expect("valid test date");
         let threshold_days = 90;
         let stale_date = NaiveDate::from_ymd_opt(2025, 12, 15).expect("valid date");
 
-        let metadata = vec![metadata_fixture(
-            ProviderId::Algolia,
-            "Algolia",
-            Some(stale_date),
-        )];
+        let metadata = vec![
+            metadata_fixture(ProviderId::Algolia, "Algolia", Some(stale_date)),
+            metadata_fixture(ProviderId::TypesenseCloud, "Typesense Cloud", None),
+        ];
 
         let stale = stale_providers_from_metadata(&metadata, as_of, threshold_days);
         assert_eq!(
             stale.len(),
-            1,
-            "Provider older than threshold should be stale"
+            2,
+            "Stale dated and never-verified providers should be reported"
         );
-        assert_eq!(stale[0].id, ProviderId::Algolia);
+        assert_eq!(stale[0].provider.id, ProviderId::Algolia);
+        assert_eq!(stale[0].reason_label(), "stale-since-2025-12-15");
+        assert_eq!(stale[1].provider.id, ProviderId::TypesenseCloud);
+        assert_eq!(stale[1].reason_label(), "never-verified");
     }
 
     /// Ensures stale-provider output preserves input order so downstream messaging remains stable and deterministic.
@@ -504,7 +546,7 @@ mod tests {
         ];
 
         let stale = stale_providers_from_metadata(&metadata, as_of, threshold_days);
-        let stale_ids: Vec<ProviderId> = stale.iter().map(|provider| provider.id).collect();
+        let stale_ids: Vec<ProviderId> = stale.iter().map(|issue| issue.provider.id).collect();
         assert_eq!(
             stale_ids,
             vec![
@@ -515,9 +557,9 @@ mod tests {
         );
     }
 
-    /// Confirms undated metadata entries are not auto-marked stale, matching the policy that only explicitly dated entries can age out.
+    /// Confirms undated metadata entries are reported as never verified instead of disappearing from freshness output.
     #[test]
-    fn stale_providers_exclude_unverified_metadata_without_dates() {
+    fn stale_providers_report_unverified_metadata_without_dates() {
         let as_of = NaiveDate::from_ymd_opt(2026, 3, 16).expect("valid test date");
         let threshold_days = 90;
 
@@ -531,11 +573,31 @@ mod tests {
         ];
 
         let stale = stale_providers_from_metadata(&metadata, as_of, threshold_days);
-        let stale_ids: Vec<ProviderId> = stale.iter().map(|provider| provider.id).collect();
+        let stale_ids: Vec<ProviderId> = stale.iter().map(|issue| issue.provider.id).collect();
         assert_eq!(
             stale_ids,
-            Vec::<ProviderId>::new(),
-            "Freshness aging only applies to providers with explicit verification dates"
+            vec![ProviderId::TypesenseCloud],
+            "Undated providers must be reported as never verified"
+        );
+        assert_eq!(stale[0].reason_label(), "never-verified");
+    }
+
+    #[test]
+    fn stale_providers_include_unverified_third_party_metadata_without_dates() {
+        let as_of = NaiveDate::from_ymd_opt(2026, 3, 16).expect("valid test date");
+        let metadata = vec![metadata_fixture(
+            ProviderId::TypesenseCloud,
+            "Typesense Cloud",
+            None,
+        )];
+
+        let stale = stale_providers_from_metadata(&metadata, as_of, 90);
+        let stale_ids: Vec<ProviderId> = stale.iter().map(|issue| issue.provider.id).collect();
+
+        assert!(
+            stale_ids.contains(&ProviderId::TypesenseCloud),
+            "unverified third-party metadata must be visible to the freshness selector; stale IDs: {:?}",
+            stale_ids
         );
     }
 }

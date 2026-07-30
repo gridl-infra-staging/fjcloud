@@ -1,5 +1,5 @@
 use api::services::algolia_import::{
-    AsyncMigrationDisposition, AsyncMigrationPhase, AsyncMigrationStatusResponse,
+    AsyncMigrationDisposition, AsyncMigrationPhase, AsyncMigrationStatusResponse, MigrationTopology,
 };
 use chrono::{DateTime, Utc};
 use serde_json::{json, Value};
@@ -73,6 +73,14 @@ fn successful_terminal_status_with_outcome() -> Value {
             "jsonPath": "$.synonyms[5]"
         }]
     })
+}
+
+fn successful_terminal_status_with_published_growth() -> Value {
+    let mut response = successful_terminal_status_with_outcome();
+    response["objectsImported"] = serde_json::json!({"imported": 9});
+    response["targetIndex"] = serde_json::json!("catalog_v2");
+    response["topology"] = serde_json::json!("single_node_only");
+    response
 }
 
 #[test]
@@ -208,10 +216,13 @@ fn algolia_migration_engine_contract_fixture_closes_routes_and_wire_sets() {
         strings_at(&contract, &["status", "optional_fields"]),
         [
             "exportProgress",
+            "objectsImported",
             "rulesImported",
             "settingsApplied",
             "synonymsImported",
+            "targetIndex",
             "terminalAt",
+            "topology",
             "warnings"
         ]
     );
@@ -286,7 +297,7 @@ fn algolia_migration_engine_contract_fixture_closes_provider_discriminator_and_s
         contract["provider_discriminator"],
         json!({
             "field": "source_provider",
-            "values": ["algolia"]
+            "values": ["algolia", "meilisearch", "typesense"]
         }),
         "the source-provider discriminator must remain a closed set"
     );
@@ -320,9 +331,21 @@ fn algolia_migration_engine_contract_fixture_closes_provider_discriminator_and_s
                 "status": "/1/migrations/algolia/{job_id}",
                 "cancel": "/1/migrations/algolia/{job_id}/cancel",
                 "acknowledge": "/1/migrations/algolia/{job_id}/acknowledge"
+            },
+            "meilisearch": {
+                "submit": "/1/migrations/meilisearch",
+                "status": "/1/migrations/meilisearch/{job_id}",
+                "cancel": "/1/migrations/meilisearch/{job_id}/cancel",
+                "acknowledge": "/1/migrations/meilisearch/{job_id}/acknowledge"
+            },
+            "typesense": {
+                "submit": "/1/migrations/typesense",
+                "status": "/1/migrations/typesense/{job_id}",
+                "cancel": "/1/migrations/typesense/{job_id}/cancel",
+                "acknowledge": "/1/migrations/typesense/{job_id}/acknowledge"
             }
         }),
-        "the existing Algolia wire must remain an explicit compatibility alias"
+        "every closed provider must expose the shared lifecycle aliases, including the existing Algolia wire"
     );
     assert!(
         transport_owner.contains("fn migration_url(")
@@ -539,6 +562,13 @@ fn algolia_migration_engine_contract_fixture_covers_all_typed_status_arms() {
     assert_eq!(decoded.synonyms_imported.unwrap().imported, 3);
     assert_eq!(decoded.rules_imported.unwrap().imported, 6);
     assert_eq!(decoded.warnings.unwrap().len(), 1);
+
+    let decoded: AsyncMigrationStatusResponse =
+        serde_json::from_value(successful_terminal_status_with_published_growth())
+            .expect("published status growth should decode");
+    assert_eq!(decoded.objects_imported.unwrap().imported, 9);
+    assert_eq!(decoded.target_index.as_deref(), Some("catalog_v2"));
+    assert_eq!(decoded.topology, Some(MigrationTopology::SingleNodeOnly));
 }
 
 #[test]

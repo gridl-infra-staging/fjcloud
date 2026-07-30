@@ -58,7 +58,7 @@ pub(crate) use reconciliation::{
 };
 pub use status_response::{
     AsyncMigrationDisposition, AsyncMigrationExportProgress, AsyncMigrationPhase,
-    AsyncMigrationStatusResponse,
+    AsyncMigrationStatusResponse, MigrationTopology,
 };
 
 #[derive(Clone)]

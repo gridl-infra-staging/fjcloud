@@ -5,7 +5,17 @@ pub(super) mod support;
 
 use support::{get_json, seed_retained_job_with_internals, setup_algolia_cloud_job_read_app};
 
+async fn set_source_provider(pool: &sqlx::PgPool, id: Uuid, source_provider: &str) {
+    sqlx::query("UPDATE algolia_import_jobs SET source_provider = $2 WHERE id = $1")
+        .bind(id)
+        .bind(source_provider)
+        .execute(pool)
+        .await
+        .expect("update retained job source provider");
+}
+
 fn assert_public_job_history_contract(body: &serde_json::Value) {
+    assert_eq!(body["sourceProvider"], json!("algolia"));
     assert_eq!(body["source"], json!({ "name": "source_products" }));
     assert_eq!(body["error"], json!({ "code": "backend_unavailable" }));
     for forbidden in [
@@ -83,6 +93,21 @@ async fn algolia_cloud_job_read_get_missing_and_foreign_return_identical_404() {
     assert_eq!(missing_status, StatusCode::NOT_FOUND);
     assert_eq!(foreign_status, StatusCode::NOT_FOUND);
     assert_eq!(missing_body, foreign_body);
+}
+
+#[tokio::test]
+async fn algolia_cloud_job_read_get_hides_non_algolia_rows() {
+    let db = connect_and_migrate_required("algolia_read_get_provider_scope").await;
+    let (app, jwt, customer_id) = setup_algolia_cloud_job_read_app(db.pool.clone(), true).await;
+    let id =
+        seed_retained_job_with_internals(&db.pool, customer_id, "products", "provider", Utc::now())
+            .await;
+    set_source_provider(&db.pool, id, "meilisearch").await;
+
+    let (status, body) = get_json(&app, &jwt, &format!("/migration/algolia/jobs/{id}")).await;
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body, json!({ "error": "algolia_import_job_not_found" }));
 }
 
 #[tokio::test]
@@ -199,6 +224,42 @@ async fn algolia_cloud_job_read_list_exact_multiple_final_page_has_no_cursor() {
     assert!(
         second["nextCursor"].is_null(),
         "the final full page of an exact multiple must not mint a cursor"
+    );
+}
+
+#[tokio::test]
+async fn algolia_cloud_job_read_list_skips_non_algolia_rows_without_short_page() {
+    let db = connect_and_migrate_required("algolia_read_list_provider_scope").await;
+    let (app, jwt, customer_id) = setup_algolia_cloud_job_read_app(db.pool.clone(), true).await;
+    let base = Utc::now();
+    let mut ids = Vec::new();
+    for index in 0..3 {
+        ids.push(
+            seed_retained_job_with_internals(
+                &db.pool,
+                customer_id,
+                &format!("products-{index}"),
+                &format!("provider-{index}"),
+                base - chrono::Duration::seconds(index),
+            )
+            .await,
+        );
+    }
+    set_source_provider(&db.pool, ids[0], "typesense").await;
+
+    let (status, body) = get_json(&app, &jwt, "/migration/algolia/jobs?limit=2").await;
+
+    assert_eq!(status, StatusCode::OK);
+    let page: Vec<String> = body["jobs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|job| job["id"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(page, vec![ids[1].to_string(), ids[2].to_string()]);
+    assert!(
+        body["nextCursor"].is_null(),
+        "provider-mismatched rows must not force a short page or a dead-end cursor"
     );
 }
 

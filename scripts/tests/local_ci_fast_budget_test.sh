@@ -23,6 +23,14 @@ STAGE2_ALGOLIA_BEFORE="191 passed, 0 failed; real 67.64 user 25.74 sys 17.58"
 STAGE2_ALGOLIA_AFTER="213 passed, 0 failed; real 92.49 user 28.46 sys 21.75"
 STAGE2_SES_BEFORE="100 passed, 0 failed; real 20.69 user 6.38 sys 3.87"
 STAGE2_SES_AFTER="108 passed, 0 failed; real 36.25 user 8.17 sys 6.18"
+FINAL_ACCEPTANCE_FIXTURE_FIELDS=(
+    "local_ci_exit_code=0"
+    "elapsed_seconds_exact=100.25"
+    "manifest_count=3"
+    "serial_only_count=1"
+    "reachability_summary=corpus=3 reachable=3 allowlisted=0 quarantined=0 unaccounted=0"
+    "reachability_gate_summary=reachability gate: 3 hermetic suite(s) run at concurrency 8, 0 failed"
+)
 
 extract_receipt_value() {
     local receipt="$1" key="$2"
@@ -57,12 +65,39 @@ extract_receipt_value_rest() {
     ' "$receipt"
 }
 
+validate_pinned_receipt_fields() {
+    local receipt_abs="$1" spec key expected actual
+    shift
+
+    for spec in "$@"; do
+        if [[ "$spec" != *=* ]]; then
+            printf 'ERROR: pinned receipt field expectation must use key=value: %s\n' "$spec" >&2
+            return 1
+        fi
+        key="${spec%%=*}"
+        expected="${spec#*=}"
+        if [[ "$key" = '' || "$key" = *[![:alnum:]_]* ]]; then
+            printf 'ERROR: pinned receipt field name is invalid: %s\n' "$key" >&2
+            return 1
+        fi
+        actual="$(extract_receipt_value_rest "$receipt_abs" "$key=")" || {
+            printf 'ERROR: receipt missing pinned field: %s\n' "$key" >&2
+            return 1
+        }
+        if [ "$actual" != "$expected" ]; then
+            printf 'ERROR: %s mismatch: expected %s actual %s\n' "$key" "$expected" "$actual" >&2
+            return 1
+        fi
+    done
+}
+
 validate_budget_receipt() {
     local receipt_rel="$1" expected_head="$2" expected_suites="$3"
     local expected_elapsed="$4" expected_budget="$5" enforce_budget="$6"
     local receipt_abs raw_log_rel raw_log_abs slow_tsv_rel slow_tsv_abs
     local recorded_head suites elapsed exit_code budget
     local recorded_raw_log_sha actual_raw_log_sha tsv_rows unique_suite_paths
+    shift 6
 
     if [[ "$receipt_rel" != docs/audits/test-wiring/*/SUMMARY.md ]]; then
         printf 'ERROR: receipt must live under docs/audits/test-wiring/: %s\n' "$receipt_rel" >&2
@@ -231,6 +266,10 @@ validate_budget_receipt() {
         return 1
     fi
 
+    if [ "$#" -gt 0 ]; then
+        validate_pinned_receipt_fields "$receipt_abs" "$@" || return 1
+    fi
+
     if [ "$enforce_budget" = "1" ] && [ "$elapsed" -gt "$budget" ]; then
         printf 'ERROR: local-ci --fast over budget: elapsed_seconds=%s budget_seconds=%s suites=%s\n' \
             "$elapsed" "$budget" "$suites" >&2
@@ -251,11 +290,16 @@ capture_timestamp= 2026-07-28T20:00:50Z
 head_sha= $head_sha
 suites= 2
 elapsed_seconds= 100
+elapsed_seconds_exact= 100.25
 budget_seconds= 1800
 local_ci_exit_code= 0
 raw_log_path= $raw_log_rel
 raw_log_sha256= $raw_log_sha
 slow_suite_tsv_path= $slow_tsv_rel
+manifest_count= 3
+serial_only_count= 1
+reachability_summary= corpus=3 reachable=3 allowlisted=0 quarantined=0 unaccounted=0
+reachability_gate_summary= reachability gate: 3 hermetic suite(s) run at concurrency 8, 0 failed
 EOF
 }
 
@@ -465,6 +509,67 @@ test_fixture_rejects_receipt_owned_budget_escape() {
     rm -rf "$tmpdir"
 }
 
+test_fixture_accepts_final_acceptance_pinned_fields() {
+    local tmpdir receipt_rel raw_log_rel slow_tsv_rel
+    tmpdir="$(mktemp -d)"
+    receipt_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/SUMMARY.md"
+    raw_log_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/raw_local_ci_fast.log"
+    slow_tsv_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/slow_suites.tsv"
+    write_fixture_receipt "$tmpdir" "$receipt_rel" "fixture-head" "$raw_log_rel" "$slow_tsv_rel"
+
+    REPO_ROOT="$tmpdir" validate_budget_receipt \
+        "$receipt_rel" "fixture-head" "2" "100" "$BUDGET_SECONDS" "1" \
+        "${FINAL_ACCEPTANCE_FIXTURE_FIELDS[@]}"
+    assert_eq "$?" "0" "final acceptance fixture receipt satisfies all pinned fields"
+    rm -rf "$tmpdir"
+}
+
+assert_final_acceptance_fixture_drift_fails() {
+    local field="$1" mutation="$2" message="$3"
+    local tmpdir receipt_rel raw_log_rel slow_tsv_rel output rc=0
+    tmpdir="$(mktemp -d)"
+    receipt_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/SUMMARY.md"
+    raw_log_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/raw_local_ci_fast.log"
+    slow_tsv_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/slow_suites.tsv"
+    write_fixture_receipt "$tmpdir" "$receipt_rel" "fixture-head" "$raw_log_rel" "$slow_tsv_rel"
+    perl -0pi -e "$mutation" "$tmpdir/$receipt_rel"
+
+    output="$(REPO_ROOT="$tmpdir" validate_budget_receipt \
+        "$receipt_rel" "fixture-head" "2" "100" "$BUDGET_SECONDS" "1" \
+        "${FINAL_ACCEPTANCE_FIXTURE_FIELDS[@]}" 2>&1)" || rc=$?
+    assert_eq "$rc" "1" "$message"
+    assert_contains "$output" "$field mismatch" \
+        "final acceptance $field failure names the changed field"
+    rm -rf "$tmpdir"
+}
+
+test_fixture_rejects_final_acceptance_field_drift() {
+    assert_final_acceptance_fixture_drift_fails \
+        "local_ci_exit_code" \
+        's/local_ci_exit_code= 0/local_ci_exit_code= 1/' \
+        "final acceptance receipt must reject a nonzero local-ci exit"
+    assert_final_acceptance_fixture_drift_fails \
+        "elapsed_seconds_exact" \
+        's/elapsed_seconds_exact= 100[.]25/elapsed_seconds_exact= 100.26/' \
+        "final acceptance receipt must pin exact elapsed seconds"
+    assert_final_acceptance_fixture_drift_fails \
+        "manifest_count" \
+        's/manifest_count= 3/manifest_count= 4/' \
+        "final acceptance receipt must pin manifest count"
+    assert_final_acceptance_fixture_drift_fails \
+        "serial_only_count" \
+        's/serial_only_count= 1/serial_only_count= 2/' \
+        "final acceptance receipt must pin serial-only count"
+    assert_final_acceptance_fixture_drift_fails \
+        "reachability_summary" \
+        's/reachability_summary= corpus=3 reachable=3/reachability_summary= corpus=3 reachable=2/' \
+        "final acceptance receipt must pin reachability summary"
+    assert_final_acceptance_fixture_drift_fails \
+        "reachability_gate_summary" \
+        's/reachability gate: 3 hermetic suite[(]s[)] run at concurrency 8, 0 failed/reachability gate: 3 hermetic suite(s) run at concurrency 8, 1 failed/' \
+        "final acceptance receipt must pin reachability gate summary"
+}
+
 test_real_baseline_evidence_is_present_and_current() {
     validate_budget_receipt \
         "$BASELINE_RECEIPT_REL" \
@@ -591,6 +696,8 @@ test_fixture_rejects_suite_count_drift
 test_fixture_rejects_elapsed_value_drift
 test_fixture_rejects_budget_drift
 test_fixture_rejects_receipt_owned_budget_escape
+test_fixture_accepts_final_acceptance_pinned_fields
+test_fixture_rejects_final_acceptance_field_drift
 test_real_baseline_evidence_is_present_and_current
 test_real_stage2_timing_evidence_is_present_and_source_pinned
 test_real_slow_suite_tsv_matches_registered_manifest

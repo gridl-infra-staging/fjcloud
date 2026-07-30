@@ -25,6 +25,9 @@
 #   4. ROADMAP.md is <= 200 lines.
 #   5. ROADMAP.md points archive readers to implemented/ and does not point at
 #      the retired compatibility file.
+#   6. Each ROADMAP.md row is <= 4000 bytes. The current live distribution has
+#      most rows below this round budget, while the Stage 2 split candidates are
+#      clear outliers at 4.4 KB through 11.2 KB.
 #
 # Exit codes:
 #   0 — all invariants pass
@@ -41,6 +44,7 @@ REPO_ROOT="${FJCLOUD_DOC_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 ROADMAP_MD="$REPO_ROOT/ROADMAP.md"
 REQUIRED_ARCHIVE_OWNER="implemented/"
 RETIRED_ARCHIVE_OWNER="roadmap/""implemented.md"
+MAX_ROW_BYTES=4000
 
 if [ ! -f "$ROADMAP_MD" ]; then
     echo "FAIL: ROADMAP.md not found at $ROADMAP_MD" >&2
@@ -147,6 +151,20 @@ done
 actual_lines="$(wc -l < "$ROADMAP_MD" | tr -d ' ')"
 if [ "$actual_lines" -gt 200 ]; then
     echo "FAIL: ROADMAP.md has $actual_lines lines; expected <= 200" >&2
+    fail_count=$((fail_count + 1))
+fi
+
+# ------------------------------------------------------------
+# 6. Row byte-length budget.
+# ------------------------------------------------------------
+if ! LC_ALL=C awk -v max_row_bytes="$MAX_ROW_BYTES" '
+    length($0) > max_row_bytes {
+        row_bytes = length($0)
+        printf "FAIL: ROADMAP.md line %d is %d bytes; expected <= %d bytes\n", NR, row_bytes, max_row_bytes > "/dev/stderr"
+        failed = 1
+    }
+    END { exit failed ? 1 : 0 }
+' "$ROADMAP_MD"; then
     fail_count=$((fail_count + 1))
 fi
 

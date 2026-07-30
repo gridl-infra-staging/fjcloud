@@ -89,13 +89,29 @@ pub struct MigrationJobPath {
 fn validate_source_provider(
     source_provider: Option<&str>,
 ) -> Result<SourceImportProvider, ApiError> {
-    SourceImportProvider::parse(
+    // Legacy Algolia routes omit the source-provider segment, and persisted
+    // Algolia rows keep decoding through the default/backfilled durable value.
+    let provider = SourceImportProvider::parse(
         source_provider.unwrap_or_else(|| SourceImportProvider::Algolia.as_str()),
     )
     .map_err(|_| {
         let error_code = AlgoliaImportErrorCode::SourceProviderUnsupported;
         migration_error(StatusCode::BAD_REQUEST, error_code.as_str(), error_code)
-    })
+    })?;
+
+    // The adapter refusal must stay ahead of credential handling, repository
+    // access, and migration-engine calls for recognized but unimplemented
+    // source identities.
+    if !provider.has_adapter() {
+        let error_code = AlgoliaImportErrorCode::SourceProviderUnsupported;
+        return Err(migration_error(
+            StatusCode::BAD_REQUEST,
+            error_code.as_str(),
+            error_code,
+        ));
+    }
+
+    Ok(provider)
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, ToSchema)]

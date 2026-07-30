@@ -17,6 +17,9 @@ pub struct AsyncMigrationStatusResponse {
     pub settings_applied: Option<bool>,
     pub synonyms_imported: Option<MigrateCount>,
     pub rules_imported: Option<MigrateCount>,
+    pub objects_imported: Option<MigrateCount>,
+    pub target_index: Option<String>,
+    pub topology: Option<MigrationTopology>,
     pub warnings: Option<Vec<AlgoliaImportWarning>>,
 }
 
@@ -38,6 +41,12 @@ struct AsyncMigrationStatusWire {
     synonyms_imported: WireOutcomeField<MigrateCount>,
     #[serde(default)]
     rules_imported: WireOutcomeField<MigrateCount>,
+    #[serde(default)]
+    objects_imported: WireOutcomeField<MigrateCount>,
+    #[serde(default)]
+    target_index: Option<String>,
+    #[serde(default)]
+    topology: Option<MigrationTopology>,
     #[serde(default)]
     warnings: WireOutcomeField<Vec<AlgoliaImportWarning>>,
 }
@@ -78,6 +87,7 @@ impl TryFrom<AsyncMigrationStatusWire> for AsyncMigrationStatusResponse {
         let has_outcome_field = wire.settings_applied.is_present()
             || wire.synonyms_imported.is_present()
             || wire.rules_imported.is_present()
+            || wire.objects_imported.is_present()
             || wire.warnings.is_present();
         if has_outcome_field {
             validate_terminal_outcome(&wire)?;
@@ -96,6 +106,9 @@ impl TryFrom<AsyncMigrationStatusWire> for AsyncMigrationStatusResponse {
             settings_applied: wire.settings_applied.into_option(),
             synonyms_imported: wire.synonyms_imported.into_option(),
             rules_imported: wire.rules_imported.into_option(),
+            objects_imported: wire.objects_imported.into_option(),
+            target_index: wire.target_index,
+            topology: wire.topology,
             warnings: wire.warnings.into_option(),
         })
     }
@@ -199,4 +212,10 @@ pub struct AsyncMigrationExportProgress {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct MigrateCount {
     pub imported: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MigrationTopology {
+    SingleNodeOnly,
 }

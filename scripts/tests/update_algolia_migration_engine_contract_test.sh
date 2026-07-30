@@ -7,7 +7,8 @@ CHECKER="$REPO_ROOT/scripts/update_algolia_migration_engine_contract.sh"
 FIXTURE="$REPO_ROOT/infra/api/tests/fixtures/algolia_migration_engine_contract.json"
 
 tmpdir="$(mktemp -d)"
-trap 'rm -rf "$tmpdir"' EXIT
+fixture_tmpdir="$(mktemp -d "$REPO_ROOT/infra/api/tests/fixtures/.tmp.update_algolia_contract.XXXXXX")"
+trap 'rm -rf "$tmpdir" "$fixture_tmpdir"' EXIT
 
 fail() {
     printf 'FAIL: %s\n' "$*" >&2
@@ -407,6 +408,72 @@ fixture_path.write_text(json.dumps(fixture, sort_keys=True, indent=2) + "\n", en
 PY
 }
 
+widen_openapi_provider_aliases() {
+    python3 - "$engine" <<'PY'
+import json
+import pathlib
+import sys
+
+engine = pathlib.Path(sys.argv[1])
+for rel_path in [
+    "engine/docs2/openapi.json",
+    "engine/demo-dualclient/public/openapi.json",
+]:
+    path = engine / rel_path
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    paths = payload["paths"]
+    algolia_aliases = {
+        key: value
+        for key, value in paths.items()
+        if key.startswith("/1/migrations/algolia")
+    }
+    for provider in ["meilisearch", "typesense"]:
+        for algolia_path, operation in algolia_aliases.items():
+            paths[algolia_path.replace("/algolia", f"/{provider}", 1)] = operation
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
+    git -C "$engine" add engine/docs2/openapi.json engine/demo-dualclient/public/openapi.json
+    git -C "$engine" commit -q -m "publish provider aliases"
+}
+
+add_status_contract_fields() {
+    python3 - "$engine" <<'PY'
+import json
+import pathlib
+import sys
+
+engine = pathlib.Path(sys.argv[1])
+for rel_path in [
+    "engine/docs2/openapi.json",
+    "engine/demo-dualclient/public/openapi.json",
+]:
+    path = engine / rel_path
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    schemas = payload["components"]["schemas"]
+    schemas["MigrationTopology"] = {
+        "type": "string",
+        "enum": ["single_node_only"],
+    }
+    status_properties = schemas["AsyncMigrationStatusResponse"]["properties"]
+    status_properties["objectsImported"] = {
+        "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/components/schemas/MigrateCount"},
+        ],
+    }
+    status_properties["targetIndex"] = {"type": ["string", "null"]}
+    status_properties["topology"] = {
+        "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/components/schemas/MigrationTopology"},
+        ],
+    }
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
+    git -C "$engine" add engine/docs2/openapi.json engine/demo-dualclient/public/openapi.json
+    git -C "$engine" commit -q -m "publish status schema fields"
+}
+
 snapshot_paths() {
     python3 - "$@" <<'PY'
 import hashlib
@@ -461,7 +528,7 @@ git -C "$engine" add engine/docs2/4_EVIDENCE/privacy_scrub_transport_receipt.jso
 git -C "$engine" commit -q -m "fixture receipt"
 head_sha="$(git -C "$engine" rev-parse HEAD)"
 artifact_sha="$(shasum -a 256 "$engine/engine/docs2/openapi.json" | awk '{print $1}')"
-test_fixture="$tmpdir/contract.json"
+test_fixture="$fixture_tmpdir/contract.json"
 cp "$FIXTURE" "$test_fixture"
 python3 - "$test_fixture" "$head_sha" "$artifact_sha" "$validated_head_sha" <<'PY'
 import json
@@ -471,6 +538,26 @@ path, head_sha, artifact_sha, validated_head_sha = sys.argv[1:5]
 payload = json.loads(open(path, encoding="utf-8").read())
 payload["pinned_engine_sha"] = head_sha
 payload["privacy_scrub_contract"]["receipt"]["validated_head_sha"] = validated_head_sha
+payload["provider_discriminator"] = {
+    "field": "source_provider",
+    "values": ["algolia"],
+}
+payload["provider_aliases"] = {
+    "algolia": {
+        "acknowledge": "/1/migrations/algolia/{job_id}/acknowledge",
+        "cancel": "/1/migrations/algolia/{job_id}/cancel",
+        "status": "/1/migrations/algolia/{job_id}",
+        "submit": "/1/migrations/algolia",
+    },
+}
+payload["status"]["optional_fields"] = [
+    "exportProgress",
+    "rulesImported",
+    "settingsApplied",
+    "synonymsImported",
+    "terminalAt",
+    "warnings",
+]
 for artifact in payload["openapi_artifacts"]:
     artifact["sha256"] = artifact_sha
 open(path, "w", encoding="utf-8").write(json.dumps(payload, sort_keys=True, indent=2) + "\n")
@@ -487,7 +574,11 @@ cmp -s "$tmpdir/read_only.before" "$tmpdir/read_only.after" || {
     fail "--check modified an engine or contract input"
 }
 
-update_fixture="$tmpdir/contract.update.json"
+outside_fixture="$tmpdir/contract.outside-fixtures.json"
+cp "$test_fixture" "$outside_fixture"
+assert_fails_action_required run_checker "$engine" "$head_sha" "$outside_fixture"
+
+update_fixture="$fixture_tmpdir/contract.update.json"
 cp "$test_fixture" "$update_fixture"
 python3 - "$update_fixture" <<'PY'
 import json
@@ -520,6 +611,161 @@ for artifact in expected["openapi_artifacts"]:
 if after != expected:
     raise SystemExit("update changed fields outside pinned_engine_sha/openapi_artifacts sha256")
 PY
+
+provider_update_fixture="$fixture_tmpdir/contract.provider-update.json"
+cp "$test_fixture" "$provider_update_fixture"
+widen_openapi_provider_aliases
+provider_head_sha="$(git -C "$engine" rev-parse HEAD)"
+cp "$provider_update_fixture" "$tmpdir/contract.provider-update.before.json"
+run_updater "$engine" "$provider_head_sha" "$provider_update_fixture"
+python3 - "$tmpdir/contract.provider-update.before.json" "$provider_update_fixture" "$provider_head_sha" <<'PY'
+import copy
+import json
+import sys
+
+before_path, after_path, provider_head_sha = sys.argv[1:4]
+before = json.loads(open(before_path, encoding="utf-8").read())
+after = json.loads(open(after_path, encoding="utf-8").read())
+expected_providers = ["algolia", "meilisearch", "typesense"]
+expected_aliases = {
+    provider: {
+        "submit": f"/1/migrations/{provider}",
+        "status": f"/1/migrations/{provider}/{{job_id}}",
+        "cancel": f"/1/migrations/{provider}/{{job_id}}/cancel",
+        "acknowledge": f"/1/migrations/{provider}/{{job_id}}/acknowledge",
+    }
+    for provider in expected_providers
+}
+if after["pinned_engine_sha"] != provider_head_sha:
+    raise SystemExit("provider update did not pin the widened engine commit")
+if after["provider_discriminator"] != {
+    "field": "source_provider",
+    "values": expected_providers,
+}:
+    raise SystemExit("provider update did not widen provider_discriminator")
+if after["provider_aliases"] != expected_aliases:
+    raise SystemExit("provider update did not widen provider_aliases")
+if after["routes"] != before["routes"]:
+    raise SystemExit("provider update changed shared lifecycle routes")
+normalized_before = copy.deepcopy(before)
+normalized_after = copy.deepcopy(after)
+for payload in [normalized_before, normalized_after]:
+    payload["pinned_engine_sha"] = "<normalized>"
+    payload["provider_discriminator"] = "<normalized>"
+    payload["provider_aliases"] = "<normalized>"
+    for artifact in payload["openapi_artifacts"]:
+        artifact["sha256"] = "<normalized>"
+if normalized_after != normalized_before:
+    raise SystemExit("provider update changed non-provider contract keys")
+PY
+
+status_update_fixture="$fixture_tmpdir/contract.status-update.json"
+cp "$provider_update_fixture" "$status_update_fixture"
+add_status_contract_fields
+status_head_sha="$(git -C "$engine" rev-parse HEAD)"
+cp "$status_update_fixture" "$tmpdir/contract.status-update.before.json"
+run_updater "$engine" "$status_head_sha" "$status_update_fixture"
+python3 - "$tmpdir/contract.status-update.before.json" "$status_update_fixture" "$engine" "$status_head_sha" <<'PY'
+import copy
+import hashlib
+import json
+import pathlib
+import sys
+
+before_path, after_path, engine_root, status_head_sha = sys.argv[1:5]
+before = json.loads(open(before_path, encoding="utf-8").read())
+after = json.loads(open(after_path, encoding="utf-8").read())
+expected_optional = [
+    "exportProgress",
+    "objectsImported",
+    "rulesImported",
+    "settingsApplied",
+    "synonymsImported",
+    "targetIndex",
+    "terminalAt",
+    "topology",
+    "warnings",
+]
+if after["pinned_engine_sha"] != status_head_sha:
+    raise SystemExit("status update did not pin the widened status commit")
+if after["status"]["required_fields"] != before["status"]["required_fields"]:
+    raise SystemExit("status update changed required status fields")
+if after["status"]["optional_fields"] != expected_optional:
+    raise SystemExit("status update did not accept exactly the additive status fields")
+
+normalized_before = copy.deepcopy(before)
+normalized_after = copy.deepcopy(after)
+for payload in [normalized_before, normalized_after]:
+    payload["pinned_engine_sha"] = "<normalized>"
+    payload["status"] = "<normalized>"
+    for artifact in payload["openapi_artifacts"]:
+        artifact["sha256"] = "<normalized>"
+if normalized_after != normalized_before:
+    raise SystemExit("status update changed non-status contract keys")
+
+expected = copy.deepcopy(before)
+expected["pinned_engine_sha"] = status_head_sha
+expected["status"] = after["status"]
+for artifact in expected["openapi_artifacts"]:
+    artifact_path = pathlib.Path(engine_root) / artifact["path"]
+    artifact["sha256"] = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+if after != expected:
+    raise SystemExit("status update changed fields outside pinned_engine_sha/openapi_artifacts/status")
+PY
+
+status_check_drift_fixture="$fixture_tmpdir/contract.status-check-drift.json"
+cp "$status_update_fixture" "$status_check_drift_fixture"
+python3 - "$status_check_drift_fixture" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+payload["status"]["optional_fields"] = [
+    field
+    for field in payload["status"]["optional_fields"]
+    if field not in {"objectsImported", "targetIndex", "topology"}
+]
+path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+PY
+assert_fails_action_required \
+    run_checker "$engine" "$status_head_sha" "$status_check_drift_fixture"
+
+provider_check_drift_fixture="$fixture_tmpdir/contract.provider-check-drift.json"
+cp "$provider_update_fixture" "$provider_check_drift_fixture"
+python3 - "$provider_check_drift_fixture" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+payload["provider_discriminator"]["values"] = ["algolia"]
+payload["provider_aliases"] = {
+    "algolia": payload["provider_aliases"]["algolia"],
+}
+path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+PY
+assert_fails_action_required \
+    run_checker "$engine" "$provider_head_sha" "$provider_check_drift_fixture"
+
+provider_route_drift_fixture="$fixture_tmpdir/contract.provider-route-drift.json"
+cp "$provider_update_fixture" "$provider_route_drift_fixture"
+python3 - "$provider_route_drift_fixture" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+payload["routes"]["submit"]["path"] = "/1/migrations/algolia-drifted"
+path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+PY
+assert_fails_action_required \
+    run_checker "$engine" "$provider_head_sha" "$provider_route_drift_fixture"
+
+git -C "$engine" reset --quiet --hard "$head_sha"
 
 assert_fails_action_required env -u FLAPJACK_DEV_DIR "$CHECKER" --check
 assert_fails_action_required run_checker "$tmpdir/missing" "$head_sha" "$test_fixture"

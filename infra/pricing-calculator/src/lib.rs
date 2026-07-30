@@ -5,7 +5,7 @@ pub mod types;
 
 use chrono::{NaiveDate, Utc};
 pub use presets::{preset_scenarios, PresetScenario};
-pub use providers::{stale_providers, stale_providers_as_of};
+pub use providers::{stale_providers, stale_providers_as_of, ProviderFreshnessIssue};
 use types::{ComparisonResult, ProviderMetadata, ValidationError, WorkloadProfile};
 
 /// Compare all registered search providers for the given workload.
@@ -26,14 +26,15 @@ pub fn compare_all(workload: &WorkloadProfile) -> Result<ComparisonResult, Valid
 }
 
 /// Formats freshness-gate failures with provider names and verification labels so operators know exactly which pricing sources must be refreshed.
-fn stale_provider_failure_message(threshold_days: i64, stale: &[ProviderMetadata]) -> String {
+fn stale_provider_failure_message(threshold_days: i64, stale: &[ProviderFreshnessIssue]) -> String {
     let provider_entries = stale
         .iter()
-        .map(|provider| {
+        .map(|issue| {
             format!(
-                "{} ({})",
-                provider.display_name,
-                provider.verification_label()
+                "{} ({}; {})",
+                issue.provider.display_name,
+                issue.provider.verification_label(),
+                issue.reason_label()
             )
         })
         .collect::<Vec<_>>()
@@ -250,17 +251,18 @@ mod tests {
         let current_metadata = crate::providers::all_metadata();
         let current_stale =
             crate::providers::stale_providers_from_metadata(&current_metadata, as_of, 90);
-
         assert_eq!(
             ensure_pricing_freshness_from_metadata(&current_metadata, as_of, 90),
-            Ok(())
+            Err(stale_provider_failure_message(90, &current_stale))
         );
         assert!(
-            current_stale.is_empty(),
-            "current canonical metadata should be fresh at pinned date {as_of}: {:?}",
             current_stale
                 .iter()
-                .map(|provider| (&provider.display_name, provider.verification_label()))
+                .any(|issue| issue.reason_label() == "never-verified"),
+            "current canonical metadata should surface unverified providers at pinned date {as_of}: {:?}",
+            current_stale
+                .iter()
+                .map(|issue| (&issue.provider.display_name, issue.reason_label()))
                 .collect::<Vec<_>>()
         );
 
@@ -290,26 +292,59 @@ mod tests {
         let message = ensure_pricing_freshness_from_metadata(&synthetic_metadata, as_of, 90)
             .expect_err("stale dated metadata should fail freshness");
 
-        assert_eq!(expected_stale.len(), 1);
+        assert_eq!(expected_stale.len(), 2);
         assert!(
             expected_stale
                 .iter()
-                .any(|provider| provider.last_verified.is_some()),
-            "fixture must include at least one dated stale provider"
+                .any(|issue| issue.provider.last_verified.is_some()
+                    && issue.reason_label() == "stale-since-2026-03-15"),
+            "fixture must include stale-since-2026-03-15 for the dated stale provider"
+        );
+        assert!(
+            expected_stale
+                .iter()
+                .any(|issue| issue.provider.id == ProviderId::TypesenseCloud
+                    && issue.reason_label() == "never-verified"),
+            "fixture must include an unverified provider issue"
         );
         assert_eq!(message, stale_provider_failure_message(90, &expected_stale));
-        for provider in &expected_stale {
+        for issue in &expected_stale {
             assert!(
-                message.contains(&provider.verification_label()),
-                "failure message missing verification label '{}'",
-                provider.verification_label()
+                message.contains(&issue.reason_label()),
+                "failure message missing freshness reason '{}'",
+                issue.reason_label()
             );
         }
         assert!(
-            !expected_stale
+            expected_stale
                 .iter()
-                .any(|provider| provider.id == ProviderId::TypesenseCloud),
-            "undated metadata should stay out of the stale set"
+                .any(|issue| issue.provider.id == ProviderId::TypesenseCloud),
+            "undated metadata should appear in the freshness issue set"
+        );
+    }
+
+    #[test]
+    fn pricing_freshness_gate_rejects_unverified_third_party_metadata() {
+        let as_of = NaiveDate::from_ymd_opt(2026, 7, 10).expect("valid test date");
+        let metadata = vec![ProviderMetadata {
+            id: ProviderId::TypesenseCloud,
+            display_name: "Typesense Cloud".to_string(),
+            last_verified: None,
+            source_urls: vec!["https://example.com/typesense-pricing".to_string()],
+        }];
+        let expected_label = metadata[0].verification_label();
+
+        let message = ensure_pricing_freshness_from_metadata(&metadata, as_of, 90)
+            .expect_err("unverified third-party metadata must fail the freshness gate");
+
+        assert!(
+            message.contains("Typesense Cloud"),
+            "freshness failure must name the unverified provider: {message}"
+        );
+        assert_eq!(expected_label, "unverified");
+        assert!(
+            message.contains("never-verified"),
+            "freshness failure must include never-verified reason: {message}"
         );
     }
 
@@ -329,9 +364,14 @@ mod tests {
             source_urls: vec!["https://example.com/pricing".to_string()],
         }];
 
+        let stale = crate::providers::stale_providers_from_metadata(
+            &stale,
+            NaiveDate::from_ymd_opt(2026, 7, 10).expect("valid date"),
+            90,
+        );
         let message = stale_provider_failure_message(90, &stale);
         assert!(
-            message.contains("Typesense Cloud (unverified)"),
+            message.contains("Typesense Cloud (unverified; never-verified)"),
             "failure message should distinguish unverified metadata: {message}"
         );
     }
@@ -345,9 +385,14 @@ mod tests {
             source_urls: vec!["https://example.com/pricing".to_string()],
         }];
 
+        let stale = crate::providers::stale_providers_from_metadata(
+            &stale,
+            NaiveDate::from_ymd_opt(2026, 7, 10).expect("valid date"),
+            90,
+        );
         let message = stale_provider_failure_message(90, &stale);
         assert!(
-            message.contains("Algolia (2026-03-15)"),
+            message.contains("Algolia (2026-03-15; stale-since-2026-03-15)"),
             "failure message should keep explicit verification dates: {message}"
         );
     }

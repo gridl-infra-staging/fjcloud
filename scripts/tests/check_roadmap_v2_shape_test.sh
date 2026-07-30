@@ -8,6 +8,7 @@
 #   - each captured live-item title from the script's registry appears
 #     verbatim;
 #   - file is <= 200 lines.
+#   - each row is within the byte-length contract.
 #   - the archive pointer names the canonical implemented/ directory.
 #
 # All tests are content-deterministic. Each fixture stages a temporary
@@ -19,6 +20,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CHECK_SCRIPT="$REPO_ROOT/scripts/check_roadmap_v2_shape.sh"
+MAX_ROW_BYTES=4000
+OVER_BOUND_ROW_BYTES=$((MAX_ROW_BYTES + 1))
+UTF8_ROW_CHARACTERS=2001
+UTF8_ROW_BYTES=$((UTF8_ROW_CHARACTERS * 2))
+BYTE_BUDGET_ROW_LINE=38
 
 source "$SCRIPT_DIR/lib/test_runner.sh"
 source "$SCRIPT_DIR/lib/assertions.sh"
@@ -73,6 +79,33 @@ build_fixture() {
     local tmpdir; tmpdir="$(mktemp -d)"
     write_valid_roadmap "$tmpdir/ROADMAP.md"
     echo "$tmpdir"
+}
+
+append_repeated_row() {
+    local out_path="$1"
+    local character="$2"
+    local repetitions="$3"
+    python3 - "$out_path" "$character" "$repetitions" <<'PY'
+from pathlib import Path
+import sys
+
+out_path = Path(sys.argv[1])
+character = sys.argv[2]
+repetitions = int(sys.argv[3])
+with out_path.open("a", encoding="utf-8") as roadmap:
+    roadmap.write(character * repetitions + "\n")
+PY
+}
+
+last_row_counts() {
+    local roadmap_path="$1"
+    python3 - "$roadmap_path" <<'PY'
+from pathlib import Path
+import sys
+
+last_row = Path(sys.argv[1]).read_bytes().splitlines()[-1]
+print(len(last_row.decode("utf-8")), len(last_row))
+PY
 }
 
 run_check() {
@@ -164,7 +197,54 @@ test_over_line_budget_fails() {
 }
 
 # ============================================================
-# Test 6 — Legacy archive pointer fails.
+# Test 6 — A row exactly at the byte budget passes.
+# ============================================================
+test_row_at_exact_byte_budget_passes() {
+    local dir; dir="$(build_fixture)"
+    append_repeated_row "$dir/ROADMAP.md" "x" "$MAX_ROW_BYTES"
+
+    local row_characters row_bytes
+    read -r row_characters row_bytes <<< "$(last_row_counts "$dir/ROADMAP.md")"
+    assert_eq "$row_characters" "$MAX_ROW_BYTES" "boundary fixture row should contain exactly $MAX_ROW_BYTES ASCII characters"
+    assert_eq "$row_bytes" "$MAX_ROW_BYTES" "boundary fixture row should be exactly $MAX_ROW_BYTES bytes"
+
+    run_check "$dir"
+    assert_eq "$RUN_EXIT_CODE" "0" "ROADMAP.md row at the exact byte budget should pass"
+}
+
+# ============================================================
+# Test 7 — An ASCII row over the byte budget fails.
+# ============================================================
+test_over_row_byte_budget_fails() {
+    local dir; dir="$(build_fixture)"
+    append_repeated_row "$dir/ROADMAP.md" "x" "$OVER_BOUND_ROW_BYTES"
+
+    run_check "$dir"
+    assert_eq "$RUN_EXIT_CODE" "1" "over-bound ROADMAP.md row should fail"
+    assert_contains "$RUN_STDERR" "line $BYTE_BUDGET_ROW_LINE" "stderr should name the over-bound line number"
+    assert_contains "$RUN_STDERR" "$OVER_BOUND_ROW_BYTES bytes" "stderr should name the over-bound row byte count"
+}
+
+# ============================================================
+# Test 8 — A multibyte row is measured in bytes, not characters.
+# ============================================================
+test_multibyte_row_over_byte_budget_fails() {
+    local dir; dir="$(build_fixture)"
+    append_repeated_row "$dir/ROADMAP.md" "é" "$UTF8_ROW_CHARACTERS"
+
+    local row_characters row_bytes
+    read -r row_characters row_bytes <<< "$(last_row_counts "$dir/ROADMAP.md")"
+    assert_eq "$row_characters" "$UTF8_ROW_CHARACTERS" "multibyte fixture should contain fewer than $MAX_ROW_BYTES characters"
+    assert_eq "$row_bytes" "$UTF8_ROW_BYTES" "multibyte fixture should exceed the byte budget"
+
+    run_check "$dir"
+    assert_eq "$RUN_EXIT_CODE" "1" "over-bound multibyte ROADMAP.md row should fail"
+    assert_contains "$RUN_STDERR" "line $BYTE_BUDGET_ROW_LINE" "stderr should name the multibyte row line number"
+    assert_contains "$RUN_STDERR" "$UTF8_ROW_BYTES bytes" "stderr should name the multibyte row byte count"
+}
+
+# ============================================================
+# Test 9 — Legacy archive pointer fails.
 # ============================================================
 test_legacy_archive_pointer_fails() {
     local dir; dir="$(build_fixture)"
@@ -186,7 +266,7 @@ PY
 }
 
 # ============================================================
-# Test 7 — Live docs/scripts do not reference the retired path.
+# Test 10 — Live docs/scripts do not reference the retired path.
 # ============================================================
 test_live_docs_and_scripts_avoid_legacy_implemented_path() {
     local retired_path
@@ -201,7 +281,7 @@ test_live_docs_and_scripts_avoid_legacy_implemented_path() {
 }
 
 # ============================================================
-# Test 8 — Missing ROADMAP.md fails cleanly.
+# Test 11 — Missing ROADMAP.md fails cleanly.
 # ============================================================
 test_missing_file_fails() {
     local tmpdir; tmpdir="$(mktemp -d)"
@@ -211,12 +291,12 @@ test_missing_file_fails() {
 }
 
 # ============================================================
-# Test 9 — Live repo state passes (self-host check).
+# Test 12 — Live repo satisfies the complete shape contract.
 # ============================================================
 test_repo_actual_state_passes() {
-    RUN_EXIT_CODE=0
-    RUN_STDERR="$(bash "$CHECK_SCRIPT" 2>&1 1>/dev/null)" || RUN_EXIT_CODE=$?
-    assert_eq "$RUN_EXIT_CODE" "0" "actual repo ROADMAP.md should pass the gate"
+    run_check "$REPO_ROOT"
+    assert_eq "$RUN_EXIT_CODE" "0" "actual repo ROADMAP.md should satisfy the v2 shape contract"
+    assert_contains "$RUN_STDOUT" "OK: ROADMAP.md satisfies v2 shape contract" "stdout should report a passing live-repo contract"
 }
 
 test_valid_v2_passes
@@ -227,6 +307,9 @@ test_retired_planned_next_up_fails
 test_retired_open_not_yet_implemented_fails
 test_missing_live_title_fails
 test_over_line_budget_fails
+test_row_at_exact_byte_budget_passes
+test_over_row_byte_budget_fails
+test_multibyte_row_over_byte_budget_fails
 test_legacy_archive_pointer_fails
 test_live_docs_and_scripts_avoid_legacy_implemented_path
 test_missing_file_fails

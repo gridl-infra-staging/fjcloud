@@ -167,7 +167,7 @@ pub enum ProviderId {
 /// Each provider module owns its metadata inputs (name, verification date,
 /// source URLs). The registry in `providers/mod.rs` composes them via each
 /// module's `metadata()` function.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProviderMetadata {
     /// Which provider this metadata describes.
     pub id: ProviderId,

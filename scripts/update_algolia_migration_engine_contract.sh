@@ -90,7 +90,7 @@ run_ack_semantic_check() {
 
 run_ack_semantic_check
 
-python3 - "$git_root" "$fixture" "$actual_head" "$mode" "$checkout_clean" <<'PY'
+python3 - "$REPO_ROOT" "$git_root" "$fixture" "$actual_head" "$mode" "$checkout_clean" <<'PY'
 import copy
 import hashlib
 import json
@@ -101,12 +101,14 @@ import subprocess
 import sys
 import tempfile
 
-git_root = pathlib.Path(sys.argv[1])
-fixture_path = pathlib.Path(sys.argv[2])
-actual_head = sys.argv[3]
-mode = sys.argv[4]
-checkout_clean = sys.argv[5] == "true"
+repo_root = pathlib.Path(sys.argv[1]).resolve()
+git_root = pathlib.Path(sys.argv[2])
+fixture_path = pathlib.Path(sys.argv[3])
+actual_head = sys.argv[4]
+mode = sys.argv[5]
+checkout_clean = sys.argv[6] == "true"
 resolved_git_root = git_root.resolve()
+allowed_fixture_root = (repo_root / "infra" / "api" / "tests" / "fixtures").resolve()
 
 def action_required(message: str, exit_code: int = 1) -> None:
     print(f"ACTION_REQUIRED: {message}", file=sys.stderr)
@@ -126,6 +128,16 @@ def load_json(path: pathlib.Path) -> dict:
         action_required(f"JSON artifact is not an object: {path}")
     return payload
 
+def resolve_repo_fixture(path: pathlib.Path) -> pathlib.Path:
+    resolved = path.resolve()
+    try:
+        resolved.relative_to(allowed_fixture_root)
+    except ValueError:
+        action_required(
+            "contract fixture path must stay inside infra/api/tests/fixtures"
+        )
+    return resolved
+
 def resolve_checkout_artifact(rel_path: str) -> pathlib.Path:
     candidate = resolved_git_root / rel_path
     resolved = candidate.resolve()
@@ -143,6 +155,7 @@ def required_object_field(payload: object, field: str, owner: str) -> dict:
         action_required(f"{owner} {field} must be an object")
     return value
 
+fixture_path = resolve_repo_fixture(fixture_path)
 fixture = load_json(fixture_path)
 pinned_engine_sha = fixture.get("pinned_engine_sha")
 if not isinstance(pinned_engine_sha, str):
@@ -825,6 +838,8 @@ contract_keys = [
     "enums",
     "errors",
 ]
+provider_metadata_keys = {"provider_discriminator", "provider_aliases"}
+accepted_status_optional_growth = {"objectsImported", "targetIndex", "topology"}
 missing_contract_keys = [key for key in contract_keys if key not in fixture]
 if mode == "check" and missing_contract_keys:
     action_required(
@@ -834,12 +849,98 @@ provider_contract_upgrade = mode == "update" and any(
     key in missing_contract_keys
     for key in ["provider_discriminator", "provider_aliases"]
 )
-expected_without_meta = {
-    key: copy.deepcopy(required_object_field(fixture, key, "fixture"))
-    for key in contract_keys
-    if key in fixture
-    and not (provider_contract_upgrade and key == "routes")
-}
+
+def string_values(value: object, owner: str) -> list[str]:
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        action_required(f"{owner} must be a list of strings")
+    return value
+
+def is_provider_metadata_widening(extracted: dict) -> bool:
+    if mode != "update" or not provider_metadata_keys.issubset(fixture):
+        return False
+    current_discriminator = required_object_field(
+        fixture,
+        "provider_discriminator",
+        "fixture",
+    )
+    extracted_discriminator = required_object_field(
+        extracted,
+        "provider_discriminator",
+        "generated contract",
+    )
+    if (
+        current_discriminator == extracted_discriminator
+        and fixture["provider_aliases"] == extracted["provider_aliases"]
+    ):
+        return False
+    if current_discriminator.get("field") != extracted_discriminator.get("field"):
+        return False
+
+    current_values = string_values(
+        current_discriminator.get("values"),
+        "fixture provider_discriminator values",
+    )
+    extracted_values = string_values(
+        extracted_discriminator.get("values"),
+        "generated provider_discriminator values",
+    )
+    current_value_set = set(current_values)
+    extracted_value_set = set(extracted_values)
+    if not current_value_set < extracted_value_set:
+        return False
+
+    current_aliases = required_object_field(fixture, "provider_aliases", "fixture")
+    extracted_aliases = required_object_field(
+        extracted,
+        "provider_aliases",
+        "generated contract",
+    )
+    if set(current_aliases) - current_value_set:
+        return False
+    for provider in current_values:
+        if current_aliases.get(provider) != extracted_aliases.get(provider):
+            return False
+    return True
+
+def is_accepted_status_optional_widening(extracted: dict) -> bool:
+    if mode != "update" or "status" not in fixture:
+        return False
+    current_status = required_object_field(fixture, "status", "fixture")
+    extracted_status = required_object_field(extracted, "status", "generated contract")
+    if current_status.get("required_fields") != extracted_status.get("required_fields"):
+        return False
+    current_optional = string_values(
+        current_status.get("optional_fields"),
+        "fixture status optional_fields",
+    )
+    extracted_optional = string_values(
+        extracted_status.get("optional_fields"),
+        "generated status optional_fields",
+    )
+    current_optional_set = set(current_optional)
+    extracted_optional_set = set(extracted_optional)
+    added = extracted_optional_set - current_optional_set
+    return (
+        current_optional_set < extracted_optional_set
+        and added == accepted_status_optional_growth
+        and current_optional == sorted(current_optional)
+        and extracted_optional == sorted(extracted_optional)
+    )
+
+def comparable_fixture_contract(extracted: dict) -> dict:
+    ignored_keys: set[str] = set()
+    if provider_contract_upgrade:
+        ignored_keys.update(provider_metadata_keys)
+        ignored_keys.add("routes")
+    elif is_provider_metadata_widening(extracted):
+        ignored_keys.update(provider_metadata_keys)
+    if is_accepted_status_optional_widening(extracted):
+        ignored_keys.add("status")
+    return {
+        key: copy.deepcopy(required_object_field(fixture, key, "fixture"))
+        for key in contract_keys
+        if key in fixture and key not in ignored_keys
+    }
 
 baseline_contract = None
 actual_artifact_shas: dict[str, str] = {}
@@ -870,6 +971,7 @@ for artifact in fixture_artifacts:
     validate_required_runtime_routes(fixture, artifact_payload)
     validate_privacy_scrub_contract(fixture, artifact_payload)
     extracted = extract_contract(artifact_payload, fixture)
+    expected_without_meta = comparable_fixture_contract(extracted)
     extracted_existing_contract = {
         key: extracted[key]
         for key in expected_without_meta

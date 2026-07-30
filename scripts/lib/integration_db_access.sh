@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 INTEGRATION_DB_ACCESS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INTEGRATION_DB_ACCESS_REPO_ROOT="$(cd "$INTEGRATION_DB_ACCESS_LIB_DIR/../.." && pwd)"
+INTEGRATION_DB_ACCESS_REPO_ROOT="${REPO_ROOT:-$(cd "$INTEGRATION_DB_ACCESS_LIB_DIR/../.." && pwd)}"
 
 # shellcheck source=lib/db_url.sh
 source "$INTEGRATION_DB_ACCESS_LIB_DIR/db_url.sh"
@@ -125,8 +125,8 @@ run_integration_psql() {
         docker-compose-psql)
             (
                 cd "$INTEGRATION_DB_ACCESS_REPO_ROOT" || exit 1
-                PSQLRC=/dev/null docker compose exec -T postgres \
-                    env "PGPASSWORD=$INTEGRATION_DOCKER_DB_PASSWORD" \
+                PSQLRC=/dev/null PGPASSWORD="$INTEGRATION_DOCKER_DB_PASSWORD" \
+                    docker compose exec -e PGPASSWORD -T postgres \
                     psql -h 127.0.0.1 -U "$INTEGRATION_DOCKER_DB_USER" -d "$db_name" "$@"
             )
             ;;

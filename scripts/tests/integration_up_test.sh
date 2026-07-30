@@ -698,24 +698,17 @@ test_up_delegates_flapjack_source_build_to_shared_helper() {
 test_up_prints_shared_source_provenance_for_selected_checkout() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"
-    setup_startup_mocks "$tmp_dir"
-    trap 'cleanup_startup_mocks "'"$tmp_dir"'"' RETURN
+    setup_isolated_startup_mocks "$tmp_dir"
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
 
     local checkout="$tmp_dir/flapjack_dev"
     local cargo_log="$tmp_dir/cargo.log"
     local api_env_log="$tmp_dir/api_env.log"
+    local api_bin="$tmp_dir/fjcloud-api"
     mkdir -p "$checkout/engine/flapjack-server/src"
     printf '[workspace]\nmembers = ["flapjack-server"]\n' > "$checkout/engine/Cargo.toml"
     printf 'fn main() {}\n' > "$checkout/engine/flapjack-server/src/main.rs"
-    write_mock_script "$tmp_dir/cargo" '
-echo "cwd=$(pwd) args=$*" >> "'"$cargo_log"'"
-case "$*" in
-    "build -p api -p metering-agent")
-        api_bin="$(pwd)/target/debug/fjcloud-api"
-        metering_bin="$(pwd)/target/debug/fj-metering-agent"
-        mkdir -p "$(dirname "$api_bin")"
-        cat > "$api_bin" <<'\''MOCK_API'\''
-#!/usr/bin/env bash
+    write_mock_script "$api_bin" '
 if [ -n "${INTEGRATION_UP_API_ENV_LOG:-}" ]; then
     {
         echo "FJCLOUD_FLAPJACK_REQUIRED_REVISION=${FJCLOUD_FLAPJACK_REQUIRED_REVISION:-}"
@@ -724,11 +717,10 @@ if [ -n "${INTEGRATION_UP_API_ENV_LOG:-}" ]; then
     } >> "$INTEGRATION_UP_API_ENV_LOG"
 fi
 exit 0
-MOCK_API
-        chmod +x "$api_bin"
-        printf "#!/usr/bin/env bash\nexit 0\n" > "$metering_bin"
-        chmod +x "$metering_bin"
-        ;;
+'
+    write_mock_script "$tmp_dir/cargo" '
+echo "cwd=$(pwd) args=$*" >> "'"$cargo_log"'"
+case "$*" in
     "build -p flapjack-server")
         mkdir -p target/debug
         cat > target/debug/flapjack <<'\''MOCK_FLAPJACK'\''
@@ -752,6 +744,8 @@ esac
         PATH="$tmp_dir:/usr/bin:/bin" \
         FLAPJACK_DEV_DIR="$checkout" \
         FLAPJACK_SOURCE_RECEIPT_DIR="$tmp_dir/receipts" \
+        FJCLOUD_INTEGRATION_API_BINARY="$api_bin" \
+        FJCLOUD_INTEGRATION_SKIP_METERING_AGENT=1 \
         INTEGRATION_UP_API_ENV_LOG="$api_env_log" \
         bash "$REPO_ROOT/scripts/integration-up.sh" 2>&1
     ) || exit_code=$?
@@ -866,6 +860,43 @@ exit 1
         "docker fallback failure should name DATABASE_URL as the missing piece"
     assert_not_contains "$output" "install PostgreSQL" \
         "should not suggest installing psql when docker postgres fallback was attempted"
+}
+
+test_docker_fallback_does_not_expose_password_in_cli_args() {
+    local tmp_dir output exit_code=0 docker_args docker_env
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+
+    write_mock_script "$tmp_dir/docker" '
+printf "%s\n" "$*" > "'"$tmp_dir"'/docker_args.log"
+printf "PGPASSWORD=%s\n" "${PGPASSWORD:-}" > "'"$tmp_dir"'/docker_env.log"
+exit 0
+'
+
+    output=$(
+        PATH="$tmp_dir:/usr/bin:/bin" \
+        FJCLOUD_TEST_REPO_ROOT="$FJCLOUD_TEST_REPO_ROOT" \
+        bash -c '
+            source "'"$REPO_ROOT"'/scripts/lib/integration_db_access.sh"
+            INTEGRATION_DB_ACCESS_MODE="docker-compose-psql"
+            INTEGRATION_DOCKER_DB_USER="griddle"
+            INTEGRATION_DOCKER_DB_PASSWORD="postgres-super-secret"
+            INTEGRATION_DB_ACCESS_REPO_ROOT="$FJCLOUD_TEST_REPO_ROOT"
+            run_integration_psql fjcloud_integration_test -c "select 1"
+        ' 2>&1
+    ) || exit_code=$?
+
+    docker_args="$(cat "$tmp_dir/docker_args.log" 2>/dev/null || true)"
+    docker_env="$(cat "$tmp_dir/docker_env.log" 2>/dev/null || true)"
+
+    assert_eq "$exit_code" "0" "docker fallback psql wrapper should still execute through docker compose"
+    assert_contains "$docker_args" "compose exec -e PGPASSWORD -T postgres psql" \
+        "docker fallback should request env passthrough instead of inline secret args"
+    assert_not_contains "$docker_args" "PGPASSWORD=postgres-super-secret" \
+        "docker fallback must not expose the database password in docker argv"
+    assert_contains "$docker_env" "PGPASSWORD=postgres-super-secret" \
+        "docker fallback should still provide the password through the environment"
+    assert_eq "$output" "" "docker fallback helper should stay quiet on success"
 }
 
 test_check_prerequisites_redacts_effective_admin_key() {
@@ -1056,6 +1087,7 @@ main() {
     echo ""
     echo "--- Docker Fallback + Startup Env ---"
     test_docker_fallback_failure_names_specific_blocker
+    test_docker_fallback_does_not_expose_password_in_cli_args
     test_check_prerequisites_redacts_effective_admin_key
     test_isolated_startup_mock_setup_does_not_touch_repo_target
     test_startup_uses_isolated_local_api_environment

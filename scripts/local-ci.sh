@@ -64,6 +64,7 @@
 #   0    All requested gates passed (SKIP counts as pass with a banner).
 #   1    Any gate FAILed.
 #   2    Usage / argument parsing error.
+#   75   Another whole-suite --fast run holds this clone's fast lock.
 ## HELP-TEXT-END
 
 set -uo pipefail
@@ -72,6 +73,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 source "$REPO_ROOT/scripts/lib/contract_secret_env.sh"
+source "$REPO_ROOT/scripts/lib/local_ci_fast_lock.sh"
 
 MODE="fast"
 SINGLE_GATE=""
@@ -105,6 +107,22 @@ while [ $# -gt 0 ]; do
 done
 
 # ---------------------------------------------------------------------------
+# Whole-suite --fast mutual exclusion (clone-scoped).
+# ---------------------------------------------------------------------------
+# Only a whole-suite `--fast` run acquires the lock. `--gate <name>` and
+# `--summary-only` dispatch no full run, so they stay lock-free and can always
+# run alongside a held lock. Acquisition happens here, before any gate is
+# scheduled, so a second concurrent `--fast` refuses up front (exit 75) instead
+# of racing gate bodies against the in-flight run. Released by the
+# cleanup_local_ci_logs EXIT trap installed below. `acquire_fast_lock` returns
+# the refusal code on contention; propagate it as this script's exit status.
+FAST_LOCK_HELD=0
+if [ "$MODE" = "fast" ] && [ -z "$SINGLE_GATE" ] && [ "$SUMMARY_ONLY" -eq 0 ]; then
+    acquire_fast_lock || exit $?
+    FAST_LOCK_HELD=1
+fi
+
+# ---------------------------------------------------------------------------
 # Bounded parallelism — cap how many gates fork concurrently.
 # ---------------------------------------------------------------------------
 # The dispatch loop below backgrounds every scheduled gate. Launching all
@@ -131,8 +149,25 @@ detect_cpu_count() {
     printf '%s' "$n"
 }
 
+sanitize_parallel_cap() {
+    local cap="$1" fallback="$2"
+
+    case "$cap" in
+        ''|*[!0-9]*)
+            printf '%s' "$fallback"
+            return
+            ;;
+    esac
+
+    if [ "$cap" -lt 1 ]; then
+        printf '1'
+    else
+        printf '%s' "$cap"
+    fi
+}
+
 if [ -n "${LOCAL_CI_MAX_PARALLEL:-}" ]; then
-    MAX_PARALLEL="$LOCAL_CI_MAX_PARALLEL"
+    MAX_PARALLEL="$(sanitize_parallel_cap "$LOCAL_CI_MAX_PARALLEL" 8)"
 else
     cpu_count="$(detect_cpu_count)"
     if [ "$cpu_count" -lt 8 ]; then
@@ -141,8 +176,7 @@ else
         MAX_PARALLEL=8
     fi
 fi
-case "$MAX_PARALLEL" in ''|*[!0-9]*) MAX_PARALLEL=8 ;; esac
-[ "$MAX_PARALLEL" -lt 1 ] && MAX_PARALLEL=1
+MAX_PARALLEL="$(sanitize_parallel_cap "$MAX_PARALLEL" 8)"
 
 render_prod_drift() {
     printf '\n## Prod deploy drift (informational — does not affect exit code)\n'
@@ -183,7 +217,18 @@ rm -rf "$KEEP_LOG_DIR"
 cleanup_local_ci_logs() {
     local rc=$?
     trap - EXIT
+    # Drain still-running background gate jobs BEFORE releasing the clone-scoped
+    # fast lock. Releasing first would free the lock while gate jobs this run
+    # launched are still executing — on an interrupted or early-exiting --fast
+    # that lets a second --fast start and overlap them, the exact contention the
+    # lock exists to prevent. The lock must stay held until every gate drains.
+    # release is then gated on whether this run acquired it (single-gate/summary
+    # runs never did) and is itself a no-op unless this shell owns the lock, so
+    # it is safe and idempotent. The original exit status is preserved in $rc.
     wait 2>/dev/null || true
+    if [ "${FAST_LOCK_HELD:-0}" = "1" ]; then
+        release_fast_lock
+    fi
     rm -rf "$KEEP_LOG_DIR"
     mv "$LOG_DIR" "$KEEP_LOG_DIR" 2>/dev/null || true
     exit "$rc"
@@ -234,14 +279,16 @@ run_gate() {
     } &
 }
 
-# throttle_parallel — block until fewer than MAX_PARALLEL background gates
-# are still running, so the dispatch loop never bursts more than the cap of
-# concurrently-forking gate bodies. Uses `jobs -pr` (PIDs of running jobs),
-# which works on bash 3.2 — the macOS system shell — where the newer
-# any-job wait flag is unavailable. The short poll interval keeps the cap
-# tight without busy-waiting.
+# throttle_parallel [cap] — block until fewer than cap background jobs are
+# still running. The optional cap lets nested schedulers reuse the same
+# Bash-3.2-safe worker-pool seam without inheriting the outer gate cap.
+# Uses `jobs -pr` (PIDs of running jobs), which works on the macOS system
+# shell where the newer any-job wait flag is unavailable. The short poll
+# interval keeps the cap tight without busy-waiting.
 throttle_parallel() {
-    while [ "$(jobs -pr | wc -l | tr -d '[:space:]')" -ge "$MAX_PARALLEL" ]; do
+    local cap
+    cap="$(sanitize_parallel_cap "${1:-$MAX_PARALLEL}" "$MAX_PARALLEL")"
+    while [ "$(jobs -pr | wc -l | tr -d '[:space:]')" -ge "$cap" ]; do
         sleep 0.2
     done
 }
@@ -907,17 +954,14 @@ gate_test_reachability_contract() {
     # suites passing. The concurrent run must produce the same pass/fail set, and
     # every failing suite is named rather than collapsed into one exit code, so a
     # concurrency-induced failure is visible instead of looking like a flake.
-    local test_path failed=() jobs=0 max_jobs rc result_stem
+    local test_path failed=() max_jobs rc result_stem
     local results_dir serial_registry serial_list timings_file timing_rows
 
     bash "$REPO_ROOT/scripts/tests/probe_test_reachability_test.sh" || return $?
     bash "$REPO_ROOT/scripts/probe_test_reachability.sh" || return $?
     source "$REPO_ROOT/scripts/lib/test_reachability_manifest.sh"
 
-    max_jobs="${TEST_REACHABILITY_MAX_JOBS:-$MAX_PARALLEL}"
-    if [ "$max_jobs" -lt 1 ] 2>/dev/null; then
-        max_jobs=1
-    fi
+    max_jobs="$(sanitize_parallel_cap "${TEST_REACHABILITY_MAX_JOBS:-$MAX_PARALLEL}" "$MAX_PARALLEL")"
     results_dir="$(mktemp -d)"
 
     # A measured minority of the manifest is not isolated from its siblings and
@@ -933,28 +977,16 @@ gate_test_reachability_contract() {
     serial_list="$(sed -e 's/[[:space:]]*#.*$//' -e 's/[[:space:]]*$//' -e '/^[[:space:]]*$/d' \
         "$serial_registry")"
 
-    # macOS ships bash 3.2, which cannot wait for only the next completed job,
-    # so a true worker pool that refills one slot at a time is not available
-    # (this repo already pins bash
-    # 3.2 compatibility elsewhere in the reachability probe). Batching is used
-    # instead: launch max_jobs suites, wait for ALL of them, repeat. A batch
-    # costs its slowest member, so this is slower than a refilling pool but has
-    # no bash-4 dependency and no counter bookkeeping to get wrong.
-    #
-    # The counter MUST reset to 0 rather than decrement here — `wait` with no
-    # argument reaps every background job, so decrementing by one would leave
-    # the counter pinned at the cap and force a full barrier after every single
-    # subsequent launch, silently collapsing this back to serial execution.
+    # Refill each open slot through the same `jobs -pr` polling throttle used by
+    # the outer gate scheduler. This stays compatible with macOS Bash 3.2 while
+    # avoiding fixed max_jobs-wide batches, whose wait-for-the-slowest barriers
+    # left most slots idle during long probe suites.
     for test_path in "${TEST_REACHABILITY_HERMETIC_TESTS[@]}"; do
         if printf '%s\n' "$serial_list" | grep -Fxq "$test_path"; then
             continue
         fi
+        throttle_parallel "$max_jobs"
         run_reachability_suite "$test_path" "$results_dir" &
-        jobs=$((jobs + 1))
-        if [ "$jobs" -ge "$max_jobs" ]; then
-            wait
-            jobs=0
-        fi
     done
     wait
 

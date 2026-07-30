@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Contract for the current local-ci --fast runtime budget.
 #
-# Bootstrap calibration measured for Stage 3: elapsed_seconds=1551 in
-# docs/audits/test-wiring/20260729T014207Z_fast_budget_baseline/SUMMARY.md.
+# Current Stage 3 acceptance specimen: elapsed_seconds=1246 in
+# docs/audits/test-wiring/20260730T145719Z_fast_gate_lock_and_acceptance/SUMMARY.md.
 # The ceiling below is intentionally unchanged from the Stage 1 budget.
 
 set -euo pipefail
@@ -14,11 +14,22 @@ source "$SCRIPT_DIR/lib/test_runner.sh"
 source "$SCRIPT_DIR/lib/assertions.sh"
 source "$REPO_ROOT/scripts/lib/test_reachability_manifest.sh"
 
-BASELINE_RECEIPT_REL="docs/audits/test-wiring/20260729T014207Z_fast_budget_baseline/SUMMARY.md"
-BASELINE_HEAD_SHA="ae420accd033c162b5375e206efaed78502eff3f"
-BASELINE_SUITES=148
-BASELINE_ELAPSED_SECONDS=1551
+BASELINE_RECEIPT_REL="docs/audits/test-wiring/20260730T145719Z_fast_gate_lock_and_acceptance/SUMMARY.md"
+BASELINE_HEAD_SHA="52c453fd4d25dcf47f5c59ace5918f3ffed8de3c"
+BASELINE_SUITES=159
+BASELINE_ELAPSED_SECONDS=1246
 BUDGET_SECONDS=1800
+BASELINE_PINNED_FIELDS=(
+    "local_ci_exit_code=1"
+    "elapsed_seconds_exact=1247.040064"
+    "manifest_count=159"
+    "serial_only_count=0"
+    "single_gate_count_before=0"
+    "single_gate_count_after=0"
+    "reachability_summary=corpus=236 reachable=235 allowlisted=1 quarantined=0 unaccounted=0"
+    "reachability_gate_summary=reachability gate: 159 hermetic suite(s) run at concurrency 8, 4 failed"
+)
+STAGE2_RECEIPT_REL="docs/audits/test-wiring/20260729T014207Z_fast_budget_baseline/SUMMARY.md"
 STAGE2_ALGOLIA_BEFORE="191 passed, 0 failed; real 67.64 user 25.74 sys 17.58"
 STAGE2_ALGOLIA_AFTER="213 passed, 0 failed; real 92.49 user 28.46 sys 21.75"
 STAGE2_SES_BEFORE="100 passed, 0 failed; real 20.69 user 6.38 sys 3.87"
@@ -160,8 +171,14 @@ validate_budget_receipt() {
         printf 'ERROR: raw local-ci log contains a redaction marker: %s\n' "$raw_log_rel" >&2
         return 1
     fi
-    if grep -Eq '(^|[^[:alnum:]_])(JWT_SECRET|ADMIN_KEY|STORAGE_ENCRYPTION_KEY)=[^[:space:]]+' "$raw_log_abs"; then
-        printf 'ERROR: raw local-ci log contains secret-bearing assignment output: %s\n' "$raw_log_rel" >&2
+    if grep -Eiq \
+        '(^|[^[:alnum:]_])[[:alnum:]_]*(secret|token|password|passwd|api_key|access_key|private_key|credential|admin_key|encryption_key)[[:alnum:]_]*=[^[:space:]]+' \
+        "$raw_log_abs" ||
+        grep -Eiq \
+            '(^|[^[:alnum:]_])[[:alnum:]_]*url=[[:alnum:]+.-]+://[^[:space:]/:@]+:[^[:space:]@]+@' \
+            "$raw_log_abs"; then
+        printf 'ERROR: raw local-ci log contains secret-bearing assignment or credential output: %s\n' \
+            "$raw_log_rel" >&2
         return 1
     fi
     case "$recorded_raw_log_sha" in
@@ -377,9 +394,35 @@ test_fixture_rejects_secret_assignment_raw_log() {
     output="$(REPO_ROOT="$tmpdir" validate_budget_receipt \
         "$receipt_rel" "fixture-head" "2" "100" "$BUDGET_SECONDS" "1" 2>&1)" || rc=$?
     assert_eq "$rc" "1" "secret assignment raw log makes fixture receipt fail"
-    assert_contains "$output" "secret-bearing assignment output" \
+    assert_contains "$output" "secret-bearing assignment or credential output" \
         "secret assignment raw log failure names the secret hygiene gap"
     rm -rf "$tmpdir"
+}
+
+test_fixture_rejects_additional_secret_material_raw_log() {
+    local tmpdir receipt_rel raw_log_rel slow_tsv_rel secret_line output rc
+    local secret_lines=(
+        'AWS_SECRET_ACCESS_KEY=fixture_not_a_real_credential'
+        'STRIPE_SECRET_KEY=fixture_not_a_real_credential'
+        'DATABASE_URL=postgresql://fixture_user:fixture_password@localhost/fixture'
+    )
+
+    for secret_line in "${secret_lines[@]}"; do
+        tmpdir="$(mktemp -d)"
+        receipt_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/SUMMARY.md"
+        raw_log_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/raw_local_ci_fast.log"
+        slow_tsv_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/slow_suites.tsv"
+        write_fixture_receipt "$tmpdir" "$receipt_rel" "fixture-head" "$raw_log_rel" "$slow_tsv_rel"
+        printf '%s\n' "$secret_line" > "$tmpdir/$raw_log_rel"
+
+        rc=0
+        output="$(REPO_ROOT="$tmpdir" validate_budget_receipt \
+            "$receipt_rel" "fixture-head" "2" "100" "$BUDGET_SECONDS" "1" 2>&1)" || rc=$?
+        assert_eq "$rc" "1" "additional secret material in a raw log fails closed"
+        assert_contains "$output" "secret-bearing" \
+            "additional secret material failure names the secret hygiene gap"
+        rm -rf "$tmpdir"
+    done
 }
 
 test_fixture_rejects_modified_raw_log() {
@@ -577,13 +620,14 @@ test_real_baseline_evidence_is_present_and_current() {
         "$BASELINE_SUITES" \
         "$BASELINE_ELAPSED_SECONDS" \
         "$BUDGET_SECONDS" \
-        "0"
+        "0" \
+        "${BASELINE_PINNED_FIELDS[@]}"
     assert_eq "$?" "0" "real baseline receipt has current, parseable, non-empty evidence"
 }
 
 test_real_stage2_timing_evidence_is_present_and_source_pinned() {
     local receipt_abs
-    receipt_abs="$REPO_ROOT/$BASELINE_RECEIPT_REL"
+    receipt_abs="$REPO_ROOT/$STAGE2_RECEIPT_REL"
 
     assert_eq "$(extract_receipt_value_rest "$receipt_abs" "stage_02_before_algolia_import_catalog_live_probe_test=")" \
         "$STAGE2_ALGOLIA_BEFORE" \
@@ -624,7 +668,7 @@ validate_slow_suite_tsv_manifest_residency() {
 
 test_real_slow_suite_tsv_matches_registered_manifest() {
     local receipt_abs slow_tsv_rel output rc=0
-    receipt_abs="$REPO_ROOT/$BASELINE_RECEIPT_REL"
+    receipt_abs="$REPO_ROOT/$STAGE2_RECEIPT_REL"
     slow_tsv_rel="$(extract_receipt_value "$receipt_abs" "slow_suite_tsv_path=")"
 
     output="$(validate_slow_suite_tsv_manifest_residency \
@@ -636,7 +680,7 @@ test_real_slow_suite_tsv_matches_registered_manifest() {
 
 test_source_pinned_slow_suite_tsv_survives_later_manifest_growth() {
     local receipt_abs slow_tsv_rel appended_index output rc=0
-    receipt_abs="$REPO_ROOT/$BASELINE_RECEIPT_REL"
+    receipt_abs="$REPO_ROOT/$STAGE2_RECEIPT_REL"
     slow_tsv_rel="$(extract_receipt_value "$receipt_abs" "slow_suite_tsv_path=")"
     appended_index="${#TEST_REACHABILITY_HERMETIC_TESTS[@]}"
     TEST_REACHABILITY_HERMETIC_TESTS+=("scripts/tests/synthetic_later_manifest_test.sh")
@@ -676,10 +720,15 @@ test_real_baseline_is_under_budget() {
         "$BASELINE_SUITES" \
         "$BASELINE_ELAPSED_SECONDS" \
         "$BUDGET_SECONDS" \
-        "1" 2>&1)" || rc=$?
+        "1" \
+        "${BASELINE_PINNED_FIELDS[@]}" 2>&1)" || rc=$?
     assert_eq "$rc" "0" "local-ci --fast must stay within the Stage 1 budget"
     if [ "$rc" = "0" ]; then
         assert_not_contains "$output" "over budget" "budget failure output should be absent when within budget"
+    else
+        assert_contains "$output" \
+            "ERROR: local-ci --fast over budget: elapsed_seconds=$BASELINE_ELAPSED_SECONDS budget_seconds=$BUDGET_SECONDS suites=$BASELINE_SUITES" \
+            "real over-budget receipt names the exact elapsed, budget, and suite values"
     fi
 }
 
@@ -688,6 +737,7 @@ test_fixture_rejects_missing_receipt
 test_fixture_rejects_missing_raw_log
 test_fixture_rejects_redacted_raw_log
 test_fixture_rejects_secret_assignment_raw_log
+test_fixture_rejects_additional_secret_material_raw_log
 test_fixture_rejects_modified_raw_log
 test_fixture_rejects_incomplete_slow_suite_tsv
 test_fixture_rejects_stale_head

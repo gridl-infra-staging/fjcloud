@@ -85,8 +85,9 @@ printf "DOCKER %s\n" "$*" >> "$CATALOG_SERVICE_WINDOW_DOCKER_LOG"
 if [[ "$*" == "compose ps --status running postgres" ]]; then
   exit 0
 fi
-if [[ "$*" == *"compose exec -T postgres"* ]]; then
+if [[ "$*" == *"compose exec"*"-T postgres"* ]]; then
   stdin_payload="$(cat)"
+  printf "DOCKER_ENV PGPASSWORD=%s\n" "${PGPASSWORD:-}" >> "$CATALOG_SERVICE_WINDOW_DOCKER_LOG"
   printf "DOCKER_STDIN %s\n" "$stdin_payload" >> "$CATALOG_SERVICE_WINDOW_DOCKER_LOG"
   if [[ "$stdin_payload" == *"catalog_service_window_cold_seed"* ]]; then
     echo "seeded"
@@ -1796,7 +1797,7 @@ test_cold_seed_uses_database_url_docker_fallback_without_host_psql() {
     "probe checks canonical docker compose postgres fallback"
   assert_contains "$(cat "$WORK_DIR/docker.log")" "psql -h 127.0.0.1 -U nondefault -d catalog_service_window_live_probe_test" \
     "docker fallback uses DATABASE_URL username and integration DB name"
-  assert_contains "$(cat "$WORK_DIR/docker.log")" "env PGPASSWORD=secretpass" \
+  assert_contains "$(cat "$WORK_DIR/docker.log")" "DOCKER_ENV PGPASSWORD=secretpass" \
     "docker fallback uses DATABASE_URL password without requiring INTEGRATION_DB_PASSWORD"
   assert_contains "$(cat "$WORK_DIR/docker.log")" "catalog_service_window_hard_erase_matrix_seed" \
     "docker fallback seeds hard-erasure matrix rows"

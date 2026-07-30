@@ -74,6 +74,7 @@ TEST_REACHABILITY_HERMETIC_TESTS=(
     "scripts/tests/load_harness_test.sh"
     "scripts/tests/local_ci_summary_only_test.sh"
     "scripts/tests/local_ci_fast_budget_test.sh"
+    "scripts/tests/local_ci_fast_lock_test.sh"
     "scripts/tests/local_demo_test.sh"
     "scripts/tests/local_dev_down_test.sh"
     "scripts/tests/local_dev_migrate_test.sh"

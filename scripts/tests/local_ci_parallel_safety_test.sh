@@ -355,6 +355,23 @@ test_max_parallel_cap_is_configurable() {
     "concurrency cap resolves a MAX_PARALLEL value"
 }
 
+test_parallel_cap_sanitizer_clamps_invalid_values() {
+  local body
+  body="$(awk '/^sanitize_parallel_cap\(\) \{/{f=1} f{print} f&&/^\}$/{exit}' "$LOCAL_CI")"
+  if [ -z "$body" ]; then
+    fail "sanitize_parallel_cap function not found in local-ci.sh"
+    return
+  fi
+  eval "$body"
+
+  assert_eq "$(sanitize_parallel_cap "5" "8")" "5" \
+    "parallel cap sanitizer preserves valid numeric caps"
+  assert_eq "$(sanitize_parallel_cap "0" "8")" "1" \
+    "parallel cap sanitizer clamps zero to one worker"
+  assert_eq "$(sanitize_parallel_cap "bogus" "8")" "8" \
+    "parallel cap sanitizer falls back when the cap is non-numeric"
+}
+
 test_dispatch_loop_throttles_before_launching_gates() {
   # throttle_parallel must be called inside the gate dispatch loop, before the
   # gate case-dispatch, so no gate is backgrounded once the cap is reached.
@@ -407,6 +424,74 @@ test_throttle_parallel_actually_caps_concurrency() {
   fi
 }
 
+test_throttle_parallel_honors_explicit_cap() {
+  local body
+  body="$(awk '/^throttle_parallel\(\) \{/{f=1} f{print} f&&/^\}$/{exit}' "$LOCAL_CI")"
+  if [ -z "$body" ]; then
+    fail "throttle_parallel function not found in local-ci.sh"
+    return
+  fi
+  eval "$body"
+
+  local MAX_PARALLEL=8
+  ( sleep 0.6 ) & ( sleep 0.6 ) & ( sleep 0.6 ) & ( sleep 0.1 ) &
+  throttle_parallel 2
+  local running
+  running="$(jobs -pr | wc -l | tr -d '[:space:]')"
+  wait
+
+  if [ "$running" -lt 2 ]; then
+    pass "throttle_parallel accepts the reachability scheduler's explicit cap"
+  else
+    fail "throttle_parallel ignored its explicit cap ($running >= 2)"
+  fi
+}
+
+test_throttle_parallel_sanitizes_invalid_explicit_cap() {
+  local sanitize_body throttle_body
+  sanitize_body="$(awk '/^sanitize_parallel_cap\(\) \{/{f=1} f{print} f&&/^\}$/{exit}' "$LOCAL_CI")"
+  throttle_body="$(awk '/^throttle_parallel\(\) \{/{f=1} f{print} f&&/^\}$/{exit}' "$LOCAL_CI")"
+  if [ -z "$sanitize_body" ] || [ -z "$throttle_body" ]; then
+    fail "parallel cap sanitizer or throttle_parallel function not found in local-ci.sh"
+    return
+  fi
+  eval "$sanitize_body"
+  eval "$throttle_body"
+
+  local MAX_PARALLEL=2
+  ( sleep 0.6 ) & ( sleep 0.6 ) & ( sleep 0.6 ) & ( sleep 0.1 ) &
+  throttle_parallel bogus
+  local running
+  running="$(jobs -pr | wc -l | tr -d '[:space:]')"
+  wait
+
+  if [ "$running" -lt "$MAX_PARALLEL" ]; then
+    pass "throttle_parallel falls back to MAX_PARALLEL when an explicit cap is invalid"
+  else
+    fail "throttle_parallel ignored MAX_PARALLEL after an invalid explicit cap ($running >= $MAX_PARALLEL)"
+  fi
+}
+
+test_reachability_scheduler_refills_open_slots() {
+  local body throttle_line launch_line
+  body="$(awk '/^gate_test_reachability_contract\(\) \{/{f=1} f{print} f&&/^\}$/{exit}' "$LOCAL_CI")"
+  throttle_line="$(
+    printf '%s\n' "$body" \
+      | grep -n -m1 -F 'throttle_parallel "$max_jobs"' \
+      | cut -d: -f1 || true
+  )"
+  launch_line="$(
+    printf '%s\n' "$body" \
+      | grep -n -m1 -F 'run_reachability_suite "$test_path" "$results_dir" &' \
+      | cut -d: -f1 || true
+  )"
+
+  assert_line_after "$throttle_line" "$launch_line" \
+    "reachability scheduler refills an open slot before launching each suite"
+  assert_not_contains "$body" 'if [ "$jobs" -ge "$max_jobs" ]; then' \
+    "reachability scheduler has no eight-suite barrier batch"
+}
+
 test_exit_cleanup_waits_before_persisting_logs() {
   local cleanup_line wait_line move_line
   cleanup_line="$(first_match_line '^cleanup_local_ci_logs\(\) \{')"
@@ -419,6 +504,71 @@ test_exit_cleanup_waits_before_persisting_logs() {
     "cleanup waits before moving the temp log directory"
   assert_contains "$LOCAL_CI_TEXT" "trap cleanup_local_ci_logs EXIT" \
     "EXIT trap uses the cleanup function"
+}
+
+# --- Fast-lock mutual exclusion (Stage 2) --------------------------------
+# Whole-suite `--fast` is guarded by the clone-scoped lock in
+# scripts/lib/local_ci_fast_lock.sh. `--gate <name>` and `--summary-only`
+# dispatch no whole-suite run, so they must stay lock-free. The lock must be
+# acquired before ANY gate is dispatched, so a second concurrent `--fast`
+# refuses up front instead of racing gate bodies against the first run.
+
+test_fast_lock_helper_is_sourced() {
+  assert_contains "$LOCAL_CI_TEXT" 'source "$REPO_ROOT/scripts/lib/local_ci_fast_lock.sh"' \
+    "local-ci sources the fast-lock helper"
+}
+
+test_fast_lock_contention_exit_is_documented() {
+  assert_contains "$LOCAL_CI_TEXT" \
+    "#   75   Another whole-suite --fast run holds this clone's fast lock." \
+    "local-ci help documents the reserved fast-lock contention exit"
+}
+
+test_fast_lock_acquisition_is_gated_to_whole_suite_fast() {
+  assert_contains "$LOCAL_CI_TEXT" \
+    '[ "$MODE" = "fast" ] && [ -z "$SINGLE_GATE" ] && [ "$SUMMARY_ONLY" -eq 0 ]' \
+    "fast-lock acquisition is gated on MODE=fast + empty SINGLE_GATE + SUMMARY_ONLY=0"
+  assert_contains "$LOCAL_CI_TEXT" 'acquire_fast_lock' \
+    "local-ci acquires the fast lock"
+}
+
+test_fast_lock_single_gate_path_stays_unlocked() {
+  # The acquisition guard requires an EMPTY SINGLE_GATE, so `--gate <name>`
+  # can never enter the acquisition branch.
+  assert_contains "$LOCAL_CI_TEXT" '[ -z "$SINGLE_GATE" ]' \
+    "--gate runs stay lock-free (guard requires empty SINGLE_GATE)"
+}
+
+test_fast_lock_summary_only_path_stays_unlocked() {
+  # `--summary-only` sets SUMMARY_ONLY=1; the guard requires SUMMARY_ONLY=0.
+  assert_contains "$LOCAL_CI_TEXT" '[ "$SUMMARY_ONLY" -eq 0 ]' \
+    "--summary-only runs stay lock-free (guard requires SUMMARY_ONLY=0)"
+}
+
+test_fast_lock_acquired_before_first_gate_dispatch() {
+  local acquire_line first_dispatch_line
+  acquire_line="$(grep -n -m1 -E '^[[:space:]]*acquire_fast_lock' "$LOCAL_CI" | cut -d: -f1 || true)"
+  first_dispatch_line="$(grep -n -m1 -E 'run_gate [a-z][a-z0-9-]* gate_' "$LOCAL_CI" | cut -d: -f1 || true)"
+
+  assert_line_after "$acquire_line" "$first_dispatch_line" \
+    "fast lock is acquired before the first run_gate dispatch"
+}
+
+test_fast_lock_release_precedes_log_persistence_in_cleanup() {
+  local release_line wait_line move_line
+  release_line="$(grep -n -m1 -E '^[[:space:]]*release_fast_lock$' "$LOCAL_CI" | cut -d: -f1 || true)"
+  wait_line="$(grep -n -E '^[[:space:]]*wait[[:space:]]+2>/dev/null[[:space:]]*\|\|[[:space:]]*true$' "$LOCAL_CI" | cut -d: -f1 | head -1 || true)"
+  move_line="$(first_match_line 'mv "\$LOG_DIR" "\$KEEP_LOG_DIR"')"
+
+  # The lock must outlive every background gate job: draining them (wait) has to
+  # happen BEFORE release, or an interrupted --fast frees the lock while its
+  # gates still run and a second --fast overlaps them.
+  assert_line_after "$wait_line" "$release_line" \
+    "cleanup drains background gate writers before releasing the fast lock"
+  assert_line_after "$release_line" "$move_line" \
+    "fast lock is released before logs are persisted"
+  assert_contains "$LOCAL_CI_TEXT" 'FAST_LOCK_HELD' \
+    "release is gated on whether this run acquired the lock"
 }
 
 test_bootstrap_env_gate_is_scheduled_in_parallel
@@ -454,8 +604,19 @@ test_rust_test_gate_runs_after_web_test
 test_rust_test_single_gate_mode_remains_supported
 test_rust_test_full_mode_sequential_path_remains_supported
 test_max_parallel_cap_is_configurable
+test_parallel_cap_sanitizer_clamps_invalid_values
 test_dispatch_loop_throttles_before_launching_gates
 test_throttle_uses_bash32_safe_idiom
 test_throttle_parallel_actually_caps_concurrency
+test_throttle_parallel_honors_explicit_cap
+test_throttle_parallel_sanitizes_invalid_explicit_cap
+test_reachability_scheduler_refills_open_slots
 test_exit_cleanup_waits_before_persisting_logs
+test_fast_lock_helper_is_sourced
+test_fast_lock_contention_exit_is_documented
+test_fast_lock_acquisition_is_gated_to_whole_suite_fast
+test_fast_lock_single_gate_path_stays_unlocked
+test_fast_lock_summary_only_path_stays_unlocked
+test_fast_lock_acquired_before_first_gate_dispatch
+test_fast_lock_release_precedes_log_persistence_in_cleanup
 run_test_summary

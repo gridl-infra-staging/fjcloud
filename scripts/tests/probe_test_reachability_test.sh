@@ -331,7 +331,7 @@ test_local_ci_registration_is_complete() {
     local local_ci="$REPO_ROOT/scripts/local-ci.sh"
     local manifest="$REPO_ROOT/scripts/lib/test_reachability_manifest.sh"
     local gate_name="test-reachability-contract"
-    local gate_body
+    local gate_body runner_body
 
     assert_file_exists "$manifest" \
         "classified hermetic reachability tests have a canonical manifest"
@@ -395,7 +395,10 @@ test_local_ci_registration_is_complete() {
     # is backgrounding jobs and losing their statuses.
     assert_contains "$gate_body" '"${TEST_REACHABILITY_HERMETIC_TESTS[@]}"' \
         "reachability gate iterates every entry in the canonical manifest"
-    assert_contains "$gate_body" 'bash "$REPO_ROOT/$test_path"' \
+    assert_contains "$gate_body" 'run_reachability_suite "$test_path" "$results_dir"' \
+        "reachability gate sends every classified hermetic test through its suite runner"
+    runner_body="$(sed -n '/^run_reachability_suite()/,/^}/p' "$local_ci")"
+    assert_contains "$runner_body" 'bash "$REPO_ROOT/$test_path"' \
         "reachability gate executes every classified hermetic test"
     assert_contains "$gate_body" 'failed+=' \
         "reachability gate records each failing suite rather than discarding its status"
@@ -418,18 +421,18 @@ test_local_ci_registration_is_complete() {
     assert_eq \
         "$(sed -e 's/[[:space:]]*#.*$//' -e 's/[[:space:]]*$//' "$serial_registry" \
             | grep -Fxc 'scripts/tests/run_browser_lane_against_staging_test.sh' || true)" \
-        "1" \
-        "timeout-sensitive browser-lane contract runs in the serial tail"
+        "0" \
+        "duplicate-green browser-lane contract should not remain in the serial tail"
     assert_eq \
         "$(sed -e 's/[[:space:]]*#.*$//' -e 's/[[:space:]]*$//' "$serial_registry" \
             | grep -Fxc 'scripts/tests/seed_synthetic_traffic_test.sh' || true)" \
-        "1" \
-        "concurrency-sensitive synthetic traffic contract runs in the serial tail"
+        "0" \
+        "duplicate-green synthetic traffic contract should not remain in the serial tail"
     assert_eq \
         "$(sed -e 's/[[:space:]]*#.*$//' -e 's/[[:space:]]*$//' "$serial_registry" \
             | grep -Fxc 'scripts/tests/api_dev_test.sh' || true)" \
-        "1" \
-        "checkout-env-mutating api-dev contract runs in the serial tail"
+        "0" \
+        "duplicate-green api-dev contract should not remain in the serial tail"
     manifest="$REPO_ROOT/scripts/lib/test_reachability_manifest.sh"
     while IFS= read -r serial_entry; do
         [ -n "$serial_entry" ] || continue

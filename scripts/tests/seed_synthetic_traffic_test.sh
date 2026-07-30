@@ -1211,6 +1211,27 @@ test_probe_mode_write_loop_continues_through_transient_error() {
         "probe-mode write loop must issue all four batch writes even after the 503"
 }
 
+test_mock_curl_serializes_log_appends() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+
+    local curl_log="$tmp_dir/curl.log"
+    mkdir -p "$tmp_dir/bin"
+    write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
+
+    local mock_source
+    mock_source="$(cat "$tmp_dir/bin/curl")"
+    assert_contains "$mock_source" "append_curl_log_line()" \
+        "synthetic curl mock should centralize log appends"
+    assert_contains "$mock_source" 'while ! mkdir "$LOG_LOCK_DIR" 2>/dev/null; do' \
+        "synthetic curl mock should serialize concurrent log appends with an exclusive lock"
+    assert_contains "$mock_source" 'trap '\''rmdir "$LOG_LOCK_DIR"'\'' RETURN' \
+        "synthetic curl mock should release the log append lock after writing"
+    assert_not_contains "$mock_source" 'printf '\''%s\n'\'' "$log_line" >>' \
+        "synthetic curl mock should not append directly to the shared log without locking"
+}
+
 test_standalone_write_loop_stays_fatal_on_error() {
     local tmp_dir
     tmp_dir=$(mktemp -d)
@@ -1935,6 +1956,7 @@ main() {
             test_tenant_a_execute_starts_sustained_traffic_after_floor_is_met
             test_tenant_a_execute_cleans_count_files_when_search_loop_fails
             test_tenant_a_execute_stops_writes_when_search_loop_fails
+            test_mock_curl_serializes_log_appends
             test_probe_mode_write_loop_continues_through_transient_error
             test_standalone_write_loop_stays_fatal_on_error
             test_probe_mode_search_loop_continues_through_transient_error
@@ -1967,6 +1989,7 @@ main() {
             test_tenant_a_execute_starts_sustained_traffic_after_floor_is_met
             test_tenant_a_execute_cleans_count_files_when_search_loop_fails
             test_tenant_a_execute_stops_writes_when_search_loop_fails
+            test_mock_curl_serializes_log_appends
             test_probe_mode_write_loop_continues_through_transient_error
             test_standalone_write_loop_stays_fatal_on_error
             test_probe_mode_search_loop_continues_through_transient_error

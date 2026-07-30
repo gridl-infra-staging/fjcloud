@@ -22,8 +22,9 @@ new_mock_command_dir() {
 
 backup_repo_env_file() {
     local backup_path="$1"
-    if [ -f "$REPO_ROOT/.env.local" ]; then
-        cp "$REPO_ROOT/.env.local" "$backup_path"
+    local repo_root="${FJCLOUD_TEST_REPO_ROOT:-$REPO_ROOT}"
+    if [ -f "$repo_root/.env.local" ]; then
+        cp "$repo_root/.env.local" "$backup_path"
         return 0
     fi
     return 1
@@ -31,10 +32,11 @@ backup_repo_env_file() {
 
 restore_repo_env_file() {
     local backup_path="$1"
+    local repo_root="${FJCLOUD_TEST_REPO_ROOT:-$REPO_ROOT}"
     if [ -f "$backup_path" ]; then
-        cp "$backup_path" "$REPO_ROOT/.env.local"
+        cp "$backup_path" "$repo_root/.env.local"
     else
-        rm -f "$REPO_ROOT/.env.local"
+        rm -f "$repo_root/.env.local"
     fi
 }
 

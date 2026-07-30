@@ -219,7 +219,7 @@ test_reachability_single_gate_mode_remains_supported() {
     "reachability gate remains selectable through --gate"
 }
 
-test_reachability_checkout_env_mutators_are_serial_only() {
+test_reachability_serial_registry_matches_isolation_state() {
   local serial_only="$REPO_ROOT/scripts/tests/serial_only_tests.txt"
   local serial_text
   serial_text="$(sed -e 's/[[:space:]]*#.*$//' -e 's/[[:space:]]*$//' -e '/^[[:space:]]*$/d' "$serial_only")"
@@ -229,16 +229,93 @@ test_reachability_checkout_env_mutators_are_serial_only() {
     "scripts/tests/integration_up_test.sh" \
     "scripts/tests/local_demo_test.sh" \
     "scripts/tests/local_dev_migrate_test.sh" \
+    "scripts/tests/local_dev_up_test.sh" \
     "scripts/tests/run_aggregation_job_test.sh" \
     "scripts/tests/seed_local_test.sh" \
+    "scripts/tests/seed_synthetic_traffic_test.sh" \
     "scripts/tests/web_dev_test.sh"
   do
     if printf '%s\n' "$serial_text" | grep -Fxq "$test_path"; then
-      pass "$test_path is serialized away from concurrent .env.local mutators"
+      fail "$test_path must not remain in serial_only_tests.txt after duplicate-green isolation"
     else
-      fail "$test_path must be listed in serial_only_tests.txt"
+      pass "$test_path is promoted out of the serial tail after duplicate-green isolation"
     fi
   done
+}
+
+test_reachability_suite_runner_records_receipt_timing_row() {
+  local stem_body runner_body tmpdir fixture_path result_stem timing_row
+  stem_body="$(
+    awk '/^reachability_result_stem\(\) \{/{f=1} f{print} f&&/^\}$/{exit}' "$LOCAL_CI"
+  )"
+  runner_body="$(
+    awk '/^run_reachability_suite\(\) \{/{f=1} f{print} f&&/^\}$/{exit}' "$LOCAL_CI"
+  )"
+  if [ -z "$stem_body" ] || [ -z "$runner_body" ]; then
+    fail "reachability result-stem or suite-runner function not found in local-ci.sh"
+    return
+  fi
+
+  tmpdir="$(mktemp -d)"
+  fixture_path="scripts/tests/fixture_timing_test.sh"
+  result_stem="scripts_tests_fixture_timing_test.sh"
+  mkdir -p "$tmpdir/scripts/tests" "$tmpdir/results"
+  printf '%s\n' '#!/usr/bin/env bash' 'printf "fixture timing output\n"' \
+    > "$tmpdir/$fixture_path"
+  chmod +x "$tmpdir/$fixture_path"
+
+  REPO_ROOT="$tmpdir"
+  now_seconds() { date +%s; }
+  eval "$stem_body"
+  eval "$runner_body"
+  run_reachability_suite "$fixture_path" "$tmpdir/results"
+
+  assert_eq "$(reachability_result_stem "$fixture_path")" "$result_stem" \
+    "reachability result paths use one canonical stem mapping"
+  assert_eq "$(cat "$tmpdir/results/$result_stem.rc")" "0" \
+    "reachability suite runner preserves the fixture return code"
+  assert_eq "$(cat "$tmpdir/results/$result_stem.log")" "fixture timing output" \
+    "reachability suite runner preserves the fixture log"
+  timing_row="$(cat "$tmpdir/results/$result_stem.timing")"
+  if [[ "$timing_row" =~ ^[0-9]+$'\t'"$fixture_path"$'\t'0$ ]]; then
+    pass "reachability suite runner records elapsed seconds, path, and return code"
+  else
+    fail "reachability suite runner must record a receipt-ready timing row (actual='$timing_row')"
+  fi
+  rm -rf "$tmpdir"
+}
+
+test_reachability_timing_writer_sorts_complete_population() {
+  local writer_body tmpdir expected timing_rows output rc=0
+  writer_body="$(
+    awk '/^write_reachability_timings\(\) \{/{f=1} f{print} f&&/^\}$/{exit}' "$LOCAL_CI"
+  )"
+  if [ -z "$writer_body" ]; then
+    fail "write_reachability_timings function not found in local-ci.sh"
+    return
+  fi
+
+  tmpdir="$(mktemp -d)"
+  printf '2\tscripts/tests/z_test.sh\t0\n' >"$tmpdir/z.timing"
+  printf '9\tscripts/tests/b_test.sh\t1\n' >"$tmpdir/b.timing"
+  printf '2\tscripts/tests/a_test.sh\t0\n' >"$tmpdir/a.timing"
+
+  eval "$writer_body"
+  timing_rows="$(write_reachability_timings "$tmpdir" "$tmpdir/slow_suites.tsv" "3")"
+
+  expected=$'9\tscripts/tests/b_test.sh\t1\n2\tscripts/tests/a_test.sh\t0\n2\tscripts/tests/z_test.sh\t0'
+  assert_eq "$timing_rows" "3" \
+    "reachability timing writer reports the complete measured population"
+  assert_eq "$(cat "$tmpdir/slow_suites.tsv")" "$expected" \
+    "reachability timing writer preserves every row and sorts by elapsed seconds then path"
+  output="$(
+    write_reachability_timings "$tmpdir" "$tmpdir/incomplete.tsv" "4" 2>&1
+  )" || rc=$?
+  assert_eq "$rc" "1" \
+    "reachability timing writer fails when a suite timing row is missing"
+  assert_contains "$output" "timing population mismatch: expected 4 actual 3" \
+    "missing timing evidence reports exact expected and actual populations"
+  rm -rf "$tmpdir"
 }
 
 test_rust_test_gate_is_not_scheduled_in_parallel() {
@@ -369,7 +446,9 @@ test_local_schema_drift_single_gate_mode_remains_supported
 test_reachability_gate_runs_after_parallel_wait_and_before_schema_drift
 test_reachability_gate_has_one_run_path
 test_reachability_single_gate_mode_remains_supported
-test_reachability_checkout_env_mutators_are_serial_only
+test_reachability_serial_registry_matches_isolation_state
+test_reachability_suite_runner_records_receipt_timing_row
+test_reachability_timing_writer_sorts_complete_population
 test_rust_test_gate_is_not_scheduled_in_parallel
 test_rust_test_gate_runs_after_web_test
 test_rust_test_single_gate_mode_remains_supported

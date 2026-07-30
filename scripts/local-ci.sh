@@ -857,6 +857,38 @@ gate_launch_evidence_freshness_contract() {
     esac
 }
 
+reachability_result_stem() {
+    printf '%s' "$1" | tr '/' '_'
+}
+
+run_reachability_suite() {
+    local test_path="$1" results_dir="$2"
+    local result_stem start rc=0
+
+    result_stem="$(reachability_result_stem "$test_path")"
+    start="$(now_seconds)"
+    bash "$REPO_ROOT/$test_path" >"$results_dir/$result_stem.log" 2>&1 || rc=$?
+    printf '%s\n' "$rc" >"$results_dir/$result_stem.rc"
+    printf '%s\t%s\t%s\n' "$(( $(now_seconds) - start ))" "$test_path" "$rc" \
+        >"$results_dir/$result_stem.timing"
+}
+
+write_reachability_timings() {
+    local results_dir="$1" output_path="$2" expected_rows="$3"
+    local actual_rows
+
+    cat "$results_dir"/*.timing \
+        | LC_ALL=C sort -t $'\t' -k1,1nr -k2,2 \
+        >"$output_path"
+    actual_rows="$(wc -l <"$output_path" | tr -d '[:space:]')"
+    if [ "$actual_rows" != "$expected_rows" ]; then
+        printf 'reachability gate: timing population mismatch: expected %s actual %s\n' \
+            "$expected_rows" "$actual_rows" >&2
+        return 1
+    fi
+    printf '%s\n' "$actual_rows"
+}
+
 gate_test_reachability_contract() {
     # The manifest holds ~142 hermetic suites that jul27_pm_4 wired up after
     # finding them reachable from nothing. Run SERIALLY this took 1260s — one
@@ -875,8 +907,8 @@ gate_test_reachability_contract() {
     # suites passing. The concurrent run must produce the same pass/fail set, and
     # every failing suite is named rather than collapsed into one exit code, so a
     # concurrency-induced failure is visible instead of looking like a flake.
-    local test_path pids=() failed=() jobs=0 max_jobs rc
-    local results_dir serial_registry serial_list
+    local test_path failed=() jobs=0 max_jobs rc result_stem
+    local results_dir serial_registry serial_list timings_file timing_rows
 
     bash "$REPO_ROOT/scripts/tests/probe_test_reachability_test.sh" || return $?
     bash "$REPO_ROOT/scripts/probe_test_reachability.sh" || return $?
@@ -917,10 +949,7 @@ gate_test_reachability_contract() {
         if printf '%s\n' "$serial_list" | grep -Fxq "$test_path"; then
             continue
         fi
-        (
-            bash "$REPO_ROOT/$test_path" >"$results_dir/$(echo "$test_path" | tr '/' '_').log" 2>&1
-            printf '%s\n' "$?" >"$results_dir/$(echo "$test_path" | tr '/' '_').rc"
-        ) &
+        run_reachability_suite "$test_path" "$results_dir" &
         jobs=$((jobs + 1))
         if [ "$jobs" -ge "$max_jobs" ]; then
             wait
@@ -939,23 +968,33 @@ gate_test_reachability_contract() {
             rm -rf "$results_dir"
             return 1
         fi
-        bash "$REPO_ROOT/$test_path" >"$results_dir/$(echo "$test_path" | tr '/' '_').log" 2>&1
-        printf '%s\n' "$?" >"$results_dir/$(echo "$test_path" | tr '/' '_').rc"
+        run_reachability_suite "$test_path" "$results_dir"
     done <<EOF
 $serial_list
 EOF
 
     for test_path in "${TEST_REACHABILITY_HERMETIC_TESTS[@]}"; do
-        rc="$(cat "$results_dir/$(echo "$test_path" | tr '/' '_').rc" 2>/dev/null || echo 1)"
+        result_stem="$(reachability_result_stem "$test_path")"
+        rc="$(cat "$results_dir/$result_stem.rc" 2>/dev/null || echo 1)"
         if [ "$rc" != "0" ]; then
             failed+=("$test_path (exit $rc)")
             echo "--- FAILING hermetic suite: $test_path (exit $rc) ---" >&2
-            tail -n 30 "$results_dir/$(echo "$test_path" | tr '/' '_').log" >&2 || true
+            tail -n 30 "$results_dir/$result_stem.log" >&2 || true
         fi
     done
 
     printf 'reachability gate: %s hermetic suite(s) run at concurrency %s, %s failed\n' \
         "${#TEST_REACHABILITY_HERMETIC_TESTS[@]}" "$max_jobs" "${#failed[@]}"
+    timings_file="$LOG_DIR/test_reachability_slow_suites.tsv"
+    timing_rows="$(
+        write_reachability_timings \
+            "$results_dir" "$timings_file" "${#TEST_REACHABILITY_HERMETIC_TESTS[@]}"
+    )" || {
+        rm -rf "$results_dir"
+        return 1
+    }
+    printf 'reachability gate: %s receipt timing row(s) retained in test_reachability_slow_suites.tsv\n' \
+        "$timing_rows"
     rm -rf "$results_dir"
 
     if [ "${#failed[@]}" -gt 0 ]; then

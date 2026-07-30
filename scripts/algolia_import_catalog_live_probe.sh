@@ -36,6 +36,8 @@ INTEGRATION_DOWN="${ALGOLIA_IMPORT_CATALOG_INTEGRATION_DOWN:-$SCRIPT_DIR/integra
 ENGINE_CONTRACT_CHECK="${ALGOLIA_IMPORT_CATALOG_ENGINE_CONTRACT_CHECK:-$SCRIPT_DIR/update_algolia_migration_engine_contract.sh}"
 CALLER_RUNNER="${ALGOLIA_IMPORT_CATALOG_CALLER_RUNNER:-$SCRIPT_DIR/algolia_import_catalog_caller_runner.sh}"
 CALLER_EVIDENCE_VALIDATOR="$SCRIPT_DIR/lib/algolia_import_catalog_evidence.py"
+ALGOLIA_POLL_ATTEMPTS="${ALGOLIA_IMPORT_CATALOG_ALGOLIA_POLL_ATTEMPTS:-5}"
+ALGOLIA_POLL_SECONDS="${ALGOLIA_IMPORT_CATALOG_ALGOLIA_POLL_SECONDS:-1}"
 PROBE_ADMIN_KEY="" # gitleaks:allow -- adjacent empty variable names, no credential literal
 INTEGRATION_DB_EFFECTIVE=""
 ALGOLIA_AUTH_CONFIG=""
@@ -482,6 +484,12 @@ prepare_runtime() {
         "X-Algolia-API-Key: $ALGOLIA_ADMIN_KEY"
 }
 
+validate_algolia_poll_config() {
+    CURRENT_STEP="poll_config"
+    algolia_import_probe_validate_poll_contract "$ALGOLIA_POLL_ATTEMPTS" "$ALGOLIA_POLL_SECONDS" \
+        || finish_action_required "invalid_poll_config"
+}
+
 run_integration_up() {
     local preserve_db="$1"
     FJCLOUD_INTEGRATION_PID_DIR="$PID_DIR" \
@@ -509,7 +517,8 @@ require_health() {
 }
 
 wait_for_algolia_task() {
-    algolia_import_probe_wait_for_algolia_task "$@"
+    algolia_import_probe_wait_for_algolia_task "$1" "$2" \
+        "$ALGOLIA_POLL_ATTEMPTS" "$ALGOLIA_POLL_SECONDS"
 }
 
 create_algolia_fixture() {
@@ -539,6 +548,7 @@ create_algolia_fixture() {
         || finish_action_required "invalid_response_identifier"
     CREATED_KEYS+=("$DISPOSABLE_KEY")
     algolia_import_probe_wait_for_restricted_source_key "$SOURCE_INDEX" "$DISPOSABLE_KEY" \
+        "$ALGOLIA_POLL_ATTEMPTS" "$ALGOLIA_POLL_SECONDS" \
         || finish_action_required "inconclusive_evidence"
 }
 
@@ -720,7 +730,8 @@ count_algolia_key_residue() {
 }
 
 delete_algolia_index() {
-    algolia_import_probe_delete_algolia_index "$1"
+    algolia_import_probe_delete_algolia_index "$1" \
+        "$ALGOLIA_POLL_ATTEMPTS" "$ALGOLIA_POLL_SECONDS"
 }
 
 cleanup_resources() {
@@ -785,6 +796,7 @@ main() {
             *) finish_action_required "flapjack_dev_dir_unavailable" ;;
         esac
     }
+    validate_algolia_poll_config
     prepare_runtime
     trap 'cleanup_resources >/dev/null 2>&1 || true' EXIT
     start_stack

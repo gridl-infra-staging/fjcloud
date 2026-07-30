@@ -81,25 +81,49 @@ algolia_import_probe_safe_opaque_token() {
         && [[ "$value" != *\\* ]]
 }
 
+algolia_import_probe_valid_poll_attempts() {
+    local value="$1"
+    [[ "$value" =~ ^[1-9][0-9]*$ ]]
+}
+
+algolia_import_probe_valid_poll_seconds() {
+    local value="$1"
+    [[ "$value" =~ ^[0-9]+$ ]]
+}
+
+algolia_import_probe_validate_poll_contract() {
+    local attempts="$1"
+    local seconds="$2"
+    algolia_import_probe_valid_poll_attempts "$attempts" \
+        && algolia_import_probe_valid_poll_seconds "$seconds"
+}
+
 algolia_import_probe_wait_for_algolia_task() {
     local index="$1"
     local task_id="$2"
-    local task_status
-    for _ in 1 2 3 4 5; do
+    local attempts="${3:-5}"
+    local seconds="${4:-1}"
+    local attempt=0 task_status
+    algolia_import_probe_validate_poll_contract "$attempts" "$seconds" || return 1
+    while [ "$attempt" -lt "$attempts" ]; do
+        attempt=$((attempt + 1))
         algolia_request "200 404" GET "/1/indexes/$index/task/$task_id" || return 1
         [ "$HTTP_STATUS" = "404" ] && return 0
         task_status="$(
             algolia_import_probe_json_field "$HTTP_BODY" status 2>/dev/null || true
         )"
         [ "$task_status" = "published" ] && return 0
-        sleep 1
+        [ "$attempt" = "$attempts" ] || sleep "$seconds"
     done
     return 1
 }
 
 algolia_import_probe_delete_algolia_index() {
     local index="$1"
+    local attempts="${2:-5}"
+    local seconds="${3:-1}"
     local task_id
+    algolia_import_probe_validate_poll_contract "$attempts" "$seconds" || return 1
     algolia_request "200 204 404" DELETE "/1/indexes/$index" || return 1
     [ "$HTTP_STATUS" = "404" ] && return 0
     task_id="$(
@@ -107,16 +131,20 @@ algolia_import_probe_delete_algolia_index() {
     )"
     [ -n "$task_id" ] || return 0
     algolia_import_probe_safe_response_identifier "$task_id" || return 1
-    algolia_import_probe_wait_for_algolia_task "$index" "$task_id"
+    algolia_import_probe_wait_for_algolia_task "$index" "$task_id" "$attempts" "$seconds"
 }
 
 algolia_import_probe_wait_for_algolia_key_absence() {
     local restricted_key="$1"
-    local attempt
-    for attempt in 1 2 3 4 5; do
+    local attempts="${2:-5}"
+    local seconds="${3:-1}"
+    local attempt=0
+    algolia_import_probe_validate_poll_contract "$attempts" "$seconds" || return 1
+    while [ "$attempt" -lt "$attempts" ]; do
+        attempt=$((attempt + 1))
         algolia_request "200 404" GET "/1/keys/$restricted_key" || return 1
         [ "$HTTP_STATUS" = "404" ] && return 0
-        [ "$attempt" = "5" ] || sleep 1
+        [ "$attempt" = "$attempts" ] || sleep "$seconds"
     done
     return 1
 }
@@ -152,16 +180,21 @@ algolia_import_probe_obtain_target_envelope() {
 algolia_import_probe_wait_for_restricted_source_key() {
     local source_index="$1"
     local restricted_key="$2"
+    local attempts="${3:-5}"
+    local seconds="${4:-1}"
     local key_config attempt
+    algolia_import_probe_validate_poll_contract "$attempts" "$seconds" || return 1
     key_config="$(secure_temp_file)"
     algolia_import_probe_write_header_config "$key_config" \
         "X-Algolia-Application-Id: $ALGOLIA_APP_ID" \
         "X-Algolia-API-Key: $restricted_key"
-    for attempt in 1 2 3 4 5; do
+    attempt=0
+    while [ "$attempt" -lt "$attempts" ]; do
+        attempt=$((attempt + 1))
         curl_http "200 403 404" --config "$key_config" -X GET "$(algolia_url "/1/indexes/$source_index")" \
             || return 1
         [ "$HTTP_STATUS" = "200" ] && return 0
-        [ "$attempt" = "5" ] || sleep 1
+        [ "$attempt" = "$attempts" ] || sleep "$seconds"
     done
     return 1
 }

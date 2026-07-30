@@ -32,6 +32,8 @@ LOCAL_DEV_TEST_DB_URL="postgres://local-test:local-pass@localhost:5432/local_dev
 LOCAL_DEV_ALT_PORT_DB_URL="postgres://local-test:local-pass@localhost:15432/local_dev_test"
 LOCAL_DEV_INVALID_PORT_DB_URL="postgres://local-test:local-pass@localhost:notaport/local_dev_test"
 LOCAL_DEV_OUT_OF_RANGE_PORT_DB_URL="postgres://local-test:local-pass@localhost:70000/local_dev_test"
+LOCAL_DEV_TEST_REPO_ROOT=""
+LOCAL_DEV_COMPOSE_PROJECT_NAME=""
 
 setup_local_dev_test_migrations() {
     local migrations_dir="$1"
@@ -43,19 +45,25 @@ setup_local_dev_test_migrations() {
 
 setup_local_dev_repo_state() {
     local tmp_dir="$1"
-    LOCAL_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
-    LOCAL_DEV_RUNTIME_BACKUP=$(backup_repo_path "$REPO_ROOT/.local" "$tmp_dir/.local.backup")
-    write_local_dev_env_file "$REPO_ROOT/.env.local" "$LOCAL_DEV_TEST_DB_URL"
+    LOCAL_DEV_TEST_REPO_ROOT="$(create_local_dev_fixture_repo_root "$tmp_dir" "$LOCAL_DEV_TEST_DB_URL")"
+    LOCAL_DEV_COMPOSE_PROJECT_NAME="fjcloud_local_dev_up_$$_${RANDOM}"
+    mkdir -p "$LOCAL_DEV_TEST_REPO_ROOT/infra"
+    cp -R "$REPO_ROOT/infra/migrations" "$LOCAL_DEV_TEST_REPO_ROOT/infra/"
+    cp "$REPO_ROOT/.env.local.example" "$LOCAL_DEV_TEST_REPO_ROOT/.env.local.example"
     setup_local_dev_test_migrations "$tmp_dir/migrations"
 }
 
 restore_local_dev_repo_state() {
-    restore_repo_path "$REPO_ROOT/.env.local" "${LOCAL_DEV_ENV_BACKUP:-}"
-    restore_repo_path "$REPO_ROOT/.local" "${LOCAL_DEV_RUNTIME_BACKUP:-}"
     unset FJCLOUD_HOST_MIGRATIONS_DIR
     unset FJCLOUD_DOCKER_MIGRATIONS_DIR
-    LOCAL_DEV_ENV_BACKUP=""
-    LOCAL_DEV_RUNTIME_BACKUP=""
+    LOCAL_DEV_TEST_REPO_ROOT=""
+    LOCAL_DEV_COMPOSE_PROJECT_NAME=""
+}
+
+run_local_dev_up() {
+    FJCLOUD_REPO_ROOT="$LOCAL_DEV_TEST_REPO_ROOT" \
+    COMPOSE_PROJECT_NAME="$LOCAL_DEV_COMPOSE_PROJECT_NAME" \
+        bash "$REPO_ROOT/scripts/local-dev-up.sh"
 }
 
 write_mock_script() {
@@ -180,7 +188,7 @@ test_calls_down_before_starting() {
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     # Verify local-dev-down.sh was invoked (it calls docker compose down)
@@ -204,7 +212,7 @@ test_starts_only_postgres_service() {
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     local calls
@@ -227,7 +235,7 @@ test_waits_for_postgres_with_superuser_probe() {
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     local calls
@@ -259,7 +267,7 @@ test_starts_flapjack_with_shared_local_admin_key_default() {
         FLAPJACK_ADMIN_KEY="" \
         FLAPJACK_DEV_DIR="$tmp_dir/flapjack" \
         FLAPJACK_PORT=7797 \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "should start successfully with a mock flapjack binary"
@@ -295,7 +303,7 @@ test_summary_includes_flapjack_binary_path() {
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_ADMIN_KEY="" \
         FLAPJACK_DEV_DIR="$tmp_dir/flapjack_dev" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "should start successfully when a flapjack binary is available"
@@ -324,7 +332,7 @@ test_discovers_alternate_flapjack_checkout_when_unset() {
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR_CANDIDATES="$tmp_dir/missing $tmp_dir/gridl-dev/flapjack_dev/engine $tmp_dir/gridl-dev/flapjack_dev" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "should start successfully when alternate Flapjack checkout is discoverable"
@@ -412,7 +420,7 @@ test_prefers_engine_debug_over_root_release_when_both_exist() {
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR_CANDIDATES="$tmp_dir/missing $flapjack_checkout" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "startup should succeed when both engine debug and root release binaries exist"
@@ -437,7 +445,7 @@ test_summary_includes_effective_admin_key() {
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_ADMIN_KEY="" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "should start successfully when flapjack startup is skipped"
@@ -460,7 +468,7 @@ test_preserves_explicit_flapjack_admin_key_override() {
     mkdir -p "$tmp_dir/bin"
     setup_mock_bin "$tmp_dir/bin" "$call_log"
     setup_local_dev_repo_state "$tmp_dir"
-    cat >> "$REPO_ROOT/.env.local" <<'EOF'
+    cat >> "$LOCAL_DEV_TEST_REPO_ROOT/.env.local" <<'EOF'
 FLAPJACK_ADMIN_KEY=file-admin-key
 EOF
 
@@ -469,7 +477,7 @@ EOF
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_ADMIN_KEY="explicit-admin-key" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "should start successfully when flapjack startup is skipped"
@@ -517,7 +525,7 @@ exit 0'
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "should recover from an incompatible postgres volume"
@@ -571,7 +579,7 @@ exit 0'
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "should tolerate brief app-role initialization lag on a fresh volume"
@@ -598,9 +606,8 @@ test_rejects_executable_env_local_content() {
     local marker_path="$tmp_dir/should-not-exist"
     mkdir -p "$tmp_dir/bin"
     setup_mock_bin "$tmp_dir/bin" "$call_log"
-    LOCAL_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
-    LOCAL_DEV_RUNTIME_BACKUP=$(backup_repo_path "$REPO_ROOT/.local" "$tmp_dir/.local.backup")
-    cat > "$REPO_ROOT/.env.local" <<EOF
+    setup_local_dev_repo_state "$tmp_dir"
+    cat > "$LOCAL_DEV_TEST_REPO_ROOT/.env.local" <<EOF
 DATABASE_URL=$LOCAL_DEV_TEST_DB_URL
 touch "$marker_path"
 EOF
@@ -609,7 +616,7 @@ EOF
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "1" "should reject executable shell syntax in .env.local"
@@ -631,22 +638,21 @@ test_missing_env_local_auto_bootstraps() {
     local call_log="$tmp_dir/calls.log"
     mkdir -p "$tmp_dir/bin"
     setup_mock_bin "$tmp_dir/bin" "$call_log"
-    LOCAL_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
-    LOCAL_DEV_RUNTIME_BACKUP=$(backup_repo_path "$REPO_ROOT/.local" "$tmp_dir/.local.backup")
-    rm -f "$REPO_ROOT/.env.local"
+    setup_local_dev_repo_state "$tmp_dir"
+    rm -f "$LOCAL_DEV_TEST_REPO_ROOT/.env.local"
 
     local output exit_code=0
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "should succeed after auto-bootstrapping .env.local"
     assert_contains "$output" "Bootstrap created .env.local" \
         "should log bootstrap success when .env.local was auto-created"
 
-    if [ -f "$REPO_ROOT/.env.local" ]; then
+    if [ -f "$LOCAL_DEV_TEST_REPO_ROOT/.env.local" ]; then
         pass "auto-bootstrap should create .env.local"
     else
         fail "auto-bootstrap should create .env.local (file not found)"
@@ -656,21 +662,20 @@ test_missing_env_local_auto_bootstraps() {
 test_missing_env_local_and_example_fails() {
     local tmp_dir
     tmp_dir=$(mktemp -d)
-    trap 'restore_local_dev_repo_state; mv "'"$tmp_dir"'/.env.local.example.backup" "'"$REPO_ROOT"'/.env.local.example" 2>/dev/null; rm -rf "'"$tmp_dir"'"' RETURN
+    trap 'restore_local_dev_repo_state; rm -rf "'"$tmp_dir"'"' RETURN
 
     local call_log="$tmp_dir/calls.log"
     mkdir -p "$tmp_dir/bin"
     setup_mock_bin "$tmp_dir/bin" "$call_log"
-    LOCAL_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
-    LOCAL_DEV_RUNTIME_BACKUP=$(backup_repo_path "$REPO_ROOT/.local" "$tmp_dir/.local.backup")
-    rm -f "$REPO_ROOT/.env.local"
-    mv "$REPO_ROOT/.env.local.example" "$tmp_dir/.env.local.example.backup"
+    setup_local_dev_repo_state "$tmp_dir"
+    rm -f "$LOCAL_DEV_TEST_REPO_ROOT/.env.local"
+    rm -f "$LOCAL_DEV_TEST_REPO_ROOT/.env.local.example"
 
     local output exit_code=0
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "1" "should fail when both .env.local and .env.local.example are missing"
@@ -700,7 +705,7 @@ exit 0'
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     # run_migrations calls psql for each .sql file
@@ -733,7 +738,7 @@ exit 0'
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "should not require host psql when docker compose can exec the postgres client"
@@ -749,15 +754,14 @@ test_uses_database_url_port_for_postgres_bind_and_summary() {
     local call_log="$tmp_dir/calls.log"
     mkdir -p "$tmp_dir/bin"
     setup_mock_bin "$tmp_dir/bin" "$call_log"
-    LOCAL_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
-    LOCAL_DEV_RUNTIME_BACKUP=$(backup_repo_path "$REPO_ROOT/.local" "$tmp_dir/.local.backup")
-    write_local_dev_env_file "$REPO_ROOT/.env.local" "$LOCAL_DEV_ALT_PORT_DB_URL"
+    setup_local_dev_repo_state "$tmp_dir"
+    write_local_dev_env_file "$LOCAL_DEV_TEST_REPO_ROOT/.env.local" "$LOCAL_DEV_ALT_PORT_DB_URL"
 
     local output exit_code=0
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "should support non-default host Postgres ports from DATABASE_URL"
@@ -781,15 +785,14 @@ test_rejects_non_numeric_database_url_port() {
     local call_log="$tmp_dir/calls.log"
     mkdir -p "$tmp_dir/bin"
     setup_mock_bin "$tmp_dir/bin" "$call_log"
-    LOCAL_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
-    LOCAL_DEV_RUNTIME_BACKUP=$(backup_repo_path "$REPO_ROOT/.local" "$tmp_dir/.local.backup")
-    write_local_dev_env_file "$REPO_ROOT/.env.local" "$LOCAL_DEV_INVALID_PORT_DB_URL"
+    setup_local_dev_repo_state "$tmp_dir"
+    write_local_dev_env_file "$LOCAL_DEV_TEST_REPO_ROOT/.env.local" "$LOCAL_DEV_INVALID_PORT_DB_URL"
 
     local output exit_code=0
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "1" "should reject non-numeric DATABASE_URL ports"
@@ -810,15 +813,14 @@ test_rejects_out_of_range_database_url_port() {
     local call_log="$tmp_dir/calls.log"
     mkdir -p "$tmp_dir/bin"
     setup_mock_bin "$tmp_dir/bin" "$call_log"
-    LOCAL_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
-    LOCAL_DEV_RUNTIME_BACKUP=$(backup_repo_path "$REPO_ROOT/.local" "$tmp_dir/.local.backup")
-    write_local_dev_env_file "$REPO_ROOT/.env.local" "$LOCAL_DEV_OUT_OF_RANGE_PORT_DB_URL"
+    setup_local_dev_repo_state "$tmp_dir"
+    write_local_dev_env_file "$LOCAL_DEV_TEST_REPO_ROOT/.env.local" "$LOCAL_DEV_OUT_OF_RANGE_PORT_DB_URL"
 
     local output exit_code=0
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "1" "should reject out-of-range DATABASE_URL ports"
@@ -850,13 +852,13 @@ test_starts_flapjack_on_port_7700() {
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="$tmp_dir/flapjack_dev" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_contains "$output" "port 7700" \
         "should start flapjack on port 7700"
 
-    local flapjack_pid_file="$REPO_ROOT/.local/flapjack.pid"
+    local flapjack_pid_file="$LOCAL_DEV_TEST_REPO_ROOT/.local/flapjack.pid"
     if [ -f "$flapjack_pid_file" ]; then
         local pid
         pid=$(cat "$flapjack_pid_file" 2>/dev/null || true)
@@ -885,13 +887,13 @@ test_starts_flapjack_with_current_binary_name() {
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="$tmp_dir/flapjack_dev" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_contains "$output" "port 7700" \
         "should start flapjack when the current binary name is present"
 
-    local flapjack_pid_file="$REPO_ROOT/.local/flapjack.pid"
+    local flapjack_pid_file="$LOCAL_DEV_TEST_REPO_ROOT/.local/flapjack.pid"
     if [ -f "$flapjack_pid_file" ]; then
         local pid
         pid=$(cat "$flapjack_pid_file" 2>/dev/null || true)
@@ -928,7 +930,7 @@ exit 0'
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "rerun should succeed when all migrations are already applied"
@@ -955,7 +957,7 @@ test_flapjack_missing_warns_and_skips() {
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "should succeed even when flapjack binary is missing"
@@ -989,7 +991,7 @@ test_selected_flapjack_source_build_failure_is_fatal() {
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="$checkout" \
         FLAPJACK_SOURCE_RECEIPT_DIR="$tmp_dir/receipts" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "1" \
@@ -1034,7 +1036,7 @@ exit 0
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="$checkout" \
         FLAPJACK_SOURCE_RECEIPT_DIR="$tmp_dir/receipts" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" \
@@ -1075,7 +1077,7 @@ test_prints_startup_instructions() {
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_contains "$output" "scripts/api-dev.sh" \
@@ -1098,7 +1100,7 @@ test_starts_seaweedfs_and_mailpit() {
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "should succeed with optional services"
@@ -1250,7 +1252,7 @@ exit 0'
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" \
@@ -1274,7 +1276,7 @@ test_startup_summary_reflects_health_status() {
     output_healthy=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_contains "$output_healthy" "SeaweedFS S3:" \
@@ -1309,7 +1311,7 @@ exit 0'
     output_unhealthy=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code2=$?
 
     assert_not_contains "$output_unhealthy" "SeaweedFS S3:" \
@@ -1344,7 +1346,7 @@ test_multi_region_flapjack_starts_one_per_region() {
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_DEV_DIR="$tmp_dir/flapjack_dev" \
         FLAPJACK_REGIONS="us-east-1:7700 eu-west-1:7701" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "multi-region flapjack startup should succeed"
@@ -1356,7 +1358,7 @@ test_multi_region_flapjack_starts_one_per_region() {
         "should start flapjack on port 7701 for eu-west-1"
 
     # Verify PID files were created for each region.
-    local pid_dir="$REPO_ROOT/.local"
+    local pid_dir="$LOCAL_DEV_TEST_REPO_ROOT/.local"
     if [ -f "$pid_dir/flapjack-us-east-1.pid" ]; then
         pass "flapjack-us-east-1.pid was created"
     else

@@ -31,16 +31,19 @@ MOCK_CUSTOMER_UUID="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
 setup_metering_test_state() {
     local tmp_dir="$1"
-    LOCAL_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
-    LOCAL_DEV_RUNTIME_BACKUP=$(backup_repo_path "$REPO_ROOT/.local" "$tmp_dir/.local.backup")
-    write_local_dev_env_file "$REPO_ROOT/.env.local" "$LOCAL_DEV_TEST_DB_URL"
+    METERING_TEST_REPO_ROOT="$(create_local_dev_fixture_repo_root "$tmp_dir" "$LOCAL_DEV_TEST_DB_URL")"
+    METERING_COMPOSE_PROJECT_NAME="fjcloud_start_metering_$$_${RANDOM}"
 }
 
 restore_metering_test_state() {
-    restore_repo_path "$REPO_ROOT/.env.local" "${LOCAL_DEV_ENV_BACKUP:-}"
-    restore_repo_path "$REPO_ROOT/.local" "${LOCAL_DEV_RUNTIME_BACKUP:-}"
-    LOCAL_DEV_ENV_BACKUP=""
-    LOCAL_DEV_RUNTIME_BACKUP=""
+    METERING_TEST_REPO_ROOT=""
+    METERING_COMPOSE_PROJECT_NAME=""
+}
+
+run_start_metering() {
+    FJCLOUD_REPO_ROOT="$METERING_TEST_REPO_ROOT" \
+    COMPOSE_PROJECT_NAME="$METERING_COMPOSE_PROJECT_NAME" \
+        bash "$REPO_ROOT/scripts/start-metering.sh" "$@"
 }
 
 write_mock_script() {
@@ -115,7 +118,7 @@ test_single_region_passes_correct_env_vars() {
     local output exit_code=0
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
-        bash "$REPO_ROOT/scripts/start-metering.sh" 2>&1
+        run_start_metering 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "single-region start should succeed"
@@ -158,7 +161,7 @@ test_customer_uuid_lookup_uses_psql_when_available() {
     local output exit_code=0
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
-        bash "$REPO_ROOT/scripts/start-metering.sh" 2>&1
+        run_start_metering 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "should succeed with psql available"
@@ -208,7 +211,7 @@ exit 0'
     local output exit_code=0
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
-        bash "$REPO_ROOT/scripts/start-metering.sh" 2>&1
+        run_start_metering 2>&1
     ) || exit_code=$?
 
     # Wait for backgrounded cargo to finish writing.
@@ -238,7 +241,7 @@ test_multi_region_parses_flapjack_regions() {
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_REGIONS="us-east-1:7700 eu-west-1:7701 eu-central-1:7702" \
-        bash "$REPO_ROOT/scripts/start-metering.sh" --multi-region 2>&1
+        run_start_metering --multi-region 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "multi-region start should succeed"
@@ -278,7 +281,7 @@ test_multi_region_health_ports_auto_derived() {
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
         FLAPJACK_REGIONS="us-east-1:7700 eu-west-1:7701 eu-central-1:7702" \
-        bash "$REPO_ROOT/scripts/start-metering.sh" --multi-region 2>&1
+        run_start_metering --multi-region 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "multi-region start should succeed"
@@ -309,14 +312,14 @@ test_idempotent_skips_running_process() {
 
     # Pre-create a PID file pointing to a running process (our own shell).
     # The script checks kill -0 on the PID, so using $$ (current shell) works.
-    local pid_dir="$REPO_ROOT/.local"
+    local pid_dir="$METERING_TEST_REPO_ROOT/.local"
     mkdir -p "$pid_dir"
     echo "$$" > "$pid_dir/metering-agent-us-east-1.pid"
 
     local output exit_code=0
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
-        bash "$REPO_ROOT/scripts/start-metering.sh" 2>&1
+        run_start_metering 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "should succeed when agent is already running"
@@ -352,7 +355,7 @@ test_fails_if_no_shared_customer_found() {
     local output exit_code=0
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
-        bash "$REPO_ROOT/scripts/start-metering.sh" 2>&1
+        run_start_metering 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "1" "should fail when no shared customer is found"
@@ -365,10 +368,9 @@ test_fails_if_database_url_missing() {
     tmp_dir=$(mktemp -d)
     trap 'restore_metering_test_state; rm -rf "'"$tmp_dir"'"' RETURN
 
-    # Set up env backup and runtime backup, but write an .env.local WITHOUT DATABASE_URL.
-    LOCAL_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
-    LOCAL_DEV_RUNTIME_BACKUP=$(backup_repo_path "$REPO_ROOT/.local" "$tmp_dir/.local.backup")
-    cat > "$REPO_ROOT/.env.local" <<'EOF'
+    METERING_TEST_REPO_ROOT="$(create_local_dev_fixture_repo_root "$tmp_dir")"
+    METERING_COMPOSE_PROJECT_NAME="fjcloud_start_metering_$$_${RANDOM}"
+    cat > "$METERING_TEST_REPO_ROOT/.env.local" <<'EOF'
 JWT_SECRET=test-jwt-secret
 ADMIN_KEY=test-admin-key
 EOF
@@ -380,12 +382,59 @@ EOF
     local output exit_code=0
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
-        bash "$REPO_ROOT/scripts/start-metering.sh" 2>&1
+        run_start_metering 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "1" "should fail when DATABASE_URL is missing"
     assert_contains "$output" "DATABASE_URL is required" \
         "should report that DATABASE_URL is missing"
+}
+
+test_honors_fjcloud_repo_root_override() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_metering_test_state; rm -rf "'"$tmp_dir"'"' RETURN
+    setup_metering_test_state "$tmp_dir"
+
+    local fixture_root fixture_pid_dir checkout_pid_dir checkout_sentinel call_log
+    fixture_root="$(create_local_dev_fixture_repo_root "$tmp_dir" "$LOCAL_DEV_TEST_DB_URL")"
+    fixture_pid_dir="$fixture_root/.local"
+    checkout_pid_dir="$REPO_ROOT/.local"
+    checkout_sentinel="$checkout_pid_dir/stage3_checkout_$$_${RANDOM}.log"
+    call_log="$tmp_dir/calls.log"
+    mkdir -p "$tmp_dir/bin" "$checkout_pid_dir"
+    printf 'checkout sentinel\n' > "$checkout_sentinel"
+    setup_metering_mocks "$tmp_dir/bin" "$call_log"
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        FJCLOUD_REPO_ROOT="$fixture_root" \
+        COMPOSE_PROJECT_NAME="fjcloud_stage3_metering_$$" \
+        FLAPJACK_PORT=17770 \
+        bash "$REPO_ROOT/scripts/start-metering.sh" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "0" "start-metering honors FJCLOUD_REPO_ROOT override"
+    wait_for_call_log_contains "$call_log" "FLAPJACK_URL=http://127.0.0.1:17770" || true
+
+    local calls
+    calls=$(cat "$call_log" 2>/dev/null || true)
+    assert_contains "$calls" "DATABASE_URL=$LOCAL_DEV_TEST_DB_URL" \
+        "override root .env.local supplies DATABASE_URL"
+    assert_contains "$calls" "FLAPJACK_URL=http://127.0.0.1:17770" \
+        "override root invocation preserves the FLAPJACK_PORT seam"
+    assert_file_exists "$fixture_pid_dir/metering-agent-us-east-1.pid" \
+        "override root owns the metering-agent PID file"
+    assert_file_exists "$checkout_sentinel" \
+        "checkout-root sentinel remains untouched when FJCLOUD_REPO_ROOT is supplied"
+    if [ -e "$checkout_pid_dir/metering-agent-us-east-1.pid" ]; then
+        fail "checkout root does not receive metering-agent PID files under override"
+    else
+        pass "checkout root does not receive metering-agent PID files under override"
+    fi
+    rm -f "$checkout_sentinel"
+    rmdir "$checkout_pid_dir" 2>/dev/null || true
 }
 
 # ============================================================================
@@ -404,6 +453,7 @@ main() {
     test_idempotent_skips_running_process
     test_fails_if_no_shared_customer_found
     test_fails_if_database_url_missing
+    test_honors_fjcloud_repo_root_override
 
     echo ""
     echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="

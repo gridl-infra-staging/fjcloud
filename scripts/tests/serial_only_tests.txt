@@ -7,23 +7,9 @@
 # oracle: the serial run passes all 130, so any suite failing only in the
 # concurrent run is contending on shared state, not genuinely broken.
 #
-# These suites either failed empirically under concurrency 8 or share the same
-# checkout-root state mutation pattern that caused the observed failures. Each
-# passes on its own and remains in the serial tail until it has per-suite
-# isolation:
-#
-#   $ bash scripts/tests/api_dev_test.sh                     -> exit 0
-#   $ bash scripts/tests/apply_ses_log_read_policy_test.sh   -> exit 0
-#   $ bash scripts/tests/integration_up_test.sh              -> exit 0
-#   $ bash scripts/tests/local_demo_test.sh                  -> exit 0
-#   $ bash scripts/tests/local_dev_down_test.sh              -> exit 0
-#   $ bash scripts/tests/local_dev_migrate_test.sh           -> exit 0
-#   $ bash scripts/tests/run_aggregation_job_test.sh         -> exit 0
-#   $ bash scripts/tests/run_browser_lane_against_staging_test.sh -> exit 0
-#   $ bash scripts/tests/seed_local_test.sh                  -> exit 0
-#   $ bash scripts/tests/seed_synthetic_traffic_test.sh      -> exit 0
-#   $ bash scripts/tests/start_metering_test.sh              -> exit 0
-#   $ bash scripts/tests/web_dev_test.sh                     -> exit 0
+# Suites listed here either failed empirically under concurrency 8 or share the
+# same checkout-root state mutation pattern that caused the observed failures.
+# Each suite remains in the serial tail only until it has per-suite isolation.
 #
 # They are "hermetic" in the reachability audit's sense (no deployed
 # environment, no live credentials) but not isolated from each other: they drive
@@ -39,17 +25,12 @@
 # unique temp roots) so these can rejoin the concurrent batch. Until then, this
 # file records the measured truth rather than hiding it behind a slow serial
 # gate or, worse, a quarantine that stops running them.
-
-scripts/tests/api_dev_test.sh # temporarily replaces checkout-root .env.local throughout its suite
-scripts/tests/apply_ses_log_read_policy_test.sh # shares AWS policy fixture state; 181s serially, the slowest suite in the manifest
-scripts/tests/integration_up_test.sh # temporarily replaces checkout-root .env.local in startup prerequisite fixtures
-scripts/tests/local_demo_test.sh # temporarily replaces checkout-root .env.local throughout prepare-env fixtures
-scripts/tests/local_dev_down_test.sh # drives the shared local dev stack lifecycle
-scripts/tests/local_dev_migrate_test.sh # temporarily replaces checkout-root .env.local and .local throughout its suite
-scripts/tests/local_dev_up_test.sh # temporarily replaces checkout-root .env.local and .local throughout its suite
-scripts/tests/run_aggregation_job_test.sh # temporarily replaces checkout-root .env.local and .local throughout its suite
-scripts/tests/run_browser_lane_against_staging_test.sh # 1s watchdog contract is timing-sensitive under concurrent suite load
-scripts/tests/seed_local_test.sh # temporarily removes/replaces checkout-root .env.local throughout seed fixtures
-scripts/tests/seed_synthetic_traffic_test.sh # timing-sensitive subprocess contract failed under concurrency 8 and passed 246/246 serially
-scripts/tests/start_metering_test.sh # drives the shared local metering process and its pidfile
-scripts/tests/web_dev_test.sh # temporarily replaces checkout-root .env.local and web/.env.local throughout its suite
+#
+# Promoted 2026-07-29 after two simultaneous copies passed with exact totals:
+# apply_ses_log_read_policy_test.sh 110/0, local_dev_down_test.sh 35/0,
+# start_metering_test.sh 39/0, local_dev_migrate_test.sh 50/0,
+# integration_up_test.sh 87/0, seed_local_test.sh 149/0,
+# local_dev_up_test.sh 92/0, seed_synthetic_traffic_test.sh 246/0.
+# Promoted 2026-07-29 after two simultaneous copies passed with exact totals:
+# api_dev_test.sh 130/0, web_dev_test.sh 41/0, local_demo_test.sh 29/0,
+# run_aggregation_job_test.sh 21/0, run_browser_lane_against_staging_test.sh 39/0.

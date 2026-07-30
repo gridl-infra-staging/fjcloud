@@ -1,0 +1,601 @@
+#!/usr/bin/env bash
+# Contract for the current local-ci --fast runtime budget.
+#
+# Bootstrap calibration measured for Stage 3: elapsed_seconds=1551 in
+# docs/audits/test-wiring/20260729T014207Z_fast_budget_baseline/SUMMARY.md.
+# The ceiling below is intentionally unchanged from the Stage 1 budget.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/lib/test_runner.sh"
+source "$SCRIPT_DIR/lib/assertions.sh"
+source "$REPO_ROOT/scripts/lib/test_reachability_manifest.sh"
+
+BASELINE_RECEIPT_REL="docs/audits/test-wiring/20260729T014207Z_fast_budget_baseline/SUMMARY.md"
+BASELINE_HEAD_SHA="ae420accd033c162b5375e206efaed78502eff3f"
+BASELINE_SUITES=148
+BASELINE_ELAPSED_SECONDS=1551
+BUDGET_SECONDS=1800
+STAGE2_ALGOLIA_BEFORE="191 passed, 0 failed; real 67.64 user 25.74 sys 17.58"
+STAGE2_ALGOLIA_AFTER="213 passed, 0 failed; real 92.49 user 28.46 sys 21.75"
+STAGE2_SES_BEFORE="100 passed, 0 failed; real 20.69 user 6.38 sys 3.87"
+STAGE2_SES_AFTER="108 passed, 0 failed; real 36.25 user 8.17 sys 6.18"
+
+extract_receipt_value() {
+    local receipt="$1" key="$2"
+    awk -v key="$key" '
+        $1 == key {
+            print $2
+            found = 1
+            exit
+        }
+        END {
+            if (!found) {
+                exit 1
+            }
+        }
+    ' "$receipt"
+}
+
+extract_receipt_value_rest() {
+    local receipt="$1" key="$2"
+    awk -v key="$key" '
+        $1 == key {
+            sub("^[^=]+=[[:space:]]*", "")
+            print
+            found = 1
+            exit
+        }
+        END {
+            if (!found) {
+                exit 1
+            }
+        }
+    ' "$receipt"
+}
+
+validate_budget_receipt() {
+    local receipt_rel="$1" expected_head="$2" expected_suites="$3"
+    local expected_elapsed="$4" expected_budget="$5" enforce_budget="$6"
+    local receipt_abs raw_log_rel raw_log_abs slow_tsv_rel slow_tsv_abs
+    local recorded_head suites elapsed exit_code budget
+    local recorded_raw_log_sha actual_raw_log_sha tsv_rows unique_suite_paths
+
+    if [[ "$receipt_rel" != docs/audits/test-wiring/*/SUMMARY.md ]]; then
+        printf 'ERROR: receipt must live under docs/audits/test-wiring/: %s\n' "$receipt_rel" >&2
+        return 1
+    fi
+    if [[ "$receipt_rel" = /* ]] || [[ "$receipt_rel" = *..* ]]; then
+        printf 'ERROR: receipt path must be repo-relative and stay in-tree: %s\n' "$receipt_rel" >&2
+        return 1
+    fi
+
+    receipt_abs="$REPO_ROOT/$receipt_rel"
+    if [ ! -f "$receipt_abs" ]; then
+        printf 'ERROR: baseline receipt missing: %s\n' "$receipt_rel" >&2
+        return 1
+    fi
+
+    raw_log_rel="$(extract_receipt_value "$receipt_abs" "raw_log_path=")" || {
+        printf 'ERROR: receipt missing raw_log_path\n' >&2
+        return 1
+    }
+    recorded_raw_log_sha="$(extract_receipt_value "$receipt_abs" "raw_log_sha256=")" || {
+        printf 'ERROR: receipt missing raw_log_sha256\n' >&2
+        return 1
+    }
+    slow_tsv_rel="$(extract_receipt_value "$receipt_abs" "slow_suite_tsv_path=")" || {
+        printf 'ERROR: receipt missing slow_suite_tsv_path\n' >&2
+        return 1
+    }
+    recorded_head="$(extract_receipt_value "$receipt_abs" "head_sha=")" || {
+        printf 'ERROR: receipt missing head_sha\n' >&2
+        return 1
+    }
+    suites="$(extract_receipt_value "$receipt_abs" "suites=")" || {
+        printf 'ERROR: receipt missing suites\n' >&2
+        return 1
+    }
+    elapsed="$(extract_receipt_value "$receipt_abs" "elapsed_seconds=")" || {
+        printf 'ERROR: receipt missing elapsed_seconds\n' >&2
+        return 1
+    }
+    exit_code="$(extract_receipt_value "$receipt_abs" "local_ci_exit_code=")" || {
+        printf 'ERROR: receipt missing local_ci_exit_code\n' >&2
+        return 1
+    }
+    budget="$(extract_receipt_value "$receipt_abs" "budget_seconds=")" || {
+        printf 'ERROR: receipt missing budget_seconds\n' >&2
+        return 1
+    }
+
+    if [[ "$raw_log_rel" = /* ]] || [[ "$raw_log_rel" = *..* ]]; then
+        printf 'ERROR: raw log path must be repo-relative and stay in-tree: %s\n' "$raw_log_rel" >&2
+        return 1
+    fi
+    raw_log_abs="$REPO_ROOT/$raw_log_rel"
+    if [ ! -s "$raw_log_abs" ]; then
+        printf 'ERROR: raw local-ci log missing or empty: %s\n' "$raw_log_rel" >&2
+        return 1
+    fi
+    if grep -Fq '<redacted-test-fixture>' "$raw_log_abs"; then
+        printf 'ERROR: raw local-ci log contains a redaction marker: %s\n' "$raw_log_rel" >&2
+        return 1
+    fi
+    if grep -Eq '(^|[^[:alnum:]_])(JWT_SECRET|ADMIN_KEY|STORAGE_ENCRYPTION_KEY)=[^[:space:]]+' "$raw_log_abs"; then
+        printf 'ERROR: raw local-ci log contains secret-bearing assignment output: %s\n' "$raw_log_rel" >&2
+        return 1
+    fi
+    case "$recorded_raw_log_sha" in
+        *[!0-9a-f]*|'')
+            printf 'ERROR: raw_log_sha256 must be lowercase hexadecimal: %s\n' \
+                "$recorded_raw_log_sha" >&2
+            return 1
+            ;;
+    esac
+    if [ "${#recorded_raw_log_sha}" -ne 64 ]; then
+        printf 'ERROR: raw_log_sha256 must contain exactly 64 characters: %s\n' \
+            "$recorded_raw_log_sha" >&2
+        return 1
+    fi
+    actual_raw_log_sha="$(shasum -a 256 "$raw_log_abs" | awk '{ print $1 }')"
+    if [ "$actual_raw_log_sha" != "$recorded_raw_log_sha" ]; then
+        printf 'ERROR: raw local-ci log checksum mismatch: expected %s actual %s\n' \
+            "$recorded_raw_log_sha" "$actual_raw_log_sha" >&2
+        return 1
+    fi
+
+    if [[ "$slow_tsv_rel" = /* ]] || [[ "$slow_tsv_rel" = *..* ]]; then
+        printf 'ERROR: slow-suite TSV path must be repo-relative and stay in-tree: %s\n' "$slow_tsv_rel" >&2
+        return 1
+    fi
+    slow_tsv_abs="$REPO_ROOT/$slow_tsv_rel"
+    if [ ! -s "$slow_tsv_abs" ]; then
+        printf 'ERROR: slow-suite TSV missing or empty: %s\n' "$slow_tsv_rel" >&2
+        return 1
+    fi
+    if ! awk -F '\t' '
+        NF != 3 ||
+        $1 !~ /^[0-9]+([.][0-9]+)?$/ ||
+        $2 !~ /^scripts\/tests\/[[:alnum:]_]+_test[.]sh$/ ||
+        $3 !~ /^[0-9]+$/ {
+            exit 1
+        }
+    ' "$slow_tsv_abs"; then
+        printf 'ERROR: slow-suite TSV has a malformed row: %s\n' "$slow_tsv_rel" >&2
+        return 1
+    fi
+    tsv_rows="$(awk 'END { print NR }' "$slow_tsv_abs")"
+    if [ "$tsv_rows" != "$suites" ]; then
+        printf 'ERROR: slow-suite TSV row count mismatch: expected %s actual %s\n' \
+            "$suites" "$tsv_rows" >&2
+        return 1
+    fi
+    unique_suite_paths="$(cut -f 2 "$slow_tsv_abs" | LC_ALL=C sort -u | wc -l | tr -d ' ')"
+    if [ "$unique_suite_paths" != "$suites" ]; then
+        printf 'ERROR: slow-suite TSV suite paths must be unique: expected %s actual %s\n' \
+            "$suites" "$unique_suite_paths" >&2
+        return 1
+    fi
+    if ! awk -F '\t' '
+        NR > 1 && ($1 + 0) > previous {
+            exit 1
+        }
+        {
+            previous = $1 + 0
+        }
+    ' "$slow_tsv_abs"; then
+        printf 'ERROR: slow-suite TSV must be sorted by descending elapsed time: %s\n' \
+            "$slow_tsv_rel" >&2
+        return 1
+    fi
+
+    if [ "$recorded_head" != "$expected_head" ]; then
+        printf 'ERROR: receipt head_sha mismatch: expected %s actual %s\n' "$expected_head" "$recorded_head" >&2
+        return 1
+    fi
+    case "$suites" in ''|*[!0-9]*)
+        printf 'ERROR: suites must be an integer: %s\n' "$suites" >&2
+        return 1
+        ;;
+    esac
+    case "$elapsed" in ''|*[!0-9]*)
+        printf 'ERROR: elapsed_seconds must be an integer: %s\n' "$elapsed" >&2
+        return 1
+        ;;
+    esac
+    case "$exit_code" in ''|*[!0-9]*)
+        printf 'ERROR: local_ci_exit_code must be an integer: %s\n' "$exit_code" >&2
+        return 1
+        ;;
+    esac
+    case "$budget" in ''|*[!0-9]*)
+        printf 'ERROR: budget_seconds must be an integer: %s\n' "$budget" >&2
+        return 1
+        ;;
+    esac
+
+    if [ "$suites" != "$expected_suites" ]; then
+        printf 'ERROR: suites mismatch: expected %s actual %s\n' "$expected_suites" "$suites" >&2
+        return 1
+    fi
+    if [ "$elapsed" != "$expected_elapsed" ]; then
+        printf 'ERROR: elapsed_seconds mismatch: expected %s actual %s\n' "$expected_elapsed" "$elapsed" >&2
+        return 1
+    fi
+    if [ "$budget" != "$expected_budget" ]; then
+        printf 'ERROR: budget_seconds mismatch: expected %s actual %s\n' "$expected_budget" "$budget" >&2
+        return 1
+    fi
+
+    if [ "$enforce_budget" = "1" ] && [ "$elapsed" -gt "$budget" ]; then
+        printf 'ERROR: local-ci --fast over budget: elapsed_seconds=%s budget_seconds=%s suites=%s\n' \
+            "$elapsed" "$budget" "$suites" >&2
+        return 1
+    fi
+}
+
+write_fixture_receipt() {
+    local root="$1" receipt_rel="$2" head_sha="$3" raw_log_rel="$4" slow_tsv_rel="$5"
+    local raw_log_sha
+    mkdir -p "$(dirname "$root/$receipt_rel")" "$(dirname "$root/$raw_log_rel")" "$(dirname "$root/$slow_tsv_rel")"
+    printf 'fixture raw log\n' > "$root/$raw_log_rel"
+    printf '2\tscripts/tests/fixture_slow_test.sh\t0\n' > "$root/$slow_tsv_rel"
+    printf '1\tscripts/tests/fixture_fast_test.sh\t0\n' >> "$root/$slow_tsv_rel"
+    raw_log_sha="$(shasum -a 256 "$root/$raw_log_rel" | awk '{ print $1 }')"
+    cat > "$root/$receipt_rel" <<EOF
+capture_timestamp= 2026-07-28T20:00:50Z
+head_sha= $head_sha
+suites= 2
+elapsed_seconds= 100
+budget_seconds= 1800
+local_ci_exit_code= 0
+raw_log_path= $raw_log_rel
+raw_log_sha256= $raw_log_sha
+slow_suite_tsv_path= $slow_tsv_rel
+EOF
+}
+
+test_fixture_receipt_passes_when_evidence_is_complete() {
+    local tmpdir receipt_rel raw_log_rel slow_tsv_rel
+    tmpdir="$(mktemp -d)"
+    receipt_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/SUMMARY.md"
+    raw_log_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/raw_local_ci_fast.log"
+    slow_tsv_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/slow_suites.tsv"
+    write_fixture_receipt "$tmpdir" "$receipt_rel" "fixture-head" "$raw_log_rel" "$slow_tsv_rel"
+
+    REPO_ROOT="$tmpdir" validate_budget_receipt "$receipt_rel" "fixture-head" "2" "100" "$BUDGET_SECONDS" "1"
+    assert_eq "$?" "0" "complete fixture receipt satisfies the budget contract"
+    rm -rf "$tmpdir"
+}
+
+test_fixture_rejects_missing_receipt() {
+    local tmpdir receipt_rel output rc=0
+    tmpdir="$(mktemp -d)"
+    receipt_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/SUMMARY.md"
+
+    output="$(REPO_ROOT="$tmpdir" validate_budget_receipt \
+        "$receipt_rel" "fixture-head" "2" "100" "$BUDGET_SECONDS" "1" 2>&1)" || rc=$?
+    assert_eq "$rc" "1" "missing fixture receipt fails closed"
+    assert_contains "$output" "baseline receipt missing" "missing receipt failure names the absent artifact"
+    rm -rf "$tmpdir"
+}
+
+test_fixture_rejects_missing_raw_log() {
+    local tmpdir receipt_rel raw_log_rel slow_tsv_rel output rc=0
+    tmpdir="$(mktemp -d)"
+    receipt_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/SUMMARY.md"
+    raw_log_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/raw_local_ci_fast.log"
+    slow_tsv_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/slow_suites.tsv"
+    write_fixture_receipt "$tmpdir" "$receipt_rel" "fixture-head" "$raw_log_rel" "$slow_tsv_rel"
+    : > "$tmpdir/$raw_log_rel"
+
+    output="$(REPO_ROOT="$tmpdir" validate_budget_receipt \
+        "$receipt_rel" "fixture-head" "2" "100" "$BUDGET_SECONDS" "1" 2>&1)" || rc=$?
+    assert_eq "$rc" "1" "empty raw log makes fixture receipt fail"
+    assert_contains "$output" "raw local-ci log missing or empty" "missing raw log failure names the evidence gap"
+    rm -rf "$tmpdir"
+}
+
+test_fixture_rejects_redacted_raw_log() {
+    local tmpdir receipt_rel raw_log_rel slow_tsv_rel output rc=0
+    tmpdir="$(mktemp -d)"
+    receipt_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/SUMMARY.md"
+    raw_log_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/raw_local_ci_fast.log"
+    slow_tsv_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/slow_suites.tsv"
+    write_fixture_receipt "$tmpdir" "$receipt_rel" "fixture-head" "$raw_log_rel" "$slow_tsv_rel"
+    printf 'JWT_SECRET=<redacted-test-fixture>\n' > "$tmpdir/$raw_log_rel"
+
+    output="$(REPO_ROOT="$tmpdir" validate_budget_receipt \
+        "$receipt_rel" "fixture-head" "2" "100" "$BUDGET_SECONDS" "1" 2>&1)" || rc=$?
+    assert_eq "$rc" "1" "redacted raw log makes fixture receipt fail"
+    assert_contains "$output" "raw local-ci log contains a redaction marker" \
+        "redacted raw log failure names the evidence mutation"
+    rm -rf "$tmpdir"
+}
+
+test_fixture_rejects_secret_assignment_raw_log() {
+    local tmpdir receipt_rel raw_log_rel slow_tsv_rel output rc=0
+    tmpdir="$(mktemp -d)"
+    receipt_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/SUMMARY.md"
+    raw_log_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/raw_local_ci_fast.log"
+    slow_tsv_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/slow_suites.tsv"
+    write_fixture_receipt "$tmpdir" "$receipt_rel" "fixture-head" "$raw_log_rel" "$slow_tsv_rel"
+    {
+        printf 'JWT_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n'
+        printf 'ADMIN_KEY=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n'
+        printf 'STORAGE_ENCRYPTION_KEY=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\n'
+    } > "$tmpdir/$raw_log_rel"
+
+    output="$(REPO_ROOT="$tmpdir" validate_budget_receipt \
+        "$receipt_rel" "fixture-head" "2" "100" "$BUDGET_SECONDS" "1" 2>&1)" || rc=$?
+    assert_eq "$rc" "1" "secret assignment raw log makes fixture receipt fail"
+    assert_contains "$output" "secret-bearing assignment output" \
+        "secret assignment raw log failure names the secret hygiene gap"
+    rm -rf "$tmpdir"
+}
+
+test_fixture_rejects_modified_raw_log() {
+    local tmpdir receipt_rel raw_log_rel slow_tsv_rel output rc=0
+    tmpdir="$(mktemp -d)"
+    receipt_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/SUMMARY.md"
+    raw_log_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/raw_local_ci_fast.log"
+    slow_tsv_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/slow_suites.tsv"
+    write_fixture_receipt "$tmpdir" "$receipt_rel" "fixture-head" "$raw_log_rel" "$slow_tsv_rel"
+    printf 'post-processed line\n' >> "$tmpdir/$raw_log_rel"
+
+    output="$(REPO_ROOT="$tmpdir" validate_budget_receipt \
+        "$receipt_rel" "fixture-head" "2" "100" "$BUDGET_SECONDS" "1" 2>&1)" || rc=$?
+    assert_eq "$rc" "1" "post-processed raw log makes fixture receipt fail"
+    assert_contains "$output" "raw local-ci log checksum mismatch" \
+        "raw log checksum failure names the evidence mutation"
+    rm -rf "$tmpdir"
+}
+
+test_fixture_rejects_incomplete_slow_suite_tsv() {
+    local tmpdir receipt_rel raw_log_rel slow_tsv_rel output rc=0
+    tmpdir="$(mktemp -d)"
+    receipt_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/SUMMARY.md"
+    raw_log_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/raw_local_ci_fast.log"
+    slow_tsv_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/slow_suites.tsv"
+    write_fixture_receipt "$tmpdir" "$receipt_rel" "fixture-head" "$raw_log_rel" "$slow_tsv_rel"
+    printf '1\tscripts/tests/fixture_fast_test.sh\t0\n' > "$tmpdir/$slow_tsv_rel"
+
+    output="$(REPO_ROOT="$tmpdir" validate_budget_receipt \
+        "$receipt_rel" "fixture-head" "2" "100" "$BUDGET_SECONDS" "1" 2>&1)" || rc=$?
+    assert_eq "$rc" "1" "incomplete slow-suite TSV makes fixture receipt fail"
+    assert_contains "$output" "slow-suite TSV row count mismatch" \
+        "incomplete slow-suite TSV failure names the missing population"
+    rm -rf "$tmpdir"
+}
+
+test_fixture_rejects_stale_head() {
+    local tmpdir receipt_rel raw_log_rel slow_tsv_rel output rc=0
+    tmpdir="$(mktemp -d)"
+    receipt_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/SUMMARY.md"
+    raw_log_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/raw_local_ci_fast.log"
+    slow_tsv_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/slow_suites.tsv"
+    write_fixture_receipt "$tmpdir" "$receipt_rel" "old-head" "$raw_log_rel" "$slow_tsv_rel"
+
+    output="$(REPO_ROOT="$tmpdir" validate_budget_receipt \
+        "$receipt_rel" "current-head" "2" "100" "$BUDGET_SECONDS" "1" 2>&1)" || rc=$?
+    assert_eq "$rc" "1" "stale head makes fixture receipt fail"
+    assert_contains "$output" "receipt head_sha mismatch" "stale head failure explains the mismatch"
+    rm -rf "$tmpdir"
+}
+
+test_fixture_rejects_malformed_elapsed_seconds() {
+    local tmpdir receipt_rel raw_log_rel slow_tsv_rel output rc=0
+    tmpdir="$(mktemp -d)"
+    receipt_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/SUMMARY.md"
+    raw_log_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/raw_local_ci_fast.log"
+    slow_tsv_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/slow_suites.tsv"
+    write_fixture_receipt "$tmpdir" "$receipt_rel" "fixture-head" "$raw_log_rel" "$slow_tsv_rel"
+    perl -0pi -e 's/elapsed_seconds= 100/elapsed_seconds= slow/' "$tmpdir/$receipt_rel"
+
+    output="$(REPO_ROOT="$tmpdir" validate_budget_receipt \
+        "$receipt_rel" "fixture-head" "2" "100" "$BUDGET_SECONDS" "1" 2>&1)" || rc=$?
+    assert_eq "$rc" "1" "malformed elapsed_seconds makes fixture receipt fail"
+    assert_contains "$output" "elapsed_seconds must be an integer" "malformed elapsed failure names the bad field"
+    rm -rf "$tmpdir"
+}
+
+test_fixture_rejects_suite_count_drift() {
+    local tmpdir receipt_rel raw_log_rel slow_tsv_rel output rc=0
+    tmpdir="$(mktemp -d)"
+    receipt_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/SUMMARY.md"
+    raw_log_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/raw_local_ci_fast.log"
+    slow_tsv_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/slow_suites.tsv"
+    write_fixture_receipt "$tmpdir" "$receipt_rel" "fixture-head" "$raw_log_rel" "$slow_tsv_rel"
+
+    output="$(REPO_ROOT="$tmpdir" validate_budget_receipt \
+        "$receipt_rel" "fixture-head" "3" "100" "$BUDGET_SECONDS" "1" 2>&1)" || rc=$?
+    assert_eq "$rc" "1" "receipt suite count must match the measured specimen"
+    assert_contains "$output" "suites mismatch" "suite-count drift failure names the changed field"
+    rm -rf "$tmpdir"
+}
+
+test_fixture_rejects_elapsed_value_drift() {
+    local tmpdir receipt_rel raw_log_rel slow_tsv_rel output rc=0
+    tmpdir="$(mktemp -d)"
+    receipt_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/SUMMARY.md"
+    raw_log_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/raw_local_ci_fast.log"
+    slow_tsv_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/slow_suites.tsv"
+    write_fixture_receipt "$tmpdir" "$receipt_rel" "fixture-head" "$raw_log_rel" "$slow_tsv_rel"
+
+    output="$(REPO_ROOT="$tmpdir" validate_budget_receipt \
+        "$receipt_rel" "fixture-head" "2" "101" "$BUDGET_SECONDS" "1" 2>&1)" || rc=$?
+    assert_eq "$rc" "1" "receipt elapsed value must match the measured specimen"
+    assert_contains "$output" "elapsed_seconds mismatch" "elapsed drift failure names the changed field"
+    rm -rf "$tmpdir"
+}
+
+test_fixture_rejects_budget_drift() {
+    local tmpdir receipt_rel raw_log_rel slow_tsv_rel output rc=0
+    tmpdir="$(mktemp -d)"
+    receipt_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/SUMMARY.md"
+    raw_log_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/raw_local_ci_fast.log"
+    slow_tsv_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/slow_suites.tsv"
+    write_fixture_receipt "$tmpdir" "$receipt_rel" "fixture-head" "$raw_log_rel" "$slow_tsv_rel"
+
+    output="$(REPO_ROOT="$tmpdir" validate_budget_receipt \
+        "$receipt_rel" "fixture-head" "2" "100" "1799" "1" 2>&1)" || rc=$?
+    assert_eq "$rc" "1" "receipt budget must match the test-owned ceiling"
+    assert_contains "$output" "budget_seconds mismatch" "budget drift failure names the changed field"
+    rm -rf "$tmpdir"
+}
+
+test_fixture_rejects_receipt_owned_budget_escape() {
+    local tmpdir receipt_rel raw_log_rel slow_tsv_rel output rc=0
+    tmpdir="$(mktemp -d)"
+    receipt_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/SUMMARY.md"
+    raw_log_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/raw_local_ci_fast.log"
+    slow_tsv_rel="docs/audits/test-wiring/fixture_fast_budget_baseline/slow_suites.tsv"
+    write_fixture_receipt "$tmpdir" "$receipt_rel" "fixture-head" "$raw_log_rel" "$slow_tsv_rel"
+    perl -0pi -e 's/elapsed_seconds= 100/elapsed_seconds= 2158/; s/budget_seconds= 1800/budget_seconds= 2158/' \
+        "$tmpdir/$receipt_rel"
+
+    output="$(REPO_ROOT="$tmpdir" validate_budget_receipt \
+        "$receipt_rel" "fixture-head" "2" "2158" "$BUDGET_SECONDS" "1" 2>&1)" || rc=$?
+    assert_eq "$rc" "1" "receipt cannot raise its own budget ceiling"
+    assert_contains "$output" "budget_seconds mismatch" "receipt-owned budget escape failure names the changed field"
+    rm -rf "$tmpdir"
+}
+
+test_real_baseline_evidence_is_present_and_current() {
+    validate_budget_receipt \
+        "$BASELINE_RECEIPT_REL" \
+        "$BASELINE_HEAD_SHA" \
+        "$BASELINE_SUITES" \
+        "$BASELINE_ELAPSED_SECONDS" \
+        "$BUDGET_SECONDS" \
+        "0"
+    assert_eq "$?" "0" "real baseline receipt has current, parseable, non-empty evidence"
+}
+
+test_real_stage2_timing_evidence_is_present_and_source_pinned() {
+    local receipt_abs
+    receipt_abs="$REPO_ROOT/$BASELINE_RECEIPT_REL"
+
+    assert_eq "$(extract_receipt_value_rest "$receipt_abs" "stage_02_before_algolia_import_catalog_live_probe_test=")" \
+        "$STAGE2_ALGOLIA_BEFORE" \
+        "Stage 2 receipt records exact Algolia before timing"
+    assert_eq "$(extract_receipt_value_rest "$receipt_abs" "stage_02_after_algolia_import_catalog_live_probe_test=")" \
+        "$STAGE2_ALGOLIA_AFTER" \
+        "Stage 2 receipt records exact Algolia after timing"
+    assert_eq "$(extract_receipt_value_rest "$receipt_abs" "stage_02_before_apply_ses_log_read_policy_test=")" \
+        "$STAGE2_SES_BEFORE" \
+        "Stage 2 receipt records exact SES before timing"
+    assert_eq "$(extract_receipt_value_rest "$receipt_abs" "stage_02_after_apply_ses_log_read_policy_test=")" \
+        "$STAGE2_SES_AFTER" \
+        "Stage 2 receipt records exact SES after timing"
+    assert_contains "$(extract_receipt_value_rest "$receipt_abs" "stage_02_timing_note=")" \
+        "fake-sleep request order" \
+        "Stage 2 receipt explains why added fake-sleep coverage changed timing"
+}
+
+validate_slow_suite_tsv_manifest_residency() {
+    local slow_tsv_abs="$1"
+    shift
+    local manifest_paths suite_path rc=0
+
+    manifest_paths="$(mktemp)"
+    printf '%s\n' "$@" | LC_ALL=C sort -u > "$manifest_paths"
+    while IFS=$'\t' read -r _ suite_path _; do
+        if ! grep -Fxq "$suite_path" "$manifest_paths"; then
+            printf 'ERROR: slow-suite TSV path absent from current manifest: %s\n' \
+                "$suite_path" >&2
+            rc=1
+            break
+        fi
+    done < "$slow_tsv_abs"
+    rm -f "$manifest_paths"
+
+    return "$rc"
+}
+
+test_real_slow_suite_tsv_matches_registered_manifest() {
+    local receipt_abs slow_tsv_rel output rc=0
+    receipt_abs="$REPO_ROOT/$BASELINE_RECEIPT_REL"
+    slow_tsv_rel="$(extract_receipt_value "$receipt_abs" "slow_suite_tsv_path=")"
+
+    output="$(validate_slow_suite_tsv_manifest_residency \
+        "$REPO_ROOT/$slow_tsv_rel" \
+        "${TEST_REACHABILITY_HERMETIC_TESTS[@]}" 2>&1)" || rc=$?
+
+    assert_eq "$rc" "0" "every source-pinned slow-suite TSV path remains registered"
+}
+
+test_source_pinned_slow_suite_tsv_survives_later_manifest_growth() {
+    local receipt_abs slow_tsv_rel appended_index output rc=0
+    receipt_abs="$REPO_ROOT/$BASELINE_RECEIPT_REL"
+    slow_tsv_rel="$(extract_receipt_value "$receipt_abs" "slow_suite_tsv_path=")"
+    appended_index="${#TEST_REACHABILITY_HERMETIC_TESTS[@]}"
+    TEST_REACHABILITY_HERMETIC_TESTS+=("scripts/tests/synthetic_later_manifest_test.sh")
+
+    output="$(validate_slow_suite_tsv_manifest_residency \
+        "$REPO_ROOT/$slow_tsv_rel" \
+        "${TEST_REACHABILITY_HERMETIC_TESTS[@]}" 2>&1)" || rc=$?
+    unset "TEST_REACHABILITY_HERMETIC_TESTS[$appended_index]"
+
+    assert_eq "$rc" "0" \
+        "source-pinned slow-suite TSV remains valid after later manifest growth"
+}
+
+test_fixture_rejects_slow_suite_path_absent_from_manifest() {
+    local tmpdir slow_tsv_abs output rc=0
+    tmpdir="$(mktemp -d)"
+    slow_tsv_abs="$tmpdir/slow_suites.tsv"
+    printf '1\tscripts/tests/fixture_absent_test.sh\t0\n' > "$slow_tsv_abs"
+
+    output="$(validate_slow_suite_tsv_manifest_residency \
+        "$slow_tsv_abs" \
+        "scripts/tests/fixture_present_test.sh" 2>&1)" || rc=$?
+
+    assert_eq "$rc" "1" "slow-suite TSV path absent from the manifest fails closed"
+    assert_contains "$output" \
+        "slow-suite TSV path absent from current manifest: scripts/tests/fixture_absent_test.sh" \
+        "missing manifest residency failure names the absent suite path"
+    rm -rf "$tmpdir"
+}
+
+test_real_baseline_is_under_budget() {
+    local output rc=0
+
+    output="$(validate_budget_receipt \
+        "$BASELINE_RECEIPT_REL" \
+        "$BASELINE_HEAD_SHA" \
+        "$BASELINE_SUITES" \
+        "$BASELINE_ELAPSED_SECONDS" \
+        "$BUDGET_SECONDS" \
+        "1" 2>&1)" || rc=$?
+    assert_eq "$rc" "0" "local-ci --fast must stay within the Stage 1 budget"
+    if [ "$rc" = "0" ]; then
+        assert_not_contains "$output" "over budget" "budget failure output should be absent when within budget"
+    fi
+}
+
+test_fixture_receipt_passes_when_evidence_is_complete
+test_fixture_rejects_missing_receipt
+test_fixture_rejects_missing_raw_log
+test_fixture_rejects_redacted_raw_log
+test_fixture_rejects_secret_assignment_raw_log
+test_fixture_rejects_modified_raw_log
+test_fixture_rejects_incomplete_slow_suite_tsv
+test_fixture_rejects_stale_head
+test_fixture_rejects_malformed_elapsed_seconds
+test_fixture_rejects_suite_count_drift
+test_fixture_rejects_elapsed_value_drift
+test_fixture_rejects_budget_drift
+test_fixture_rejects_receipt_owned_budget_escape
+test_real_baseline_evidence_is_present_and_current
+test_real_stage2_timing_evidence_is_present_and_source_pinned
+test_real_slow_suite_tsv_matches_registered_manifest
+test_source_pinned_slow_suite_tsv_survives_later_manifest_growth
+test_fixture_rejects_slow_suite_path_absent_from_manifest
+test_real_baseline_is_under_budget
+
+run_test_summary

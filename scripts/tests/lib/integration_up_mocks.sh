@@ -18,9 +18,9 @@ if [ -n "${INTEGRATION_UP_API_ENV_LOG:-}" ]; then
     {
         echo "LISTEN_ADDR=${LISTEN_ADDR:-}"
         echo "S3_LISTEN_ADDR=${S3_LISTEN_ADDR:-}"
-        echo "JWT_SECRET=${JWT_SECRET:-}"
-        echo "ADMIN_KEY=${ADMIN_KEY:-}"
-        echo "STORAGE_ENCRYPTION_KEY=${STORAGE_ENCRYPTION_KEY:-}"
+        echo "JWT_SECRET_LENGTH=${#JWT_SECRET}"
+        echo "ADMIN_KEY_LENGTH=${#ADMIN_KEY}"
+        echo "STORAGE_ENCRYPTION_KEY_LENGTH=${#STORAGE_ENCRYPTION_KEY}"
         echo "ENVIRONMENT=${ENVIRONMENT:-}"
         echo "SKIP_EMAIL_VERIFICATION=${SKIP_EMAIL_VERIFICATION:-}"
         echo "INTERNAL_AUTH_TOKEN=${INTERNAL_AUTH_TOKEN:-}"
@@ -43,7 +43,8 @@ MOCK
 }
 
 create_fake_api_binary() {
-    local api_bin="$REPO_ROOT/infra/target/debug/fjcloud-api"
+    local repo_root="${FJCLOUD_TEST_REPO_ROOT:-$REPO_ROOT}"
+    local api_bin="$repo_root/infra/target/debug/fjcloud-api"
     local backup_file=""
     if [ -e "$api_bin" ]; then
         backup_file="$(mktemp)"
@@ -55,7 +56,8 @@ create_fake_api_binary() {
 
 restore_fake_api_binary() {
     local backup_file="$1"
-    local api_bin="$REPO_ROOT/infra/target/debug/fjcloud-api"
+    local repo_root="${FJCLOUD_TEST_REPO_ROOT:-$REPO_ROOT}"
+    local api_bin="$repo_root/infra/target/debug/fjcloud-api"
     if [ -n "$backup_file" ] && [ -f "$backup_file" ]; then
         cp "$backup_file" "$api_bin"
         rm -f "$backup_file"
@@ -85,9 +87,9 @@ if [ -n "${INTEGRATION_UP_API_ENV_LOG:-}" ]; then
     {
         echo "LISTEN_ADDR=${LISTEN_ADDR:-}"
         echo "S3_LISTEN_ADDR=${S3_LISTEN_ADDR:-}"
-        echo "JWT_SECRET=${JWT_SECRET:-}"
-        echo "ADMIN_KEY=${ADMIN_KEY:-}"
-        echo "STORAGE_ENCRYPTION_KEY=${STORAGE_ENCRYPTION_KEY:-}"
+        echo "JWT_SECRET_LENGTH=${#JWT_SECRET}"
+        echo "ADMIN_KEY_LENGTH=${#ADMIN_KEY}"
+        echo "STORAGE_ENCRYPTION_KEY_LENGTH=${#STORAGE_ENCRYPTION_KEY}"
         echo "ENVIRONMENT=${ENVIRONMENT:-}"
         echo "SKIP_EMAIL_VERIFICATION=${SKIP_EMAIL_VERIFICATION:-}"
         echo "INTERNAL_AUTH_TOKEN=${INTERNAL_AUTH_TOKEN:-}"
@@ -104,6 +106,22 @@ MOCK_METERING
 chmod +x "$metering_bin"
 exit 0
 '
+    write_mock_script "$tmp_dir/nohup" '"$@" >/dev/null 2>&1 || true; exit 0'
+    write_mock_script "$tmp_dir/psql" '
+if [[ "$*" == *"SELECT 1 FROM pg_database"* ]]; then
+    echo "1"
+    exit 0
+fi
+exit 0
+'
+    write_mock_script "$tmp_dir/curl" 'exit 0'
+}
+
+setup_isolated_startup_mocks() {
+    local tmp_dir="$1"
+    write_mock_script "$tmp_dir/whoami" 'echo "tester"'
+    write_mock_script "$tmp_dir/cargo" \
+        'echo "cargo must not run with a prebuilt API binary and metering disabled" >&2; exit 1'
     write_mock_script "$tmp_dir/nohup" '"$@" >/dev/null 2>&1 || true; exit 0'
     write_mock_script "$tmp_dir/psql" '
 if [[ "$*" == *"SELECT 1 FROM pg_database"* ]]; then

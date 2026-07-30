@@ -4,7 +4,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+CHECKOUT_REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # shellcheck source=lib/test_runner.sh
 source "$SCRIPT_DIR/lib/test_runner.sh"
@@ -12,6 +12,10 @@ source "$SCRIPT_DIR/lib/test_runner.sh"
 source "$SCRIPT_DIR/lib/assertions.sh"
 # shellcheck source=lib/local_dev_test_state.sh
 source "$SCRIPT_DIR/lib/local_dev_test_state.sh"
+
+LOCAL_DEMO_SUITE_ROOT_TMP="$(mktemp -d)"
+REPO_ROOT="$(create_script_fixture_repo_root "$LOCAL_DEMO_SUITE_ROOT_TMP" "$CHECKOUT_REPO_ROOT")"
+trap 'rm -rf "$LOCAL_DEMO_SUITE_ROOT_TMP"' EXIT
 
 LOCAL_DEMO_ENV_BACKUP=""
 
@@ -22,7 +26,41 @@ setup_repo_state() {
 
 restore_repo_state() {
     restore_repo_path "$REPO_ROOT/.env.local" "${LOCAL_DEMO_ENV_BACKUP:-}"
+    restore_repo_path "$REPO_ROOT/.local" "${LOCAL_DEMO_LOCAL_BACKUP:-}"
     LOCAL_DEMO_ENV_BACKUP=""
+    LOCAL_DEMO_LOCAL_BACKUP=""
+}
+
+test_prepare_env_honors_supplied_repo_root_without_mutating_checkout_root() {
+    local tmp_dir fixture_root
+    tmp_dir=$(mktemp -d)
+    fixture_root=$(create_local_dev_fixture_repo_root "$tmp_dir" "postgres://fixture-user:fixture-pass@localhost:5432/local_demo_fixture")
+    trap 'restore_repo_state; rm -rf "'"$tmp_dir"'"' RETURN
+
+    setup_repo_state "$tmp_dir"
+    LOCAL_DEMO_LOCAL_BACKUP=$(backup_repo_path "$REPO_ROOT/.local" "$tmp_dir/.local.backup")
+    cat > "$REPO_ROOT/.env.local" <<'EOF'
+DATABASE_URL=postgres://checkout-user:checkout-pass@localhost:5432/local_demo_checkout
+JWT_SECRET=checkout-jwt
+ADMIN_KEY=checkout-admin
+EOF
+    mkdir -p "$REPO_ROOT/.local"
+    printf 'checkout-demo-sentinel\n' > "$REPO_ROOT/.local/demo.sentinel"
+
+    FJCLOUD_REPO_ROOT="$fixture_root" \
+    bash "$REPO_ROOT/scripts/local_demo.sh" --prepare-env-only >/dev/null
+
+    local fixture_env checkout_env
+    fixture_env="$(sed -n '1,240p' "$fixture_root/.env.local")"
+    checkout_env="$(sed -n '1,40p' "$REPO_ROOT/.env.local")"
+    assert_contains "$fixture_env" "SKIP_EMAIL_VERIFICATION=1" \
+        "prepare-env should add demo defaults to the supplied fixture root"
+    assert_contains "$fixture_env" "FLAPJACK_REGIONS=us-east-1:7700 eu-west-1:7701 eu-central-1:7702" \
+        "prepare-env should add multi-region defaults to the supplied fixture root"
+    assert_contains "$checkout_env" "DATABASE_URL=postgres://checkout-user:checkout-pass@localhost:5432/local_demo_checkout" \
+        "prepare-env should leave checkout-root .env.local unchanged when FJCLOUD_REPO_ROOT is supplied"
+    assert_eq "$(cat "$REPO_ROOT/.local/demo.sentinel")" "checkout-demo-sentinel" \
+        "prepare-env should leave checkout-root runtime sentinels unchanged"
 }
 
 test_prepare_env_adds_demo_defaults() {
@@ -195,6 +233,7 @@ test_unknown_argument_exits_two() {
     assert_eq "$exit_code" "2" "unknown argument should exit with usage error"
 }
 
+test_prepare_env_honors_supplied_repo_root_without_mutating_checkout_root
 test_prepare_env_adds_demo_defaults
 test_prepare_env_preserves_existing_values
 test_prepare_env_preserves_existing_flapjack_dev_dir

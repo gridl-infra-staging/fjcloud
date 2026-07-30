@@ -4,7 +4,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+CHECKOUT_REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -23,6 +23,11 @@ fail() {
 source "$SCRIPT_DIR/lib/assertions.sh"
 # shellcheck source=lib/local_dev_test_state.sh
 source "$SCRIPT_DIR/lib/local_dev_test_state.sh"
+
+API_DEV_SUITE_ROOT_TMP="$(mktemp -d)"
+REPO_ROOT="$(create_script_fixture_repo_root "$API_DEV_SUITE_ROOT_TMP" "$CHECKOUT_REPO_ROOT")"
+trap 'rm -rf "$API_DEV_SUITE_ROOT_TMP"' EXIT
+
 # shellcheck source=lib/test_helpers.sh
 source "$SCRIPT_DIR/lib/test_helpers.sh"
 # shellcheck source=lib/api_dev_stage4_tests.sh
@@ -33,6 +38,46 @@ source "$SCRIPT_DIR/lib/api_dev_email_tests.sh"
 write_mock_lsof_reports_free() {
     local path="$1"
     write_mock_script "$path" 'exit 1'
+}
+
+test_api_dev_honors_supplied_repo_root_without_mutating_checkout_root() {
+    local tmp_dir fixture_root
+    tmp_dir=$(mktemp -d)
+    fixture_root=$(create_local_dev_fixture_repo_root "$tmp_dir" "postgres://fixture-user:fixture-pass@localhost:5432/api_dev_fixture")
+    trap 'restore_repo_path "'"$REPO_ROOT/.env.local"'" "${API_DEV_ENV_BACKUP:-}"; restore_repo_path "'"$REPO_ROOT/.local"'" "${API_DEV_LOCAL_BACKUP:-}"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    API_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
+    API_DEV_LOCAL_BACKUP=$(backup_repo_path "$REPO_ROOT/.local" "$tmp_dir/.local.backup")
+    cat > "$REPO_ROOT/.env.local" <<'EOF'
+DATABASE_URL=postgres://checkout-user:checkout-pass@localhost:5432/api_dev_checkout
+JWT_SECRET=checkout-jwt
+ADMIN_KEY=checkout-admin
+EOF
+    mkdir -p "$REPO_ROOT/.local"
+    printf 'checkout-api-pid-sentinel\n' > "$REPO_ROOT/.local/api.pid"
+
+    mkdir -p "$tmp_dir/bin"
+    local cargo_log="$tmp_dir/cargo.log"
+    write_mock_script "$tmp_dir/bin/cargo" '
+echo "PWD=$PWD" >> "'"$cargo_log"'"
+echo "DATABASE_URL=${DATABASE_URL:-}" >> "'"$cargo_log"'"
+exit 0'
+    write_mock_lsof_reports_free "$tmp_dir/bin/lsof"
+
+    local exit_code=0
+    PATH="$tmp_dir/bin:$PATH" \
+    FJCLOUD_REPO_ROOT="$fixture_root" \
+    bash "$REPO_ROOT/scripts/api-dev.sh" >/dev/null 2>&1 || exit_code=$?
+
+    assert_eq "$exit_code" "0" "api-dev should start with a supplied fixture repo root"
+    local cargo_calls
+    cargo_calls=$(cat "$cargo_log" 2>/dev/null || true)
+    assert_contains "$cargo_calls" "PWD=$fixture_root" \
+        "api-dev should run cargo from the supplied fixture repo root"
+    assert_contains "$cargo_calls" "DATABASE_URL=postgres://fixture-user:fixture-pass@localhost:5432/api_dev_fixture" \
+        "api-dev should load DATABASE_URL from the supplied fixture repo root"
+    assert_eq "$(cat "$REPO_ROOT/.local/api.pid")" "checkout-api-pid-sentinel" \
+        "api-dev should leave checkout-root pid sentinels unchanged when FJCLOUD_REPO_ROOT is supplied"
 }
 
 test_api_dev_rejects_executable_env_local_content() {
@@ -627,6 +672,7 @@ main() {
     echo "=== api-dev.sh tests ==="
     echo ""
 
+    test_api_dev_honors_supplied_repo_root_without_mutating_checkout_root
     test_api_dev_rejects_executable_env_local_content
     test_api_dev_preserves_explicit_flapjack_admin_key
     test_api_dev_defaults_replication_orchestrator_to_effectively_disabled

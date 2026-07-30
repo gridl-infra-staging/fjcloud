@@ -31,6 +31,8 @@ source "$SCRIPT_DIR/lib/test_helpers.sh"
 SUT="$REPO_ROOT/scripts/launch/apply_ses_log_read_policy.sh"
 IAM_TF="$REPO_ROOT/ops/iam/fjcloud-instance-role.tf"
 TARGET_ACCOUNT="213880904778"
+SUITE_ARTIFACT_ROOT_REL=".test_artifacts/apply_ses_log_read_policy_$$_${RANDOM}"
+SUITE_ARTIFACT_ROOT="$REPO_ROOT/$SUITE_ARTIFACT_ROOT_REL"
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -41,7 +43,7 @@ CLEANUP_DIRS=()
 cleanup() {
     local d
     for d in "${CLEANUP_DIRS[@]:-}"; do [ -n "$d" ] && rm -rf "$d"; done
-    rm -rf "$REPO_ROOT/.test_artifacts"
+    rm -rf "$SUITE_ARTIFACT_ROOT"
 }
 trap cleanup EXIT
 
@@ -133,6 +135,7 @@ cat > "$bin_dir/ssm_exec.sh" <<'SSM'
 set -uo pipefail
 cmd="${1:-}"
 [ -n "${FAKE_SSM_CALLLOG:-}" ] && printf '%s\n' "$cmd" >> "$FAKE_SSM_CALLLOG"
+[ -n "${FAKE_PROBE_CALLLOG:-}" ] && printf 'ssm|%s\n' "$cmd" >> "$FAKE_PROBE_CALLLOG"
 src=""
 case "$cmd" in
   *get-caller-identity*) printf '%s' "${FAKE_ONHOST_ARN:-arn:aws:sts::213880904778:assumed-role/fjcloud-instance-role/i-0abc123session}"; exit 0 ;;
@@ -150,6 +153,15 @@ printf '%s' "$src"
 exit 0
 SSM
     chmod +x "$bin_dir/ssm_exec.sh"
+
+cat > "$bin_dir/sleep" <<'SLEEP'
+#!/usr/bin/env bash
+set -uo pipefail
+printf 'sleep|%s\n' "${1:-}" >> "${FAKE_SLEEP_CALLLOG:?FAKE_SLEEP_CALLLOG unset}"
+[ -n "${FAKE_PROBE_CALLLOG:-}" ] && printf 'sleep|%s\n' "${1:-}" >> "$FAKE_PROBE_CALLLOG"
+exit 0
+SLEEP
+    chmod +x "$bin_dir/sleep"
 }
 
 # --------------------------------------------------------------------------
@@ -207,6 +219,8 @@ PY
     CASE_CRED="$cred"
     export FAKE_AWS_CALLLOG="$ws/aws_calls.log"; : > "$FAKE_AWS_CALLLOG"
     export FAKE_SSM_CALLLOG="$ws/ssm_calls.log"; : > "$FAKE_SSM_CALLLOG"
+    export FAKE_SLEEP_CALLLOG="$ws/sleep_calls.log"; : > "$FAKE_SLEEP_CALLLOG"
+    export FAKE_PROBE_CALLLOG="$ws/probe_calls.log"; : > "$FAKE_PROBE_CALLLOG"
     export FAKE_TF_CALLLOG="$ws/tf_calls.log"; : > "$FAKE_TF_CALLLOG"
     export FAKE_TF_INIT_ARGSLOG="$ws/tf_init_args.log"; : > "$FAKE_TF_INIT_ARGSLOG"
     export FAKE_EC2_JSON="$fix/ec2.json"
@@ -228,7 +242,7 @@ RUN_RC=0
 RUN_ARTIFACT_ABS=""
 run_apply() {
     # Extra args after the two mandatory flags (e.g. --verify-only) are passed through.
-    local rel=".test_artifacts/apply_ses/$$_${RANDOM}"
+    local rel="$SUITE_ARTIFACT_ROOT_REL/apply_ses/$$_${RANDOM}"
     RUN_ARTIFACT_ABS="$REPO_ROOT/$rel"
     RUN_RC=0
     if [ ! -f "$SUT" ]; then
@@ -239,7 +253,7 @@ run_apply() {
         export PATH="$CASE_BIN:$PATH"
         export APPLY_SES_SSM_EXEC="$CASE_BIN/ssm_exec.sh"
         export APPLY_SES_PROBE_MAX_ATTEMPTS="${APPLY_SES_PROBE_MAX_ATTEMPTS:-3}"
-        export APPLY_SES_PROBE_SLEEP_SECONDS="0"
+        export APPLY_SES_PROBE_SLEEP_SECONDS="${APPLY_SES_PROBE_SLEEP_SECONDS:-0}"
         bash "$SUT" --credential-env-file="$CASE_CRED" --artifact-dir="$rel" "$@"
     ) >"$CASE_WS/stdout.txt" 2>"$CASE_WS/stderr.txt" || RUN_RC=$?
 }
@@ -266,6 +280,29 @@ print(cur if not isinstance(cur, (dict, list)) else json.dumps(cur, sort_keys=Tr
 PY
 }
 stdouterr() { cat "$CASE_WS/stdout.txt" "$CASE_WS/stderr.txt" 2>/dev/null; }
+
+probe_sequence() {
+    python3 - "$FAKE_PROBE_CALLLOG" <<'PY'
+import sys
+
+for line in open(sys.argv[1], encoding="utf-8"):
+    line = line.rstrip("\n")
+    if line.startswith("sleep|"):
+        print(line)
+    elif "get-caller-identity" in line:
+        print("ssm|sts")
+    elif "describe-log-groups" in line:
+        print("ssm|describe-log-groups")
+    elif "filter-log-events" in line:
+        print("ssm|filter-log-events")
+    elif "describe-log-streams" in line:
+        print("ssm|describe-log-streams")
+    elif "get-log-events" in line:
+        print("ssm|get-log-events")
+    else:
+        print("ssm|unknown")
+PY
+}
 
 assert_json_equal() {
     local actual="$1" expected="$2" msg="$3"
@@ -382,7 +419,7 @@ test_cleared_ambient_then_loaded_file_key() {
         assert_eq "script_missing" "success" "ambient AWS_* cleared before loading the credential file"
         return
     fi
-    local rel=".test_artifacts/apply_ses/clear_$$_${RANDOM}"
+    local rel="$SUITE_ARTIFACT_ROOT_REL/apply_ses/clear_$$_${RANDOM}"
     (
         export PATH="$CASE_BIN:$PATH" APPLY_SES_SSM_EXEC="$CASE_BIN/ssm_exec.sh"
         export APPLY_SES_PROBE_MAX_ATTEMPTS=3 APPLY_SES_PROBE_SLEEP_SECONDS=0
@@ -565,6 +602,82 @@ SSM
     fi
 }
 
+test_probe_order_uses_case_interval_for_transient_denial() {
+    new_case
+    export FAKE_TF_PLAN_RC=2
+    export APPLY_SES_PROBE_MAX_ATTEMPTS=3
+    export APPLY_SES_PROBE_SLEEP_SECONDS=7
+    local counter="$CASE_WS/fle_counter"
+    echo 0 > "$counter"
+    cat > "$CASE_BIN/ssm_exec.sh" <<SSM
+#!/usr/bin/env bash
+set -uo pipefail
+cmd="\${1:-}"
+printf '%s\n' "\$cmd" >> "\$FAKE_SSM_CALLLOG"
+printf 'ssm|%s\n' "\$cmd" >> "\$FAKE_PROBE_CALLLOG"
+case "\$cmd" in
+  *get-caller-identity*) printf '%s' "arn:aws:sts::213880904778:assumed-role/fjcloud-instance-role/i-0abc"; exit 0 ;;
+  *describe-log-groups*) printf '%s' '{"logGroups":[{"logGroupName":"/fjcloud/staging/ses/send-events"}]}'; exit 0 ;;
+  *filter-log-events*)
+    n="\$(cat "$counter")"; echo \$((n+1)) > "$counter"
+    if [ "\$n" -lt 1 ]; then
+      echo "An error occurred (AccessDeniedException) not authorized" >&2; exit 1
+    fi
+    printf '%s' '{"events":[]}'; exit 0 ;;
+  *describe-log-streams*) printf '%s' '{"logStreams":[{"logStreamName":"sa"}]}'; exit 0 ;;
+  *get-log-events*) printf '%s' '{"events":[]}'; exit 0 ;;
+esac
+echo "unexpected ssm command: \$cmd" >&2; exit 97
+SSM
+    chmod +x "$CASE_BIN/ssm_exec.sh"
+    run_apply
+    assert_eq "$(status)" "success" "transient denial succeeds after configured retry"
+    assert_eq "$(probe_sequence)" "$(printf '%s\n' \
+        'ssm|sts' \
+        'ssm|describe-log-groups' \
+        'ssm|filter-log-events' \
+        'sleep|7' \
+        'ssm|filter-log-events' \
+        'ssm|describe-log-streams' \
+        'ssm|get-log-events')" \
+        "transient denial probes before sleep and uses the case-provided interval"
+}
+
+test_probe_order_exhausts_persistent_denial_without_final_sleep_or_policy_fallback() {
+    new_case
+    export FAKE_TF_PLAN_RC=2
+    export APPLY_SES_PROBE_MAX_ATTEMPTS=3
+    export APPLY_SES_PROBE_SLEEP_SECONDS=4
+    export FAKE_PROBE_DLG="DENY"
+    run_apply
+    assert_eq "$(status)" "persistent_authorization_denial" \
+        "persistent AccessDenied exhausts the configured attempt ceiling"
+    assert_eq "$(probe_sequence)" "$(printf '%s\n' \
+        'ssm|sts' \
+        'ssm|describe-log-groups' \
+        'sleep|4' \
+        'ssm|describe-log-groups' \
+        'sleep|4' \
+        'ssm|describe-log-groups')" \
+        "persistent denial sleeps only between configured attempts"
+    assert_not_contains "$(cat "$FAKE_AWS_CALLLOG")" "put-role-policy" \
+        "persistent denial never calls aws iam put-role-policy"
+    assert_not_contains "$(cat "$FAKE_AWS_CALLLOG")" "delete-role-policy" \
+        "persistent denial never calls aws iam delete-role-policy"
+}
+
+test_probe_order_does_not_retry_non_access_denied_errors() {
+    new_case
+    export FAKE_TF_PLAN_RC=2
+    export FAKE_PROBE_DLG='{"unexpected":[]}'
+    run_apply
+    assert_eq "$(status)" "probe_failed" "non-authorization probe failure is not retried"
+    assert_eq "$(probe_sequence)" "$(printf '%s\n' \
+        'ssm|sts' \
+        'ssm|describe-log-groups')" \
+        "non-AccessDenied probe failure performs no retry sleep"
+}
+
 test_missing_role_state_imports_by_name() {
     # Role bound in AWS but absent from Terraform state → narrow import by name.
     new_case
@@ -725,6 +838,26 @@ test_summary_json_is_valid_and_complete() {
     if [ "${#sha}" -ge 7 ]; then pass "source_sha looks like a commit hash"; else fail "source_sha looks like a commit hash (got '$sha')"; fi
 }
 
+test_cleanup_preserves_sibling_artifact_sentinel() {
+    local sibling_dir="$REPO_ROOT/.test_artifacts/stage3_sibling_$$_${RANDOM}"
+    local sibling_sentinel="$sibling_dir/sentinel.txt"
+    mkdir -p "$sibling_dir"
+    printf 'must survive suite cleanup\n' > "$sibling_sentinel"
+
+    new_case
+    export FAKE_TF_PLAN_RC=2
+    run_apply
+    assert_eq "$(status)" "success" "happy path succeeds before cleanup isolation check"
+
+    cleanup
+    if [ -f "$sibling_sentinel" ] && [ "$(cat "$sibling_sentinel")" = "must survive suite cleanup" ]; then
+        pass "cleanup preserves sibling sentinel outside this suite artifact root"
+    else
+        fail "cleanup preserves sibling sentinel outside this suite artifact root"
+    fi
+    rm -rf "$sibling_dir"
+}
+
 # --------------------------------------------------------------------------
 test_script_exists
 test_relative_credential_file_rejected
@@ -747,6 +880,9 @@ test_persistent_denial_preserves_policy
 test_probes_record_stream_denominator
 test_probe_shell_quotes_stream_name
 test_probe_retries_only_access_denied_then_succeeds
+test_probe_order_uses_case_interval_for_transient_denial
+test_probe_order_exhausts_persistent_denial_without_final_sleep_or_policy_fallback
+test_probe_order_does_not_retry_non_access_denied_errors
 test_missing_role_state_imports_by_name
 test_import_then_unsafe_plan_rolls_back
 test_unreadable_state_list_refuses_without_import
@@ -756,6 +892,7 @@ test_verify_only_performs_zero_writes
 test_secure_artifacts_and_no_secret_leak
 test_guarded_init_uses_canonical_iam_state_key
 test_summary_json_is_valid_and_complete
+test_cleanup_preserves_sibling_artifact_sentinel
 
 echo "----"
 echo "apply_ses_log_read_policy_test: $PASS_COUNT passed, $FAIL_COUNT failed"

@@ -26,6 +26,13 @@ source "$SCRIPT_DIR/lib/assertions.sh"
 # shellcheck source=lib/integration_up_mocks.sh
 source "$SCRIPT_DIR/lib/integration_up_mocks.sh"
 
+INTEGRATION_UP_TEST_REPO_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/integration-up-repo.XXXXXX")"
+export FJCLOUD_TEST_REPO_ROOT="$INTEGRATION_UP_TEST_REPO_ROOT"
+export FJCLOUD_REPO_ROOT="$INTEGRATION_UP_TEST_REPO_ROOT"
+mkdir -p "$INTEGRATION_UP_TEST_REPO_ROOT/infra"
+cp -R "$REPO_ROOT/infra/migrations" "$INTEGRATION_UP_TEST_REPO_ROOT/infra/"
+trap 'rm -rf "$INTEGRATION_UP_TEST_REPO_ROOT"' EXIT
+
 # ============================================================================
 # Health Gating Tests
 # ============================================================================
@@ -640,7 +647,7 @@ test_discovers_fresh_host_alternate_flapjack_checkout_when_unset() {
     trap 'restore_repo_env_file "'"$env_backup"'"; cleanup_startup_mocks "'"$tmp_dir"'"' RETURN
 
     local candidate_list="$tmp_dir/missing $tmp_dir/gridl-dev/flapjack_dev/engine"
-    cat > "$REPO_ROOT/.env.local" <<EOF
+    cat > "$FJCLOUD_TEST_REPO_ROOT/.env.local" <<EOF
 DATABASE_URL=postgres://griddle:griddle_local@localhost:25432/fjcloud_dev
 FLAPJACK_DEV_DIR_CANDIDATES=$candidate_list
 EOF
@@ -831,7 +838,7 @@ test_docker_fallback_failure_names_specific_blocker() {
     trap 'restore_repo_env_file "'"$tmp_dir"'/env_backup"; rm -rf "'"$tmp_dir"'"' RETURN
 
     # .env.local without DATABASE_URL so the fallback fails at resolve step
-    cat > "$REPO_ROOT/.env.local" <<'EOF'
+    cat > "$FJCLOUD_TEST_REPO_ROOT/.env.local" <<'EOF'
 ADMIN_KEY=test-admin-key
 EOF
 
@@ -888,17 +895,41 @@ test_check_prerequisites_redacts_effective_admin_key() {
         "check-prerequisites should redact the effective flapjack admin key"
 }
 
+test_isolated_startup_mock_setup_does_not_touch_repo_target() {
+    local tmp_dir fake_repo_root original_repo_root shared_api_bin shared_api_content
+    tmp_dir="$(mktemp -d)"
+    fake_repo_root="$(mktemp -d)"
+    original_repo_root="$REPO_ROOT"
+    shared_api_bin="$fake_repo_root/infra/target/debug/fjcloud-api"
+    mkdir -p "$(dirname "$shared_api_bin")"
+    printf '%s\n' "shared-api-sentinel" > "$shared_api_bin"
+
+    REPO_ROOT="$fake_repo_root"
+    setup_isolated_startup_mocks "$tmp_dir"
+    shared_api_content="$(cat "$shared_api_bin")"
+    rm -rf "$tmp_dir"
+    REPO_ROOT="$original_repo_root"
+    rm -rf "$fake_repo_root"
+
+    assert_eq "$shared_api_content" "shared-api-sentinel" \
+        "isolated startup mock setup should not overwrite the repository API binary"
+}
+
 test_startup_uses_isolated_local_api_environment() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"
-    setup_startup_mocks "$tmp_dir"
-    trap 'cleanup_startup_mocks "'"$tmp_dir"'"' RETURN
+    setup_isolated_startup_mocks "$tmp_dir"
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
 
+    local api_bin="$tmp_dir/fjcloud-api"
+    write_fake_api_binary "$api_bin"
     local api_env_log="$tmp_dir/api_env.log"
     local output exit_code=0
     output=$(
         PATH="$tmp_dir:/usr/bin:/bin" \
         FLAPJACK_DEV_DIR="/nonexistent" \
+        FJCLOUD_INTEGRATION_API_BINARY="$api_bin" \
+        FJCLOUD_INTEGRATION_SKIP_METERING_AGENT=1 \
         INTEGRATION_INTERNAL_AUTH_TOKEN="integration-up-shared-token" \
         INTEGRATION_UP_API_ENV_LOG="$api_env_log" \
         bash "$REPO_ROOT/scripts/integration-up.sh" 2>&1
@@ -1026,6 +1057,7 @@ main() {
     echo "--- Docker Fallback + Startup Env ---"
     test_docker_fallback_failure_names_specific_blocker
     test_check_prerequisites_redacts_effective_admin_key
+    test_isolated_startup_mock_setup_does_not_touch_repo_target
     test_startup_uses_isolated_local_api_environment
     test_startup_summary_includes_node_secret_backend
     test_startup_summary_includes_local_dev_flapjack_url

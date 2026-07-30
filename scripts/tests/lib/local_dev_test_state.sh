@@ -67,3 +67,25 @@ RUST_LOG=info,api=debug
 FLAPJACK_URL=http://localhost:7700
 EOF
 }
+
+create_local_dev_fixture_repo_root() {
+    local tmp_dir="$1"
+    local database_url="${2:-}"
+    local fixture_root="$tmp_dir/fixture_repo"
+
+    mkdir -p "$fixture_root/.local"
+    if [ -n "$database_url" ]; then
+        write_local_dev_env_file "$fixture_root/.env.local" "$database_url" || return 1
+    fi
+    printf '%s\n' "$fixture_root"
+}
+
+create_script_fixture_repo_root() {
+    local tmp_dir="$1"
+    local checkout_root="$2"
+    local fixture_root="$tmp_dir/script_fixture_repo"
+
+    mkdir -p "$fixture_root/.local" "$fixture_root/web"
+    ln -s "$checkout_root/scripts" "$fixture_root/scripts"
+    printf '%s\n' "$fixture_root"
+}

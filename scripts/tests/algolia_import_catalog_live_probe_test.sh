@@ -112,6 +112,7 @@ setup_workspace() {
   : > "$WORK_DIR/contract_check.log"
   : > "$WORK_DIR/caller_runner.log"
   : > "$WORK_DIR/cargo.log"
+  : > "$WORK_DIR/poll_calls.log"
   touch "$WORK_DIR/flapjack_dev/engine/Cargo.toml"
   printf '[package]\nname = "flapjack-server"\n' > "$WORK_DIR/flapjack_dev/engine/Cargo.toml"
   printf 'ALGOLIA_APP_ID=TESTAPP123\nALGOLIA_ADMIN_KEY=algolia-admin-secret\n' > "$WORK_DIR/secret.env"
@@ -669,6 +670,115 @@ case "$method $url" in
     exit 1 ;;
 esac
 '
+  write_fake_command "$WORK_DIR/bin/sleep" '#!/usr/bin/env bash
+set -euo pipefail
+printf "sleep|%s\n" "${1:-}" >> "$POLL_CALL_LOG"
+'
+}
+
+poll_call_log() {
+  cat "$WORK_DIR/poll_calls.log"
+}
+
+run_common_poll_case() {
+  local mode="$1"
+  local ready_after="$2"
+  shift 2
+  RUN_EXIT_CODE=0
+  : > "$WORK_DIR/poll_calls.log"
+  (
+    set -euo pipefail
+    export PATH="$WORK_DIR/bin:$PATH"
+    export WORK_DIR
+    export POLL_CALL_LOG="$WORK_DIR/poll_calls.log"
+    export POLL_MODE="$mode"
+    export POLL_READY_AFTER="$ready_after"
+    export ALGOLIA_APP_ID="TESTAPP123"
+    source "$REPO_ROOT/scripts/lib/algolia_import_live_probe_common.sh"
+
+    secure_temp_file() {
+      mktemp "$WORK_DIR/poll.XXXXXX"
+    }
+
+    algolia_url() {
+      printf 'https://testapp123.algolia.net%s' "$1"
+    }
+
+    poll_count() {
+      local path="$1"
+      local count_file="$WORK_DIR/poll_$(printf '%s' "$path" | tr -c 'A-Za-z0-9_' '_')"
+      local count
+      count="$(cat "$count_file" 2>/dev/null || printf 0)"
+      count=$((count + 1))
+      printf '%s\n' "$count" > "$count_file"
+      printf '%s\n' "$count"
+    }
+
+    algolia_request() {
+      local expected="$1"
+      local method="$2"
+      local path="$3"
+      local attempt
+      printf 'request|%s|%s\n' "$method" "$path" >> "$POLL_CALL_LOG"
+      case "$POLL_MODE:$method:$path" in
+        task:GET:/1/indexes/source/task/1)
+          attempt="$(poll_count "$path")"
+          HTTP_STATUS=200
+          if [ "$POLL_READY_AFTER" != "never" ] && [ "$attempt" -ge "$POLL_READY_AFTER" ]; then
+            HTTP_BODY='{"status":"published"}'
+          else
+            HTTP_BODY='{"status":"notPublished"}'
+          fi
+          ;;
+        key_absence:GET:/1/keys/disposable-restricted-key)
+          attempt="$(poll_count "$path")"
+          if [ "$POLL_READY_AFTER" != "never" ] && [ "$attempt" -ge "$POLL_READY_AFTER" ]; then
+            HTTP_STATUS=404
+            HTTP_BODY='{"message":"key not found"}'
+          else
+            HTTP_STATUS=200
+            HTTP_BODY='{"key":"disposable-restricted-key"}'
+          fi
+          ;;
+        *)
+          printf 'unexpected algolia_request: expected=%s method=%s path=%s\n' \
+            "$expected" "$method" "$path" >&2
+          exit 97
+          ;;
+      esac
+    }
+
+    curl_http() {
+      local expected="$1"
+      shift
+      local url="${*: -1}"
+      local attempt
+      printf 'request|GET|%s\n' "${url#https://testapp123.algolia.net}" >> "$POLL_CALL_LOG"
+      case "$POLL_MODE:$url" in
+        restricted_key:https://testapp123.algolia.net/1/indexes/source)
+          attempt="$(poll_count "/1/indexes/source")"
+          if [ "$POLL_READY_AFTER" != "never" ] && [ "$attempt" -ge "$POLL_READY_AFTER" ]; then
+            HTTP_STATUS=200
+            HTTP_BODY='{"name":"source"}'
+          else
+            HTTP_STATUS=403
+            HTTP_BODY='{"message":"not ready"}'
+          fi
+          ;;
+        *)
+          printf 'unexpected curl_http: expected=%s url=%s\n' "$expected" "$url" >&2
+          exit 97
+          ;;
+      esac
+    }
+
+    case "$POLL_MODE" in
+      task) algolia_import_probe_wait_for_algolia_task source 1 "$@" ;;
+      key_absence) algolia_import_probe_wait_for_algolia_key_absence disposable-restricted-key "$@" ;;
+      restricted_key) algolia_import_probe_wait_for_restricted_source_key source disposable-restricted-key "$@" ;;
+      *) exit 98 ;;
+    esac
+  ) || RUN_EXIT_CODE=$?
 }
 
 run_probe() {
@@ -694,6 +804,8 @@ run_probe() {
     ALGOLIA_IMPORT_CATALOG_ENGINE_URL="http://127.0.0.1:7799" \
     ALGOLIA_IMPORT_CATALOG_INVENTORY="${INVENTORY_PATH:-$WORK_DIR/catalog_lifecycle_writers.json}" \
     ALGOLIA_IMPORT_CATALOG_ORACLE="${ORACLE_PATH:-$WORK_DIR/catalog_lifecycle_acceptance_oracles.json}" \
+    ALGOLIA_IMPORT_CATALOG_ALGOLIA_POLL_ATTEMPTS="${ALGOLIA_IMPORT_CATALOG_ALGOLIA_POLL_ATTEMPTS:-5}" \
+    ALGOLIA_IMPORT_CATALOG_ALGOLIA_POLL_SECONDS="${ALGOLIA_IMPORT_CATALOG_ALGOLIA_POLL_SECONDS:-0}" \
     bash "$TARGET_SCRIPT" "$@" 2>&1
   )" || RUN_EXIT_CODE=$?
 }
@@ -1679,6 +1791,113 @@ test_caller_runner_override_is_documented() {
     "production caller runner test override is documented"
 }
 
+test_catalog_algolia_poll_config_is_documented_and_fails_closed() {
+  assert_contains "$(cat "$ENV_VARS_DOC")" 'ALGOLIA_IMPORT_CATALOG_ALGOLIA_POLL_ATTEMPTS' \
+    "catalog Algolia poll attempts override is documented"
+  assert_contains "$(cat "$ENV_VARS_DOC")" 'ALGOLIA_IMPORT_CATALOG_ALGOLIA_POLL_SECONDS' \
+    "catalog Algolia poll seconds override is documented"
+
+  setup_workspace
+  ALGOLIA_IMPORT_CATALOG_ALGOLIA_POLL_ATTEMPTS=0 run_probe --phases catalog
+  assert_eq "$RUN_EXIT_CODE" "1" "zero catalog Algolia poll attempts should fail closed"
+  assert_contains "$RUN_STDOUT" "RESULT|status=ACTION_REQUIRED|reason=invalid_poll_config" \
+    "invalid catalog Algolia poll attempts emit a stable reason"
+  assert_eq "$(cat "$WORK_DIR/up.log")" "" "invalid catalog Algolia poll attempts fail before stack start"
+
+  setup_workspace
+  ALGOLIA_IMPORT_CATALOG_ALGOLIA_POLL_SECONDS=bad run_probe --phases catalog
+  assert_eq "$RUN_EXIT_CODE" "1" "malformed catalog Algolia poll seconds should fail closed"
+  assert_contains "$RUN_STDOUT" "RESULT|status=ACTION_REQUIRED|reason=invalid_poll_config" \
+    "invalid catalog Algolia poll seconds emit a stable reason"
+  assert_eq "$(cat "$WORK_DIR/up.log")" "" "invalid catalog Algolia poll seconds fail before stack start"
+}
+
+test_shared_algolia_task_polling_uses_configured_attempts_and_interval() {
+  setup_workspace
+  run_common_poll_case task 3 3 0
+  assert_eq "$RUN_EXIT_CODE" "0" "published Algolia task should pass within configured attempts"
+  assert_eq "$(poll_call_log)" "$(printf '%s\n' \
+    'request|GET|/1/indexes/source/task/1' \
+    'sleep|0' \
+    'request|GET|/1/indexes/source/task/1' \
+    'sleep|0' \
+    'request|GET|/1/indexes/source/task/1')" \
+    "task polling requests before sleeping and never sleeps after readiness"
+
+  run_common_poll_case task never 3 0
+  assert_eq "$RUN_EXIT_CODE" "1" "unpublished Algolia task should exhaust configured attempts"
+  assert_eq "$(poll_call_log)" "$(printf '%s\n' \
+    'request|GET|/1/indexes/source/task/1' \
+    'sleep|0' \
+    'request|GET|/1/indexes/source/task/1' \
+    'sleep|0' \
+    'request|GET|/1/indexes/source/task/1')" \
+    "task polling never sleeps after the final configured attempt"
+}
+
+test_shared_algolia_key_absence_polling_uses_configured_attempts_and_interval() {
+  setup_workspace
+  run_common_poll_case key_absence 3 3 0
+  assert_eq "$RUN_EXIT_CODE" "0" "absent Algolia key should pass within configured attempts"
+  assert_eq "$(poll_call_log)" "$(printf '%s\n' \
+    'request|GET|/1/keys/disposable-restricted-key' \
+    'sleep|0' \
+    'request|GET|/1/keys/disposable-restricted-key' \
+    'sleep|0' \
+    'request|GET|/1/keys/disposable-restricted-key')" \
+    "key-absence polling requests before sleeping and never sleeps after readiness"
+
+  run_common_poll_case key_absence never 3 0
+  assert_eq "$RUN_EXIT_CODE" "1" "present Algolia key should exhaust configured attempts"
+  assert_eq "$(poll_call_log)" "$(printf '%s\n' \
+    'request|GET|/1/keys/disposable-restricted-key' \
+    'sleep|0' \
+    'request|GET|/1/keys/disposable-restricted-key' \
+    'sleep|0' \
+    'request|GET|/1/keys/disposable-restricted-key')" \
+    "key-absence polling never sleeps after the final configured attempt"
+}
+
+test_shared_restricted_key_readiness_polling_uses_configured_attempts_and_interval() {
+  setup_workspace
+  run_common_poll_case restricted_key 3 3 0
+  assert_eq "$RUN_EXIT_CODE" "0" "restricted source key should pass within configured attempts"
+  assert_eq "$(poll_call_log)" "$(printf '%s\n' \
+    'request|GET|/1/indexes/source' \
+    'sleep|0' \
+    'request|GET|/1/indexes/source' \
+    'sleep|0' \
+    'request|GET|/1/indexes/source')" \
+    "restricted-key polling requests before sleeping and never sleeps after readiness"
+
+  run_common_poll_case restricted_key never 3 0
+  assert_eq "$RUN_EXIT_CODE" "1" "unready restricted source key should exhaust configured attempts"
+  assert_eq "$(poll_call_log)" "$(printf '%s\n' \
+    'request|GET|/1/indexes/source' \
+    'sleep|0' \
+    'request|GET|/1/indexes/source' \
+    'sleep|0' \
+    'request|GET|/1/indexes/source')" \
+    "restricted-key polling never sleeps after the final configured attempt"
+}
+
+test_shared_algolia_polling_default_contract_is_five_attempts_one_second() {
+  setup_workspace
+  run_common_poll_case key_absence never
+  assert_eq "$RUN_EXIT_CODE" "1" "omitted poll overrides should retain five-attempt failure"
+  assert_eq "$(poll_call_log)" "$(printf '%s\n' \
+    'request|GET|/1/keys/disposable-restricted-key' \
+    'sleep|1' \
+    'request|GET|/1/keys/disposable-restricted-key' \
+    'sleep|1' \
+    'request|GET|/1/keys/disposable-restricted-key' \
+    'sleep|1' \
+    'request|GET|/1/keys/disposable-restricted-key' \
+    'sleep|1' \
+    'request|GET|/1/keys/disposable-restricted-key')" \
+    "omitted poll overrides use five attempts, one-second sleeps, and no final sleep"
+}
+
 test_empty_secret_placeholders_have_gitleaks_rationale() {
   assert_contains "$(grep -E '^PROBE_ADMIN_KEY=""' "$TARGET_SCRIPT")" \
     "gitleaks:allow -- adjacent empty variable names, no credential literal" \
@@ -1706,5 +1925,10 @@ test_runtime_failures_are_action_required_and_cleanup_runs
 test_failure_diagnostics_and_async_cleanup_converge
 test_restricted_source_key_is_verified_before_dispatch
 test_caller_runner_override_is_documented
+test_catalog_algolia_poll_config_is_documented_and_fails_closed
+test_shared_algolia_task_polling_uses_configured_attempts_and_interval
+test_shared_algolia_key_absence_polling_uses_configured_attempts_and_interval
+test_shared_restricted_key_readiness_polling_uses_configured_attempts_and_interval
+test_shared_algolia_polling_default_contract_is_five_attempts_one_second
 
 run_test_summary

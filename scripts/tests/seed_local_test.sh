@@ -36,6 +36,11 @@ source "$REPO_ROOT/scripts/lib/local_seed_contract.sh"
 unset FLAPJACK_REGIONS
 unset FLAPJACK_SINGLE_INSTANCE
 
+SEED_LOCAL_TEST_REPO_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/seed-local-repo.XXXXXX")"
+export FJCLOUD_TEST_REPO_ROOT="$SEED_LOCAL_TEST_REPO_ROOT"
+export FJCLOUD_REPO_ROOT="$SEED_LOCAL_TEST_REPO_ROOT"
+trap 'rm -rf "$SEED_LOCAL_TEST_REPO_ROOT"' EXIT
+
 test_seed_local_sources_contract_and_shared_db_helpers() {
     local script_text
     script_text="$(sed -n '1,260p' "$REPO_ROOT/scripts/seed_local.sh")"
@@ -60,7 +65,7 @@ test_uses_valid_default_email_and_verifies_seed_user() {
     local psql_stdin="$tmp_dir/psql.stdin"
     mkdir -p "$tmp_dir/bin"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     write_mock_psql "$tmp_dir/bin/psql" "$psql_log" "$psql_stdin"
 
@@ -106,7 +111,7 @@ test_seeds_multi_region_inventory_and_multi_user_indexes() {
     local psql_stdin="$tmp_dir/psql.stdin"
     mkdir -p "$tmp_dir/bin"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     write_mock_psql "$tmp_dir/bin/psql" "$psql_log" "$psql_stdin"
 
@@ -251,7 +256,7 @@ test_is_idempotent_on_second_run() {
     local psql_stdin="$tmp_dir/psql.stdin"
     mkdir -p "$tmp_dir/bin"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     write_mock_psql "$tmp_dir/bin/psql" "$psql_log" "$psql_stdin"
 
@@ -303,7 +308,7 @@ test_fails_when_usage_daily_seed_sql_fails() {
     local psql_stdin="$tmp_dir/psql.stdin"
     mkdir -p "$tmp_dir/bin"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     write_mock_psql "$tmp_dir/bin/psql" "$psql_log" "$psql_stdin"
 
@@ -341,7 +346,7 @@ test_fails_when_engine_document_seed_fails() {
     local psql_stdin="$tmp_dir/psql.stdin"
     mkdir -p "$tmp_dir/bin"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     write_mock_psql "$tmp_dir/bin/psql" "$psql_log" "$psql_stdin"
 
@@ -376,7 +381,7 @@ test_fails_when_seeded_document_is_not_searchable() {
     local psql_stdin="$tmp_dir/psql.stdin"
     mkdir -p "$tmp_dir/bin"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     write_mock_psql "$tmp_dir/bin/psql" "$psql_log" "$psql_stdin"
 
@@ -411,7 +416,7 @@ test_warns_when_local_email_verification_is_unavailable() {
     mkdir -p "$tmp_dir/bin"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
 
     local output exit_code=0
     output=$(
@@ -436,7 +441,7 @@ test_defaults_flapjack_url_from_local_dev_port() {
     mkdir -p "$tmp_dir/bin"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
 
     local output exit_code=0
     output=$(
@@ -465,7 +470,7 @@ test_defaults_vm_inventory_to_shared_flapjack_url_without_region_map() {
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     write_mock_psql "$tmp_dir/bin/psql" "$tmp_dir/psql.log" "$psql_stdin"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
 
     local output exit_code=0
     output=$(
@@ -501,7 +506,7 @@ test_single_instance_override_ignores_region_specific_vm_inventory_urls() {
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     write_mock_psql "$tmp_dir/bin/psql" "$tmp_dir/psql.log" "$psql_stdin"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
 
     local output exit_code=0
     output=$(
@@ -539,7 +544,7 @@ test_prefers_normalized_local_dev_flapjack_url_for_local_vm_contract() {
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     write_mock_psql "$tmp_dir/bin/psql" "$tmp_dir/psql.log" "$psql_stdin"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
 
     local output exit_code=0
     output=$(
@@ -599,7 +604,7 @@ test_preserves_api_url_override_while_loading_other_env_local_values() {
     mkdir -p "$tmp_dir/bin"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    cat > "$REPO_ROOT/.env.local" <<'EOF'
+    cat > "$FJCLOUD_TEST_REPO_ROOT/.env.local" <<'EOF'
 API_URL=http://localhost:3998
 ADMIN_KEY=file-admin-key
 FLAPJACK_PORT=7711
@@ -633,7 +638,7 @@ test_derives_api_url_from_env_local_api_base_url() {
     mkdir -p "$tmp_dir/bin"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    cat > "$REPO_ROOT/.env.local" <<'EOF'
+    cat > "$FJCLOUD_TEST_REPO_ROOT/.env.local" <<'EOF'
 API_BASE_URL=http://localhost:3999
 ADMIN_KEY=base-url-admin-key
 EOF
@@ -661,7 +666,7 @@ test_accepts_env_local_with_comments_and_blank_lines() {
     mkdir -p "$tmp_dir/bin"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    cat > "$REPO_ROOT/.env.local" <<'EOF'
+    cat > "$FJCLOUD_TEST_REPO_ROOT/.env.local" <<'EOF'
 # This is a comment at the top of the file
 
 ADMIN_KEY=commented-env-admin-key
@@ -699,7 +704,7 @@ test_rejects_executable_env_local_content() {
     mkdir -p "$tmp_dir/bin"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    cat > "$REPO_ROOT/.env.local" <<EOF
+    cat > "$FJCLOUD_TEST_REPO_ROOT/.env.local" <<EOF
 ADMIN_KEY=file-admin-key
 touch "$marker_path"
 EOF
@@ -731,7 +736,7 @@ test_requires_explicit_admin_key_configuration() {
     mkdir -p "$tmp_dir/bin"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
 
     local output exit_code=0
     output=$(
@@ -754,7 +759,7 @@ test_escapes_seed_payload_fields_and_index_path() {
     mkdir -p "$tmp_dir/bin"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
 
     local output exit_code=0
     output=$(
@@ -792,7 +797,7 @@ test_rejects_invalid_flapjack_regions_port_mapping() {
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     write_mock_psql "$tmp_dir/bin/psql" "$psql_log" "$psql_stdin"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
 
     local output exit_code=0
     output=$(
@@ -827,7 +832,7 @@ test_omits_flapjack_url_when_local_flapjack_is_unreachable() {
     mkdir -p "$tmp_dir/bin"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
 
     local output exit_code=0
     output=$(
@@ -861,7 +866,7 @@ test_syncs_stripe_for_seeded_users_when_stripe_local_mode_enabled() {
     local psql_stdin="$tmp_dir/psql.stdin"
     mkdir -p "$tmp_dir/bin"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     write_mock_psql "$tmp_dir/bin/psql" "$psql_log" "$psql_stdin"
 
@@ -900,7 +905,7 @@ test_skips_stripe_sync_when_stripe_local_mode_unset() {
     local psql_stdin="$tmp_dir/psql.stdin"
     mkdir -p "$tmp_dir/bin"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     write_mock_psql "$tmp_dir/bin/psql" "$psql_log" "$psql_stdin"
 
@@ -932,7 +937,7 @@ test_stripe_sync_idempotent_on_rerun() {
     local psql_stdin="$tmp_dir/psql.stdin"
     mkdir -p "$tmp_dir/bin"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     write_mock_psql "$tmp_dir/bin/psql" "$psql_log" "$psql_stdin"
 
@@ -978,7 +983,7 @@ test_fails_loudly_when_stripe_sync_returns_error() {
     local psql_stdin="$tmp_dir/psql.stdin"
     mkdir -p "$tmp_dir/bin"
     backup_repo_env_file "$tmp_dir/.env.local.backup" || true
-    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$FJCLOUD_TEST_REPO_ROOT/.env.local"
     write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
     write_mock_psql "$tmp_dir/bin/psql" "$psql_log" "$psql_stdin"
 

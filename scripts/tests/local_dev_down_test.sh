@@ -28,12 +28,19 @@ source "$SCRIPT_DIR/lib/local_dev_test_state.sh"
 
 setup_local_dev_runtime_state() {
     local tmp_dir="$1"
-    LOCAL_DEV_RUNTIME_BACKUP=$(backup_repo_path "$REPO_ROOT/.local" "$tmp_dir/.local.backup")
+    LOCAL_DEV_TEST_REPO_ROOT="$(create_local_dev_fixture_repo_root "$tmp_dir")"
+    LOCAL_DEV_COMPOSE_PROJECT_NAME="fjcloud_local_dev_down_$$_${RANDOM}"
 }
 
 restore_local_dev_runtime_state() {
-    restore_repo_path "$REPO_ROOT/.local" "${LOCAL_DEV_RUNTIME_BACKUP:-}"
-    LOCAL_DEV_RUNTIME_BACKUP=""
+    LOCAL_DEV_TEST_REPO_ROOT=""
+    LOCAL_DEV_COMPOSE_PROJECT_NAME=""
+}
+
+run_local_dev_down() {
+    FJCLOUD_REPO_ROOT="$LOCAL_DEV_TEST_REPO_ROOT" \
+    COMPOSE_PROJECT_NAME="$LOCAL_DEV_COMPOSE_PROJECT_NAME" \
+        bash "$REPO_ROOT/scripts/local-dev-down.sh" "$@"
 }
 
 write_mock_script() {
@@ -63,7 +70,7 @@ test_kills_flapjack_via_pid_file() {
     trap 'restore_local_dev_runtime_state; rm -rf "'"$tmp_dir"'"' RETURN
     setup_local_dev_runtime_state "$tmp_dir"
 
-    local pid_dir="$REPO_ROOT/.local"
+    local pid_dir="$LOCAL_DEV_TEST_REPO_ROOT/.local"
     mkdir -p "$pid_dir"
 
     # Copy sleep binary as "flapjack" so ps comm= shows "flapjack"
@@ -80,7 +87,7 @@ test_kills_flapjack_via_pid_file() {
     write_mock_script "$tmp_dir/docker" 'exit 0'
 
     local output exit_code=0
-    output=$(PATH="$tmp_dir:$PATH" bash "$REPO_ROOT/scripts/local-dev-down.sh" 2>&1) || exit_code=$?
+    output=$(PATH="$tmp_dir:$PATH" run_local_dev_down 2>&1) || exit_code=$?
 
     assert_eq "$exit_code" "0" "local-dev-down should succeed"
 
@@ -112,7 +119,7 @@ test_runs_docker_compose_down() {
         'echo "$@" >> "'"$tmp_dir"'/docker_calls.log"; exit 0'
 
     local output exit_code=0
-    output=$(PATH="$tmp_dir:$PATH" bash "$REPO_ROOT/scripts/local-dev-down.sh" 2>&1) || exit_code=$?
+    output=$(PATH="$tmp_dir:$PATH" run_local_dev_down 2>&1) || exit_code=$?
 
     assert_eq "$exit_code" "0" "local-dev-down should succeed"
 
@@ -132,7 +139,7 @@ test_clean_flag_adds_volume_removal() {
         'echo "$@" >> "'"$tmp_dir"'/docker_calls.log"; exit 0'
 
     local output exit_code=0
-    output=$(PATH="$tmp_dir:$PATH" bash "$REPO_ROOT/scripts/local-dev-down.sh" --clean 2>&1) || exit_code=$?
+    output=$(PATH="$tmp_dir:$PATH" run_local_dev_down --clean 2>&1) || exit_code=$?
 
     assert_eq "$exit_code" "0" "local-dev-down --clean should succeed"
 
@@ -148,7 +155,7 @@ test_clean_flag_removes_default_flapjack_data_dirs() {
     trap 'restore_local_dev_runtime_state; rm -rf "'"$tmp_dir"'"' RETURN
     setup_local_dev_runtime_state "$tmp_dir"
 
-    local pid_dir="$REPO_ROOT/.local"
+    local pid_dir="$LOCAL_DEV_TEST_REPO_ROOT/.local"
     mkdir -p \
         "$pid_dir/flapjack-data" \
         "$pid_dir/flapjack-data-us-east-1" \
@@ -160,7 +167,7 @@ test_clean_flag_removes_default_flapjack_data_dirs() {
     write_mock_script "$tmp_dir/docker" 'exit 0'
 
     local output exit_code=0
-    output=$(PATH="$tmp_dir:$PATH" bash "$REPO_ROOT/scripts/local-dev-down.sh" --clean 2>&1) || exit_code=$?
+    output=$(PATH="$tmp_dir:$PATH" run_local_dev_down --clean 2>&1) || exit_code=$?
 
     assert_eq "$exit_code" "0" "local-dev-down --clean should succeed when removing Flapjack data dirs"
 
@@ -186,13 +193,13 @@ test_removes_log_files_and_pid_directory() {
     trap 'restore_local_dev_runtime_state; rm -rf "'"$tmp_dir"'"' RETURN
     setup_local_dev_runtime_state "$tmp_dir"
 
-    local pid_dir="$REPO_ROOT/.local"
+    local pid_dir="$LOCAL_DEV_TEST_REPO_ROOT/.local"
     mkdir -p "$pid_dir"
     echo "test log" > "$pid_dir/flapjack.log"
 
     write_mock_script "$tmp_dir/docker" 'exit 0'
 
-    PATH="$tmp_dir:$PATH" bash "$REPO_ROOT/scripts/local-dev-down.sh" 2>&1 >/dev/null
+    PATH="$tmp_dir:$PATH" run_local_dev_down 2>&1 >/dev/null
 
     if [ -f "$pid_dir/flapjack.log" ]; then
         rm -f "$pid_dir/flapjack.log"
@@ -220,8 +227,8 @@ test_idempotent_when_nothing_running() {
 
     # Run twice — both should succeed
     local exit1=0 exit2=0
-    PATH="$tmp_dir:$PATH" bash "$REPO_ROOT/scripts/local-dev-down.sh" 2>&1 >/dev/null || exit1=$?
-    PATH="$tmp_dir:$PATH" bash "$REPO_ROOT/scripts/local-dev-down.sh" 2>&1 >/dev/null || exit2=$?
+    PATH="$tmp_dir:$PATH" run_local_dev_down 2>&1 >/dev/null || exit1=$?
+    PATH="$tmp_dir:$PATH" run_local_dev_down 2>&1 >/dev/null || exit2=$?
 
     assert_eq "$exit1" "0" "first teardown should succeed (nothing running)"
     assert_eq "$exit2" "0" "second teardown should succeed (idempotent)"
@@ -233,7 +240,7 @@ test_cleans_up_metering_agent_pid_files() {
     trap 'restore_local_dev_runtime_state; rm -rf "'"$tmp_dir"'"' RETURN
     setup_local_dev_runtime_state "$tmp_dir"
 
-    local pid_dir="$REPO_ROOT/.local"
+    local pid_dir="$LOCAL_DEV_TEST_REPO_ROOT/.local"
     mkdir -p "$pid_dir"
 
     # Create fake metering-agent PID files pointing to non-running processes.
@@ -248,7 +255,7 @@ test_cleans_up_metering_agent_pid_files() {
     write_mock_script "$tmp_dir/docker" 'exit 0'
 
     local output exit_code=0
-    output=$(PATH="$tmp_dir:$PATH" bash "$REPO_ROOT/scripts/local-dev-down.sh" 2>&1) || exit_code=$?
+    output=$(PATH="$tmp_dir:$PATH" run_local_dev_down 2>&1) || exit_code=$?
 
     assert_eq "$exit_code" "0" "should succeed cleaning up metering-agent PID files"
 
@@ -287,7 +294,7 @@ test_cleans_up_multi_region_flapjack_pid_files() {
     trap 'restore_local_dev_runtime_state; rm -rf "'"$tmp_dir"'"' RETURN
     setup_local_dev_runtime_state "$tmp_dir"
 
-    local pid_dir="$REPO_ROOT/.local"
+    local pid_dir="$LOCAL_DEV_TEST_REPO_ROOT/.local"
     mkdir -p "$pid_dir"
 
     # Create fake multi-region flapjack PID files (non-running PIDs).
@@ -298,7 +305,7 @@ test_cleans_up_multi_region_flapjack_pid_files() {
     write_mock_script "$tmp_dir/docker" 'exit 0'
 
     local output exit_code=0
-    output=$(PATH="$tmp_dir:$PATH" bash "$REPO_ROOT/scripts/local-dev-down.sh" 2>&1) || exit_code=$?
+    output=$(PATH="$tmp_dir:$PATH" run_local_dev_down 2>&1) || exit_code=$?
 
     assert_eq "$exit_code" "0" "should succeed cleaning up multi-region flapjack PID files"
 
@@ -329,7 +336,7 @@ test_kills_running_metering_agent_via_pid_file() {
     trap 'restore_local_dev_runtime_state; rm -rf "'"$tmp_dir"'"' RETURN
     setup_local_dev_runtime_state "$tmp_dir"
 
-    local pid_dir="$REPO_ROOT/.local"
+    local pid_dir="$LOCAL_DEV_TEST_REPO_ROOT/.local"
     mkdir -p "$pid_dir"
 
     # Copy sleep binary as "metering-agent" so ps comm= matches the expected_cmd.
@@ -345,7 +352,7 @@ test_kills_running_metering_agent_via_pid_file() {
     write_mock_script "$tmp_dir/docker" 'exit 0'
 
     local output exit_code=0
-    output=$(PATH="$tmp_dir:$PATH" bash "$REPO_ROOT/scripts/local-dev-down.sh" 2>&1) || exit_code=$?
+    output=$(PATH="$tmp_dir:$PATH" run_local_dev_down 2>&1) || exit_code=$?
 
     assert_eq "$exit_code" "0" "local-dev-down should succeed"
 
@@ -372,7 +379,7 @@ test_kills_local_demo_api_and_web_pid_files() {
     trap 'restore_local_dev_runtime_state; rm -rf "'"$tmp_dir"'"' RETURN
     setup_local_dev_runtime_state "$tmp_dir"
 
-    local pid_dir="$REPO_ROOT/.local"
+    local pid_dir="$LOCAL_DEV_TEST_REPO_ROOT/.local"
     mkdir -p "$pid_dir"
 
     cp "$(command -v sleep)" "$tmp_dir/fjcloud-api"
@@ -392,7 +399,7 @@ test_kills_local_demo_api_and_web_pid_files() {
     write_mock_script "$tmp_dir/docker" 'exit 0'
 
     local output exit_code=0
-    output=$(PATH="$tmp_dir:$PATH" bash "$REPO_ROOT/scripts/local-dev-down.sh" 2>&1) || exit_code=$?
+    output=$(PATH="$tmp_dir:$PATH" run_local_dev_down 2>&1) || exit_code=$?
 
     assert_eq "$exit_code" "0" "local-dev-down should succeed for local demo PIDs"
 
@@ -420,6 +427,53 @@ test_kills_local_demo_api_and_web_pid_files() {
     rm -rf "$pid_dir" 2>/dev/null || true
 }
 
+test_honors_fjcloud_repo_root_override() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_local_dev_runtime_state; rm -rf "'"$tmp_dir"'"' RETURN
+    setup_local_dev_runtime_state "$tmp_dir"
+
+    local fixture_root fixture_pid_dir checkout_pid_dir checkout_sentinel
+    fixture_root="$(create_local_dev_fixture_repo_root "$tmp_dir")"
+    fixture_pid_dir="$fixture_root/.local"
+    checkout_pid_dir="$REPO_ROOT/.local"
+    checkout_sentinel="$checkout_pid_dir/stage3_checkout_$$_${RANDOM}.log"
+    mkdir -p "$checkout_pid_dir" "$fixture_pid_dir"
+    printf 'checkout sentinel\n' > "$checkout_sentinel"
+    printf 'fixture log\n' > "$fixture_pid_dir/flapjack.log"
+    mkdir -p "$fixture_pid_dir/flapjack-data-us-east-1"
+
+    write_mock_script "$tmp_dir/docker" \
+        'echo "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-} $@" >> "'"$tmp_dir"'/docker_calls.log"; exit 0'
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir:$PATH" \
+        FJCLOUD_REPO_ROOT="$fixture_root" \
+        COMPOSE_PROJECT_NAME="fjcloud_stage3_down_$$" \
+        bash "$REPO_ROOT/scripts/local-dev-down.sh" --clean 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "0" "local-dev-down honors FJCLOUD_REPO_ROOT override"
+    if [ -e "$fixture_pid_dir/flapjack.log" ]; then
+        fail "override root .local log files are removed"
+    else
+        pass "override root .local log files are removed"
+    fi
+    if [ -e "$fixture_pid_dir/flapjack-data-us-east-1" ]; then
+        fail "override root --clean removes default Flapjack data dirs"
+    else
+        pass "override root --clean removes default Flapjack data dirs"
+    fi
+    assert_file_exists "$checkout_sentinel" \
+        "checkout-root sentinel remains untouched when FJCLOUD_REPO_ROOT is supplied"
+    assert_contains "$(cat "$tmp_dir/docker_calls.log" 2>/dev/null || true)" \
+        "COMPOSE_PROJECT_NAME=fjcloud_stage3_down_$$ compose down -v" \
+        "explicit COMPOSE_PROJECT_NAME is passed through to docker compose down"
+    rm -f "$checkout_sentinel"
+    rmdir "$checkout_pid_dir" 2>/dev/null || true
+}
+
 # ============================================================================
 # Run all tests
 # ============================================================================
@@ -438,6 +492,7 @@ main() {
     test_cleans_up_multi_region_flapjack_pid_files
     test_kills_running_metering_agent_via_pid_file
     test_kills_local_demo_api_and_web_pid_files
+    test_honors_fjcloud_repo_root_override
 
     echo ""
     echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="

@@ -21,17 +21,23 @@ LOCAL_DEV_MIGRATE_FALLBACK_DB_URL="postgres://fallback_user:fallback_secret@loca
 LOCAL_DEV_MIGRATE_PARSE_DB_URL="postgres://parse_user:parse_secret@localhost:5432/parse_db"
 LOCAL_DEV_MIGRATE_BAD_DB_URL="postgres://bad_user:bad_secret@localhost:notaport/bad_db"
 LOCAL_DEV_PROBE_SCRIPT=""
+LOCAL_DEV_TEST_REPO_ROOT=""
 
 setup_local_dev_repo_state() {
     local tmp_dir="$1"
-    LOCAL_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
-    write_local_dev_env_file "$REPO_ROOT/.env.local" "$LOCAL_DEV_MIGRATE_HOST_DB_URL"
+    LOCAL_DEV_TEST_REPO_ROOT="$(create_local_dev_fixture_repo_root "$tmp_dir" "$LOCAL_DEV_MIGRATE_HOST_DB_URL")"
+    mkdir -p "$LOCAL_DEV_TEST_REPO_ROOT/infra"
+    cp -R "$REPO_ROOT/infra/migrations" "$LOCAL_DEV_TEST_REPO_ROOT/infra/"
 }
 
 restore_local_dev_repo_state() {
-    restore_repo_path "$REPO_ROOT/.env.local" "${LOCAL_DEV_ENV_BACKUP:-}"
-    LOCAL_DEV_ENV_BACKUP=""
     LOCAL_DEV_PROBE_SCRIPT=""
+    LOCAL_DEV_TEST_REPO_ROOT=""
+}
+
+run_local_dev_migrate() {
+    FJCLOUD_REPO_ROOT="$LOCAL_DEV_TEST_REPO_ROOT" \
+        bash "$REPO_ROOT/scripts/local-dev-migrate.sh"
 }
 
 write_probe_mock() {
@@ -225,7 +231,7 @@ test_host_psql_happy_path_uses_repo_migrations_and_redacts_output() {
         PATH="$tmp_dir/bin:/usr/bin:/bin" \
         DATABASE_URL="$LOCAL_DEV_MIGRATE_HOST_DB_URL" \
         FJCLOUD_TEST_SCHEMA_DRIFT_PROBE_SCRIPT="$LOCAL_DEV_PROBE_SCRIPT" \
-        bash "$REPO_ROOT/scripts/local-dev-migrate.sh" 2>&1
+        run_local_dev_migrate 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "host psql path should succeed"
@@ -234,8 +240,8 @@ test_host_psql_happy_path_uses_repo_migrations_and_redacts_output() {
     calls=$(cat "$MOCK_CALL_LOG" 2>/dev/null || true)
     assert_contains "$calls" "psql $LOCAL_DEV_MIGRATE_HOST_DB_URL" \
         "host psql should receive DATABASE_URL"
-    assert_contains "$calls" "$REPO_ROOT/infra/migrations/" \
-        "host psql should apply migrations from repo infra/migrations"
+    assert_contains "$calls" "$LOCAL_DEV_TEST_REPO_ROOT/infra/migrations/" \
+        "host psql should apply migrations from the fixture repo infra/migrations"
 
     assert_contains "$output" "postgres://host_user:***@localhost:5432/host_db" \
         "output should redact database URL password"
@@ -262,7 +268,7 @@ test_missing_host_psql_uses_docker_fallback_runner_shape() {
         PATH="$tmp_dir/bin:/usr/bin:/bin" \
         DATABASE_URL="$LOCAL_DEV_MIGRATE_FALLBACK_DB_URL" \
         FJCLOUD_TEST_SCHEMA_DRIFT_PROBE_SCRIPT="$LOCAL_DEV_PROBE_SCRIPT" \
-        bash "$REPO_ROOT/scripts/local-dev-migrate.sh" 2>&1
+        run_local_dev_migrate 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "missing host psql should fall back to docker runner"
@@ -290,7 +296,7 @@ test_docker_fallback_uses_migrations_runner_path_contract() {
     export MOCK_CALL_LOG="$tmp_dir/calls.log"
 
     local first_migration
-    first_migration=$(ls "$REPO_ROOT/infra/migrations"/*.sql | sort | head -1)
+    first_migration=$(ls "$LOCAL_DEV_TEST_REPO_ROOT/infra/migrations"/*.sql | sort | head -1)
     first_migration=$(basename "$first_migration")
 
     local output exit_code=0
@@ -298,7 +304,7 @@ test_docker_fallback_uses_migrations_runner_path_contract() {
         PATH="$tmp_dir/bin:/usr/bin:/bin" \
         DATABASE_URL="$LOCAL_DEV_MIGRATE_FALLBACK_DB_URL" \
         FJCLOUD_TEST_SCHEMA_DRIFT_PROBE_SCRIPT="$LOCAL_DEV_PROBE_SCRIPT" \
-        bash "$REPO_ROOT/scripts/local-dev-migrate.sh" 2>&1
+        run_local_dev_migrate 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "docker fallback should complete migration run"
@@ -307,7 +313,7 @@ test_docker_fallback_uses_migrations_runner_path_contract() {
     calls=$(cat "$MOCK_CALL_LOG" 2>/dev/null || true)
     assert_contains "$calls" "-f /migrations/$first_migration" \
         "docker apply calls should use /migrations/<filename>.sql"
-    assert_not_contains "$calls" "-f $REPO_ROOT/infra/migrations/$first_migration" \
+    assert_not_contains "$calls" "-f $LOCAL_DEV_TEST_REPO_ROOT/infra/migrations/$first_migration" \
         "docker apply calls should not use repo-host file paths"
 
     unset MOCK_CALL_LOG
@@ -330,7 +336,7 @@ test_docker_fallback_parses_database_url_and_keeps_password_secret() {
         PATH="$tmp_dir/bin:/usr/bin:/bin" \
         DATABASE_URL="$LOCAL_DEV_MIGRATE_PARSE_DB_URL" \
         FJCLOUD_TEST_SCHEMA_DRIFT_PROBE_SCRIPT="$LOCAL_DEV_PROBE_SCRIPT" \
-        bash "$REPO_ROOT/scripts/local-dev-migrate.sh" 2>&1
+        run_local_dev_migrate 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "docker fallback should succeed with parse-focused DATABASE_URL"
@@ -360,6 +366,7 @@ test_missing_database_url_reports_actionable_error() {
     output=$(
         PATH="$tmp_dir/bin:/usr/bin:/bin" \
         env -u DATABASE_URL \
+        FJCLOUD_REPO_ROOT="$LOCAL_DEV_TEST_REPO_ROOT" \
         bash "$REPO_ROOT/scripts/local-dev-migrate.sh" 2>&1
     ) || exit_code=$?
 
@@ -392,7 +399,7 @@ test_malformed_database_url_reports_actionable_error_without_install_hint() {
     output=$(
         PATH="$tmp_dir/bin:/usr/bin:/bin" \
         DATABASE_URL="$LOCAL_DEV_MIGRATE_BAD_DB_URL" \
-        bash "$REPO_ROOT/scripts/local-dev-migrate.sh" 2>&1
+        run_local_dev_migrate 2>&1
     ) || exit_code=$?
 
     if [ "$exit_code" -ne 0 ]; then
@@ -424,7 +431,7 @@ test_malformed_database_url_reports_configuration_error_when_docker_missing() {
     output=$(
         PATH="$tmp_dir/bin:/usr/bin:/bin" \
         DATABASE_URL="$LOCAL_DEV_MIGRATE_BAD_DB_URL" \
-        bash "$REPO_ROOT/scripts/local-dev-migrate.sh" 2>&1
+        run_local_dev_migrate 2>&1
     ) || exit_code=$?
 
     if [ "$exit_code" -ne 0 ]; then
@@ -461,7 +468,7 @@ test_migration_tracking_preserved_when_all_migrations_already_applied() {
         PATH="$tmp_dir/bin:/usr/bin:/bin" \
         DATABASE_URL="$LOCAL_DEV_MIGRATE_FALLBACK_DB_URL" \
         FJCLOUD_TEST_SCHEMA_DRIFT_PROBE_SCRIPT="$LOCAL_DEV_PROBE_SCRIPT" \
-        bash "$REPO_ROOT/scripts/local-dev-migrate.sh" 2>&1
+        run_local_dev_migrate 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "tracked migrations should not fail fallback runner"
@@ -499,7 +506,7 @@ test_docker_fallback_runs_schema_drift_probe_with_wrapper() {
     output=$(
         PATH="$tmp_dir/bin:/usr/bin:/bin" \
         DATABASE_URL="$LOCAL_DEV_MIGRATE_FALLBACK_DB_URL" \
-        bash "$REPO_ROOT/scripts/local-dev-migrate.sh" 2>&1
+        run_local_dev_migrate 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "docker fallback plus wrapper-backed probe should succeed"
@@ -546,7 +553,7 @@ test_no_access_paths_fail_with_actionable_error_without_secret_leak() {
     output=$(
         PATH="$tmp_dir/bin:/usr/bin:/bin" \
         DATABASE_URL="$db_url" \
-        bash "$REPO_ROOT/scripts/local-dev-migrate.sh" 2>&1
+        run_local_dev_migrate 2>&1
     ) || exit_code=$?
 
     if [ "$exit_code" -ne 0 ]; then
@@ -582,7 +589,7 @@ test_successful_migration_runs_schema_drift_probe_before_done() {
         PATH="$tmp_dir/bin:/usr/bin:/bin" \
         DATABASE_URL="$LOCAL_DEV_MIGRATE_HOST_DB_URL" \
         FJCLOUD_TEST_SCHEMA_DRIFT_PROBE_SCRIPT="$LOCAL_DEV_PROBE_SCRIPT" \
-        bash "$REPO_ROOT/scripts/local-dev-migrate.sh" 2>&1
+        run_local_dev_migrate 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "successful migration plus drift probe should exit 0"
@@ -591,7 +598,7 @@ test_successful_migration_runs_schema_drift_probe_before_done() {
     calls=$(cat "$MOCK_CALL_LOG" 2>/dev/null || true)
     assert_contains "$calls" "probe $LOCAL_DEV_MIGRATE_HOST_DB_URL" \
         "local-dev-migrate should invoke schema drift probe with DATABASE_URL"
-    assert_call_order "$MOCK_CALL_LOG" " -f $REPO_ROOT/infra/migrations/" "probe $LOCAL_DEV_MIGRATE_HOST_DB_URL" \
+    assert_call_order "$MOCK_CALL_LOG" " -f $LOCAL_DEV_TEST_REPO_ROOT/infra/migrations/" "probe $LOCAL_DEV_MIGRATE_HOST_DB_URL" \
         "schema drift probe should run after migration apply"
     assert_output_order "$output" "[probe] local schema drift probe ran" "[local-dev-migrate] Done" \
         "schema drift probe output should appear before Done"
@@ -616,7 +623,7 @@ test_migration_failure_skips_schema_drift_probe() {
         PATH="$tmp_dir/bin:/usr/bin:/bin" \
         DATABASE_URL="$LOCAL_DEV_MIGRATE_HOST_DB_URL" \
         FJCLOUD_TEST_SCHEMA_DRIFT_PROBE_SCRIPT="$LOCAL_DEV_PROBE_SCRIPT" \
-        bash "$REPO_ROOT/scripts/local-dev-migrate.sh" 2>&1
+        run_local_dev_migrate 2>&1
     ) || exit_code=$?
 
     if [ "$exit_code" -ne 0 ]; then
@@ -652,7 +659,7 @@ test_schema_drift_probe_failure_propagates_and_skips_done() {
         PATH="$tmp_dir/bin:/usr/bin:/bin" \
         DATABASE_URL="$LOCAL_DEV_MIGRATE_HOST_DB_URL" \
         FJCLOUD_TEST_SCHEMA_DRIFT_PROBE_SCRIPT="$LOCAL_DEV_PROBE_SCRIPT" \
-        bash "$REPO_ROOT/scripts/local-dev-migrate.sh" 2>&1
+        run_local_dev_migrate 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "1" "schema drift probe failure should propagate as local-dev-migrate failure"

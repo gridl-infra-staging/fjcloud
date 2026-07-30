@@ -31,6 +31,8 @@ url=""
 request_body=""
 auth_header=""
 redacted_args=()
+LOG_PATH="__LOG_PATH__"
+LOG_LOCK_DIR="${LOG_PATH}.lock"
 is_safe_logged_test_credential() {
     case "$1" in
         dev-token|free-token|stub-token|file-admin-key|test-admin-key|commented-env-admin-key|staging-admin-contract)
@@ -80,6 +82,21 @@ sanitize_header_value() {
             ;;
     esac
 }
+append_curl_log_line() {
+    local line="$1"
+    local attempts=0
+
+    while ! mkdir "$LOG_LOCK_DIR" 2>/dev/null; do
+        attempts=$((attempts + 1))
+        if [ "$attempts" -gt 1000 ]; then
+            printf 'timed out waiting for curl log lock: %s\n' "$LOG_LOCK_DIR" >&2
+            return 1
+        fi
+        sleep 0.01
+    done
+    trap 'rmdir "$LOG_LOCK_DIR"' RETURN
+    printf '%s\n' "$line" >> "$LOG_PATH"
+}
 for ((i=1; i<=$#; i++)); do
     arg="${!i}"
     case "$arg" in
@@ -121,13 +138,11 @@ for ((i=1; i<=$#; i++)); do
             ;;
     esac
 done
-{
-    printf 'curl'
-    for arg in "${redacted_args[@]}"; do
-        printf ' %s' "$arg"
-    done
-    printf '\n'
-} >> "__LOG_PATH__"
+log_line="curl"
+for arg in "${redacted_args[@]}"; do
+    log_line="${log_line} ${arg}"
+done
+append_curl_log_line "$log_line"
 STATE_DIR="__STATE_DIR__"
 stateful_http_code() {
     local state_key="$1"

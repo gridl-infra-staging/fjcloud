@@ -6,7 +6,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+CHECKOUT_REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -25,6 +25,10 @@ fail() {
 source "$SCRIPT_DIR/lib/assertions.sh"
 # shellcheck source=lib/local_dev_test_state.sh
 source "$SCRIPT_DIR/lib/local_dev_test_state.sh"
+
+AGGREGATION_SUITE_ROOT_TMP="$(mktemp -d)"
+REPO_ROOT="$(create_script_fixture_repo_root "$AGGREGATION_SUITE_ROOT_TMP" "$CHECKOUT_REPO_ROOT")"
+trap 'rm -rf "$AGGREGATION_SUITE_ROOT_TMP"' EXIT
 
 LOCAL_DEV_TEST_DB_URL="postgres://local-test:local-pass@localhost:5432/local_dev_test"
 
@@ -54,6 +58,43 @@ MOCK
 # ============================================================================
 # Tests
 # ============================================================================
+
+test_run_aggregation_honors_supplied_repo_root_without_mutating_checkout_root() {
+    local tmp_dir fixture_root
+    tmp_dir=$(mktemp -d)
+    fixture_root=$(create_local_dev_fixture_repo_root "$tmp_dir" "postgres://fixture-user:fixture-pass@localhost:5432/aggregation_fixture")
+    trap 'restore_aggregation_test_state; rm -rf "'"$tmp_dir"'"' RETURN
+
+    LOCAL_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
+    LOCAL_DEV_RUNTIME_BACKUP=$(backup_repo_path "$REPO_ROOT/.local" "$tmp_dir/.local.backup")
+    cat > "$REPO_ROOT/.env.local" <<'EOF'
+DATABASE_URL=postgres://checkout-user:checkout-pass@localhost:5432/aggregation_checkout
+JWT_SECRET=checkout-jwt
+ADMIN_KEY=checkout-admin
+EOF
+    mkdir -p "$REPO_ROOT/.local"
+    printf 'checkout-aggregation-sentinel\n' > "$REPO_ROOT/.local/aggregation.sentinel"
+
+    local call_log="$tmp_dir/calls.log"
+    mkdir -p "$tmp_dir/bin"
+    write_mock_script "$tmp_dir/bin/cargo" \
+        'echo "PWD=$PWD DATABASE_URL=${DATABASE_URL:-} TARGET_DATE=${TARGET_DATE:-}" >> "'"$call_log"'"'
+
+    local exit_code=0
+    PATH="$tmp_dir/bin:$PATH" \
+    FJCLOUD_REPO_ROOT="$fixture_root" \
+    bash "$REPO_ROOT/scripts/run-aggregation-job.sh" "2026-01-15" >/dev/null 2>&1 || exit_code=$?
+
+    assert_eq "$exit_code" "0" "run-aggregation-job should succeed with a supplied fixture repo root"
+    local calls
+    calls=$(cat "$call_log" 2>/dev/null || true)
+    assert_contains "$calls" "PWD=$fixture_root" \
+        "run-aggregation-job should run cargo from the supplied fixture repo root"
+    assert_contains "$calls" "DATABASE_URL=postgres://fixture-user:fixture-pass@localhost:5432/aggregation_fixture" \
+        "run-aggregation-job should load DATABASE_URL from the supplied fixture root"
+    assert_eq "$(cat "$REPO_ROOT/.local/aggregation.sentinel")" "checkout-aggregation-sentinel" \
+        "run-aggregation-job should leave checkout-root runtime sentinels unchanged"
+}
 
 test_default_date_is_yesterday() {
     local tmp_dir
@@ -242,6 +283,7 @@ main() {
     echo "=== run-aggregation-job.sh tests ==="
     echo ""
 
+    test_run_aggregation_honors_supplied_repo_root_without_mutating_checkout_root
     test_default_date_is_yesterday
     test_explicit_date_argument_passed_through
     test_database_url_is_required

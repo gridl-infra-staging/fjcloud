@@ -4,7 +4,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+CHECKOUT_REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -23,6 +23,10 @@ fail() {
 source "$SCRIPT_DIR/lib/assertions.sh"
 # shellcheck source=lib/local_dev_test_state.sh
 source "$SCRIPT_DIR/lib/local_dev_test_state.sh"
+
+WEB_DEV_SUITE_ROOT_TMP="$(mktemp -d)"
+REPO_ROOT="$(create_script_fixture_repo_root "$WEB_DEV_SUITE_ROOT_TMP" "$CHECKOUT_REPO_ROOT")"
+trap 'rm -rf "$WEB_DEV_SUITE_ROOT_TMP"' EXIT
 
 setup_repo_env() {
     local tmp_dir="$1"
@@ -49,6 +53,16 @@ EOF
     chmod +x "$REPO_ROOT/web/node_modules/.bin/vite"
 }
 
+ensure_fixture_vite_runtime_stub() {
+    local fixture_root="$1"
+    mkdir -p "$fixture_root/web/node_modules/.bin"
+    cat > "$fixture_root/web/node_modules/.bin/vite" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+    chmod +x "$fixture_root/web/node_modules/.bin/vite"
+}
+
 write_mock_npm() {
     local path="$1" log_path="$2"
     cat > "$path" <<'MOCK'
@@ -66,6 +80,49 @@ exit 0
 MOCK
     perl -0pi -e "s|__LOG_PATH__|$log_path|g" "$path"
     chmod +x "$path"
+}
+
+test_web_dev_honors_supplied_repo_root_without_mutating_checkout_root() {
+    local tmp_dir fixture_root
+    tmp_dir=$(mktemp -d)
+    fixture_root=$(create_local_dev_fixture_repo_root "$tmp_dir" "postgres://fixture-user:fixture-pass@localhost:5432/web_dev_fixture")
+    trap 'restore_repo_env; rm -rf "'"$tmp_dir"'"' RETURN
+
+    setup_repo_env "$tmp_dir"
+    cat > "$REPO_ROOT/.env.local" <<'EOF'
+JWT_SECRET=checkout-jwt
+ADMIN_KEY=checkout-admin
+EOF
+    cat > "$REPO_ROOT/web/.env.local" <<'EOF'
+API_BASE_URL=http://checkout-api:3001
+EOF
+    cat > "$fixture_root/.env.local" <<'EOF'
+JWT_SECRET=fixture-jwt
+ADMIN_KEY=fixture-admin
+API_BASE_URL=http://fixture-api:3001
+EOF
+    ensure_fixture_vite_runtime_stub "$fixture_root"
+
+    local call_log="$tmp_dir/npm.log"
+    mkdir -p "$tmp_dir/bin"
+    write_mock_npm "$tmp_dir/bin/npm" "$call_log"
+
+    local exit_code=0
+    PATH="$tmp_dir/bin:$PATH" \
+    FJCLOUD_REPO_ROOT="$fixture_root" \
+    bash "$REPO_ROOT/scripts/web-dev.sh" >/dev/null 2>&1 || exit_code=$?
+
+    assert_eq "$exit_code" "0" "web-dev should start with a supplied fixture repo root"
+    local log_output
+    log_output=$(cat "$call_log" 2>/dev/null || true)
+    assert_contains "$log_output" "PWD=$fixture_root/web" \
+        "web-dev should run npm from the supplied fixture web workspace"
+    assert_contains "$log_output" "API_BASE_URL=http://fixture-api:3001" \
+        "web-dev should load API_BASE_URL from the supplied fixture root"
+    assert_contains "$log_output" "JWT_SECRET=fixture-jwt" \
+        "web-dev should load JWT_SECRET from the supplied fixture root"
+    assert_eq "$(cat "$REPO_ROOT/.env.local")" $'JWT_SECRET=checkout-jwt\nADMIN_KEY=checkout-admin' \
+        "web-dev should leave checkout-root env sentinels unchanged when FJCLOUD_REPO_ROOT is supplied"
 }
 
 test_loads_repo_root_env_and_defaults_api_base_url() {
@@ -398,6 +455,7 @@ main() {
     echo "=== web-dev.sh tests ==="
     echo ""
 
+    test_web_dev_honors_supplied_repo_root_without_mutating_checkout_root
     test_loads_repo_root_env_and_defaults_api_base_url
     test_forwards_caller_strictness_flags_once_without_contradictions
     test_web_env_file_overrides_repo_root_values_without_explicit_shell_overrides

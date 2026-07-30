@@ -706,20 +706,19 @@ async fn postgres_reconcile_once_migration_067_upgrades_existing_erased_compacti
     assert_eq!(applied_before, 66);
 
     let destination_vm_id = seed_active_vm(&db.pool).await;
-    let pending = seed_privacy_scrub_specimen_on_vm(
+    let pending = privacy_scrub_legacy_schema_fixtures::seed_migration_067_erased_specimen_on_vm(
         &db.pool,
         "migration-067-pending-erased",
-        None,
         destination_vm_id,
     )
     .await;
-    let acknowledged = seed_privacy_scrub_specimen_on_vm(
-        &db.pool,
-        "migration-067-acknowledged-erased",
-        None,
-        destination_vm_id,
-    )
-    .await;
+    let acknowledged =
+        privacy_scrub_legacy_schema_fixtures::seed_migration_067_erased_specimen_on_vm(
+            &db.pool,
+            "migration-067-acknowledged-erased",
+            destination_vm_id,
+        )
+        .await;
     sqlx::query(
         "UPDATE algolia_import_jobs
          SET cleanup_phase = 'exact_target_absent',

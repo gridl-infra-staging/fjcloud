@@ -109,6 +109,12 @@ fn migration_failure(error: ApiError) -> (StatusCode, String) {
     }
 }
 
+fn assert_migration_failure(error: ApiError, expected_status: StatusCode, expected_message: &str) {
+    let (status, message) = migration_failure(error);
+    assert_eq!(status, expected_status);
+    assert_eq!(message, expected_message);
+}
+
 #[test]
 fn valid_provider_claims_are_accepted() {
     let claims = provider_claims();
@@ -146,9 +152,7 @@ fn expired_provider_envelope_is_rejected() {
         &target("us-east-1", "products"),
     )
     .expect_err("an envelope at or past its expiry is rejected");
-    let (status, message) = migration_failure(error);
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(message, "eligibility_token_expired");
+    assert_migration_failure(error, StatusCode::BAD_REQUEST, "eligibility_token_expired");
 }
 
 #[test]
@@ -163,9 +167,7 @@ fn non_provider_phase_envelope_is_rejected() {
         &target("us-east-1", "products"),
     )
     .expect_err("only provider-phase envelopes may be replayed into the target phase");
-    let (status, message) = migration_failure(error);
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(message, "eligibility_phase_mismatch");
+    assert_migration_failure(error, StatusCode::BAD_REQUEST, "eligibility_phase_mismatch");
 }
 
 #[test]
@@ -179,9 +181,11 @@ fn cross_customer_envelope_is_rejected() {
         &target("us-east-1", "products"),
     )
     .expect_err("an envelope minted for another customer is rejected");
-    let (status, message) = migration_failure(error);
-    assert_eq!(status, StatusCode::FORBIDDEN);
-    assert_eq!(message, "eligibility_customer_mismatch");
+    assert_migration_failure(
+        error,
+        StatusCode::FORBIDDEN,
+        "eligibility_customer_mismatch",
+    );
 }
 
 #[test]
@@ -195,9 +199,21 @@ fn changed_destination_binding_is_rejected() {
         &target("eu-west-1", "products"),
     )
     .expect_err("a region change invalidates the provider envelope binding");
-    let (status, message) = migration_failure(error);
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(message, "destination_changed");
+    assert_migration_failure(error, StatusCode::BAD_REQUEST, "destination_changed");
+}
+
+#[test]
+fn changed_provider_mode_is_rejected() {
+    let claims = provider_claims();
+    let error = validate_provider_claims(
+        &claims,
+        claims.exp - 1,
+        "11111111-1111-1111-1111-111111111111",
+        AlgoliaImportDestinationKind::Replace,
+        &target("us-east-1", "customer_selected_products"),
+    )
+    .expect_err("a mode change invalidates the provider envelope binding");
+    assert_migration_failure(error, StatusCode::BAD_REQUEST, "destination_changed");
 }
 
 fn list_cursor_claims() -> SignedListCursorClaims {
@@ -283,6 +299,20 @@ fn foreign_domain_envelope_is_rejected() {
         &target("us-east-1", "products"),
     )
     .expect_err("an envelope from a different HMAC domain is rejected");
-    let (_status, message) = migration_failure(error);
-    assert_eq!(message, "invalid_eligibility_token");
+    assert_migration_failure(error, StatusCode::BAD_REQUEST, "invalid_eligibility_token");
+}
+
+#[test]
+fn foreign_version_envelope_is_rejected() {
+    let mut claims = provider_claims();
+    claims.version = 2;
+    let error = validate_provider_claims(
+        &claims,
+        claims.exp - 1,
+        "11111111-1111-1111-1111-111111111111",
+        AlgoliaImportDestinationKind::Create,
+        &target("us-east-1", "products"),
+    )
+    .expect_err("an envelope from a different contract version is rejected");
+    assert_migration_failure(error, StatusCode::BAD_REQUEST, "invalid_eligibility_token");
 }

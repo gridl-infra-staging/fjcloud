@@ -1,5 +1,41 @@
 use super::*;
 
+fn create_create_target_request(phase: &str, region: &str, name: &str) -> serde_json::Value {
+    json!({
+        "phase": phase,
+        "mode": "create",
+        "target": { "region": region, "name": name }
+    })
+}
+
+fn assert_create_eligibility_response(
+    body: &serde_json::Value,
+    phase: &str,
+    region: &str,
+    name: &str,
+) {
+    assert_eq!(body["phase"], phase);
+    assert_eq!(body["mode"], "create");
+    assert_eq!(body["provider"], "aws");
+    assert_eq!(body["target"]["kind"], "create");
+    assert_eq!(body["target"]["region"], region);
+    assert_eq!(body["target"]["name"], name);
+    assert!(body["eligibilityToken"]
+        .as_str()
+        .is_some_and(|token| token.len() > 64));
+    assert!(body["expiresAt"].as_str().is_some());
+    assert_no_secret_eligibility_fields(body);
+}
+
+fn assert_retry_after_30(headers: &http::HeaderMap) {
+    assert_eq!(
+        headers
+            .get(http::header::RETRY_AFTER)
+            .and_then(|value| value.to_str().ok()),
+        Some("30")
+    );
+}
+
 #[tokio::test]
 async fn algolia_cloud_job_eligibility_provider_accepts_available_aws_create_regions() {
     let (app, jwt) = setup_algolia_cloud_job_test_app(true).await;
@@ -8,26 +44,12 @@ async fn algolia_cloud_job_eligibility_provider_accepts_available_aws_create_reg
         let (status, _headers, body) = post_destination_eligibility(
             app.clone(),
             Some(&jwt),
-            json!({
-                "phase": "provider",
-                "mode": "create",
-                "target": { "region": region, "name": "products" }
-            }),
+            create_create_target_request("provider", region, "products"),
         )
         .await;
 
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["phase"], "provider");
-        assert_eq!(body["mode"], "create");
-        assert_eq!(body["provider"], "aws");
-        assert_eq!(body["target"]["kind"], "create");
-        assert_eq!(body["target"]["region"], region);
-        assert_eq!(body["target"]["name"], "products");
-        assert!(body["eligibilityToken"]
-            .as_str()
-            .is_some_and(|token| token.len() > 64));
-        assert!(body["expiresAt"].as_str().is_some());
-        assert_no_secret_eligibility_fields(&body);
+        assert_create_eligibility_response(&body, "provider", region, "products");
     }
 }
 
@@ -238,11 +260,7 @@ async fn algolia_cloud_job_eligibility_exposure_disabled_returns_retryable_backe
     let (status, headers, body) = post_destination_eligibility(
         app,
         Some(&jwt),
-        json!({
-            "phase": "provider",
-            "mode": "create",
-            "target": { "region": "us-east-1", "name": "products" }
-        }),
+        create_create_target_request("provider", "us-east-1", "products"),
     )
     .await;
 
@@ -254,12 +272,7 @@ async fn algolia_cloud_job_eligibility_exposure_disabled_returns_retryable_backe
             "code": AlgoliaImportErrorCode::BackendUnavailable.as_str(),
         })
     );
-    assert_eq!(
-        headers
-            .get(http::header::RETRY_AFTER)
-            .and_then(|value| value.to_str().ok()),
-        Some("30")
-    );
+    assert_retry_after_30(&headers);
 }
 
 #[tokio::test]
@@ -306,17 +319,7 @@ async fn algolia_cloud_job_eligibility_target_finalizes_valid_provider_envelope(
     .await;
 
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["phase"], "target");
-    assert_eq!(body["mode"], "create");
-    assert_eq!(body["provider"], "aws");
-    assert_eq!(body["target"]["kind"], "create");
-    assert_eq!(body["target"]["region"], "us-east-1");
-    assert_eq!(body["target"]["name"], "products");
-    assert!(body["eligibilityToken"]
-        .as_str()
-        .is_some_and(|token| token.len() > 64));
-    assert!(body["expiresAt"].as_str().is_some());
-    assert_no_secret_eligibility_fields(&body);
+    assert_create_eligibility_response(&body, "target", "us-east-1", "products");
 }
 
 #[tokio::test]
@@ -478,7 +481,7 @@ async fn algolia_cloud_job_eligibility_target_rejects_cross_customer_envelope() 
 }
 
 #[tokio::test]
-async fn algolia_cloud_job_eligibility_target_rejects_provider_name_mismatch() {
+async fn algolia_cloud_job_eligibility_target_accepts_later_selected_create_name() {
     let (app, jwt, _other_jwt) = setup_two_customer_eligibility_app().await;
     let provider_token = provider_eligibility_token(&app, &jwt).await;
 
@@ -494,14 +497,8 @@ async fn algolia_cloud_job_eligibility_target_rejects_provider_name_mismatch() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(
-        body,
-        json!({
-            "error": "destination_changed",
-            "code": AlgoliaImportErrorCode::DestinationChanged.as_str(),
-        })
-    );
+    assert_eq!(status, StatusCode::OK);
+    assert_create_eligibility_response(&body, "target", "us-east-1", "products-copy");
 }
 
 #[tokio::test]
@@ -639,12 +636,7 @@ async fn algolia_cloud_job_eligibility_target_rejects_unhealthy_replace_target_a
             "code": AlgoliaImportErrorCode::BackendUnavailable.as_str(),
         })
     );
-    assert_eq!(
-        headers
-            .get(http::header::RETRY_AFTER)
-            .and_then(|value| value.to_str().ok()),
-        Some("30")
-    );
+    assert_retry_after_30(&headers);
     assert!(source_service.inspect_requests().is_empty());
     assert_eq!(count_algolia_import_jobs(&db.pool).await, 0);
 }

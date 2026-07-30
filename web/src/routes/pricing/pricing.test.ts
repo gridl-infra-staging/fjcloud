@@ -19,6 +19,15 @@ function expectedFreeTierUpgradeCopy(sharedMinimumSpendCents: number): string {
 	return `Free stays free for small projects and evaluations. Upgrade when you need more capacity; Paid accounts have a ${sharedPlanMinimumMonthlyLabel(sharedMinimumSpendCents)}/month paid-plan minimum.`;
 }
 
+function paidPlanMinimumRow(pricingMain: HTMLElement): HTMLElement {
+	const label = within(pricingMain).getByText('Paid-plan minimum');
+	const row = label.closest('div.grid');
+	if (!(row instanceof HTMLElement)) {
+		throw new Error('Expected Paid-plan minimum label to be inside its pricing row.');
+	}
+	return row;
+}
+
 afterEach(cleanup);
 
 const EXPECTED_REGIONS = MARKETING_PRICING.region_pricing.map((region) => region.display_name);
@@ -164,9 +173,18 @@ describe('Pricing page', () => {
 		expect(screen.getByText('Free tier caps')).toBeInTheDocument();
 		expect(screen.getByText(MARKETING_PRICING.storage_rate_per_mb_month)).toBeInTheDocument();
 		expect(screen.getByText(MARKETING_PRICING.cold_storage_rate_per_gb_month)).toBeInTheDocument();
+		const minimumRow = paidPlanMinimumRow(screen.getByTestId('pricing-page-main'));
 		expect(
-			screen.getByText(formatCents(MARKETING_PRICING.shared_minimum_spend_cents))
+			within(minimumRow).getByText(
+				sharedPlanMinimumMonthlyLabel(MARKETING_PRICING.shared_minimum_spend_cents),
+				{ exact: true }
+			)
 		).toBeInTheDocument();
+		expect(
+			within(minimumRow).queryByText(formatCents(MARKETING_PRICING.shared_minimum_spend_cents), {
+				exact: true
+			})
+		).not.toBeInTheDocument();
 		expect(
 			screen.getByText(expectedFreeTierUpgradeCopy(MARKETING_PRICING.shared_minimum_spend_cents))
 		).toBeInTheDocument();
@@ -221,7 +239,10 @@ describe('Pricing page', () => {
 			within(pricingMain).queryByRole('link', { name: mutatedPricing.cta_label })
 		).not.toBeInTheDocument();
 		expect(
-			within(pricingMain).getByText(formatCents(mutatedPricing.shared_minimum_spend_cents))
+			within(paidPlanMinimumRow(pricingMain)).getByText(
+				sharedPlanMinimumMonthlyLabel(mutatedPricing.shared_minimum_spend_cents),
+				{ exact: true }
+			)
 		).toBeInTheDocument();
 		expect(
 			within(pricingMain).getByText(
@@ -279,8 +300,9 @@ describe('Pricing page', () => {
 			within(pricingMain).getByText(MARKETING_PRICING.cold_storage_rate_per_gb_month)
 		).toBeInTheDocument();
 		expect(
-			within(pricingMain).getByText(
-				formatCents(pricingWithLargeMinimumSpend.shared_minimum_spend_cents)
+			within(paidPlanMinimumRow(pricingMain)).getByText(
+				sharedPlanMinimumMonthlyLabel(pricingWithLargeMinimumSpend.shared_minimum_spend_cents),
+				{ exact: true }
 			)
 		).toBeInTheDocument();
 		// Regression: upgrade-copy sentence must preserve thousands separators via the shared helper.

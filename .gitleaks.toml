@@ -107,6 +107,9 @@ regexes = [
     # two lines and extract the literal `IDEMPOTENCY_KEY=` as its "secret".
     # Match only that empty extracted value; any populated key still scans.
     '''^IDEMPOTENCY_KEY=$''',
+    # The historical multinode probe produces the same multiline false positive
+    # with `STANDALONE_URL=` as the extracted empty value.
+    '''^STANDALONE_URL=$''',
     # The catalog live probe initializes adjacent sensitive shell variables to
     # empty strings before generating disposable runtime credentials. The
     # generic-api-key rule spans those empty assignments and extracts the next

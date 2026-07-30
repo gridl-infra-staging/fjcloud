@@ -6686,7 +6686,7 @@
         "tags": [
           "Migration"
         ],
-        "summary": "Tenant-scoped retained list. Reads are never gated by the migration\nexposure flag or backpressure — only admission is.",
+        "summary": "Tenant-scoped retained list. Reads are never gated by the migration\nexposure flag or backpressure - only admission is.",
         "operationId": "list_algolia_import_jobs",
         "parameters": [
           {

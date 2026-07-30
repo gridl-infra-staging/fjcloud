@@ -40,6 +40,9 @@ mod pg_schema_harness;
 #[path = "reconciliation_privacy_scrub_postgres_tests.rs"]
 mod privacy_scrub_postgres_tests;
 
+#[path = "reconciliation_privacy_scrub_legacy_schema_fixtures.rs"]
+mod privacy_scrub_legacy_schema_fixtures;
+
 use pg_schema_harness::{
     connect_and_migrate, connect_and_migrate_through, insert_active_customer,
     migrate_through_version, postgres_timestamp,

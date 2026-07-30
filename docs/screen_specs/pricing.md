@@ -41,7 +41,7 @@ Baseline viewport: 390px wide (iPhone 14). Pricing cards, free-tier promise, hot
 
 - [ ] `/pricing` is reachable as a public, unauthenticated route and renders page-specific body content on first paint.
 - [ ] Pricing rows match shared constants: hot storage `$0.05` per MB-month and cold snapshot storage `$0.02` per GB-month.
-- [ ] Paid-plan minimum framing renders from `shared_minimum_spend_cents` (`500` cents, shown as `$5`) and does not claim a Free-plan billing floor.
+- [x] Paid-plan minimum framing renders from `shared_minimum_spend_cents` (`500` cents, shown as `$5`) and does not claim a Free-plan billing floor.
 - [ ] Free-tier promise and `250 MB` allowance are sourced from shared pricing data (`Free up to 3 indices, 100,000 records, 250 MB storage, and 50,000 searches/month. No credit card required.` and `250 MB`).
 - [ ] Region multiplier content preserves current shared ordering and values (`US East (Virginia)`, `EU West (Ireland)`, `EU Central (Germany)`, `EU North (Helsinki)`, `US East (Ashburn)`, `US West (Oregon)` with multipliers `1.00x`, `1.00x`, `0.70x`, `0.75x`, `0.80x`, `0.80x`).
 - [ ] `/pricing` does not introduce landing-only product-framing sections as required content for pricing comprehension.
@@ -52,11 +52,6 @@ Baseline viewport: 390px wide (iPhone 14). Pricing cards, free-tier promise, hot
 
 Stage 4 backend-alignment drift detection is a planned gap. The current route/browser coverage validates `MARKETING_PRICING` rendering and link behavior but does not yet compare those values to admin rate-card data.
 JSDOM axe coverage now proves the route component in `web/src/routes/pricing/pricing.test.ts`.
-
-- PUBUX-004 remains a product-decision gap for exact paid-plan minimum formatting.
-  Current: $5.00
-  Target: $5
-  Evidence: docs/audits/public_page_ux_audit_2026_07_27.md#pubux-004---pricing-storage-card-minimum-renders-500-where-the-pricing-spec-names-5
 
 ## Automated Coverage
 

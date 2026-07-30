@@ -103,6 +103,39 @@ test.describe('Landing page', () => {
 });
 
 test.describe('Pricing page', () => {
+	test('paid-plan minimum is consistent at audit viewports', async ({ page }) => {
+		const auditViewports = [
+			{ width: 1280, height: 720 },
+			{ width: 390, height: 844 }
+		];
+		const expectedMinimumLabel = sharedPlanMinimumMonthlyLabel(
+			MARKETING_PRICING.shared_minimum_spend_cents
+		);
+
+		expect(expectedMinimumLabel).toBe('$5');
+
+		for (const viewport of auditViewports) {
+			await test.step(`${viewport.width}x${viewport.height}`, async () => {
+				await page.setViewportSize(viewport);
+				await page.goto('/pricing');
+
+				const pricingMain = page.getByTestId('pricing-page-main');
+				const paidPlanMinimumRow = pricingMain.getByText(
+					/^Paid-plan minimum\s+per month\s+\$\d+(?:\.\d{2})?$/
+				);
+				const paidPlanMinimumValues = paidPlanMinimumRow.getByText(expectedMinimumLabel, {
+					exact: true
+				});
+
+				await expect(pricingMain).toBeVisible();
+				await expect(paidPlanMinimumRow).toBeVisible();
+				await expect(paidPlanMinimumValues).toHaveCount(1);
+				await expect(paidPlanMinimumValues).toBeVisible();
+				await expect(pricingMain).not.toContainText('$5.00');
+			});
+		}
+	});
+
 	test('renders pricing-first copy and public links for unauthenticated users', async ({
 		page
 	}) => {

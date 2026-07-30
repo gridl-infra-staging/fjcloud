@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { formatCents } from '$lib/format';
 	import { sharedPlanMinimumMonthlyLabel } from '$lib/pricing';
 
 	let { data } = $props();
@@ -81,7 +80,10 @@
 						<p class="font-black">Paid-plan minimum</p>
 						<p class="text-flapjack-ink/80">per month</p>
 					</div>
-					<p class="text-lg font-black">{formatCents(pricing.shared_minimum_spend_cents)}</p>
+					<!-- sharedPlanMinimumMonthlyLabel is the single screen-spec owner; see docs/screen_specs/pricing.md. -->
+					<p class="text-lg font-black">
+						{sharedPlanMinimumMonthlyLabel(pricing.shared_minimum_spend_cents)}
+					</p>
 				</div>
 			</div>
 			<p class="mt-5 text-sm leading-6 text-flapjack-ink/80">{pricing.tax_disclaimer}</p>

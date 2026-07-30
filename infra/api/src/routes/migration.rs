@@ -35,6 +35,7 @@ const LIST_CURSOR_TTL_SECONDS: i64 = 900;
 mod capabilities;
 mod eligibility;
 mod jobs;
+mod retained_jobs;
 mod source;
 
 use source::map_algolia_source_error;
@@ -48,11 +49,13 @@ pub use eligibility::{
     AlgoliaDestinationEligibilityRequest, AlgoliaDestinationEligibilityResponse,
 };
 pub use jobs::{
-    __path_cancel_import_job, __path_create_import_job, __path_get_import_job,
-    __path_list_import_jobs, __path_resume_import_job, cancel_import_job, create_import_job,
-    get_import_job, list_import_jobs, resume_import_job, CancelAlgoliaImportJobRequest,
-    CreateAlgoliaImportJobRequest, ListAlgoliaImportJobsQuery, PublicAlgoliaImportJob,
-    PublicAlgoliaImportJobPage, ResumeAlgoliaImportJobRequest,
+    __path_cancel_import_job, __path_create_import_job, __path_resume_import_job,
+    cancel_import_job, create_import_job, resume_import_job, CancelAlgoliaImportJobRequest,
+    CreateAlgoliaImportJobRequest, ResumeAlgoliaImportJobRequest,
+};
+pub use retained_jobs::{
+    __path_get_import_job, __path_list_import_jobs, get_import_job, list_import_jobs,
+    ListAlgoliaImportJobsQuery, PublicAlgoliaImportJob, PublicAlgoliaImportJobPage,
 };
 pub use source::{__path_list_source_indexes, list_source_indexes, ListAlgoliaIndexesRequest};
 
@@ -254,15 +257,10 @@ pub async fn migration_availability(
 pub use __path_migration_availability as __path_algolia_availability;
 pub use migration_availability as algolia_availability;
 
-/// Verify a replayed provider envelope. Every failure here is locally decidable
-/// and must precede any repository or source access.
-fn verify_provider_envelope(
+fn open_signed_eligibility_claims(
     state: &AppState,
-    auth: &AuthenticatedTenant,
     token: &str,
-    expected_mode: AlgoliaImportDestinationKind,
-    expected_target: &eligibility::AlgoliaDestinationEligibilityTargetRequest,
-) -> Result<(), ApiError> {
+) -> Result<SignedEligibilityClaims, ApiError> {
     let (payload_b64, signature_b64) = token
         .split_once('.')
         .ok_or_else(invalid_eligibility_token)?;
@@ -275,8 +273,54 @@ fn verify_provider_envelope(
     if !verify_migration_hmac(state, DESTINATION_ELIGIBILITY_DOMAIN, &payload, &signature) {
         return Err(invalid_eligibility_token());
     }
-    let claims: SignedEligibilityClaims =
-        serde_json::from_slice(&payload).map_err(|_| invalid_eligibility_token())?;
+
+    serde_json::from_slice(&payload).map_err(|_| invalid_eligibility_token())
+}
+
+fn validate_eligibility_claims(
+    claims: &SignedEligibilityClaims,
+    now_ts: i64,
+    auth_customer_id: &str,
+    expected_phase: AlgoliaEligibilityPhase,
+) -> Result<(), ApiError> {
+    if claims.domain != DESTINATION_ELIGIBILITY_DOMAIN || claims.version != 1 {
+        return Err(invalid_eligibility_token());
+    }
+    if now_ts >= claims.exp {
+        return Err(migration_error(
+            StatusCode::BAD_REQUEST,
+            "eligibility_token_expired",
+            AlgoliaImportErrorCode::DestinationChanged,
+        ));
+    }
+    if claims.phase != expected_phase {
+        return Err(migration_error(
+            StatusCode::BAD_REQUEST,
+            "eligibility_phase_mismatch",
+            AlgoliaImportErrorCode::DestinationChanged,
+        ));
+    }
+    if claims.customer_id != auth_customer_id {
+        return Err(migration_error(
+            StatusCode::FORBIDDEN,
+            "eligibility_customer_mismatch",
+            AlgoliaImportErrorCode::DestinationChanged,
+        ));
+    }
+
+    Ok(())
+}
+
+/// Verify a replayed provider envelope. Every failure here is locally decidable
+/// and must precede any repository or source access.
+fn verify_provider_envelope(
+    state: &AppState,
+    auth: &AuthenticatedTenant,
+    token: &str,
+    expected_mode: AlgoliaImportDestinationKind,
+    expected_target: &eligibility::AlgoliaDestinationEligibilityTargetRequest,
+) -> Result<(), ApiError> {
+    let claims = open_signed_eligibility_claims(state, token)?;
     validate_provider_claims(
         &claims,
         Utc::now().timestamp(),
@@ -291,22 +335,7 @@ fn verify_target_envelope(
     auth: &AuthenticatedTenant,
     request: &jobs::CreateAlgoliaImportJobRequest,
 ) -> Result<AlgoliaImportTargetBinding, ApiError> {
-    let (payload_b64, signature_b64) = request
-        .target
-        .eligibility_token
-        .split_once('.')
-        .ok_or_else(invalid_eligibility_token)?;
-    let payload = URL_SAFE_NO_PAD
-        .decode(payload_b64)
-        .map_err(|_| invalid_eligibility_token())?;
-    let signature = URL_SAFE_NO_PAD
-        .decode(signature_b64)
-        .map_err(|_| invalid_eligibility_token())?;
-    if !verify_migration_hmac(state, DESTINATION_ELIGIBILITY_DOMAIN, &payload, &signature) {
-        return Err(invalid_eligibility_token());
-    }
-    let claims: SignedEligibilityClaims =
-        serde_json::from_slice(&payload).map_err(|_| invalid_eligibility_token())?;
+    let claims = open_signed_eligibility_claims(state, &request.target.eligibility_token)?;
     validate_target_claims(
         &claims,
         Utc::now().timestamp(),
@@ -349,31 +378,12 @@ fn validate_target_claims(
     now_ts: i64,
     auth_customer_id: &str,
 ) -> Result<(), ApiError> {
-    if claims.domain != DESTINATION_ELIGIBILITY_DOMAIN || claims.version != 1 {
-        return Err(invalid_eligibility_token());
-    }
-    if now_ts >= claims.exp {
-        return Err(migration_error(
-            StatusCode::BAD_REQUEST,
-            "eligibility_token_expired",
-            AlgoliaImportErrorCode::DestinationChanged,
-        ));
-    }
-    if claims.phase != AlgoliaEligibilityPhase::Target {
-        return Err(migration_error(
-            StatusCode::BAD_REQUEST,
-            "eligibility_phase_mismatch",
-            AlgoliaImportErrorCode::DestinationChanged,
-        ));
-    }
-    if claims.customer_id != auth_customer_id {
-        return Err(migration_error(
-            StatusCode::FORBIDDEN,
-            "eligibility_customer_mismatch",
-            AlgoliaImportErrorCode::DestinationChanged,
-        ));
-    }
-    Ok(())
+    validate_eligibility_claims(
+        claims,
+        now_ts,
+        auth_customer_id,
+        AlgoliaEligibilityPhase::Target,
+    )
 }
 
 /// Pure, clock-injectable validation of a decoded and signature-verified
@@ -387,34 +397,13 @@ fn validate_provider_claims(
     expected_mode: AlgoliaImportDestinationKind,
     expected_target: &eligibility::AlgoliaDestinationEligibilityTargetRequest,
 ) -> Result<(), ApiError> {
-    if claims.domain != DESTINATION_ELIGIBILITY_DOMAIN || claims.version != 1 {
-        return Err(invalid_eligibility_token());
-    }
-    if now_ts >= claims.exp {
-        return Err(migration_error(
-            StatusCode::BAD_REQUEST,
-            "eligibility_token_expired",
-            AlgoliaImportErrorCode::DestinationChanged,
-        ));
-    }
-    if claims.phase != AlgoliaEligibilityPhase::Provider {
-        return Err(migration_error(
-            StatusCode::BAD_REQUEST,
-            "eligibility_phase_mismatch",
-            AlgoliaImportErrorCode::DestinationChanged,
-        ));
-    }
-    if claims.customer_id != auth_customer_id {
-        return Err(migration_error(
-            StatusCode::FORBIDDEN,
-            "eligibility_customer_mismatch",
-            AlgoliaImportErrorCode::DestinationChanged,
-        ));
-    }
-    if claims.mode != expected_mode
-        || claims.region != expected_target.region
-        || claims.name != expected_target.name
-    {
+    validate_eligibility_claims(
+        claims,
+        now_ts,
+        auth_customer_id,
+        AlgoliaEligibilityPhase::Provider,
+    )?;
+    if claims.mode != expected_mode || claims.region != expected_target.region {
         return Err(migration_error(
             StatusCode::BAD_REQUEST,
             "destination_changed",
@@ -430,6 +419,10 @@ fn invalid_eligibility_token() -> ApiError {
         "invalid_eligibility_token",
         AlgoliaImportErrorCode::DestinationChanged,
     )
+}
+
+pub(super) fn job_not_found() -> ApiError {
+    ApiError::NotFound("algolia_import_job_not_found".into())
 }
 
 /// Single mapping of the typed replace-eligibility snapshot refusal onto stable

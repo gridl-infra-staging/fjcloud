@@ -4,6 +4,9 @@ const CONTRACT_JSON: &str = include_str!("../fixtures/algolia_migration_engine_c
 const RECEIPT_JSON: &str = include_str!(
     "../../../../docs/runbooks/evidence/algolia-migration/20260726_l20_privacy_exact_erasure_acceptance_receipt.json"
 );
+// This historical receipt must retain the engine it actually tested even as the live
+// migration contract advances to newer engine revisions.
+const RECEIPT_ENGINE_SHA: &str = "320132fcd12a71d441d70a30c34ce66c64f21d46";
 
 type ReceiptMutation = (&'static str, Box<dyn Fn(&mut Value)>, &'static str);
 
@@ -125,11 +128,7 @@ fn receipt() -> Value {
 fn validate_receipt(receipt: &Value, contract: &Value) -> Result<(), String> {
     let contract_receipt = object_at(contract, "/privacy_scrub_contract/receipt")?;
     let f10e = object_at(receipt, "/source_pins/f10e")?;
-    assert_string_eq(
-        f10e,
-        "pinned_engine_sha",
-        string_at(contract, "/pinned_engine_sha")?,
-    )?;
+    assert_string_eq(f10e, "pinned_engine_sha", RECEIPT_ENGINE_SHA)?;
     assert_string_eq(
         f10e,
         "validated_head_sha",
@@ -277,13 +276,6 @@ fn strings_at(value: &Value, pointer: &str) -> Result<Vec<String>, String> {
                 .ok_or_else(|| format!("receipt path {pointer} must contain only strings"))
         })
         .collect()
-}
-
-fn string_at<'a>(value: &'a Value, pointer: &str) -> Result<&'a str, String> {
-    value
-        .pointer(pointer)
-        .and_then(Value::as_str)
-        .ok_or_else(|| format!("receipt path {pointer} must be a string"))
 }
 
 fn string_from<'a>(object: &'a Map<String, Value>, key: &str) -> Result<&'a str, String> {

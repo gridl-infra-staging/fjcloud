@@ -22,6 +22,7 @@ cp "$STAGE2_DIR/27_provider_inventory_reconciliation.json" "$EVID_DIR/pre/stage2
 cp "$STAGE2_DIR/28_reconciliation_counts.md" "$EVID_DIR/pre/stage2_28_reconciliation_counts.md"
 cp "$STAGE2_DIR/32_bookkeeping_hypothesis.sql.txt" "$EVID_DIR/pre/stage2_32_bookkeeping_hypothesis.sql.txt"
 
+# TODO: Document run_probe_allow_mismatch.
 run_probe_allow_mismatch() {
     local phase="$1"
     local rc=0

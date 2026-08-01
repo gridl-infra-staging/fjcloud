@@ -34,3 +34,4 @@
 # Promoted 2026-07-29 after two simultaneous copies passed with exact totals:
 # api_dev_test.sh 130/0, web_dev_test.sh 41/0, local_demo_test.sh 29/0,
 # run_aggregation_job_test.sh 21/0, run_browser_lane_against_staging_test.sh 39/0.
+scripts/tests/probe_browser_stack_exclusive_test.sh # 2026-08-01 host-global probe counts sibling stack-holder fixtures under concurrency

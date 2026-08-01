@@ -314,6 +314,7 @@ if not healthy or not unhealthy:
     raise SystemExit("could not select both healthy and unhealthy running VM targets")
 PY
 
+# TODO: Document run_host_probe.
 run_host_probe() {
     local host_role="$1"
     local instance_id="$2"

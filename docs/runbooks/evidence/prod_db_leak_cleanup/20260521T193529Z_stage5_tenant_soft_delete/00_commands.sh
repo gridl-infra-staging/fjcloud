@@ -338,7 +338,6 @@ is_uuid() {
     [[ "$1" =~ ^[0-9a-fA-F-]{36}$ ]]
 }
 
-# TODO: Document admin_request.
 admin_request() {
     local out_body="$1" method="$2" url="$3" admin_key="$4"
     local attempt code

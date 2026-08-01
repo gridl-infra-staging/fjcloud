@@ -6,7 +6,6 @@ PRIVACY_API_KEY="$PRIVACY_PRODUCTION_API_KEY"
 BASE_URL="https://api.privacy.com/v1"
 BASE_DIR="$1"
 
-# TODO: Document dump_probe.
 dump_probe() {
   local name="$1"
   local method="$2"

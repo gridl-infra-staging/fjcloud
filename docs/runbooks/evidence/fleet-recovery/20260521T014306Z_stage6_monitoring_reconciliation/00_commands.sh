@@ -54,7 +54,6 @@ resolve_alert_emails_json_from_state() {
     | jq -s -c 'unique'
 }
 
-# TODO: Document run_with_timeout.
 run_with_timeout() {
   local timeout_seconds="$1"
   shift
@@ -76,7 +75,6 @@ run_with_timeout() {
   wait "$cmd_pid"
 }
 
-# TODO: Document run_env_plan_apply.
 run_env_plan_apply() {
   local env_name="$1"
   local bucket_name="$2"

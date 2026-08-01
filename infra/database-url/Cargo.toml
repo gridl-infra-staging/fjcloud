@@ -1,0 +1,11 @@
+[package]
+name = "database-url"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+percent-encoding = "2"
+url = "2"

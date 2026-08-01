@@ -627,7 +627,8 @@ async function ingestDocumentsWithSearchFallback({
 				return;
 			}
 			throw new Error(
-				`${errorPrefix}: primary ingest path failed (${primaryDetails}); API batch fallback failed (${fallbackDetails})`
+				`${errorPrefix}: primary ingest path failed (${primaryDetails}); API batch fallback failed (${fallbackDetails})`,
+				{ cause: fallbackError }
 			);
 		}
 	};
@@ -638,7 +639,9 @@ async function ingestDocumentsWithSearchFallback({
 		const primaryDetails =
 			primaryError instanceof Error ? primaryError.message : String(primaryError);
 		if (primaryIngestPath === 'api-batch') {
-			throw new Error(`${errorPrefix}: API batch ingest failed (${primaryDetails})`);
+			throw new Error(`${errorPrefix}: API batch ingest failed (${primaryDetails})`, {
+				cause: primaryError
+			});
 		}
 		await runApiBatchFallback(primaryDetails);
 		return;

@@ -1,7 +1,12 @@
 import { error, fail, type ActionFailure } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { ApiRequestError } from '$lib/api/client';
-import type { AlgoliaMigrationCapabilities, PublicAlgoliaImportJob } from '$lib/api/types';
+import type {
+	AlgoliaMigrationCapabilities,
+	PublicAlgoliaImportJob,
+	SourceProvider
+} from '$lib/api/types';
+import { isSourceProvider } from '$lib/api/types';
 import { createApiClient } from '$lib/server/api';
 import {
 	customerFacingErrorMessage,
@@ -9,7 +14,8 @@ import {
 	type DashboardSessionExpiredPayload
 } from '$lib/server/auth-action-errors';
 
-const JOB_ACTION_FAILED = 'Algolia migration request failed';
+const JOB_ACTION_FAILED = 'Migration request failed';
+const SOURCE_PROVIDER_UNSUPPORTED = 'source_provider_unsupported';
 const FAIL_CLOSED_CAPABILITIES: AlgoliaMigrationCapabilities = {
 	cancel: false,
 	resume: false,
@@ -21,6 +27,24 @@ const MAX_JOB_ID_LENGTH = 128;
 
 type ServerApiClient = ReturnType<typeof createApiClient>;
 type SessionFailure = ActionFailure<DashboardSessionExpiredPayload>;
+
+function sourceProviderFailure() {
+	return fail(400, {
+		error: SOURCE_PROVIDER_UNSUPPORTED,
+		code: SOURCE_PROVIDER_UNSUPPORTED
+	});
+}
+
+function parsedSourceProvider(value: FormDataEntryValue | string | null): SourceProvider | null {
+	return isSourceProvider(value) ? value : null;
+}
+
+function upstreamSourceProviderFailure(error: unknown) {
+	if (!(error instanceof ApiRequestError) || error.status !== 400) return null;
+	if (typeof error.body !== 'object' || error.body === null) return null;
+	if ((error.body as Record<string, unknown>).code !== SOURCE_PROVIDER_UNSUPPORTED) return null;
+	return sourceProviderFailure();
+}
 
 function validatedJobId(jobId: string): string {
 	if (
@@ -51,10 +75,11 @@ function isSessionFailure(value: unknown): value is SessionFailure {
 // job failure is a server error rather than a silent empty page.
 async function loadJob(
 	api: ServerApiClient,
+	sourceProvider: SourceProvider,
 	jobId: string
 ): Promise<PublicAlgoliaImportJob | SessionFailure> {
 	try {
-		return await api.getAlgoliaImportJob(jobId);
+		return await api.getMigrationImportJob(sourceProvider, jobId);
 	} catch (err) {
 		const sessionFailure = mapDashboardSessionFailure(err);
 		if (sessionFailure) return sessionFailure;
@@ -69,10 +94,11 @@ async function loadJob(
 // failure or an unavailable contract, so the detail page can never surface a
 // cancel/resume/replace control the platform has not actually enabled.
 async function loadCapabilities(
-	api: ServerApiClient
+	api: ServerApiClient,
+	sourceProvider: SourceProvider
 ): Promise<AlgoliaMigrationCapabilities | SessionFailure> {
 	try {
-		const availability = await api.getAlgoliaMigrationAvailability();
+		const availability = await api.getMigrationAvailability(sourceProvider);
 		return availability.available ? availability.capabilities : FAIL_CLOSED_CAPABILITIES;
 	} catch (err) {
 		const sessionFailure = mapDashboardSessionFailure(err);
@@ -81,14 +107,16 @@ async function loadCapabilities(
 	}
 }
 
-export const load: PageServerLoad = async ({ params, locals }) => {
-	const api = createApiClient(locals.user?.token);
+export const load: PageServerLoad = async ({ params, url, locals }) => {
 	const jobId = validatedJobId(params.jobId);
+	const sourceProvider = parsedSourceProvider(url.searchParams.get('source_provider'));
+	if (sourceProvider === null) throw error(400, SOURCE_PROVIDER_UNSUPPORTED);
+	const api = createApiClient(locals.user?.token);
 
-	const job = await loadJob(api, jobId);
+	const job = await loadJob(api, sourceProvider, jobId);
 	if (isSessionFailure(job)) return job;
 
-	const capabilities = await loadCapabilities(api);
+	const capabilities = await loadCapabilities(api, sourceProvider);
 	if (isSessionFailure(capabilities)) return capabilities;
 
 	return { job, capabilities };
@@ -104,23 +132,31 @@ async function runJobAction(
 	} catch (err) {
 		const sessionFailure = mapDashboardSessionFailure(err);
 		if (sessionFailure) return sessionFailure;
+		const providerFailure = upstreamSourceProviderFailure(err);
+		if (providerFailure) return providerFailure;
 		return fail(400, { error: customerFacingErrorMessage(err, JOB_ACTION_FAILED) });
 	}
 }
 
 export const actions: Actions = {
-	cancel: async ({ params, locals }) => {
+	cancel: async ({ params, request, locals }) => {
 		const jobId = validatedJobId(params.jobId);
-		return runJobAction(locals, (api) => api.cancelAlgoliaImportJob(jobId));
+		const sourceProvider = parsedSourceProvider((await request.formData()).get('source_provider'));
+		if (sourceProvider === null) return sourceProviderFailure();
+		return runJobAction(locals, (api) => api.cancelMigrationImportJob(sourceProvider, jobId));
 	},
 	resume: async ({ params, request, locals }) => {
 		const jobId = validatedJobId(params.jobId);
 		const data = await request.formData();
+		const sourceProvider = parsedSourceProvider(data.get('source_provider'));
+		if (sourceProvider === null) return sourceProviderFailure();
 		const rawApiKey = data.get('apiKey');
 		const apiKey = typeof rawApiKey === 'string' ? rawApiKey.trim() : '';
 		if (apiKey === '') {
-			return fail(400, { error: 'Algolia API key is required' });
+			return fail(400, { error: 'Source API key is required' });
 		}
-		return runJobAction(locals, (api) => api.resumeAlgoliaImportJob(jobId, { apiKey }));
+		return runJobAction(locals, (api) =>
+			api.resumeMigrationImportJob(sourceProvider, jobId, { apiKey })
+		);
 	}
 };

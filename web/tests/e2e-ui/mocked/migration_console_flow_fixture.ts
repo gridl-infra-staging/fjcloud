@@ -1,31 +1,68 @@
 import type { Page, Route } from '@playwright/test';
 import { expect } from '../../fixtures/fixtures';
 import { stringify, uneval } from 'devalue';
-import { availableAvailability } from '../../../src/lib/components/migration/migration_test_fixtures';
+import {
+	availableAvailability,
+	publicWarnings,
+	WARNING_GROUPS
+} from '../../../src/lib/components/migration/migration_test_fixtures';
 import type {
 	AlgoliaDestinationEligibilityRequest,
 	AlgoliaDestinationEligibilityResponse,
 	AlgoliaIndexMetadata,
 	AlgoliaMigrationCapabilities,
-	CreateAlgoliaImportJobRequest,
+	CreateMigrationImportJobRequest,
+	ListMigrationSourceIndexesRequest,
+	PublicAlgoliaImportError,
 	PublicAlgoliaImportJob,
-	PublicAlgoliaImportJobPage
+	PublicAlgoliaImportJobPage,
+	SourceProvider
 } from '../../../src/lib/api/types';
 
-const APP_ID_CANARY = 'algolia_app_id_canary_stage4';
-const API_KEY_CANARY = 'algolia_api_key_canary_stage4';
 const JOB_ID = 'job_123';
 const SOURCE_NAME = 'source_products';
 const REGION = 'us-east-1';
 const PROVIDER_TOKEN = 'provider-token-stage4';
 const TARGET_TOKEN = 'target-token-stage4';
-const DOCUMENT_UNAVAILABLE_MARKER =
-	'data:{availability:{available:false,message:"Algolia migration is temporarily unavailable while we replace the importer.",capabilities:{cancel:false,resume:false,replace:false},reason:"temporarily_unavailable"},recentImports:{page:null,error:null}}';
+const DOCUMENT_UNAVAILABLE_START = 'data:{availability:{available:false';
+const DOCUMENT_UNAVAILABLE_END = ',recentImports:{page:null,error:null}}';
 
-type JobScenario = 'progression' | 'cancel' | 'invalid_credentials';
+const SOURCE_PROVIDER_LABELS = {
+	algolia: 'Algolia',
+	meilisearch: 'Meilisearch',
+	typesense: 'Typesense'
+} satisfies Record<SourceProvider, string>;
+
+const SOURCE_PROVIDER_CREDENTIALS = {
+	algolia: {
+		appId: 'algolia_app_id_canary_stage4',
+		apiKey: 'algolia_api_key_canary_stage4'
+	},
+	meilisearch: {
+		host: 'https://meilisearch-host-canary-stage4.example.test',
+		apiKey: 'meilisearch_api_key_canary_stage4'
+	},
+	typesense: {
+		host: 'https://typesense-host-canary-stage4.example.test',
+		apiKey: 'typesense_api_key_canary_stage4'
+	}
+} satisfies Record<SourceProvider, { apiKey: string; appId?: string; host?: string }>;
+
+type JobScenario =
+	| 'progression'
+	| 'cancel'
+	| 'invalid_credentials'
+	| 'source_provider_unsupported'
+	| 'warning_detail';
+
+export const WARNING_DETAIL_GROUPS = WARNING_GROUPS;
 
 export type MigrationConsoleFlowFixture = {
+	sourceProvider: SourceProvider;
+	providerLabel: string;
+	sourceIdentity: string;
 	appId: string;
+	host: string;
 	apiKey: string;
 	jobId: string;
 	sourceName: string;
@@ -41,9 +78,13 @@ export type MigrationConsoleFlowFixture = {
 	};
 	createIdempotencyKeys: string[];
 	credentialRequestBodies: string[];
+	actionPayloads: Array<{ action: string; payload: unknown }>;
+	jobNavigationSearchParams: string[];
+	publicResponseBodies: string[];
 };
 
 type FixtureOptions = {
+	sourceProvider?: SourceProvider;
 	jobScenario?: JobScenario;
 };
 
@@ -65,31 +106,45 @@ const sourceIndex = {
 	replicas: []
 } satisfies AlgoliaIndexMetadata;
 
-const providerEligibility = {
-	phase: 'provider',
-	mode: 'create',
-	provider: 'aws',
-	target: { kind: 'create', region: REGION },
-	eligibilityToken: PROVIDER_TOKEN,
-	expiresAt: '2099-07-18T10:15:00Z'
-} satisfies AlgoliaDestinationEligibilityResponse;
+function providerEligibilityFor(
+	sourceProvider: SourceProvider
+): AlgoliaDestinationEligibilityResponse {
+	return {
+		phase: 'provider',
+		mode: 'create',
+		provider: 'aws',
+		target: { kind: 'create', region: REGION },
+		eligibilityToken: `${sourceProvider}-${PROVIDER_TOKEN}`,
+		expiresAt: '2099-07-18T10:15:00Z'
+	};
+}
 
-const targetEligibility = {
-	phase: 'target',
-	mode: 'create',
-	provider: 'aws',
-	target: { kind: 'create', region: REGION, name: SOURCE_NAME },
-	eligibilityToken: TARGET_TOKEN,
-	expiresAt: '2099-07-18T10:20:00Z'
-} satisfies AlgoliaDestinationEligibilityResponse;
+function targetEligibilityFor(
+	sourceProvider: SourceProvider
+): AlgoliaDestinationEligibilityResponse {
+	return {
+		phase: 'target',
+		mode: 'create',
+		provider: 'aws',
+		target: { kind: 'create', region: REGION, name: SOURCE_NAME },
+		eligibilityToken: `${sourceProvider}-${TARGET_TOKEN}`,
+		expiresAt: '2099-07-18T10:20:00Z'
+	};
+}
 
 export async function installMigrationConsoleFlowFixture(
 	page: Page,
 	options: FixtureOptions = {}
 ): Promise<MigrationConsoleFlowFixture> {
+	const sourceProvider = options.sourceProvider ?? 'algolia';
+	const credentials = SOURCE_PROVIDER_CREDENTIALS[sourceProvider];
 	const state: MigrationConsoleFlowFixture = {
-		appId: APP_ID_CANARY,
-		apiKey: API_KEY_CANARY,
+		sourceProvider,
+		providerLabel: SOURCE_PROVIDER_LABELS[sourceProvider],
+		sourceIdentity: 'appId' in credentials ? credentials.appId : credentials.host,
+		appId: 'appId' in credentials ? credentials.appId : '',
+		host: 'host' in credentials ? credentials.host : '',
+		apiKey: credentials.apiKey,
 		jobId: JOB_ID,
 		sourceName: SOURCE_NAME,
 		counts: {
@@ -103,7 +158,10 @@ export async function installMigrationConsoleFlowFixture(
 			jobDataRewrites: 0
 		},
 		createIdempotencyKeys: [],
-		credentialRequestBodies: []
+		credentialRequestBodies: [],
+		actionPayloads: [],
+		jobNavigationSearchParams: [],
+		publicResponseBodies: []
 	};
 	const scenario = options.jobScenario ?? 'progression';
 	let progressionIndex = 0;
@@ -114,7 +172,7 @@ export async function installMigrationConsoleFlowFixture(
 			await route.fallback();
 			return;
 		}
-		await fulfillMigrateDocument(route, state);
+		await fulfillMigrateDocument(route, state, { scenario });
 	});
 
 	await page.route('**/console/migrate/__data.json**', async (route) => {
@@ -122,7 +180,7 @@ export async function installMigrationConsoleFlowFixture(
 			await route.fallback();
 			return;
 		}
-		await fulfillMigrateData(route, state);
+		await fulfillMigrateData(route, state, { scenario });
 	});
 
 	await page.route(`**/console/migrate/${JOB_ID}/__data.json**`, async (route) => {
@@ -130,12 +188,20 @@ export async function installMigrationConsoleFlowFixture(
 			await route.fallback();
 			return;
 		}
+		state.jobNavigationSearchParams.push(new URL(route.request().url()).search);
 		const job =
 			scenario === 'invalid_credentials'
-				? importJob({ status: 'failed', error: { code: 'invalid_credentials' } })
-				: cancelled
-					? importJob({ status: 'cancelled', publicationDisposition: 'unchanged' })
-					: nextProgressionJob(progressionIndex++);
+				? importJob(state, { status: 'failed', error: { code: 'invalid_credentials' } })
+				: scenario === 'source_provider_unsupported'
+					? importJob(state, {
+							status: 'failed',
+							error: { code: 'source_provider_unsupported' }
+						})
+					: scenario === 'warning_detail'
+						? warningDetailJob(state)
+						: cancelled
+							? importJob(state, { status: 'cancelled', publicationDisposition: 'unchanged' })
+							: nextProgressionJob(state, progressionIndex++);
 		await fulfillJobData(route, state, job);
 	});
 
@@ -148,23 +214,24 @@ export async function installMigrationConsoleFlowFixture(
 		const url = request.url();
 		if (url.includes('?/providerEligibility')) {
 			state.counts.providerEligibility += 1;
-			const payload = JSON.parse(parseMultipartForm(request.postData() ?? '').payload ?? '{}') as {
-				region?: string;
-			};
-			expect(payload).toEqual({ region: REGION });
-			await fulfillAction(route, { providerEligibility });
+			const payload = actionPayload(request.postData() ?? '', 'providerEligibility');
+			state.actionPayloads.push({ action: 'providerEligibility', payload });
+			expect(payload).toEqual({ source_provider: sourceProvider, region: REGION });
+			await fulfillAction(route, { providerEligibility: providerEligibilityFor(sourceProvider) });
 			return;
 		}
 		if (url.includes('?/listSourceIndexes')) {
 			state.counts.listSourceIndexes += 1;
 			const rawBody = request.postData() ?? '';
 			state.credentialRequestBodies.push(rawBody);
-			const payload = JSON.parse(parseMultipartForm(rawBody).payload ?? '{}') as {
-				appId?: string;
-				apiKey?: string;
-				cursor?: string;
+			const payload = actionPayload(
+				rawBody,
+				'listSourceIndexes'
+			) as ListMigrationSourceIndexesRequest & {
+				source_provider?: SourceProvider;
 			};
-			expect(payload).toEqual({ appId: APP_ID_CANARY, apiKey: API_KEY_CANARY });
+			state.actionPayloads.push({ action: 'listSourceIndexes', payload });
+			expect(payload).toEqual(expectedSourceListPayload(sourceProvider));
 			await fulfillAction(route, {
 				sourceIndexes: { items: [sourceIndex], nextCursor: null }
 			});
@@ -172,16 +239,19 @@ export async function installMigrationConsoleFlowFixture(
 		}
 		if (url.includes('?/checkDestinationEligibility')) {
 			state.counts.checkDestinationEligibility += 1;
-			const payload = JSON.parse(
-				parseMultipartForm(request.postData() ?? '').payload ?? '{}'
-			) as AlgoliaDestinationEligibilityRequest;
+			const payload = actionPayload(
+				request.postData() ?? '',
+				'checkDestinationEligibility'
+			) as AlgoliaDestinationEligibilityRequest & { source_provider?: SourceProvider };
+			state.actionPayloads.push({ action: 'checkDestinationEligibility', payload });
 			expect(payload).toEqual({
+				source_provider: sourceProvider,
 				phase: 'target',
 				mode: 'create',
 				target: { region: REGION, name: SOURCE_NAME },
-				eligibilityToken: PROVIDER_TOKEN
+				eligibilityToken: `${sourceProvider}-${PROVIDER_TOKEN}`
 			});
-			await fulfillAction(route, { targetEligibility });
+			await fulfillAction(route, { targetEligibility: targetEligibilityFor(sourceProvider) });
 			return;
 		}
 		if (url.includes('?/createImportJob')) {
@@ -192,15 +262,15 @@ export async function installMigrationConsoleFlowFixture(
 			const idempotencyKey = form.idempotencyKey?.trim() ?? '';
 			expect(idempotencyKey).not.toBe('');
 			state.createIdempotencyKeys.push(idempotencyKey);
-			const payload = JSON.parse(form.payload ?? '{}') as CreateAlgoliaImportJobRequest;
-			expect(payload).toEqual({
-				mode: 'create',
-				appId: APP_ID_CANARY,
-				apiKey: API_KEY_CANARY,
-				sourceName: SOURCE_NAME,
-				target: { eligibilityToken: TARGET_TOKEN }
-			});
-			await fulfillAction(route, { job: importJob({ status: 'queued' }) });
+			const payload = actionPayload(
+				rawBody,
+				'createImportJob'
+			) as CreateMigrationImportJobRequest & {
+				source_provider?: SourceProvider;
+			};
+			state.actionPayloads.push({ action: 'createImportJob', payload });
+			expect(payload).toEqual(expectedCreatePayload(sourceProvider));
+			await fulfillAction(route, { job: importJob(state, { status: 'queued' }) });
 			return;
 		}
 		await route.fallback();
@@ -215,7 +285,7 @@ export async function installMigrationConsoleFlowFixture(
 		state.counts.cancel += 1;
 		cancelled = true;
 		await fulfillAction(route, {
-			job: importJob({ status: 'cancelled', publicationDisposition: 'unchanged' })
+			job: importJob(state, { status: 'cancelled', publicationDisposition: 'unchanged' })
 		});
 	});
 
@@ -224,52 +294,169 @@ export async function installMigrationConsoleFlowFixture(
 
 export async function assertMigrationFixtureSatisfied(
 	state: MigrationConsoleFlowFixture,
-	options: { create?: boolean; cancel?: boolean; jobLoads?: boolean } = {}
+	options: { create?: boolean; cancel?: boolean; jobLoads?: boolean | number } = {}
 ): Promise<void> {
-	expect(state.counts.documentRewrites).toBeGreaterThan(0);
+	expect(state.counts.documentRewrites).toBe(1);
+	expect(state.counts.migrateDataRewrites).toBe(0);
+	expect(state.counts.providerEligibility).toBe(1);
+	expect(actionPayloads(state, 'providerEligibility')).toEqual([
+		{ source_provider: state.sourceProvider, region: REGION }
+	]);
 	if (options.create) {
+		expect(state.counts.listSourceIndexes).toBe(1);
+		expect(state.counts.checkDestinationEligibility).toBe(1);
 		expect(state.counts.createImportJob).toBe(1);
 		expect(state.createIdempotencyKeys).toHaveLength(1);
+		expect(new Set(state.createIdempotencyKeys).size).toBe(1);
+		expect(actionPayloads(state, 'listSourceIndexes')).toEqual([
+			expectedSourceListPayload(state.sourceProvider)
+		]);
+		expect(actionPayloads(state, 'checkDestinationEligibility')).toEqual([
+			{
+				source_provider: state.sourceProvider,
+				phase: 'target',
+				mode: 'create',
+				target: { region: REGION, name: SOURCE_NAME },
+				eligibilityToken: `${state.sourceProvider}-${PROVIDER_TOKEN}`
+			}
+		]);
+		expect(actionPayloads(state, 'createImportJob')).toEqual([
+			expectedCreatePayload(state.sourceProvider)
+		]);
 	}
 	if (options.cancel) {
 		expect(state.counts.cancel).toBe(1);
 	}
 	if (options.jobLoads) {
-		expect(state.counts.jobDataRewrites).toBeGreaterThan(0);
+		const expectedJobLoads =
+			typeof options.jobLoads === 'number'
+				? options.jobLoads
+				: options.create
+					? 4
+					: options.cancel
+						? 2
+						: 1;
+		expect(state.counts.jobDataRewrites).toBe(expectedJobLoads);
+		expect(state.jobNavigationSearchParams).toHaveLength(expectedJobLoads);
+		for (const searchParams of state.jobNavigationSearchParams) {
+			expect(new URLSearchParams(searchParams).get('source_provider')).toBe(state.sourceProvider);
+		}
 	}
 	for (const body of state.credentialRequestBodies) {
-		expect(body).toContain(APP_ID_CANARY);
-		expect(body).toContain(API_KEY_CANARY);
+		expect(body).toContain(state.apiKey);
+		if (state.sourceProvider === 'algolia') {
+			expect(body).toContain(state.appId);
+			expect(body).not.toContain('host');
+		} else {
+			expect(body).toContain(state.host);
+			expect(body).not.toContain('appId');
+		}
+	}
+	for (const body of state.publicResponseBodies) {
+		expect(body).not.toContain(state.apiKey);
+		if (state.appId !== '') {
+			expect(body).not.toContain(state.appId);
+		}
+		if (state.host !== '') {
+			expect(body).not.toContain(state.host);
+		}
 	}
 }
 
-function recentImportsPage(job: PublicAlgoliaImportJob = importJob()): PublicAlgoliaImportJobPage {
+function actionPayloads(state: MigrationConsoleFlowFixture, action: string): unknown[] {
+	return state.actionPayloads
+		.filter((entry) => entry.action === action)
+		.map((entry) => entry.payload);
+}
+
+function expectedSourceListPayload(sourceProvider: SourceProvider): {
+	source_provider: SourceProvider;
+	apiKey: string;
+	appId?: string;
+	host?: string;
+} {
+	const credentials = SOURCE_PROVIDER_CREDENTIALS[sourceProvider];
+	return sourceProvider === 'algolia'
+		? {
+				source_provider: sourceProvider,
+				appId: 'appId' in credentials ? credentials.appId : '',
+				apiKey: credentials.apiKey
+			}
+		: {
+				source_provider: sourceProvider,
+				host: 'host' in credentials ? credentials.host : '',
+				apiKey: credentials.apiKey
+			};
+}
+
+function expectedCreatePayload(sourceProvider: SourceProvider): {
+	mode: 'create';
+	source_provider: SourceProvider;
+	apiKey: string;
+	sourceName: string;
+	target: { eligibilityToken: string };
+	appId?: string;
+	host?: string;
+} {
+	const credentials = SOURCE_PROVIDER_CREDENTIALS[sourceProvider];
+	return sourceProvider === 'algolia'
+		? {
+				source_provider: sourceProvider,
+				mode: 'create',
+				appId: 'appId' in credentials ? credentials.appId : '',
+				apiKey: credentials.apiKey,
+				sourceName: SOURCE_NAME,
+				target: { eligibilityToken: `${sourceProvider}-${TARGET_TOKEN}` }
+			}
+		: {
+				source_provider: sourceProvider,
+				mode: 'create',
+				host: 'host' in credentials ? credentials.host : '',
+				apiKey: credentials.apiKey,
+				sourceName: SOURCE_NAME,
+				target: { eligibilityToken: `${sourceProvider}-${TARGET_TOKEN}` }
+			};
+}
+
+function recentImportsPage(
+	state: MigrationConsoleFlowFixture,
+	job: PublicAlgoliaImportJob = importJob(state)
+): PublicAlgoliaImportJobPage {
 	return { jobs: [job], nextCursor: null };
 }
 
-function migratePayload() {
+function migratePayload(
+	state: MigrationConsoleFlowFixture,
+	options: { scenario?: JobScenario } = {}
+) {
 	return {
 		availability: availableAvailability,
-		recentImports: { page: recentImportsPage(), error: null }
+		recentImports: {
+			page: recentImportsPage(state, retainedListJob(state, options.scenario)),
+			error: null
+		}
 	};
 }
 
 async function fulfillMigrateDocument(
 	route: Route,
-	state: MigrationConsoleFlowFixture
+	state: MigrationConsoleFlowFixture,
+	options: { scenario?: JobScenario } = {}
 ): Promise<void> {
 	const response = await route.fetch();
 	const body = await response.text();
-	const replacement = `data:${uneval(migratePayload())}`;
-	const rewritten = body.replace(DOCUMENT_UNAVAILABLE_MARKER, replacement);
-	if (rewritten === body) {
-		throw new Error('migration document payload marker was not rewritten');
-	}
+	const replacement = `data:${uneval(migratePayload(state, options))}`;
+	const rewritten = rewriteUnavailableDocumentPayload(body, replacement);
 	state.counts.documentRewrites += 1;
+	state.publicResponseBodies.push(rewritten);
 	await route.fulfill({ response, body: rewritten });
 }
 
-async function fulfillMigrateData(route: Route, state: MigrationConsoleFlowFixture): Promise<void> {
+async function fulfillMigrateData(
+	route: Route,
+	state: MigrationConsoleFlowFixture,
+	options: { scenario?: JobScenario } = {}
+): Promise<void> {
 	const response = await route.fetch();
 	const payload = (await response.json()) as {
 		type: 'data';
@@ -284,12 +471,14 @@ async function fulfillMigrateData(route: Route, state: MigrationConsoleFlowFixtu
 	if (!pageNode) {
 		throw new Error('migration __data payload marker was not rewritten');
 	}
-	pageNode.data = JSON.parse(stringify(migratePayload()));
+	pageNode.data = JSON.parse(stringify(migratePayload(state, options)));
 	state.counts.migrateDataRewrites += 1;
+	const body = JSON.stringify(payload);
+	state.publicResponseBodies.push(body);
 	await route.fulfill({
 		status: response.status(),
 		headers: response.headers(),
-		body: JSON.stringify(payload)
+		body
 	});
 }
 
@@ -311,10 +500,12 @@ async function fulfillJobData(
 		]
 	};
 	state.counts.jobDataRewrites += 1;
+	const body = JSON.stringify(payload);
+	state.publicResponseBodies.push(body);
 	await route.fulfill({
 		status: 200,
 		contentType: 'application/json',
-		body: JSON.stringify(payload)
+		body
 	});
 }
 
@@ -330,19 +521,73 @@ async function fulfillAction(route: Route, data: Record<string, unknown>): Promi
 	});
 }
 
-function nextProgressionJob(index: number): PublicAlgoliaImportJob {
+function rewriteUnavailableDocumentPayload(body: string, replacement: string): string {
+	const start = body.indexOf(DOCUMENT_UNAVAILABLE_START);
+	if (start === -1) {
+		throw new Error('migration document payload marker start was not found');
+	}
+	const end = body.indexOf(DOCUMENT_UNAVAILABLE_END, start);
+	if (end === -1) {
+		throw new Error('migration document payload marker end was not found');
+	}
+	return `${body.slice(0, start)}${replacement}${body.slice(end + DOCUMENT_UNAVAILABLE_END.length)}`;
+}
+
+function actionPayload(body: string, actionName: string): unknown {
+	const payload = parseMultipartForm(body).payload ?? '';
+	expect(payload, `${actionName} multipart payload`).not.toBe('');
+	return JSON.parse(payload) as unknown;
+}
+
+function nextProgressionJob(
+	state: MigrationConsoleFlowFixture,
+	index: number
+): PublicAlgoliaImportJob {
 	const statuses = ['queued', 'copying_documents', 'verifying', 'completed'] as const;
-	return importJob({
+	return importJob(state, {
 		status: statuses[Math.min(index, statuses.length - 1)],
+		terminalOutcomeObserved: index >= statuses.length - 1,
 		publicationDisposition: index >= statuses.length - 1 ? 'promoted' : 'not_started'
 	});
 }
 
-function importJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgoliaImportJob {
+function retainedListJob(
+	state: MigrationConsoleFlowFixture,
+	scenario: JobScenario = 'progression'
+): PublicAlgoliaImportJob {
+	if (scenario === 'invalid_credentials') {
+		return importJob(state, { status: 'failed', error: { code: 'invalid_credentials' } });
+	}
+	if (scenario === 'source_provider_unsupported') {
+		return importJob(state, {
+			status: 'failed',
+			error: { code: 'source_provider_unsupported' }
+		});
+	}
+	if (scenario === 'warning_detail') {
+		return warningDetailJob(state);
+	}
+	return importJob(state);
+}
+
+function warningDetailJob(state: MigrationConsoleFlowFixture): PublicAlgoliaImportJob {
+	return importJob(state, {
+		status: 'completed_with_warnings',
+		terminalOutcomeObserved: true,
+		publicationDisposition: 'promoted',
+		warnings: publicWarnings(WARNING_DETAIL_GROUPS)
+	});
+}
+
+function importJob(
+	state: MigrationConsoleFlowFixture,
+	overrides: Partial<PublicAlgoliaImportJob> & { error?: PublicAlgoliaImportError | null } = {}
+): PublicAlgoliaImportJob {
 	return {
 		id: JOB_ID,
 		status: 'copying_documents',
 		mode: 'create',
+		sourceProvider: state.sourceProvider,
 		destination: { kind: 'create', target: SOURCE_NAME, region: REGION },
 		source: { name: SOURCE_NAME },
 		summary: {

@@ -1,125 +1,41 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
-import type { ComponentProps } from 'svelte';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/svelte';
+import type { AlgoliaMigrationCapabilities, AlgoliaSourceListResponse } from '$lib/api/types';
 
-import MigrationCreateFlow from './MigrationCreateFlow.svelte';
-import type {
-	AlgoliaDestinationEligibilityResponse,
-	AlgoliaIndexMetadata,
-	AlgoliaMigrationCapabilities,
-	AlgoliaSourceListResponse
-} from '$lib/api/types';
+import {
+	API_KEY_CANARY,
+	APP_ID_CANARY,
+	ELIGIBLE_AWS_REPLACE_PROVIDER,
+	NO_CAPABILITIES,
+	connect,
+	listResponse,
+	migrationClient,
+	renderFlow,
+	sourceIndex,
+	waitForDiscoveryToSettle
+} from './migration_test_fixtures';
 
 afterEach(() => {
 	cleanup();
 	vi.restoreAllMocks();
 });
 
-// Distinctive values so a leak into markup, storage, or the URL is unambiguous
-// rather than a coincidental substring match.
-const APP_ID_CANARY = 'CANARYAPPID0001';
-const API_KEY_CANARY = 'canary-secret-key-0002';
+const API_KEY_CANARY_SHA256 = 'f38e91ffdce3adc96f812a25e847e7fda20b912d7722c4b4cc5ab5363d3be46f';
 
-function sourceIndex(overrides: Partial<AlgoliaIndexMetadata> = {}): AlgoliaIndexMetadata {
-	return {
-		name: 'source_products',
-		entries: 1234,
-		dataSize: 2048,
-		fileSize: 4096,
-		updatedAt: '2026-07-18T10:00:00Z',
-		lastBuildTimeS: 17,
-		pendingTask: false,
-		primary: null,
-		replicas: [],
-		...overrides
-	};
-}
-
-function listResponse(
-	items: AlgoliaIndexMetadata[],
-	nextCursor: string | null = null
-): AlgoliaSourceListResponse {
-	return { items, nextCursor };
-}
-
-const ELIGIBLE_AWS_PROVIDER = {
-	phase: 'provider',
-	mode: 'create',
-	provider: 'aws',
-	target: {
-		kind: 'create',
-		region: 'us-east-1',
-		name: 'products_migration'
-	},
-	eligibilityToken: 'provider-eligibility-token',
-	expiresAt: '2099-07-18T10:15:00Z'
-} as const;
-const ELIGIBLE_AWS_REPLACE_PROVIDER = {
-	phase: 'provider',
-	mode: 'replace',
-	provider: 'aws',
-	target: {
-		kind: 'replace',
-		region: 'us-west-2',
-		name: 'existing_products'
-	},
-	eligibilityToken: 'replace-provider-eligibility-token',
-	expiresAt: '2099-07-18T10:15:00Z'
-} as const;
-
-const NO_CAPABILITIES: AlgoliaMigrationCapabilities = {
-	cancel: false,
-	resume: false,
-	replace: false
-};
-
-type MigrationFlowClient = ComponentProps<typeof MigrationCreateFlow>['client'];
-
-function migrationClient(listAlgoliaSourceIndexes = vi.fn()): MigrationFlowClient {
-	return {
-		listAlgoliaSourceIndexes,
-		checkAlgoliaDestinationEligibility: vi.fn(),
-		createAlgoliaImportJob: vi.fn()
-	};
-}
-
-function renderFlow(
-	listAlgoliaSourceIndexes = vi.fn(),
-	capabilities: AlgoliaMigrationCapabilities | undefined = undefined,
-	providerEligibility: AlgoliaDestinationEligibilityResponse = ELIGIBLE_AWS_PROVIDER
-) {
-	const result = render(MigrationCreateFlow, {
-		client: migrationClient(listAlgoliaSourceIndexes),
-		providerEligibility,
-		capabilities
-	});
-	return { ...result, listAlgoliaSourceIndexes };
-}
-
-async function connect(
-	listAlgoliaSourceIndexes: ReturnType<typeof vi.fn>,
-	appId = APP_ID_CANARY,
-	apiKey = API_KEY_CANARY,
-	waitForCompletion = true
-) {
-	await fireEvent.input(screen.getByLabelText(/algolia application id/i), {
-		target: { value: appId }
-	});
-	await fireEvent.input(screen.getByLabelText(/algolia api key/i), {
-		target: { value: apiKey }
-	});
-	await fireEvent.click(screen.getByRole('button', { name: /connect to algolia/i }));
-	await waitFor(() => expect(listAlgoliaSourceIndexes).toHaveBeenCalled());
-	if (waitForCompletion) {
-		await waitForDiscoveryToSettle();
+function hexDigestBuffer(hex: string): ArrayBuffer {
+	const bytes = new Uint8Array(hex.length / 2);
+	for (let index = 0; index < bytes.length; index += 1) {
+		bytes[index] = Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16);
 	}
-	return listAlgoliaSourceIndexes;
+	return bytes.buffer;
 }
 
-async function waitForDiscoveryToSettle() {
-	await waitFor(() =>
-		expect(screen.queryByTestId('migration-source-loading')).not.toBeInTheDocument()
-	);
+function deferredDigest() {
+	let resolve: (value: ArrayBuffer) => void = () => {};
+	const promise = new Promise<ArrayBuffer>((nextResolve) => {
+		resolve = nextResolve;
+	});
+	return { promise, resolve };
 }
 
 describe('MigrationCreateFlow - connect step', () => {
@@ -562,6 +478,34 @@ describe('MigrationCreateFlow - credential change invalidates the catalog', () =
 		return list;
 	}
 
+	it('keeps unchanged canary credentials connected after first discovery settles', async () => {
+		const list = vi.fn().mockResolvedValue(listResponse([sourceIndex()]));
+		const requestDigestDeferred = deferredDigest();
+		const requestDigest = hexDigestBuffer(API_KEY_CANARY_SHA256);
+		const digest = vi
+			.spyOn(globalThis.crypto.subtle, 'digest')
+			.mockReturnValue(requestDigestDeferred.promise);
+		renderFlow(list);
+
+		await connect(list, APP_ID_CANARY, API_KEY_CANARY, false);
+		await waitFor(() => expect(list).toHaveBeenCalledTimes(1));
+		expect(digest).toHaveBeenCalledTimes(1);
+		expect(screen.getByTestId('migration-source-loading')).toBeInTheDocument();
+		requestDigestDeferred.resolve(requestDigest);
+		await waitForDiscoveryToSettle();
+
+		expect(screen.getByLabelText(/algolia application id/i)).toHaveValue(APP_ID_CANARY);
+		expect(screen.getByLabelText(/algolia api key/i)).toHaveValue(API_KEY_CANARY);
+		expect(list).toHaveBeenCalledTimes(1);
+		expect(list).toHaveBeenCalledWith({ appId: APP_ID_CANARY, apiKey: API_KEY_CANARY });
+		try {
+			expect(screen.getByTestId('migration-source-row-source_products')).toBeInTheDocument();
+			expect(screen.queryByTestId('migration-credentials-changed')).not.toBeInTheDocument();
+		} finally {
+			requestDigestDeferred.resolve(requestDigest);
+		}
+	});
+
 	it('hides the loaded catalog when the app id is edited after connecting', async () => {
 		await connectWithPendingCursor();
 
@@ -687,7 +631,7 @@ describe('MigrationCreateFlow - credential change invalidates the catalog', () =
 		expect(screen.getByLabelText(/algolia api key/i)).toHaveValue('replacement-secret-key-0005');
 	});
 
-	it('restores the catalog when the credentials are edited back to the connected pair', async () => {
+	it('requires fresh discovery when credentials are edited back to a previous pair', async () => {
 		const list = await connectWithPendingCursor();
 
 		await fireEvent.input(screen.getByLabelText(/algolia application id/i), {
@@ -699,147 +643,13 @@ describe('MigrationCreateFlow - credential change invalidates the catalog', () =
 			target: { value: APP_ID_CANARY }
 		});
 
-		expect(screen.getByTestId('migration-source-list')).toBeInTheDocument();
+		expect(screen.queryByTestId('migration-source-list')).not.toBeInTheDocument();
+		expect(screen.getByTestId('migration-credentials-changed')).toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole('button', { name: /connect to algolia/i }));
+		await screen.findByTestId('migration-source-list');
+
 		expect(screen.queryByTestId('migration-credentials-changed')).not.toBeInTheDocument();
-		expect(list).toHaveBeenCalledTimes(1);
-	});
-});
-
-describe('MigrationCreateFlow - error and retry', () => {
-	it('surfaces the producer error message and retries the same discovery request', async () => {
-		const list = vi
-			.fn()
-			.mockRejectedValueOnce(
-				Object.assign(new Error('invalid_algolia_credentials'), { status: 400 })
-			)
-			.mockResolvedValueOnce(listResponse([sourceIndex()]));
-		renderFlow(list);
-
-		await connect(list);
-
-		const error = await screen.findByTestId('migration-source-error');
-		expect(screen.getByRole('alert')).toBe(error);
-		expect(error).toHaveTextContent('invalid_algolia_credentials');
-		expect(screen.queryByTestId('migration-source-list')).not.toBeInTheDocument();
-
-		await fireEvent.click(screen.getByRole('button', { name: /retry/i }));
-
-		await screen.findByTestId('migration-source-row-source_products');
 		expect(list).toHaveBeenCalledTimes(2);
-		expect(screen.queryByTestId('migration-source-error')).not.toBeInTheDocument();
-	});
-
-	it('clears a stale source list when a later discovery attempt fails', async () => {
-		const list = vi
-			.fn()
-			.mockResolvedValueOnce(listResponse([sourceIndex()], 'opaque-cursor-1'))
-			.mockRejectedValueOnce(new Error('algolia_discovery_unavailable'));
-		renderFlow(list);
-
-		await connect(list);
-		await screen.findByTestId('migration-source-row-source_products');
-
-		await fireEvent.click(screen.getByRole('button', { name: /load more source indexes/i }));
-
-		expect(await screen.findByTestId('migration-source-error')).toHaveTextContent(
-			'algolia_discovery_unavailable'
-		);
-	});
-
-	it('rebuilds the whole catalog from the first page when retrying a failed cursor page', async () => {
-		// A failed page clears the accumulated list, so replaying the failed cursor
-		// would append page two onto nothing and present it as the complete
-		// catalog — a customer would silently lose every page-one index.
-		const list = vi
-			.fn()
-			.mockResolvedValueOnce(listResponse([sourceIndex()], 'opaque-cursor-1'))
-			.mockRejectedValueOnce(new Error('algolia_discovery_unavailable'))
-			.mockResolvedValueOnce(listResponse([sourceIndex()], 'opaque-cursor-1'));
-		renderFlow(list);
-
-		await connect(list);
-		await screen.findByTestId('migration-source-row-source_products');
-
-		await fireEvent.click(screen.getByRole('button', { name: /load more source indexes/i }));
-		await screen.findByTestId('migration-source-error');
-		await waitForDiscoveryToSettle();
-
-		await fireEvent.click(screen.getByRole('button', { name: /retry/i }));
-
-		await screen.findByTestId('migration-source-row-source_products');
-		await waitForDiscoveryToSettle();
-		expect(list).toHaveBeenLastCalledWith({ appId: APP_ID_CANARY, apiKey: API_KEY_CANARY });
-		// Page one is present again and load-more is offered, so the customer can
-		// walk the full catalog rather than a truncated tail of it.
-		expect(screen.getByRole('button', { name: /load more source indexes/i })).toBeInTheDocument();
-	});
-});
-
-describe('MigrationCreateFlow - credential containment', () => {
-	it('keeps credentials out of markup, storage, and the URL after discovery', async () => {
-		// Spying on the prototype covers localStorage and sessionStorage together,
-		// and does not depend on either global accessor being exposed by jsdom.
-		const setItem = vi.spyOn(Storage.prototype, 'setItem');
-		const pushState = vi.spyOn(window.history, 'pushState');
-		const replaceState = vi.spyOn(window.history, 'replaceState');
-		const list = vi.fn().mockResolvedValue(listResponse([sourceIndex()]));
-		renderFlow(list);
-
-		await connect(list);
-		await screen.findByTestId('migration-source-row-source_products');
-
-		// The only sanctioned homes are the two live input values and the
-		// credential-bearing discovery request body.
-		const appIdInput = screen.getByLabelText(/algolia application id/i);
-		const apiKeyInput = screen.getByLabelText(/algolia api key/i);
-		expect(appIdInput).toHaveValue(APP_ID_CANARY);
-		expect(apiKeyInput).toHaveValue(API_KEY_CANARY);
-		expect(list).toHaveBeenCalledWith({ appId: APP_ID_CANARY, apiKey: API_KEY_CANARY });
-
-		// Serialized markup catches credentials leaked into text nodes, attributes,
-		// data-* attributes, or any other rendered state outside live input values.
-		for (const canary of [APP_ID_CANARY, API_KEY_CANARY]) {
-			expect(document.body).not.toHaveTextContent(canary);
-			expect(document.body.innerHTML).not.toContain(canary);
-			expect(window.location.href).not.toContain(canary);
-		}
-		expect(setItem).not.toHaveBeenCalled();
-		expect(pushState).not.toHaveBeenCalled();
-		expect(replaceState).not.toHaveBeenCalled();
-	});
-
-	it('masks the api key input and never renders it as readable text', async () => {
-		const list = vi.fn().mockResolvedValue(listResponse([sourceIndex()]));
-		renderFlow(list);
-
-		await connect(list);
-
-		expect(screen.getByLabelText(/algolia application id/i)).toHaveAttribute('autocomplete', 'off');
-		expect(screen.getByLabelText(/algolia api key/i)).toHaveAttribute('type', 'password');
-		expect(screen.getByLabelText(/algolia api key/i)).toHaveAttribute('autocomplete', 'off');
-		expect(screen.queryByText(API_KEY_CANARY)).not.toBeInTheDocument();
-	});
-
-	it('does not submit credentials through a form action', async () => {
-		const list = vi.fn().mockResolvedValue(listResponse([sourceIndex()]));
-		const { container } = renderFlow(list);
-
-		await connect(list);
-
-		expect(container.querySelector('form')).not.toBeInTheDocument();
-	});
-
-	it('starts blank after remount so credentials do not survive component destruction', async () => {
-		const list = vi.fn().mockResolvedValue(listResponse([sourceIndex()]));
-		renderFlow(list);
-		await connect(list);
-		await screen.findByTestId('migration-source-row-source_products');
-
-		cleanup();
-		renderFlow(list);
-
-		expect(screen.getByLabelText(/algolia application id/i)).toHaveValue('');
-		expect(screen.getByLabelText(/algolia api key/i)).toHaveValue('');
-		expect(screen.queryByTestId('migration-source-list')).not.toBeInTheDocument();
 	});
 });

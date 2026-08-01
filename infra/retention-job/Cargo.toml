@@ -16,6 +16,7 @@ anyhow      = { workspace = true }
 api         = { path = "../api" }
 async-trait = "0.1"
 chrono      = { workspace = true }
+database-url = { path = "../database-url" }
 reqwest     = { workspace = true }
 rust_decimal = { workspace = true }
 serde       = { workspace = true }

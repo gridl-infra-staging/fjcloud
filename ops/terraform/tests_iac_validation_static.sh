@@ -202,16 +202,19 @@ assert_file_contains "$cloud_init_file" 'TENANT_MAP_URL=' "cloud_init.rs writes 
 assert_file_contains "$cloud_init_file" 'COLD_STORAGE_USAGE_URL=' "cloud_init.rs writes COLD_STORAGE_USAGE_URL to metering env"
 assert_file_contains "$cloud_init_file" 'umask 077' "cloud_init.rs restricts secret env file permissions from first write"
 assert_file_contains "$cloud_init_file" 'pub caddy_runtime: CaddyRuntime' "cloud_init params carry the provider-specific Caddy runtime"
-assert_file_contains "$cloud_init_file" 'CADDY_SERVED_HOSTNAME=\{quoted_hostname\}' "cloud_init.rs assigns the served hostname once for Caddy"
+assert_file_contains "$cloud_init_file" 'CADDY_SERVED_HOSTNAME=\{\}\\n' "cloud_init.rs assigns the served hostname once for Caddy when the runtime hostname is valid"
 assert_file_contains "$cloud_init_file" 'cat > /etc/caddy/Caddyfile' "cloud_init.rs renders /etc/caddy/Caddyfile"
 assert_file_contains "$cloud_init_file" '^  reverse_proxy 127\.0\.0\.1:7700' "cloud_init.rs Caddyfile proxies to the local Flapjack engine"
 assert_file_contains "$cloud_init_file" 'fn is_safe_caddy_hostname' "cloud_init.rs validates served hostnames before rendering Caddy config"
 assert_file_contains "$cloud_init_file" 'unsafe served hostname' "cloud_init.rs skips Caddy setup for invalid served hostnames"
+assert_file_contains "$cloud_init_file" 'ERROR: refusing bootstrap; invalid Caddy served hostname for TLS-enabled runtime' "cloud_init.rs fails closed when a TLS runtime receives an invalid served hostname"
 assert_file_contains "$cloud_init_file" 'systemctl enable --now caddy' "cloud_init.rs enables and starts Caddy"
 assert_file_contains "$cloud_init_file" 'systemctl reload-or-restart caddy' "cloud_init.rs reloads active Caddy after rewriting the Caddyfile"
 assert_file_contains "$cloud_init_file" 'WARN.*Caddy' "cloud_init.rs logs and skips Caddy setup failures"
 assert_file_not_contains "$cloud_init_file" '/etc/caddy/Caddyfile.*\$API_KEY|/etc/caddy/Caddyfile.*\$DB_URL|/etc/caddy/Caddyfile.*\$INTERNAL_AUTH_TOKEN' "cloud_init.rs does not write secret material to Caddy config"
-assert_pattern_order "$cloud_init_file" 'systemctl start flapjack fj-metering-agent' '\{caddy_shell_contract\}' "cloud_init.rs configures Caddy only after Flapjack services are started"
+# Rendered-output ordering is guarded by
+# infra/api/src/provisioner/cloud_init.rs::tests::cloud_init_starts_flapjack_services_before_caddy_config.
+assert_pattern_order "$cloud_init_file" 'ERROR: refusing bootstrap; invalid Caddy served hostname for TLS-enabled runtime' 'systemctl enable --now flapjack fj-metering-agent' "cloud_init.rs rejects invalid TLS hostnames before services start"
 assert_pattern_order "$cloud_init_file" 'systemctl enable --now caddy' 'systemctl reload-or-restart caddy' "cloud_init.rs reloads Caddy only after it is enabled"
 assert_caddy_configure_block_has_no_exit "$cloud_init_file" "cloud_init.rs Caddy configure block has no unguarded exit"
 

@@ -163,6 +163,7 @@ async fn bootstrap_startup_phase() -> anyhow::Result<StartupBootstrapPhase> {
 
     let pool = api::db::create_pool(&cfg.database_url).await?;
     let repos = api::startup_repos::init_pg_repos(&pool);
+    api::auth::admin::bootstrap_admin_user_if_empty(&pool, &cfg.admin_key).await?;
     let aws_sdk_config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
     Ok(StartupBootstrapPhase {
         cfg,
@@ -240,6 +241,7 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         pool: pool.clone(),
         jwt_secret: Arc::from(cfg.jwt_secret.as_str()),
         admin_key: Arc::from(cfg.admin_key.as_str()),
+        admin_user_repo: Arc::new(api::auth::admin::PgAdminUserRepo::new(pool.clone())),
         internal_auth_token: cfg.internal_auth_token.as_deref().map(Arc::from),
         stripe_webhook_secret: cfg.stripe_webhook_secret.as_deref().map(Arc::from),
         stripe_publishable_key: cfg.stripe_publishable_key.clone(),

@@ -244,34 +244,58 @@ test_reachability_serial_registry_matches_isolation_state() {
 }
 
 test_reachability_suite_runner_records_receipt_timing_row() {
-  local stem_body runner_body tmpdir fixture_path result_stem timing_row
+  local stem_body timing_row_body runner_body tmpdir fixture_path result_stem timing_row
+  local started_marker release_marker runner_pid midrun_row
   stem_body="$(
     awk '/^reachability_result_stem\(\) \{/{f=1} f{print} f&&/^\}$/{exit}' "$LOCAL_CI"
+  )"
+  timing_row_body="$(
+    awk '/^write_reachability_timing_row\(\) \{/{f=1} f{print} f&&/^\}$/{exit}' "$LOCAL_CI"
   )"
   runner_body="$(
     awk '/^run_reachability_suite\(\) \{/{f=1} f{print} f&&/^\}$/{exit}' "$LOCAL_CI"
   )"
-  if [ -z "$stem_body" ] || [ -z "$runner_body" ]; then
-    fail "reachability result-stem or suite-runner function not found in local-ci.sh"
+  if [ -z "$stem_body" ] || [ -z "$timing_row_body" ] || [ -z "$runner_body" ]; then
+    fail "reachability timing helper or suite-runner function not found in local-ci.sh"
     return
   fi
 
   tmpdir="$(mktemp -d)"
   fixture_path="scripts/tests/fixture_timing_test.sh"
   result_stem="scripts_tests_fixture_timing_test.sh"
+  started_marker="$tmpdir/started"
+  release_marker="$tmpdir/release"
   mkdir -p "$tmpdir/scripts/tests" "$tmpdir/results"
-  printf '%s\n' '#!/usr/bin/env bash' 'printf "fixture timing output\n"' \
+  printf '%s\n' '#!/usr/bin/env bash' \
+    'printf "fixture timing output\n"' \
+    'touch "$FIXTURE_STARTED_MARKER"' \
+    'while [ ! -f "$FIXTURE_RELEASE_MARKER" ]; do sleep 0.05; done' \
     > "$tmpdir/$fixture_path"
   chmod +x "$tmpdir/$fixture_path"
 
   REPO_ROOT="$tmpdir"
   now_seconds() { date +%s; }
   eval "$stem_body"
+  eval "$timing_row_body"
   eval "$runner_body"
-  run_reachability_suite "$fixture_path" "$tmpdir/results"
+  FIXTURE_STARTED_MARKER="$started_marker" \
+    FIXTURE_RELEASE_MARKER="$release_marker" \
+    run_reachability_suite "$fixture_path" "$tmpdir/results" &
+  runner_pid="$!"
+
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    [ -f "$started_marker" ] && [ -f "$tmpdir/results/$result_stem.timing" ] && break
+    sleep 0.1
+  done
 
   assert_eq "$(reachability_result_stem "$fixture_path")" "$result_stem" \
     "reachability result paths use one canonical stem mapping"
+  midrun_row="$(cat "$tmpdir/results/$result_stem.timing" 2>/dev/null || true)"
+  assert_eq "$midrun_row" $'0\t'"$fixture_path"$'\tRUNNING' \
+    "reachability suite runner records an in-flight receipt before the suite exits"
+
+  touch "$release_marker"
+  wait "$runner_pid"
   assert_eq "$(cat "$tmpdir/results/$result_stem.rc")" "0" \
     "reachability suite runner preserves the fixture return code"
   assert_eq "$(cat "$tmpdir/results/$result_stem.log")" "fixture timing output" \
@@ -282,6 +306,81 @@ test_reachability_suite_runner_records_receipt_timing_row() {
   else
     fail "reachability suite runner must record a receipt-ready timing row (actual='$timing_row')"
   fi
+  rm -rf "$tmpdir"
+}
+
+test_reachability_interrupt_terminates_owned_suite() {
+  local stem_body timing_row_body runner_body report_body terminate_body
+  local tmpdir fixture_path result_stem harness_pid output rc=0
+  stem_body="$(
+    awk '/^reachability_result_stem\(\) \{/{f=1} f{print} f&&/^\}$/{exit}' "$LOCAL_CI"
+  )"
+  timing_row_body="$(
+    awk '/^write_reachability_timing_row\(\) \{/{f=1} f{print} f&&/^\}$/{exit}' "$LOCAL_CI"
+  )"
+  runner_body="$(
+    awk '/^run_reachability_suite\(\) \{/{f=1} f{print} f&&/^\}$/{exit}' "$LOCAL_CI"
+  )"
+  report_body="$(
+    awk '/^report_reachability_inflight_receipts\(\) \{/{f=1} f{print} f&&/^\}$/{exit}' "$LOCAL_CI"
+  )"
+  terminate_body="$(
+    awk '/^terminate_reachability_workers\(\) \{/{f=1} f{print} f&&/^\}$/{exit}' "$LOCAL_CI"
+  )"
+  if [ -z "$stem_body" ] || [ -z "$timing_row_body" ] || [ -z "$runner_body" ] \
+    || [ -z "$report_body" ] || [ -z "$terminate_body" ]; then
+    fail "reachability interrupt helpers not found in local-ci.sh"
+    return
+  fi
+
+  tmpdir="$(mktemp -d)"
+  fixture_path="scripts/tests/fixture_interrupt_test.sh"
+  result_stem="scripts_tests_fixture_interrupt_test.sh"
+  mkdir -p "$tmpdir/scripts/tests" "$tmpdir/results"
+  printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'trap '\''touch "$FIXTURE_TERMINATED_MARKER"; exit 143'\'' TERM INT HUP' \
+    'touch "$FIXTURE_STARTED_MARKER"' \
+    'while :; do sleep 0.05; done' \
+    >"$tmpdir/$fixture_path"
+  chmod +x "$tmpdir/$fixture_path"
+
+  (
+    REPO_ROOT="$tmpdir"
+    now_seconds() { date +%s; }
+    eval "$stem_body"
+    eval "$timing_row_body"
+    eval "$runner_body"
+    eval "$report_body"
+    eval "$terminate_body"
+    trap 'terminate_reachability_workers "$REPO_ROOT/results"; exit 143' TERM INT HUP
+    FIXTURE_STARTED_MARKER="$tmpdir/started" \
+      FIXTURE_TERMINATED_MARKER="$tmpdir/terminated" \
+      run_reachability_suite "$fixture_path" "$tmpdir/results" &
+    wait
+  ) >"$tmpdir/harness.log" 2>&1 &
+  harness_pid="$!"
+
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    [ -f "$tmpdir/started" ] && break
+    sleep 0.1
+  done
+  kill -TERM "$harness_pid"
+  wait "$harness_pid" || rc=$?
+  eval "$report_body"
+  output="$(report_reachability_inflight_receipts "$tmpdir/results" 2>&1)"
+
+  assert_eq "$rc" "143" "reachability gate interruption preserves the signal exit"
+  assert_file_exists "$tmpdir/terminated" \
+    "reachability gate interruption terminates its exact running suite"
+  assert_contains "$terminate_body" \
+    'report_reachability_inflight_receipts "$results_dir"' \
+    "reachability interrupt handler reports receipts before terminating workers"
+  assert_contains "$output" "in-flight suite retained: $fixture_path" \
+    "interrupted suite retains a reportable in-flight receipt"
+  assert_eq "$(cat "$tmpdir/results/$result_stem.timing")" \
+    $'0\t'"$fixture_path"$'\tRUNNING' \
+    "interrupted suite retains its RUNNING receipt"
   rm -rf "$tmpdir"
 }
 
@@ -489,7 +588,7 @@ test_reachability_scheduler_refills_open_slots() {
   assert_line_after "$throttle_line" "$launch_line" \
     "reachability scheduler refills an open slot before launching each suite"
   assert_not_contains "$body" 'if [ "$jobs" -ge "$max_jobs" ]; then' \
-    "reachability scheduler has no eight-suite barrier batch"
+    "reachability scheduler has no fixed-size barrier batch"
 }
 
 test_exit_cleanup_waits_before_persisting_logs() {
@@ -598,6 +697,7 @@ test_reachability_gate_has_one_run_path
 test_reachability_single_gate_mode_remains_supported
 test_reachability_serial_registry_matches_isolation_state
 test_reachability_suite_runner_records_receipt_timing_row
+test_reachability_interrupt_terminates_owned_suite
 test_reachability_timing_writer_sorts_complete_population
 test_rust_test_gate_is_not_scheduled_in_parallel
 test_rust_test_gate_runs_after_web_test

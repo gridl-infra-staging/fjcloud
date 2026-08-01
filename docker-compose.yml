@@ -3,8 +3,9 @@
 # =============================================================================
 # Usage:
 #   cp .env.local.example .env.local   # fill in values
-#   docker compose up -d               # start all services
-#   docker compose logs -f api         # tail API logs
+#   bash scripts/local-dev-up.sh       # start Docker dependencies + Flapjack
+#   bash scripts/api-dev.sh            # start the API on the host
+#   bash scripts/web-dev.sh            # start the web app on the host
 #   docker compose down                # stop all services
 #   docker compose down -v             # stop and remove data volumes
 #
@@ -67,7 +68,7 @@ services:
       MEILI_ENV: development
       MEILI_MASTER_KEY: "${MEILI_MASTER_KEY:-local-source-provider-key}"
     ports:
-      - "${LOCAL_MEILISEARCH_PORT:-7700}:7700"
+      - "127.0.0.1:${LOCAL_MEILISEARCH_PORT:-7700}:7700"
     tmpfs:
       - /meili_data
     healthcheck:
@@ -83,7 +84,7 @@ services:
       TYPESENSE_API_KEY: "${TYPESENSE_API_KEY:-local-source-provider-key}"
       TYPESENSE_DATA_DIR: /data
     ports:
-      - "${LOCAL_TYPESENSE_PORT:-8108}:8108"
+      - "127.0.0.1:${LOCAL_TYPESENSE_PORT:-8108}:8108"
     tmpfs:
       - /data
     healthcheck:
@@ -95,34 +96,6 @@ services:
       interval: 3s
       timeout: 3s
       retries: 20
-
-  api:
-    build:
-      context: ./infra
-      dockerfile: Dockerfile
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgres://griddle:griddle_local@postgres:5432/fjcloud_dev
-      JWT_SECRET: local-dev-jwt-secret-change-me-32chars
-      ADMIN_KEY: local-dev-admin-key
-      LISTEN_ADDR: 0.0.0.0:3001
-      RUST_LOG: info,api=debug
-    ports:
-      - "3001:3001"
-
-  web:
-    build:
-      context: ./web
-      dockerfile: Dockerfile
-    depends_on:
-      - api
-    environment:
-      API_BASE_URL: http://api:3001
-      ADMIN_KEY: local-dev-admin-key
-    ports:
-      - "5173:5173"
 
 volumes:
   pgdata:

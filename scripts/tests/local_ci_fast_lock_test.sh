@@ -621,6 +621,31 @@ test_concurrent_corrupt_reclaimers_have_one_winner() {
     run_concurrent_reclaimer_case corrupt
 }
 
+test_unset_wait_budget_defaults_to_bounded_wait() {
+    # Regression: nothing in this repo or the orchestrator ever exports the
+    # knob, so the effective budget on every real worker was 0 and a second
+    # concurrent whole-suite run refused instantly with exit 75. Lanes then
+    # recorded `--fast` as an unrunnable gate and pushed on a hand-picked gate
+    # subset instead, which is how partially validated work reached `main`.
+    # An unset budget must queue behind the holder rather than refuse.
+    local queues
+    unset FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS
+    assert_eq "$(_fast_lock_wait_seconds)" "$FAST_LOCK_DEFAULT_WAIT_SECONDS" \
+        "an unset wait budget falls back to the bounded-wait default"
+    queues=$([ "$(_fast_lock_wait_seconds)" -gt 0 ] && printf 'queues' || printf 'refuses')
+    assert_eq "$queues" "queues" \
+        "the default budget is positive so contention queues instead of refusing"
+
+    FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS=""
+    assert_eq "$(_fast_lock_wait_seconds)" "$FAST_LOCK_DEFAULT_WAIT_SECONDS" \
+        "an empty wait budget falls back to the same default"
+
+    FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS=0
+    assert_eq "$(_fast_lock_wait_seconds)" "0" \
+        "an explicit 0 still opts into immediate refusal"
+    export FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS
+}
+
 trap cleanup_fixture EXIT
 
 test_free_acquire_records_holder_values
@@ -633,6 +658,7 @@ test_pidless_holder_is_reclaimed
 test_invalid_pid_holder_is_reclaimed
 test_bounded_wait_honors_interval_then_refuses
 test_wait_seconds_parse_decimal_and_clamp_invalid
+test_unset_wait_budget_defaults_to_bounded_wait
 test_in_progress_holder_publication_is_not_reclaimed
 test_orphaned_reclaim_claim_is_recovered
 test_orphaned_metadata_guard_is_recovered

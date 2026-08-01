@@ -26,7 +26,7 @@
 //     faster than xml-rs and almost zero-copy.
 //
 // Dependency changes required:
-//   - `infra/Cargo.toml`: add `quick-xml = "0.37"` to [workspace.dependencies]
+//   - `infra/Cargo.toml`: add `quick-xml` to [workspace.dependencies]
 //   - `infra/Cargo.toml`: add `"stream"` to reqwest features
 //   - `infra/api/Cargo.toml`: add `quick-xml = { workspace = true }`
 //

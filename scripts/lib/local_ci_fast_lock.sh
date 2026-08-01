@@ -31,8 +31,21 @@
 # failed". Kept in sync with scripts/tests/local_ci_fast_lock_test.sh.
 FAST_LOCK_CONTENTION_EXIT_CODE=75
 
-# Opt-in bounded-wait knob. Absent/empty/invalid => immediate refusal (0).
+# Bounded-wait knob. Invalid => immediate refusal (0); absent or empty => the
+# bounded default below.
 FAST_LOCK_WAIT_ENV_NAME="FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS"
+
+# Default bounded wait, in seconds, applied when the knob is absent or empty.
+#
+# WHY NON-ZERO: a whole-suite `--fast` run is clone-exclusive and long-running,
+# and nothing in this repo or the orchestrator ever exports the knob. With a 0
+# default every concurrent worktree got an instant exit-75 refusal, recorded
+# `--fast` as an unrunnable gate, and pushed on a self-selected subset of
+# `--gate` runs instead — which is how partially validated work reached `main`.
+# Queueing behind the holder makes the canonical pre-push gate slow rather than
+# unobtainable. The wait stays bounded so no caller hangs forever, and an
+# explicit `0` still opts back into fail-fast for interactive use.
+FAST_LOCK_DEFAULT_WAIT_SECONDS=1800
 
 # Poll cadence for the bounded wait, in hundredths of a second. The wait loop
 # re-attempts acquisition every tick, so a holder that exits mid-wait is
@@ -103,10 +116,11 @@ _fast_lock_worktree() {
 # ---------------------------------------------------------------------------
 
 # _fast_lock_wait_seconds — the effective wait budget in whole seconds.
-# Invalid or negative values clamp to 0 (immediate refusal), never wait
-# forever, and never introduce a new CLI flag.
+# Absent or empty resolves to FAST_LOCK_DEFAULT_WAIT_SECONDS. Invalid or
+# negative values clamp to 0 (immediate refusal), never wait forever, and
+# never introduce a new CLI flag.
 _fast_lock_wait_seconds() {
-    local raw="${FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS:-0}"
+    local raw="${FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS:-$FAST_LOCK_DEFAULT_WAIT_SECONDS}"
     case "$raw" in
         ''|*[!0-9]*) printf '0' ;;
         *)

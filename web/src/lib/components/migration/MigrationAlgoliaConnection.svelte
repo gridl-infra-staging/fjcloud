@@ -9,7 +9,8 @@
 		isDiscovering,
 		canDiscover,
 		admissionPresentation,
-		onConnect
+		onConnect,
+		onCredentialsChange
 	}: {
 		appId: string;
 		apiKey: string;
@@ -19,10 +20,15 @@
 		canDiscover: boolean;
 		admissionPresentation: AlgoliaImportAdmissionPresentation;
 		onConnect: () => void;
+		onCredentialsChange: () => void;
 	} = $props();
 </script>
 
-<section class="space-y-4" aria-labelledby="migration-connect-title">
+<section
+	class="space-y-4"
+	aria-labelledby="migration-connect-title"
+	data-testid="migration-algolia-connection"
+>
 	<h3 id="migration-connect-title" class="text-base font-semibold text-flapjack-ink">
 		Connect to Algolia
 	</h3>
@@ -38,6 +44,7 @@
 				autocomplete="off"
 				spellcheck="false"
 				bind:value={appId}
+				oninput={onCredentialsChange}
 				class="w-full rounded border border-flapjack-ink/30 px-3 py-2"
 			/>
 		</div>
@@ -52,6 +59,7 @@
 				autocomplete="off"
 				spellcheck="false"
 				bind:value={apiKey}
+				oninput={onCredentialsChange}
 				class="w-full rounded border border-flapjack-ink/30 px-3 py-2"
 			/>
 		</div>

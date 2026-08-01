@@ -329,7 +329,7 @@ test_launcher_requests_deterministic_trace_and_lane_output() {
     write_mock_npx_with_trace_artifacts "$workspace"
     init_test_repo "$workspace"
 
-    run_browser_lane_script "$workspace"
+    run_browser_lane_script "$workspace" "both" "5"
 
     local npx_args
     npx_args="$(cat "$workspace/npx_args.txt" 2>/dev/null || true)"

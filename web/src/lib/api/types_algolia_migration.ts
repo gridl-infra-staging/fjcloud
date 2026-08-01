@@ -6,6 +6,13 @@
 // support present). "Absent means false" is enforced at the client boundary by
 // normalizeAlgoliaMigrationAvailability, so the normalized shape below always
 // carries explicit booleans.
+export const SOURCE_PROVIDERS = ['algolia', 'meilisearch', 'typesense'] as const;
+export type SourceProvider = (typeof SOURCE_PROVIDERS)[number];
+
+export function isSourceProvider(value: unknown): value is SourceProvider {
+	return typeof value === 'string' && (SOURCE_PROVIDERS as readonly string[]).includes(value);
+}
+
 export interface AlgoliaMigrationCapabilities {
 	cancel: boolean;
 	resume: boolean;
@@ -36,6 +43,17 @@ export interface ListAlgoliaIndexesRequest {
 	cursor?: string | null;
 	hitsPerPage?: number | null;
 }
+
+export interface ListHostedSearchIndexesRequest {
+	host: string;
+	apiKey: string;
+	cursor?: string | null;
+	hitsPerPage?: number | null;
+}
+
+export type ListMigrationSourceIndexesRequest =
+	| ListAlgoliaIndexesRequest
+	| ListHostedSearchIndexesRequest;
 
 export interface AlgoliaIndexMetadata {
 	name: string;
@@ -97,6 +115,18 @@ export interface CreateAlgoliaImportJobRequest {
 	target: CreateAlgoliaImportJobTargetRequest;
 }
 
+export interface CreateHostedSearchImportJobRequest {
+	mode: AlgoliaMigrationDestinationMode;
+	host: string;
+	apiKey: string;
+	sourceName: string;
+	target: CreateAlgoliaImportJobTargetRequest;
+}
+
+export type CreateMigrationImportJobRequest =
+	| CreateAlgoliaImportJobRequest
+	| CreateHostedSearchImportJobRequest;
+
 export interface ListAlgoliaImportJobsRequest {
 	limit?: number;
 	cursor?: string;
@@ -156,6 +186,7 @@ export interface PublicAlgoliaImportError {
 		| 'engine_upgrade_required'
 		| 'migration_ha_not_supported'
 		| 'migration_provider_unsupported'
+		| 'source_provider_unsupported'
 		| 'backend_unavailable'
 		| 'interrupted'
 		| 'cancel_not_permitted'
@@ -190,6 +221,7 @@ export interface PublicAlgoliaImportJob {
 	id: string;
 	status: AlgoliaImportJobStatus;
 	mode: AlgoliaMigrationDestinationMode;
+	sourceProvider: SourceProvider;
 	destination: PublicAlgoliaImportDestination;
 	source: PublicAlgoliaImportSource;
 	summary: AlgoliaImportSummary;

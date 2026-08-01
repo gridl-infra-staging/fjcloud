@@ -4,6 +4,7 @@
 
 //! Stub summary for mod.rs.
 
+pub mod admin_audit_test_support;
 pub mod admin_broadcast_test_support;
 pub mod admin_vm_retirement_test_support;
 pub mod algolia_import_job_test_support;
@@ -23,6 +24,7 @@ pub mod integration_helpers;
 pub mod live_stripe_helpers;
 pub mod mocks;
 pub mod poll;
+pub mod sns_webhook_test_support;
 pub mod source_assertions;
 pub mod storage_metering_test_support;
 pub mod storage_s3_auth_support;

@@ -62,18 +62,21 @@
 	}
 
 	function handleCancelIntent(): void {
-		void submitJobAction('cancel', new FormData());
+		const body = new FormData();
+		body.set('source_provider', job.sourceProvider);
+		void submitJobAction('cancel', body);
 	}
 
 	function handleResumeIntent(request: ResumeAlgoliaImportJobRequest): void {
 		const body = new FormData();
+		body.set('source_provider', job.sourceProvider);
 		body.set('apiKey', request.apiKey);
 		void submitJobAction('resume', body);
 	}
 </script>
 
 <svelte:head>
-	<title>Algolia import · {job.source.name}</title>
+	<title>Migration import · {job.source.name}</title>
 </svelte:head>
 
 <div class="space-y-6">

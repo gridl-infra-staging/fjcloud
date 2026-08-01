@@ -26,6 +26,7 @@ async fn main() -> Result<()> {
         "aggregation job starting"
     );
 
+    database_url::validate_database_url_tls(&cfg.database_url).map_err(anyhow::Error::msg)?;
     let pool = sqlx::PgPool::connect(&cfg.database_url).await?;
     let rows_affected = run(&cfg, &pool).await?;
     pool.close().await;

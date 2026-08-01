@@ -1,11 +1,12 @@
-//! Append-only audit-log writer for high-trust admin actions.
+//! Append-only audit-log writer for high-trust human and system actions.
 //!
 //! ## Why this module exists (read before extending)
 //!
 //! `audit_log` is the durable record of "who did what to whom and when" for
-//! admin write paths whose abuse would be a customer-trust incident
-//! (impersonation, suspend/reactivate, hard-erasure, etc.). Stateless JWTs
-//! have no DB row of their own, so this table is the only audit surface.
+//! admin write paths and machine-initiated webhook events whose abuse would be
+//! a customer-trust incident (impersonation, suspend/reactivate, hard-erasure,
+//! suppression, disputes, etc.). This table is the shared audit surface for
+//! both human operators and stable system identities.
 //!
 //! This service exists rather than inline `INSERT INTO audit_log` at each
 //! call site because:
@@ -35,13 +36,11 @@
 //! it ever does, we'd reach for the same access_tracker pattern, not
 //! reinvent it.
 //!
-//! ## Sentinel actor_id
+//! ## Actor identities
 //!
-//! Today `auth/admin.rs::AdminAuth` is gated by a single shared admin key
-//! with no per-admin identity. So callers pass `actor_id =
-//! ADMIN_SENTINEL_ACTOR_ID` (defined here). When per-admin auth lands the
-//! sentinel goes away and callers pass the real id — no schema change
-//! required.
+//! Human admin routes pass the authenticated `AdminAuth::operator_id`.
+//! Machine-initiated call sites use their stable system actor constants and
+//! add the conventional system metadata with [`system_audit_metadata`].
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -54,14 +53,17 @@ pub enum AuditLogError {
     Db(String),
 }
 
-/// Sentinel UUID used as `actor_id` for admin-auth callers, since the
-/// current single-shared-admin-key model does not distinguish operators.
+/// Stable actor identity for AWS SES webhook audit rows.
 ///
-/// Format chosen to be visually distinguishable from a real Uuid::new_v4()
-/// row in psql output — all-zeroes after the version byte. When a future
-/// per-admin auth system replaces `AdminAuth`, switch each call site to
-/// pass the real admin id and remove this constant.
-pub const ADMIN_SENTINEL_ACTOR_ID: Uuid = Uuid::nil();
+/// UUIDv5 derived from `https://fjcloud.com/audit/system/ses` in the URL
+/// namespace. This value is durable audit data and must not be regenerated.
+pub const SES_SYSTEM_ACTOR_ID: Uuid = Uuid::from_u128(0x8a0f2350_fc1d_5c32_8f1e_09d9dd362d4a);
+
+/// Stable actor identity for Stripe webhook audit rows.
+///
+/// UUIDv5 derived from `https://fjcloud.com/audit/system/stripe` in the URL
+/// namespace. This value is durable audit data and must not be regenerated.
+pub const STRIPE_SYSTEM_ACTOR_ID: Uuid = Uuid::from_u128(0x2b9e4725_b5fe_5cd3_ba7a_537abb6d31e9);
 
 /// Canonical action name for `POST /admin/tokens` impersonation token mints.
 pub const ACTION_IMPERSONATION_TOKEN_CREATED: &str = "impersonation_token_created";
@@ -97,6 +99,19 @@ pub const ACTION_SES_COMPLAINT_SUPPRESSED: &str = "ses_complaint_suppressed";
 pub const ACTION_STRIPE_DISPUTE_UPDATED: &str = "stripe_dispute_updated";
 const AUDIT_LOG_READ_LIMIT: i64 = 100;
 
+/// Merge the conventional machine-actor fields into event-specific metadata.
+///
+/// Audit metadata is contractually a JSON object. Keeping these keys here
+/// prevents webhook call sites from drifting on the reader-visible shape.
+pub fn system_audit_metadata(system: &str, mut metadata: serde_json::Value) -> serde_json::Value {
+    let fields = metadata
+        .as_object_mut()
+        .expect("audit metadata must be a JSON object");
+    fields.insert("actor_type".into(), serde_json::json!("system"));
+    fields.insert("system".into(), serde_json::json!(system));
+    metadata
+}
+
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct AuditLogRow {
     pub id: Uuid,
@@ -116,16 +131,18 @@ pub struct AuditLogRow {
 /// is worse (we lock the operator out of customer support).
 ///
 /// Parameters:
-/// * `actor_id` — the operator performing the action. Pass
-///   [`ADMIN_SENTINEL_ACTOR_ID`] from `AdminAuth` call sites until
-///   per-admin identity exists.
+/// * `actor_id` — the human or system identity performing the action. Pass
+///   `AdminAuth::operator_id` for human admin call sites; machine call sites
+///   pass their stable system actor ID.
 /// * `action` — canonical snake_case action name. Stable identifier used
 ///   for filtering in T1.4's view; do not rename without migrating
 ///   historical rows.
 /// * `target_tenant_id` — the customer being acted upon (`None` when the
 ///   action does not target a specific customer).
-/// * `metadata` — small JSON object of action-specific context. Pass
-///   `serde_json::json!({})` if there's nothing to add.
+/// * `metadata` — small JSON object of action-specific context. System actors
+///   must merge their reader-visible identity fields with
+///   [`system_audit_metadata`]. Pass `serde_json::json!({})` if there's
+///   nothing to add.
 pub async fn write_audit_log(
     pool: &PgPool,
     actor_id: Uuid,

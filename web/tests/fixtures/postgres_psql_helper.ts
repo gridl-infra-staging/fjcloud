@@ -98,7 +98,8 @@ export function runSqlWithPsqlFallback(databaseUrl: string, sql: string, context
 				'psql is not installed and docker compose fallback also failed. ' +
 					'Resolution: either install psql (e.g. `brew install libpq`) or ' +
 					'ensure `docker compose exec postgres psql` is available. ' +
-					`Context: ${context}. Docker error: ${detail}`
+					`Context: ${context}. Docker error: ${detail}`,
+				{ cause: dockerError }
 			);
 		}
 	}

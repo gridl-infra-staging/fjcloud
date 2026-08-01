@@ -10,9 +10,7 @@ use crate::auth::AdminAuth;
 use crate::errors::ApiError;
 use crate::helpers::require_active_customer;
 use crate::models::RateCardRow;
-use crate::services::audit_log::{
-    write_audit_log, ACTION_RATE_CARD_OVERRIDE, ADMIN_SENTINEL_ACTOR_ID,
-};
+use crate::services::audit_log::{write_audit_log, ACTION_RATE_CARD_OVERRIDE};
 use crate::state::AppState;
 use crate::validation::validate_non_negative_decimal;
 
@@ -215,7 +213,7 @@ pub async fn get_rate_card(
 /// Requires at least one override field. Validates decimal and integer fields,
 /// then upserts the override row against the active rate card.
 pub async fn set_rate_override(
-    _auth: AdminAuth,
+    auth: AdminAuth,
     State(state): State<AppState>,
     Path(customer_id): Path<Uuid>,
     Json(req): Json<SetRateOverrideRequest>,
@@ -247,7 +245,7 @@ pub async fn set_rate_override(
 
     if let Err(err) = write_audit_log(
         &state.pool,
-        ADMIN_SENTINEL_ACTOR_ID,
+        auth.operator_id,
         ACTION_RATE_CARD_OVERRIDE,
         Some(customer_id),
         serde_json::json!({ "override_field_keys": override_field_keys }),

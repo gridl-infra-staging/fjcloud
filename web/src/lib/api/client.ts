@@ -81,29 +81,12 @@ import type {
 	SecuritySourcesResponse,
 	PublicInfrastructureResponse,
 	PricingCompareRequest,
-	PricingCompareResponse,
-	AlgoliaMigrationAvailabilityResponse,
-	AlgoliaMigrationAvailabilityWire,
-	AlgoliaDestinationEligibilityRequest,
-	AlgoliaDestinationEligibilityResponse,
-	ListAlgoliaIndexesRequest,
-	AlgoliaSourceListResponse,
-	CreateAlgoliaImportJobRequest,
-	ListAlgoliaImportJobsRequest,
-	CancelAlgoliaImportJobRequest,
-	ResumeAlgoliaImportJobRequest,
-	PublicAlgoliaImportJob,
-	PublicAlgoliaImportJobPage
+	PricingCompareResponse
 } from './types';
-import { BaseClient } from './base-client';
+import { MigrationClient } from './migration_client';
 import { retryAfterSecondsFromHeaders } from '$lib/http/retry_after';
 import { ApiRequestError } from './api_request_error';
-import {
-	algoliaSourceListRequest,
-	normalizeAlgoliaMigrationAvailability,
-	normalizeOnboardingStatus,
-	type LegacyOnboardingStatus
-} from './client_normalizers';
+import { normalizeOnboardingStatus, type LegacyOnboardingStatus } from './client_normalizers';
 import {
 	buildQueryString,
 	dictionaryPath,
@@ -113,47 +96,7 @@ import {
 } from './client_paths';
 export { ApiRequestError } from './api_request_error';
 
-export class ApiClient extends BaseClient {
-	private readonly token?: string;
-
-	constructor(baseUrl: string, token?: string) {
-		super(baseUrl);
-		this.token = token;
-	}
-
-	protected authHeaders(): Record<string, string> {
-		if (this.token) {
-			return { Authorization: `Bearer ${this.token}` };
-		}
-		return {};
-	}
-
-	protected async handleErrorResponse(res: Response): Promise<never> {
-		const data = await res.json().catch(() => ({ error: 'unknown error' }));
-		const headers = res.headers ? new Headers(res.headers) : undefined;
-		const requestId = headers?.get('x-request-id') ?? undefined;
-		throw new ApiRequestError(res.status, data.error ?? 'unknown error', {
-			// Backend x-request-id is operator-facing correlation metadata. It is
-			// stored for logs/reporting, not rendered directly to customers.
-			requestId,
-			headers,
-			body: data
-		});
-	}
-
-	private api<T>(
-		method: string,
-		path: string,
-		body?: unknown,
-		options?: { includeAuth?: boolean; headers?: Record<string, string> }
-	): Promise<T> {
-		const init: RequestInit = { method, headers: options?.headers };
-		if (body !== undefined) {
-			init.body = JSON.stringify(body);
-		}
-		return this.request<T>(path, init, options);
-	}
-
+export class ApiClient extends MigrationClient {
 	// --- Public (no auth) ---
 
 	healthCheck(): Promise<unknown> {
@@ -767,59 +710,6 @@ export class ApiClient extends BaseClient {
 
 	deleteReplica(indexName: string, replicaId: string): Promise<void> {
 		return this.api('DELETE', indexPath(indexName, `/replicas/${pathSegment(replicaId)}`));
-	}
-
-	getAlgoliaMigrationAvailability(): Promise<AlgoliaMigrationAvailabilityResponse> {
-		return this.api('GET', '/migration/algolia/availability').then((payload) =>
-			normalizeAlgoliaMigrationAvailability(payload as AlgoliaMigrationAvailabilityWire)
-		);
-	}
-
-	listAlgoliaSourceIndexes(request: ListAlgoliaIndexesRequest): Promise<AlgoliaSourceListResponse> {
-		return this.api('POST', '/migration/algolia/list-indexes', algoliaSourceListRequest(request));
-	}
-
-	checkAlgoliaDestinationEligibility(
-		request: AlgoliaDestinationEligibilityRequest
-	): Promise<AlgoliaDestinationEligibilityResponse> {
-		return this.api('POST', '/migration/algolia/destination-eligibility', request);
-	}
-
-	createAlgoliaImportJob(
-		request: CreateAlgoliaImportJobRequest,
-		idempotencyKey: string
-	): Promise<PublicAlgoliaImportJob> {
-		return this.api('POST', '/migration/algolia/jobs', request, {
-			headers: { 'idempotency-key': idempotencyKey }
-		});
-	}
-
-	getAlgoliaImportJob(jobId: string): Promise<PublicAlgoliaImportJob> {
-		return this.api('GET', `/migration/algolia/jobs/${pathSegment(jobId)}`);
-	}
-
-	listAlgoliaImportJobs(
-		request: ListAlgoliaImportJobsRequest = {}
-	): Promise<PublicAlgoliaImportJobPage> {
-		const query = buildQueryString([
-			['limit', request.limit],
-			['cursor', request.cursor]
-		]);
-		return this.api('GET', `/migration/algolia/jobs${query}`);
-	}
-
-	cancelAlgoliaImportJob(
-		jobId: string,
-		request: CancelAlgoliaImportJobRequest = {}
-	): Promise<PublicAlgoliaImportJob> {
-		return this.api('POST', `/migration/algolia/jobs/${pathSegment(jobId)}/cancel`, request);
-	}
-
-	resumeAlgoliaImportJob(
-		jobId: string,
-		request: ResumeAlgoliaImportJobRequest
-	): Promise<PublicAlgoliaImportJob> {
-		return this.api('POST', `/migration/algolia/jobs/${pathSegment(jobId)}/resume`, request);
 	}
 
 	async getOnboardingStatus(): Promise<OnboardingStatus> {

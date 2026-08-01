@@ -72,14 +72,17 @@ async function verifyFreshSignupEmailViaRemoteApi(email: string): Promise<void> 
 				body: JSON.stringify({ token: verificationToken })
 			});
 		} catch (error) {
-			throw new Error(buildSafeVerifyEmailTransportFailureMessage(error));
+			throw new Error(buildSafeVerifyEmailTransportFailureMessage(error), { cause: error });
 		}
 		if (response.ok) {
 			return;
 		}
 		if (response.status === 429) {
 			await new Promise((resolve) =>
-				setTimeout(resolve, getRemoteVerifyRetryDelayMs(attempt, response.headers.get('retry-after')))
+				setTimeout(
+					resolve,
+					getRemoteVerifyRetryDelayMs(attempt, response.headers.get('retry-after'))
+				)
 			);
 			continue;
 		}

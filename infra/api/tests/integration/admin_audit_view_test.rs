@@ -4,24 +4,28 @@
 //! mock repos/services while using a real Postgres pool for `audit_log` writes,
 //! so we can assert the route-level audit behavior end-to-end.
 
-use std::sync::Arc;
-
 use api::models::RateCardRow;
 use api::repos::{CustomerRepo, InvoiceRepo, TenantRepo};
 use api::services::audit_log::{
     ACTION_CUSTOMER_HARD_ERASE, ACTION_CUSTOMER_REACTIVATED, ACTION_CUSTOMER_SUSPENDED,
     ACTION_IMPERSONATION_TOKEN_CREATED, ACTION_QUOTAS_UPDATED, ACTION_RATE_CARD_OVERRIDE,
-    ACTION_STRIPE_SYNC, ACTION_TENANT_CREATED, ACTION_TENANT_DELETED, ACTION_TENANT_UPDATED,
+    ACTION_SES_COMPLAINT_SUPPRESSED, ACTION_STRIPE_SYNC, ACTION_TENANT_CREATED,
+    ACTION_TENANT_DELETED, ACTION_TENANT_UPDATED, SES_SYSTEM_ACTOR_ID,
 };
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use chrono::Utc;
-use http_body_util::BodyExt;
 use rust_decimal_macros::dec;
 use sqlx::PgPool;
 use tower::ServiceExt;
 use uuid::Uuid;
 
+use crate::common::admin_audit_test_support::{
+    admin_token_request_with_key, app_with_live_audit_pool, audit_row_count,
+    audit_row_count_for_target, cleanup_target,
+    connect_shared_public_and_migrate as connect_and_migrate, latest_actor_id, latest_metadata,
+    register_operator, response_json, revoke_operator,
+};
 use crate::common::catalog_live_binding::CatalogLiveBinding;
 
 fn sample_rate_card() -> RateCardRow {
@@ -41,107 +45,9 @@ fn sample_rate_card() -> RateCardRow {
     }
 }
 
-async fn connect_and_migrate() -> Option<PgPool> {
-    let Ok(url) = std::env::var("DATABASE_URL") else {
-        println!("SKIP: DATABASE_URL not set — skipping admin audit view integration tests");
-        return None;
-    };
-
-    let pool = PgPool::connect(&url)
-        .await
-        .expect("connect to integration test DB");
-    if !schema_already_migrated(&pool).await {
-        sqlx::migrate!("../migrations")
-            .run(&pool)
-            .await
-            .expect("run migrations");
-    }
-
-    Some(pool)
-}
-
-async fn schema_already_migrated(pool: &PgPool) -> bool {
-    sqlx::query_scalar::<_, Option<String>>("SELECT to_regclass('public.customers')::text")
-        .fetch_one(pool)
-        .await
-        .expect("check migrated schema")
-        .is_some()
-}
-
-fn app_with_live_audit_pool(
-    pool: PgPool,
-    customer_repo: Arc<crate::common::MockCustomerRepo>,
-    tenant_repo: Arc<crate::common::MockTenantRepo>,
-    rate_card_repo: Arc<crate::common::MockRateCardRepo>,
-    stripe_service: Arc<crate::common::MockStripeService>,
-    usage_repo: Arc<crate::common::MockUsageRepo>,
-    invoice_repo: Arc<crate::common::MockInvoiceRepo>,
-) -> axum::Router {
-    let mut state = crate::common::TestStateBuilder::new()
-        .with_customer_repo(customer_repo)
-        .with_tenant_repo(tenant_repo)
-        .with_rate_card_repo(rate_card_repo)
-        .with_stripe_service(stripe_service)
-        .with_usage_repo(usage_repo)
-        .with_invoice_repo(invoice_repo)
-        .build();
-
-    state.pool = pool;
-    api::router::build_router(state)
-}
-
-async fn response_json(resp: axum::http::Response<Body>) -> (StatusCode, serde_json::Value) {
-    let status = resp.status();
-    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
-    let body =
-        serde_json::from_slice::<serde_json::Value>(&bytes).unwrap_or(serde_json::Value::Null);
-    (status, body)
-}
-
-async fn audit_row_count(pool: &PgPool, action: &str, target: Uuid) -> i64 {
-    sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*)::BIGINT FROM audit_log WHERE action = $1 AND target_tenant_id = $2",
-    )
-    .bind(action)
-    .bind(target)
-    .fetch_one(pool)
-    .await
-    .expect("count audit rows")
-}
-
-async fn audit_row_count_for_target(pool: &PgPool, target: Uuid) -> i64 {
-    sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*)::BIGINT FROM audit_log WHERE target_tenant_id = $1",
-    )
-    .bind(target)
-    .fetch_one(pool)
-    .await
-    .expect("count audit rows for target")
-}
-
-async fn latest_metadata(pool: &PgPool, action: &str, target: Uuid) -> serde_json::Value {
-    sqlx::query_scalar::<_, serde_json::Value>(
-        "SELECT metadata FROM audit_log \
-         WHERE action = $1 AND target_tenant_id = $2 \
-         ORDER BY created_at DESC LIMIT 1",
-    )
-    .bind(action)
-    .bind(target)
-    .fetch_one(pool)
-    .await
-    .expect("fetch latest audit metadata")
-}
-
-async fn cleanup_target(pool: &PgPool, target: Uuid) {
-    sqlx::query("DELETE FROM audit_log WHERE target_tenant_id = $1")
-        .bind(target)
-        .execute(pool)
-        .await
-        .ok();
-}
-
 async fn seed_audit_row_with_created_at(
     pool: &PgPool,
+    actor_id: Uuid,
     target: Uuid,
     action: &str,
     metadata: serde_json::Value,
@@ -151,7 +57,7 @@ async fn seed_audit_row_with_created_at(
         "INSERT INTO audit_log (actor_id, action, target_tenant_id, metadata, created_at) \
          VALUES ($1, $2, $3, $4, $5::timestamptz)",
     )
-    .bind(Uuid::nil())
+    .bind(actor_id)
     .bind(action)
     .bind(target)
     .bind(metadata)
@@ -161,35 +67,17 @@ async fn seed_audit_row_with_created_at(
     .expect("seed audit row");
 }
 
-fn admin_token_request(
-    customer_id: Uuid,
-    expires_in_secs: Option<u64>,
-    purpose: Option<&str>,
-) -> Request<Body> {
-    let mut payload = serde_json::Map::new();
-    payload.insert("customer_id".into(), serde_json::json!(customer_id));
-    if let Some(expires_in_secs) = expires_in_secs {
-        payload.insert("expires_in_secs".into(), serde_json::json!(expires_in_secs));
-    }
-    if let Some(purpose) = purpose {
-        payload.insert("purpose".into(), serde_json::json!(purpose));
-    }
-
-    Request::builder()
-        .method(Method::POST)
-        .uri("/admin/tokens")
-        .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
-        .header("content-type", "application/json")
-        .body(Body::from(serde_json::Value::Object(payload).to_string()))
-        .expect("build admin token request")
-}
-
 #[tokio::test]
 #[ignore = "requires DATABASE_URL"]
 async fn post_admin_tenants_writes_tenant_created_audit_row() {
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) = register_operator(
+        &pool,
+        &format!("tenant-create-{}@example.com", Uuid::new_v4()),
+    )
+    .await;
 
     let app = app_with_live_audit_pool(
         pool.clone(),
@@ -206,7 +94,7 @@ async fn post_admin_tenants_writes_tenant_created_audit_row() {
             Request::builder()
                 .method(Method::POST)
                 .uri("/admin/tenants")
-                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .header("x-admin-key", admin_credential)
                 .header("content-type", "application/json")
                 .body(Body::from(
                     serde_json::json!({
@@ -229,6 +117,10 @@ async fn post_admin_tenants_writes_tenant_created_audit_row() {
         audit_row_count(&pool, ACTION_TENANT_CREATED, tenant_id).await,
         1
     );
+    assert_eq!(
+        latest_actor_id(&pool, ACTION_TENANT_CREATED, tenant_id).await,
+        operator_id
+    );
 
     let metadata = latest_metadata(&pool, ACTION_TENANT_CREATED, tenant_id).await;
     assert_eq!(metadata["tenant_id"], tenant_id.to_string());
@@ -236,6 +128,7 @@ async fn post_admin_tenants_writes_tenant_created_audit_row() {
     assert_eq!(metadata["email"], "audit-create@example.com");
 
     cleanup_target(&pool, tenant_id).await;
+    revoke_operator(&pool, operator_id).await;
 }
 
 #[tokio::test]
@@ -244,6 +137,11 @@ async fn put_admin_tenants_id_writes_tenant_updated_audit_row() {
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) = register_operator(
+        &pool,
+        &format!("tenant-update-{}@example.com", Uuid::new_v4()),
+    )
+    .await;
 
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed("Before", "before@example.com");
@@ -263,7 +161,7 @@ async fn put_admin_tenants_id_writes_tenant_updated_audit_row() {
             Request::builder()
                 .method(Method::PUT)
                 .uri(format!("/admin/tenants/{}", customer.id))
-                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .header("x-admin-key", admin_credential)
                 .header("content-type", "application/json")
                 .body(Body::from(
                     serde_json::json!({
@@ -285,6 +183,10 @@ async fn put_admin_tenants_id_writes_tenant_updated_audit_row() {
         audit_row_count(&pool, ACTION_TENANT_UPDATED, customer.id).await,
         1
     );
+    assert_eq!(
+        latest_actor_id(&pool, ACTION_TENANT_UPDATED, customer.id).await,
+        operator_id
+    );
 
     let metadata = latest_metadata(&pool, ACTION_TENANT_UPDATED, customer.id).await;
     assert_eq!(
@@ -293,6 +195,7 @@ async fn put_admin_tenants_id_writes_tenant_updated_audit_row() {
     );
 
     cleanup_target(&pool, customer.id).await;
+    revoke_operator(&pool, operator_id).await;
 }
 
 #[tokio::test]
@@ -302,6 +205,11 @@ async fn delete_admin_tenants_id_writes_tenant_deleted_audit_row() {
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) = register_operator(
+        &pool,
+        &format!("tenant-delete-{}@example.com", Uuid::new_v4()),
+    )
+    .await;
 
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed("Delete Me", "delete-me@example.com");
@@ -329,7 +237,7 @@ async fn delete_admin_tenants_id_writes_tenant_deleted_audit_row() {
             Request::builder()
                 .method(Method::DELETE)
                 .uri(format!("/admin/tenants/{}", customer.id))
-                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .header("x-admin-key", &admin_credential)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -346,13 +254,17 @@ async fn delete_admin_tenants_id_writes_tenant_deleted_audit_row() {
         1,
         "first delete must write only the tenant-deleted audit row for the target"
     );
+    assert_eq!(
+        latest_actor_id(&pool, ACTION_TENANT_DELETED, customer.id).await,
+        operator_id
+    );
 
     let repeat_resp = app
         .oneshot(
             Request::builder()
                 .method(Method::DELETE)
                 .uri(format!("/admin/tenants/{}", customer.id))
-                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .header("x-admin-key", admin_credential)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -371,6 +283,7 @@ async fn delete_admin_tenants_id_writes_tenant_deleted_audit_row() {
     );
 
     cleanup_target(&pool, customer.id).await;
+    revoke_operator(&pool, operator_id).await;
     if let Some(binding) = live_binding {
         binding.finish().await;
     }
@@ -382,6 +295,11 @@ async fn post_admin_customers_sync_stripe_writes_stripe_sync_audit_row() {
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) = register_operator(
+        &pool,
+        &format!("stripe-sync-{}@example.com", Uuid::new_v4()),
+    )
+    .await;
 
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed("Stripe User", "stripe-user@example.com");
@@ -401,7 +319,7 @@ async fn post_admin_customers_sync_stripe_writes_stripe_sync_audit_row() {
             Request::builder()
                 .method(Method::POST)
                 .uri(format!("/admin/customers/{}/sync-stripe", customer.id))
-                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .header("x-admin-key", admin_credential)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -420,11 +338,16 @@ async fn post_admin_customers_sync_stripe_writes_stripe_sync_audit_row() {
         audit_row_count(&pool, ACTION_STRIPE_SYNC, customer.id).await,
         1
     );
+    assert_eq!(
+        latest_actor_id(&pool, ACTION_STRIPE_SYNC, customer.id).await,
+        operator_id
+    );
 
     let metadata = latest_metadata(&pool, ACTION_STRIPE_SYNC, customer.id).await;
     assert_eq!(metadata["stripe_customer_id"], stripe_customer_id);
 
     cleanup_target(&pool, customer.id).await;
+    revoke_operator(&pool, operator_id).await;
 }
 
 #[tokio::test]
@@ -433,6 +356,8 @@ async fn post_admin_customers_suspend_writes_customer_suspended_audit_row() {
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) =
+        register_operator(&pool, &format!("suspend-{}@example.com", Uuid::new_v4())).await;
 
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed("Suspend User", "suspend-user@example.com");
@@ -452,7 +377,7 @@ async fn post_admin_customers_suspend_writes_customer_suspended_audit_row() {
             Request::builder()
                 .method(Method::POST)
                 .uri(format!("/admin/customers/{}/suspend", customer.id))
-                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .header("x-admin-key", admin_credential)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -466,8 +391,13 @@ async fn post_admin_customers_suspend_writes_customer_suspended_audit_row() {
         audit_row_count(&pool, ACTION_CUSTOMER_SUSPENDED, customer.id).await,
         1
     );
+    assert_eq!(
+        latest_actor_id(&pool, ACTION_CUSTOMER_SUSPENDED, customer.id).await,
+        operator_id
+    );
 
     cleanup_target(&pool, customer.id).await;
+    revoke_operator(&pool, operator_id).await;
 }
 
 #[tokio::test]
@@ -477,6 +407,8 @@ async fn post_admin_customers_reactivate_writes_customer_reactivated_audit_row()
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) =
+        register_operator(&pool, &format!("reactivate-{}@example.com", Uuid::new_v4())).await;
 
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed("Reactivate User", "reactivate-user@example.com");
@@ -500,7 +432,7 @@ async fn post_admin_customers_reactivate_writes_customer_reactivated_audit_row()
             Request::builder()
                 .method(Method::POST)
                 .uri(format!("/admin/customers/{}/reactivate", customer.id))
-                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .header("x-admin-key", admin_credential)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -514,8 +446,13 @@ async fn post_admin_customers_reactivate_writes_customer_reactivated_audit_row()
         audit_row_count(&pool, ACTION_CUSTOMER_REACTIVATED, customer.id).await,
         1
     );
+    assert_eq!(
+        latest_actor_id(&pool, ACTION_CUSTOMER_REACTIVATED, customer.id).await,
+        operator_id
+    );
 
     cleanup_target(&pool, customer.id).await;
+    revoke_operator(&pool, operator_id).await;
     if let Some(binding) = live_binding {
         binding.finish().await;
     }
@@ -528,6 +465,11 @@ async fn post_admin_customers_reactivate_deleted_writes_no_audit_row() {
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) = register_operator(
+        &pool,
+        &format!("reactivate-control-{}@example.com", Uuid::new_v4()),
+    )
+    .await;
 
     let customer_repo = crate::common::mock_repo();
     let deleted =
@@ -558,7 +500,7 @@ async fn post_admin_customers_reactivate_deleted_writes_no_audit_row() {
             Request::builder()
                 .method(Method::POST)
                 .uri(format!("/admin/customers/{}/reactivate", deleted.id))
-                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .header("x-admin-key", &admin_credential)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -578,7 +520,7 @@ async fn post_admin_customers_reactivate_deleted_writes_no_audit_row() {
             Request::builder()
                 .method(Method::POST)
                 .uri(format!("/admin/customers/{}/reactivate", suspended.id))
-                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .header("x-admin-key", admin_credential)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -591,9 +533,14 @@ async fn post_admin_customers_reactivate_deleted_writes_no_audit_row() {
         1,
         "the suspended success path must still write exactly one audit row"
     );
+    assert_eq!(
+        latest_actor_id(&pool, ACTION_CUSTOMER_REACTIVATED, suspended.id).await,
+        operator_id
+    );
 
     cleanup_target(&pool, deleted.id).await;
     cleanup_target(&pool, suspended.id).await;
+    revoke_operator(&pool, operator_id).await;
     if let Some(binding) = live_binding {
         binding.finish().await;
     }
@@ -605,6 +552,8 @@ async fn put_admin_tenants_rate_card_writes_rate_card_override_audit_row() {
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) =
+        register_operator(&pool, &format!("rate-card-{}@example.com", Uuid::new_v4())).await;
 
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed("Rate User", "rate-user@example.com");
@@ -626,7 +575,7 @@ async fn put_admin_tenants_rate_card_writes_rate_card_override_audit_row() {
             Request::builder()
                 .method(Method::PUT)
                 .uri(format!("/admin/tenants/{}/rate-card", customer.id))
-                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .header("x-admin-key", admin_credential)
                 .header("content-type", "application/json")
                 .body(Body::from(
                     serde_json::json!({
@@ -647,6 +596,10 @@ async fn put_admin_tenants_rate_card_writes_rate_card_override_audit_row() {
         audit_row_count(&pool, ACTION_RATE_CARD_OVERRIDE, customer.id).await,
         1
     );
+    assert_eq!(
+        latest_actor_id(&pool, ACTION_RATE_CARD_OVERRIDE, customer.id).await,
+        operator_id
+    );
 
     let metadata = latest_metadata(&pool, ACTION_RATE_CARD_OVERRIDE, customer.id).await;
     assert_eq!(
@@ -655,6 +608,7 @@ async fn put_admin_tenants_rate_card_writes_rate_card_override_audit_row() {
     );
 
     cleanup_target(&pool, customer.id).await;
+    revoke_operator(&pool, operator_id).await;
 }
 
 #[tokio::test]
@@ -663,6 +617,8 @@ async fn put_admin_tenants_quotas_writes_quotas_updated_audit_row() {
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) =
+        register_operator(&pool, &format!("quotas-{}@example.com", Uuid::new_v4())).await;
 
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed("Quota User", "quota-user@example.com");
@@ -692,7 +648,7 @@ async fn put_admin_tenants_quotas_writes_quotas_updated_audit_row() {
             Request::builder()
                 .method(Method::PUT)
                 .uri(format!("/admin/tenants/{}/quotas", customer.id))
-                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .header("x-admin-key", admin_credential)
                 .header("content-type", "application/json")
                 .body(Body::from(
                     serde_json::json!({
@@ -713,6 +669,10 @@ async fn put_admin_tenants_quotas_writes_quotas_updated_audit_row() {
         audit_row_count(&pool, ACTION_QUOTAS_UPDATED, customer.id).await,
         1
     );
+    assert_eq!(
+        latest_actor_id(&pool, ACTION_QUOTAS_UPDATED, customer.id).await,
+        operator_id
+    );
 
     let metadata = latest_metadata(&pool, ACTION_QUOTAS_UPDATED, customer.id).await;
     assert_eq!(
@@ -721,6 +681,7 @@ async fn put_admin_tenants_quotas_writes_quotas_updated_audit_row() {
     );
 
     cleanup_target(&pool, customer.id).await;
+    revoke_operator(&pool, operator_id).await;
 }
 
 #[tokio::test]
@@ -729,6 +690,11 @@ async fn put_admin_tenants_quotas_skips_audit_when_customer_has_no_tenant_rows()
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) = register_operator(
+        &pool,
+        &format!("quotas-empty-{}@example.com", Uuid::new_v4()),
+    )
+    .await;
 
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed("No Tenant Rows", "no-tenant-rows@example.com");
@@ -748,7 +714,7 @@ async fn put_admin_tenants_quotas_skips_audit_when_customer_has_no_tenant_rows()
             Request::builder()
                 .method(Method::PUT)
                 .uri(format!("/admin/tenants/{}/quotas", customer.id))
-                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .header("x-admin-key", admin_credential)
                 .header("content-type", "application/json")
                 .body(Body::from(
                     serde_json::json!({
@@ -766,6 +732,7 @@ async fn put_admin_tenants_quotas_skips_audit_when_customer_has_no_tenant_rows()
     assert_eq!(audit_row_count_for_target(&pool, customer.id).await, 0);
 
     cleanup_target(&pool, customer.id).await;
+    revoke_operator(&pool, operator_id).await;
 }
 
 #[tokio::test]
@@ -774,6 +741,11 @@ async fn post_admin_tokens_with_impersonation_purpose_writes_audit_row() {
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) = register_operator(
+        &pool,
+        &format!("view-token-impersonation-{}@example.com", Uuid::new_v4()),
+    )
+    .await;
 
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed("Impersonation Target", "impersonation@example.com");
@@ -789,7 +761,8 @@ async fn post_admin_tokens_with_impersonation_purpose_writes_audit_row() {
     );
 
     let resp = app
-        .oneshot(admin_token_request(
+        .oneshot(admin_token_request_with_key(
+            &admin_credential,
             customer.id,
             Some(30),
             Some("impersonation"),
@@ -805,11 +778,16 @@ async fn post_admin_tokens_with_impersonation_purpose_writes_audit_row() {
         audit_row_count(&pool, ACTION_IMPERSONATION_TOKEN_CREATED, customer.id).await,
         1
     );
+    assert_eq!(
+        latest_actor_id(&pool, ACTION_IMPERSONATION_TOKEN_CREATED, customer.id).await,
+        operator_id
+    );
 
     let metadata = latest_metadata(&pool, ACTION_IMPERSONATION_TOKEN_CREATED, customer.id).await;
     assert_eq!(metadata["duration_secs"], 60);
 
     cleanup_target(&pool, customer.id).await;
+    revoke_operator(&pool, operator_id).await;
 }
 
 #[tokio::test]
@@ -818,6 +796,11 @@ async fn post_admin_tokens_with_invalid_purpose_returns_bad_request_without_audi
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) = register_operator(
+        &pool,
+        &format!("view-token-invalid-{}@example.com", Uuid::new_v4()),
+    )
+    .await;
 
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed("Invalid Purpose", "invalid-purpose@example.com");
@@ -833,7 +816,8 @@ async fn post_admin_tokens_with_invalid_purpose_returns_bad_request_without_audi
     );
 
     let resp = app
-        .oneshot(admin_token_request(
+        .oneshot(admin_token_request_with_key(
+            &admin_credential,
             customer.id,
             Some(120),
             Some("impersonatoin"),
@@ -848,6 +832,7 @@ async fn post_admin_tokens_with_invalid_purpose_returns_bad_request_without_audi
         "invalid purpose 'impersonatoin'; expected one of: admin, impersonation"
     );
     assert_eq!(audit_row_count_for_target(&pool, customer.id).await, 0);
+    revoke_operator(&pool, operator_id).await;
 }
 
 #[tokio::test]
@@ -856,6 +841,11 @@ async fn post_admin_tokens_for_missing_customer_returns_not_found_without_audit_
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) = register_operator(
+        &pool,
+        &format!("view-token-missing-{}@example.com", Uuid::new_v4()),
+    )
+    .await;
 
     let missing_customer_id = Uuid::new_v4();
 
@@ -870,7 +860,8 @@ async fn post_admin_tokens_for_missing_customer_returns_not_found_without_audit_
     );
 
     let resp = app
-        .oneshot(admin_token_request(
+        .oneshot(admin_token_request_with_key(
+            &admin_credential,
             missing_customer_id,
             Some(120),
             Some("impersonation"),
@@ -885,6 +876,7 @@ async fn post_admin_tokens_for_missing_customer_returns_not_found_without_audit_
         audit_row_count_for_target(&pool, missing_customer_id).await,
         0
     );
+    revoke_operator(&pool, operator_id).await;
 }
 
 #[tokio::test]
@@ -893,6 +885,11 @@ async fn post_admin_tokens_for_suspended_customer_returns_forbidden_without_audi
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) = register_operator(
+        &pool,
+        &format!("view-token-suspended-{}@example.com", Uuid::new_v4()),
+    )
+    .await;
 
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed("Suspended Target", "suspended-target@example.com");
@@ -912,7 +909,8 @@ async fn post_admin_tokens_for_suspended_customer_returns_forbidden_without_audi
     );
 
     let resp = app
-        .oneshot(admin_token_request(
+        .oneshot(admin_token_request_with_key(
+            &admin_credential,
             customer.id,
             Some(120),
             Some("impersonation"),
@@ -924,6 +922,7 @@ async fn post_admin_tokens_for_suspended_customer_returns_forbidden_without_audi
     assert_eq!(status, StatusCode::FORBIDDEN);
     assert_eq!(body["error"], "customer is suspended");
     assert_eq!(audit_row_count_for_target(&pool, customer.id).await, 0);
+    revoke_operator(&pool, operator_id).await;
 }
 
 #[tokio::test]
@@ -932,6 +931,11 @@ async fn get_admin_tenants_id_is_negative_control_without_audit_row() {
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) = register_operator(
+        &pool,
+        &format!("tenant-read-{}@example.com", Uuid::new_v4()),
+    )
+    .await;
 
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed("Read Only", "read-only@example.com");
@@ -951,7 +955,7 @@ async fn get_admin_tenants_id_is_negative_control_without_audit_row() {
             Request::builder()
                 .method(Method::GET)
                 .uri(format!("/admin/tenants/{}", customer.id))
-                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .header("x-admin-key", admin_credential)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -963,6 +967,7 @@ async fn get_admin_tenants_id_is_negative_control_without_audit_row() {
     assert_eq!(body["id"], customer.id.to_string());
 
     assert_eq!(audit_row_count_for_target(&pool, customer.id).await, 0);
+    revoke_operator(&pool, operator_id).await;
 }
 
 #[tokio::test]
@@ -971,6 +976,8 @@ async fn get_admin_customers_id_audit_returns_requested_customer_rows_newest_fir
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) =
+        register_operator(&pool, &format!("audit-read-{}@example.com", Uuid::new_v4())).await;
 
     let customer_repo = crate::common::mock_repo();
     let target_customer = customer_repo.seed("Audit Target", "audit-target@example.com");
@@ -988,6 +995,7 @@ async fn get_admin_customers_id_audit_returns_requested_customer_rows_newest_fir
 
     seed_audit_row_with_created_at(
         &pool,
+        operator_id,
         target_customer.id,
         ACTION_CUSTOMER_SUSPENDED,
         serde_json::json!({ "order": "oldest-target" }),
@@ -996,6 +1004,7 @@ async fn get_admin_customers_id_audit_returns_requested_customer_rows_newest_fir
     .await;
     seed_audit_row_with_created_at(
         &pool,
+        operator_id,
         other_customer.id,
         ACTION_CUSTOMER_SUSPENDED,
         serde_json::json!({ "order": "other-customer" }),
@@ -1004,6 +1013,7 @@ async fn get_admin_customers_id_audit_returns_requested_customer_rows_newest_fir
     .await;
     seed_audit_row_with_created_at(
         &pool,
+        operator_id,
         target_customer.id,
         ACTION_CUSTOMER_REACTIVATED,
         serde_json::json!({ "order": "middle-target" }),
@@ -1012,9 +1022,14 @@ async fn get_admin_customers_id_audit_returns_requested_customer_rows_newest_fir
     .await;
     seed_audit_row_with_created_at(
         &pool,
+        SES_SYSTEM_ACTOR_ID,
         target_customer.id,
-        ACTION_STRIPE_SYNC,
-        serde_json::json!({ "order": "newest-target" }),
+        ACTION_SES_COMPLAINT_SUPPRESSED,
+        serde_json::json!({
+            "order": "newest-target",
+            "actor_type": "system",
+            "system": "ses"
+        }),
         "2026-01-04T00:00:00Z",
     )
     .await;
@@ -1024,7 +1039,7 @@ async fn get_admin_customers_id_audit_returns_requested_customer_rows_newest_fir
             Request::builder()
                 .method(Method::GET)
                 .uri(format!("/admin/customers/{}/audit", target_customer.id))
-                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .header("x-admin-key", admin_credential)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1038,15 +1053,21 @@ async fn get_admin_customers_id_audit_returns_requested_customer_rows_newest_fir
     assert!(rows
         .iter()
         .all(|row| row["target_tenant_id"] == target_customer.id.to_string()));
-    assert_eq!(rows[0]["action"], ACTION_STRIPE_SYNC);
+    assert_eq!(rows[0]["actor_id"], SES_SYSTEM_ACTOR_ID.to_string());
+    assert_eq!(rows[0]["action"], ACTION_SES_COMPLAINT_SUPPRESSED);
     assert_eq!(rows[0]["metadata"]["order"], "newest-target");
+    assert_eq!(rows[0]["metadata"]["actor_type"], "system");
+    assert_eq!(rows[0]["metadata"]["system"], "ses");
     assert_eq!(rows[1]["action"], ACTION_CUSTOMER_REACTIVATED);
+    assert_eq!(rows[1]["actor_id"], operator_id.to_string());
     assert_eq!(rows[1]["metadata"]["order"], "middle-target");
     assert_eq!(rows[2]["action"], ACTION_CUSTOMER_SUSPENDED);
+    assert_eq!(rows[2]["actor_id"], operator_id.to_string());
     assert_eq!(rows[2]["metadata"]["order"], "oldest-target");
 
     cleanup_target(&pool, target_customer.id).await;
     cleanup_target(&pool, other_customer.id).await;
+    revoke_operator(&pool, operator_id).await;
 }
 
 #[tokio::test]
@@ -1055,6 +1076,11 @@ async fn get_admin_customers_id_snapshot_returns_seeded_customer_snapshot() {
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) = register_operator(
+        &pool,
+        &format!("snapshot-read-{}@example.com", Uuid::new_v4()),
+    )
+    .await;
 
     let customer_repo = crate::common::mock_repo();
     let usage_repo = crate::common::mock_usage_repo();
@@ -1194,6 +1220,7 @@ async fn get_admin_customers_id_snapshot_returns_seeded_customer_snapshot() {
 
     seed_audit_row_with_created_at(
         &pool,
+        operator_id,
         target_customer.id,
         ACTION_CUSTOMER_SUSPENDED,
         serde_json::json!({ "order": "oldest-target" }),
@@ -1202,6 +1229,7 @@ async fn get_admin_customers_id_snapshot_returns_seeded_customer_snapshot() {
     .await;
     seed_audit_row_with_created_at(
         &pool,
+        operator_id,
         other_customer.id,
         ACTION_CUSTOMER_SUSPENDED,
         serde_json::json!({ "order": "other-customer" }),
@@ -1210,9 +1238,14 @@ async fn get_admin_customers_id_snapshot_returns_seeded_customer_snapshot() {
     .await;
     seed_audit_row_with_created_at(
         &pool,
+        SES_SYSTEM_ACTOR_ID,
         target_customer.id,
-        ACTION_STRIPE_SYNC,
-        serde_json::json!({ "order": "newest-target" }),
+        ACTION_SES_COMPLAINT_SUPPRESSED,
+        serde_json::json!({
+            "order": "newest-target",
+            "actor_type": "system",
+            "system": "ses"
+        }),
         "2026-01-03T00:00:00Z",
     )
     .await;
@@ -1222,7 +1255,7 @@ async fn get_admin_customers_id_snapshot_returns_seeded_customer_snapshot() {
             Request::builder()
                 .method(Method::GET)
                 .uri(format!("/admin/customers/{}/snapshot", target_customer.id))
-                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .header("x-admin-key", admin_credential)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1257,15 +1290,20 @@ async fn get_admin_customers_id_snapshot_returns_seeded_customer_snapshot() {
 
     let audit_rows = body["recent_audit"].as_array().expect("recent_audit array");
     assert_eq!(audit_rows.len(), 2);
-    assert_eq!(audit_rows[0]["action"], ACTION_STRIPE_SYNC);
+    assert_eq!(audit_rows[0]["actor_id"], SES_SYSTEM_ACTOR_ID.to_string());
+    assert_eq!(audit_rows[0]["action"], ACTION_SES_COMPLAINT_SUPPRESSED);
     assert_eq!(audit_rows[0]["metadata"]["order"], "newest-target");
+    assert_eq!(audit_rows[0]["metadata"]["actor_type"], "system");
+    assert_eq!(audit_rows[0]["metadata"]["system"], "ses");
     assert_eq!(audit_rows[1]["action"], ACTION_CUSTOMER_SUSPENDED);
+    assert_eq!(audit_rows[1]["actor_id"], operator_id.to_string());
     assert_eq!(audit_rows[1]["metadata"]["order"], "oldest-target");
 
     assert!(body.get("recent_alerts").is_none());
 
     cleanup_target(&pool, target_customer.id).await;
     cleanup_target(&pool, other_customer.id).await;
+    revoke_operator(&pool, operator_id).await;
 }
 
 #[tokio::test]
@@ -1274,6 +1312,11 @@ async fn get_admin_customers_id_snapshot_returns_empty_snapshot_for_customer_wit
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) = register_operator(
+        &pool,
+        &format!("snapshot-empty-{}@example.com", Uuid::new_v4()),
+    )
+    .await;
 
     let customer_repo = crate::common::mock_repo();
     let usage_repo = crate::common::mock_usage_repo();
@@ -1295,7 +1338,7 @@ async fn get_admin_customers_id_snapshot_returns_empty_snapshot_for_customer_wit
             Request::builder()
                 .method(Method::GET)
                 .uri(format!("/admin/customers/{}/snapshot", customer.id))
-                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .header("x-admin-key", admin_credential)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1318,6 +1361,7 @@ async fn get_admin_customers_id_snapshot_returns_empty_snapshot_for_customer_wit
     assert!(body.get("recent_alerts").is_none());
 
     cleanup_target(&pool, customer.id).await;
+    revoke_operator(&pool, operator_id).await;
 }
 
 #[tokio::test]
@@ -1326,6 +1370,8 @@ async fn post_admin_customers_hard_erase_writes_customer_hard_erase_audit_row() 
     let Some(pool) = connect_and_migrate().await else {
         return;
     };
+    let (operator_id, admin_credential) =
+        register_operator(&pool, &format!("hard-erase-{}@example.com", Uuid::new_v4())).await;
 
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed_deleted("Hard Erase Audit", "hard-erase-audit@example.com");
@@ -1345,7 +1391,7 @@ async fn post_admin_customers_hard_erase_writes_customer_hard_erase_audit_row() 
             Request::builder()
                 .method(Method::POST)
                 .uri(format!("/admin/customers/{}/hard-erase", customer.id))
-                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .header("x-admin-key", admin_credential)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1355,14 +1401,15 @@ async fn post_admin_customers_hard_erase_writes_customer_hard_erase_audit_row() 
     // 204 No Content — empty body, so we check status only.
     assert_eq!(resp.status(), StatusCode::NO_CONTENT);
 
-    let (target, metadata): (Option<Uuid>, serde_json::Value) = sqlx::query_as(
-        "SELECT target_tenant_id, metadata FROM audit_log
+    let (actor_id, target, metadata): (Uuid, Option<Uuid>, serde_json::Value) = sqlx::query_as(
+        "SELECT actor_id, target_tenant_id, metadata FROM audit_log
          WHERE action = $1 ORDER BY created_at DESC LIMIT 1",
     )
     .bind(ACTION_CUSTOMER_HARD_ERASE)
     .fetch_one(&pool)
     .await
     .expect("fetch privacy-safe hard-erasure audit row");
+    assert_eq!(actor_id, operator_id);
     assert_eq!(
         target, None,
         "erased customer UUID must not be reintroduced"
@@ -1377,4 +1424,5 @@ async fn post_admin_customers_hard_erase_writes_customer_hard_erase_audit_row() 
         .execute(&pool)
         .await
         .ok();
+    revoke_operator(&pool, operator_id).await;
 }

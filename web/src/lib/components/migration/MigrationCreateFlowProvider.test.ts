@@ -642,3 +642,69 @@ describe('MigrationCreateFlow - provider gate', () => {
 		);
 	});
 });
+
+describe('MigrationCreateFlow - source provider credential panels', () => {
+	it('keeps one create-flow state machine while provider panels switch inside it', () => {
+		renderFlow();
+
+		expect(screen.getAllByTestId('migration-create-flow')).toHaveLength(1);
+		expect(screen.queryByTestId('migration-create-flow-meilisearch')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('migration-create-flow-typesense')).not.toBeInTheDocument();
+	});
+
+	it.each([
+		{
+			sourceProvider: 'algolia',
+			select: /algolia/i,
+			visibleLabels: [/algolia application id/i, /algolia api key/i],
+			hiddenLabels: [
+				/meilisearch host url/i,
+				/meilisearch api key/i,
+				/typesense host url/i,
+				/typesense api key/i
+			],
+			panelTestId: 'migration-algolia-connection'
+		},
+		{
+			sourceProvider: 'meilisearch',
+			select: /meilisearch/i,
+			visibleLabels: [/meilisearch host url/i, /meilisearch api key/i],
+			hiddenLabels: [
+				/algolia application id/i,
+				/algolia api key/i,
+				/typesense host url/i,
+				/typesense api key/i
+			],
+			panelTestId: 'migration-meilisearch-connection'
+		},
+		{
+			sourceProvider: 'typesense',
+			select: /typesense/i,
+			visibleLabels: [/typesense host url/i, /typesense api key/i],
+			hiddenLabels: [
+				/algolia application id/i,
+				/algolia api key/i,
+				/meilisearch host url/i,
+				/meilisearch api key/i
+			],
+			panelTestId: 'migration-typesense-connection'
+		}
+	])(
+		'selecting $sourceProvider mounts exactly its credential panel',
+		async ({ select, visibleLabels, hiddenLabels, panelTestId }) => {
+			renderFlow();
+
+			await fireEvent.click(screen.getByRole('radio', { name: select }));
+
+			expect(screen.getAllByTestId('migration-create-flow')).toHaveLength(1);
+			expect(screen.getByTestId(panelTestId)).toBeInTheDocument();
+			for (const label of visibleLabels) {
+				expect(screen.getByLabelText(label)).toHaveValue('');
+			}
+			for (const label of hiddenLabels) {
+				expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
+			}
+			expect(screen.getAllByTestId(/migration-.*-connection/)).toHaveLength(1);
+		}
+	);
+});

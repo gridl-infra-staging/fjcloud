@@ -21,25 +21,7 @@ Set RELIABILITY=1 to enable; otherwise exits gracefully. |
 
 Runs Stage 1-4 reliability/security checks plus the existing
 `live-backend-gate.sh` checks as a single machine-readable JSON summary. |
-| security_checks.sh | Security automation gate — orchestrates all security checks and produces
-a machine-readable JSON summary.
-
-Usage:
-  scripts/reliability/security_checks.sh [--check <name>]
-
-Options:
-  --check cargo_audit       Run only cargo audit check
-  --check secret_scan       Run only secret scan check
-  --check unsafe_code       Run only unsafe code patterns check
-  (no flags)                Run all three checks
-
-Output:
-  stdout: JSON summary with per-check pass/fail, reason codes, and timing
-  stderr: Per-check progress
-
-Exit codes:
-  0 — all checks passed (cargo_audit skip is still treated as non-pass)
-  1 — one or more checks failed or skipped. |
+| run_security_suite.sh | Stable machine-readable CLI for the consolidated security suite; emits one JSON summary document on stdout and preserves the suite verdict as its exit status. |
 | seed-documents.sh | seed-documents.sh — Deterministically insert N documents into a test index.
 Usage: seed-documents.sh <tier> [api_base]
   tier: 1k | 10k | 100k

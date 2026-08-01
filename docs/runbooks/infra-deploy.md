@@ -36,7 +36,7 @@ Before deploying, verify:
   - `scripts/migrate.sh`
 - [ ] EC2 instance is running: `aws ec2 describe-instances --filters "Name=tag:Name,Values=fjcloud-api-<env>" "Name=instance-state-name,Values=running"`
 - [ ] SSM agent is healthy: `aws ssm describe-instance-information --filters "Key=InstanceIds,Values=<instance-id>"`
-- [ ] SSM parameter `/fjcloud/<env>/database_url` exists (for migrations)
+- [ ] SSM parameter `/fjcloud/<env>/database_url` exists and includes `sslmode=require` or stricter (`sslmode=verify-ca` or `sslmode=verify-full`) before deploying binaries; non-loopback database URLs without this setting are fatal at service startup
 - [ ] Previous deploy SHA is recorded: `aws ssm get-parameter --name "/fjcloud/<env>/last_deploy_sha"`
 
 ## Deploy

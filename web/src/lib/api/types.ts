@@ -187,10 +187,13 @@ export type {
 } from './types_pricing';
 
 export type {
+	SourceProvider,
 	AlgoliaMigrationCapabilities,
 	AlgoliaMigrationAvailabilityResponse,
 	AlgoliaMigrationAvailabilityWire,
 	ListAlgoliaIndexesRequest,
+	ListHostedSearchIndexesRequest,
+	ListMigrationSourceIndexesRequest,
 	AlgoliaIndexMetadata,
 	AlgoliaSourceListResponse,
 	AlgoliaMigrationDestinationMode,
@@ -202,6 +205,8 @@ export type {
 	AlgoliaDestinationEligibilityResponse,
 	CreateAlgoliaImportJobTargetRequest,
 	CreateAlgoliaImportJobRequest,
+	CreateHostedSearchImportJobRequest,
+	CreateMigrationImportJobRequest,
 	ListAlgoliaImportJobsRequest,
 	CancelAlgoliaImportJobRequest,
 	ResumeAlgoliaImportJobRequest,
@@ -215,3 +220,5 @@ export type {
 	PublicAlgoliaImportJob,
 	PublicAlgoliaImportJobPage
 } from './types_algolia_migration';
+
+export { SOURCE_PROVIDERS, isSourceProvider } from './types_algolia_migration';

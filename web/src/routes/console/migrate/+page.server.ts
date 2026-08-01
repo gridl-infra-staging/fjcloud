@@ -1,12 +1,15 @@
 import { fail, type ActionFailure } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { ApiRequestError } from '$lib/api/client';
 import type {
 	AlgoliaDestinationEligibilityRequest,
 	AlgoliaMigrationAvailabilityResponse,
-	CreateAlgoliaImportJobRequest,
-	ListAlgoliaIndexesRequest,
-	PublicAlgoliaImportJobPage
+	CreateMigrationImportJobRequest,
+	ListMigrationSourceIndexesRequest,
+	PublicAlgoliaImportJobPage,
+	SourceProvider
 } from '$lib/api/types';
+import { isSourceProvider } from '$lib/api/types';
 import { createApiClient } from '$lib/server/api';
 import {
 	customerFacingErrorMessage,
@@ -14,10 +17,16 @@ import {
 	type DashboardSessionExpiredPayload
 } from '$lib/server/auth-action-errors';
 
-const MIGRATION_ACTION_FAILED = 'Algolia migration request failed';
+const MIGRATION_ACTION_FAILED = 'Migration request failed';
 const RECENT_IMPORTS_FAILED = 'Recent imports could not be loaded';
 const RECENT_IMPORTS_PAGE_SIZE = 10;
 const INVALID_PAYLOAD_MESSAGE = 'Invalid payload';
+const SOURCE_PROVIDER_UNSUPPORTED = 'source_provider_unsupported';
+const INVALID_SOURCE_HOST_MESSAGE = 'Host URL must be a public https origin';
+const INVALID_IDEMPOTENCY_KEY_MESSAGE = 'Invalid idempotency key';
+const DEFAULT_SOURCE_PROVIDER: SourceProvider = 'algolia';
+const MAX_IDEMPOTENCY_KEY_LENGTH = 128;
+const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:-]+$/;
 
 const UNAVAILABLE_AVAILABILITY: AlgoliaMigrationAvailabilityResponse = {
 	available: false,
@@ -28,6 +37,10 @@ const UNAVAILABLE_AVAILABILITY: AlgoliaMigrationAvailabilityResponse = {
 
 type ServerApiClient = ReturnType<typeof createApiClient>;
 type SessionFailure = ActionFailure<DashboardSessionExpiredPayload>;
+
+class SourceProviderUnsupportedError extends Error {}
+class InvalidSourceHostError extends Error {}
+class InvalidIdempotencyKeyError extends Error {}
 
 // SSR payload for the recent-import list. A failure never blocks the create
 // flow or the availability branch: it collapses to a retryable list error the
@@ -50,10 +63,13 @@ function isSessionFailure(value: unknown): value is SessionFailure {
 }
 
 async function loadRecentImports(
-	api: ServerApiClient
+	api: ServerApiClient,
+	sourceProvider: SourceProvider
 ): Promise<RecentImportsPayload | SessionFailure> {
 	try {
-		const page = await api.listAlgoliaImportJobs({ limit: RECENT_IMPORTS_PAGE_SIZE });
+		const page = await api.listMigrationImportJobs(sourceProvider, {
+			limit: RECENT_IMPORTS_PAGE_SIZE
+		});
 		return { page, error: null };
 	} catch (err) {
 		const sessionFailure = mapDashboardSessionFailure(err);
@@ -66,7 +82,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const api = createApiClient(locals.user?.token);
 	let availability: AlgoliaMigrationAvailabilityResponse;
 	try {
-		availability = await api.getAlgoliaMigrationAvailability();
+		availability = await api.getMigrationAvailability(DEFAULT_SOURCE_PROVIDER);
 	} catch (err) {
 		const sessionFailure = mapDashboardSessionFailure(err);
 		if (sessionFailure) return sessionFailure;
@@ -74,7 +90,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	const recentImports = availability.available
-		? await loadRecentImports(api)
+		? await loadRecentImports(api, DEFAULT_SOURCE_PROVIDER)
 		: EMPTY_RECENT_IMPORTS;
 	if (isSessionFailure(recentImports)) return recentImports;
 	return { availability, recentImports };
@@ -104,11 +120,85 @@ function payloadFromFormData<T>(data: FormData): T {
 	}
 }
 
-async function payloadFromRequest<T>(request: Request): Promise<T> {
-	return payloadFromFormData<T>(await request.formData());
+function migrationPayloadFromFormData<T>(data: FormData): {
+	sourceProvider: SourceProvider;
+	payload: T;
+} {
+	const parsed = payloadFromFormData<T & { source_provider?: unknown }>(data);
+	if (!isSourceProvider(parsed.source_provider)) {
+		throw new SourceProviderUnsupportedError();
+	}
+	const { source_provider: sourceProvider, ...payload } = parsed;
+	return { sourceProvider, payload: payload as T };
+}
+
+function validatedHostedSourceOrigin(value: string): string {
+	let parsed: URL;
+	try {
+		parsed = new URL(value.trim());
+	} catch {
+		throw new InvalidSourceHostError();
+	}
+
+	const hostname = parsed.hostname.toLowerCase();
+	const hasExplicitPort = parsed.port !== '' && parsed.port !== '443';
+	const isIpLiteral = /^[\d.:]+$/.test(hostname);
+	if (
+		parsed.protocol !== 'https:' ||
+		parsed.username !== '' ||
+		parsed.password !== '' ||
+		parsed.search !== '' ||
+		parsed.hash !== '' ||
+		parsed.pathname !== '/' ||
+		hasExplicitPort ||
+		isIpLiteral ||
+		hostname === 'localhost' ||
+		hostname.endsWith('.localhost') ||
+		!hostname.includes('.')
+	) {
+		throw new InvalidSourceHostError();
+	}
+
+	return parsed.origin;
+}
+
+function sanitizeHostedSourcePayload<T>(sourceProvider: SourceProvider, payload: T): T {
+	if (sourceProvider === 'algolia') {
+		return payload;
+	}
+	if (typeof payload !== 'object' || payload === null || !('host' in payload)) {
+		throw new InvalidSourceHostError();
+	}
+	const host = (payload as { host?: unknown }).host;
+	if (typeof host !== 'string') {
+		throw new InvalidSourceHostError();
+	}
+	return {
+		...payload,
+		host: validatedHostedSourceOrigin(host)
+	} as T;
+}
+
+function validatedIdempotencyKey(value: FormDataEntryValue | null): string {
+	if (typeof value !== 'string') {
+		throw new InvalidIdempotencyKeyError('Missing idempotency key');
+	}
+	if (value === '') {
+		throw new InvalidIdempotencyKeyError('Missing idempotency key');
+	}
+	if (value.length > MAX_IDEMPOTENCY_KEY_LENGTH || !IDEMPOTENCY_KEY_PATTERN.test(value)) {
+		throw new InvalidIdempotencyKeyError(INVALID_IDEMPOTENCY_KEY_MESSAGE);
+	}
+	return value;
 }
 
 function payloadFailure(error: unknown) {
+	if (error instanceof SourceProviderUnsupportedError) {
+		return sourceProviderFailure();
+	}
+	if (error instanceof InvalidSourceHostError) {
+		return fail(400, { error: INVALID_SOURCE_HOST_MESSAGE });
+	}
 	if (
 		error instanceof Error &&
 		(error.message === 'Missing payload' || error.message === INVALID_PAYLOAD_MESSAGE)
@@ -116,6 +206,21 @@ function payloadFailure(error: unknown) {
 		return fail(400, { error: error.message });
 	}
 	return null;
+}
+
+function sourceProviderFailure() {
+	return fail(400, {
+		error: SOURCE_PROVIDER_UNSUPPORTED,
+		code: SOURCE_PROVIDER_UNSUPPORTED
+	});
+}
+
+function upstreamSourceProviderFailure(error: unknown) {
+	if (!(error instanceof ApiRequestError) || error.status !== 400) return null;
+	if (typeof error.body !== 'object' || error.body === null) return null;
+	const body = error.body as Record<string, unknown>;
+	if (body.code !== SOURCE_PROVIDER_UNSUPPORTED) return null;
+	return sourceProviderFailure();
 }
 
 async function runMigrationAction<T>(
@@ -128,6 +233,8 @@ async function runMigrationAction<T>(
 	} catch (error) {
 		const sessionFailure = mapDashboardSessionFailure(error);
 		if (sessionFailure) return sessionFailure;
+		const providerFailure = upstreamSourceProviderFailure(error);
+		if (providerFailure) return providerFailure;
 		return fail(400, {
 			error: customerFacingErrorMessage(error, MIGRATION_ACTION_FAILED)
 		});
@@ -136,9 +243,12 @@ async function runMigrationAction<T>(
 
 export const actions: Actions = {
 	providerEligibility: async ({ request, locals }) => {
+		let sourceProvider: SourceProvider;
 		let payload: { region?: unknown };
 		try {
-			payload = await payloadFromRequest<{ region?: unknown }>(request);
+			const parsed = migrationPayloadFromFormData<{ region?: unknown }>(await request.formData());
+			sourceProvider = parsed.sourceProvider;
+			payload = parsed.payload;
 		} catch (error) {
 			return payloadFailure(error) ?? fail(400, { error: MIGRATION_ACTION_FAILED });
 		}
@@ -146,7 +256,7 @@ export const actions: Actions = {
 		if (!region) return fail(400, { error: 'Region is required' });
 
 		return runMigrationAction(locals, async (api) => ({
-			providerEligibility: await api.checkAlgoliaDestinationEligibility({
+			providerEligibility: await api.checkMigrationDestinationEligibility(sourceProvider, {
 				phase: 'provider',
 				mode: 'create',
 				target: { region, name: '' }
@@ -154,49 +264,73 @@ export const actions: Actions = {
 		}));
 	},
 	checkDestinationEligibility: async ({ request, locals }) => {
+		let sourceProvider: SourceProvider;
 		let payload: AlgoliaDestinationEligibilityRequest;
 		try {
-			payload = await payloadFromRequest<AlgoliaDestinationEligibilityRequest>(request);
+			const parsed = migrationPayloadFromFormData<AlgoliaDestinationEligibilityRequest>(
+				await request.formData()
+			);
+			sourceProvider = parsed.sourceProvider;
+			payload = parsed.payload;
 		} catch (error) {
 			return payloadFailure(error) ?? fail(400, { error: MIGRATION_ACTION_FAILED });
 		}
 		return runMigrationAction(locals, async (api) => ({
-			targetEligibility: await api.checkAlgoliaDestinationEligibility(payload)
+			targetEligibility: await api.checkMigrationDestinationEligibility(sourceProvider, payload)
 		}));
 	},
 	listSourceIndexes: async ({ request, locals }) => {
-		let payload: ListAlgoliaIndexesRequest;
+		let sourceProvider: SourceProvider;
+		let payload: ListMigrationSourceIndexesRequest;
 		try {
-			payload = await payloadFromRequest<ListAlgoliaIndexesRequest>(request);
+			const parsed = migrationPayloadFromFormData<ListMigrationSourceIndexesRequest>(
+				await request.formData()
+			);
+			sourceProvider = parsed.sourceProvider;
+			payload = sanitizeHostedSourcePayload(sourceProvider, parsed.payload);
 		} catch (error) {
 			return payloadFailure(error) ?? fail(400, { error: MIGRATION_ACTION_FAILED });
 		}
 		return runMigrationAction(locals, async (api) => ({
-			sourceIndexes: await api.listAlgoliaSourceIndexes(payload)
+			sourceIndexes: await api.listMigrationSourceIndexes(sourceProvider, payload)
 		}));
 	},
 	createImportJob: async ({ request, locals }) => {
-		const data = await request.formData();
-		const idempotencyKey = data.get('idempotencyKey');
-		if (typeof idempotencyKey !== 'string' || idempotencyKey.trim() === '') {
-			return fail(400, { error: 'Missing idempotency key' });
-		}
-		let payload: CreateAlgoliaImportJobRequest;
+		let idempotencyKey: string;
+		let sourceProvider: SourceProvider;
+		let payload: CreateMigrationImportJobRequest;
 		try {
-			payload = payloadFromFormData<CreateAlgoliaImportJobRequest>(data);
+			const data = await request.formData();
+			idempotencyKey = validatedIdempotencyKey(data.get('idempotencyKey'));
+			const parsed = migrationPayloadFromFormData<CreateMigrationImportJobRequest>(data);
+			sourceProvider = parsed.sourceProvider;
+			payload = sanitizeHostedSourcePayload(sourceProvider, parsed.payload);
 		} catch (error) {
+			if (error instanceof InvalidIdempotencyKeyError) {
+				return fail(400, { error: error.message });
+			}
 			return payloadFailure(error) ?? fail(400, { error: MIGRATION_ACTION_FAILED });
 		}
 		return runMigrationAction(locals, async (api) => ({
-			job: await api.createAlgoliaImportJob(payload, idempotencyKey)
+			job: await api.createMigrationImportJob(sourceProvider, payload, idempotencyKey)
 		}));
 	},
 	recentImports: async ({ request, locals }) => {
-		const data = await request.formData();
-		const cursor = parseCursor(data.get('cursor'));
-		const limit = parseLimit(data.get('limit'));
+		let sourceProvider: SourceProvider;
+		let cursor: string | undefined;
+		let limit: number | undefined;
+		try {
+			const data = await request.formData();
+			const rawSourceProvider = data.get('source_provider');
+			if (!isSourceProvider(rawSourceProvider)) return sourceProviderFailure();
+			sourceProvider = rawSourceProvider;
+			cursor = parseCursor(data.get('cursor'));
+			limit = parseLimit(data.get('limit'));
+		} catch {
+			return fail(400, { error: MIGRATION_ACTION_FAILED });
+		}
 		return runMigrationAction(locals, async (api) => ({
-			recentImports: await api.listAlgoliaImportJobs({ cursor, limit })
+			recentImports: await api.listMigrationImportJobs(sourceProvider, { cursor, limit })
 		}));
 	}
 };

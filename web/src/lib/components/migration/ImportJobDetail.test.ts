@@ -1,85 +1,30 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/svelte';
 
-import type {
-	AlgoliaImportJobStatus,
-	AlgoliaMigrationCapabilities,
-	PublicAlgoliaImportJob
-} from '$lib/api/types';
+import type { AlgoliaMigrationCapabilities, PublicAlgoliaImportJob } from '$lib/api/types';
 import ImportJobDetail from './ImportJobDetail.svelte';
+import {
+	NON_TERMINAL_IMPORT_STATUSES,
+	NO_MIGRATION_CAPABILITIES,
+	publicImportJob
+} from './migration_test_fixtures';
+import {
+	expectVisibleWarningGroupsInOrder,
+	publicWarnings,
+	WARNING_GROUPS
+} from './warning_presentation_test_support';
 
-afterEach(() => {
-	cleanup();
-	vi.restoreAllMocks();
-});
-
-function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgoliaImportJob {
-	const status = overrides.status ?? 'completed';
-	return {
-		id: 'job_123',
-		status,
-		mode: 'create',
-		destination: {
-			kind: 'create',
-			target: 'products migrated/2026',
-			region: 'us-east-1'
-		},
-		source: {
-			name: 'products'
-		},
-		summary: {
-			documentsExpected: 17,
-			documentsImported: 13,
-			documentsRejected: 4,
-			settingsApplied: 2,
-			settingsUnsupported: 1,
-			synonymsExpected: 5,
-			synonymsImported: 3,
-			synonymsRejected: 2,
-			rulesExpected: 7,
-			rulesImported: 6,
-			rulesRejected: 1
-		},
-		error: null,
-		cancelRequestedAt: null,
-		resumeProvenance: null,
-		resumeDeadline: null,
-		resumable: false,
-		resumeCount: 0,
-		publicationDisposition: 'promoted',
-		terminalOutcomeObserved: status === 'completed' || status === 'completed_with_warnings',
-		warnings: [],
-		createdAt: '2026-07-18T10:00:00Z',
-		updatedAt: '2026-07-18T10:05:00Z',
-		...overrides
-	};
-}
-
-const NO_CAPABILITIES: AlgoliaMigrationCapabilities = {
-	cancel: false,
-	resume: false,
-	replace: false
-};
+afterEach(cleanup);
+afterEach(() => vi.restoreAllMocks());
 
 const CANCEL_CONFIRM_COPY =
 	'Cancel this import? The import stops, partially-copied staging work is discarded, and the existing destination index is left exactly as it is.';
 const RESUME_API_KEY_CANARY = 'resume-secret-key-canary-0007';
 
-const NON_TERMINAL_STATUSES: AlgoliaImportJobStatus[] = [
-	'queued',
-	'validating_source',
-	'copying_configuration',
-	'copying_documents',
-	'verifying',
-	'promoting',
-	'cancelling',
-	'resuming'
-];
-
 describe('Algolia import job detail presentation', () => {
 	it('renders running phase copy, safe reload guidance, and stable job fields', () => {
 		render(ImportJobDetail, {
-			job: publicJob({
+			job: publicImportJob({
 				status: 'copying_documents',
 				updatedAt: '2026-07-18T10:06:00Z'
 			}),
@@ -101,10 +46,10 @@ describe('Algolia import job detail presentation', () => {
 		expect(screen.getByTestId('migration-job-updated')).toHaveTextContent('Jul 18, 2026');
 	});
 
-	it.each(NON_TERMINAL_STATUSES)(
+	it.each(NON_TERMINAL_IMPORT_STATUSES)(
 		'keeps leave and reload guidance visible for backend phase %s',
 		(status) => {
-			render(ImportJobDetail, { job: publicJob({ status }) });
+			render(ImportJobDetail, { job: publicImportJob({ status }) });
 
 			expect(screen.getByTestId('migration-job-safe-reload')).toHaveTextContent(
 				'You can leave or reload this page without stopping the import.'
@@ -112,10 +57,10 @@ describe('Algolia import job detail presentation', () => {
 		}
 	);
 
-	it.each([...NON_TERMINAL_STATUSES, 'failed', 'cancelled', 'completed'] as const)(
+	it.each([...NON_TERMINAL_IMPORT_STATUSES, 'failed', 'cancelled', 'completed'] as const)(
 		'hides terminal outcome rows without an observed outcome for status %s',
 		(status) => {
-			render(ImportJobDetail, { job: publicJob({ status, terminalOutcomeObserved: false }) });
+			render(ImportJobDetail, { job: publicImportJob({ status, terminalOutcomeObserved: false }) });
 			expect(screen.queryByTestId('migration-summary-settings')).not.toBeInTheDocument();
 			expect(screen.queryByTestId('migration-summary-synonyms')).not.toBeInTheDocument();
 			expect(screen.queryByTestId('migration-summary-rules')).not.toBeInTheDocument();
@@ -124,7 +69,7 @@ describe('Algolia import job detail presentation', () => {
 
 	it('keeps responsive action and field structures deterministic for narrow layouts', () => {
 		render(ImportJobDetail, {
-			job: publicJob({ status: 'copying_documents' }),
+			job: publicImportJob({ status: 'copying_documents' }),
 			capabilities: { cancel: true, resume: false, replace: false },
 			onCancelIntent: () => {}
 		});
@@ -132,7 +77,7 @@ describe('Algolia import job detail presentation', () => {
 		const fields = screen.getByLabelText('Import fields');
 		expect(fields).toHaveClass('grid');
 		expect(fields).toHaveClass('gap-3');
-		expect(fields).toHaveClass('sm:grid-cols-3');
+		expect(fields).toHaveClass('sm:grid-cols-4');
 		expect(screen.getByTestId('migration-job-capability-actions')).toHaveClass('flex-wrap');
 		expect(screen.getByRole('button', { name: /cancel import/i })).toHaveTextContent(
 			'Cancel import'
@@ -140,7 +85,7 @@ describe('Algolia import job detail presentation', () => {
 	});
 
 	it('renders observed completed facts and primary/secondary actions with encoded targets', () => {
-		render(ImportJobDetail, { job: publicJob() });
+		render(ImportJobDetail, { job: publicImportJob() });
 
 		const documents = screen.getByTestId('migration-summary-documents');
 		expect(documents).toHaveTextContent('13 imported');
@@ -177,28 +122,20 @@ describe('Algolia import job detail presentation', () => {
 			'Destination safety is unproven. Reconcile the destination before retrying into this target.'
 		]
 	] as const)('renders backend publication disposition %s', (publicationDisposition, copy) => {
-		render(ImportJobDetail, { job: publicJob({ publicationDisposition }) });
+		render(ImportJobDetail, { job: publicImportJob({ publicationDisposition }) });
 
 		expect(screen.getByTestId('migration-job-disposition')).toHaveTextContent(copy);
 	});
 
-	it('renders completed-with-warnings outcomes from closed fields only', () => {
-		const arbitraryMessageCanary = 'producer-message-secret-canary';
+	it('renders every compatibility warning in semantic bounded-label groups', () => {
 		const credentialCanary = 'producer-credential-canary';
 		const sourcePayloadCanary = 'producer-source-payload-canary';
+		const warningGroups = WARNING_GROUPS;
+		const warnings = publicWarnings(warningGroups);
 		const { container } = render(ImportJobDetail, {
-			job: publicJob({
+			job: publicImportJob({
 				status: 'completed_with_warnings',
-				warnings: [
-					{
-						code: 'unsupported_synonym_type',
-						message: arbitraryMessageCanary,
-						resource: 'synonyms',
-						pageIndex: 2,
-						itemIndex: 5,
-						jsonPath: '$.synonyms[5]'
-					}
-				],
+				warnings,
 				producerCredentials: credentialCanary,
 				sourcePayload: sourcePayloadCanary
 			} as Partial<PublicAlgoliaImportJob> & {
@@ -207,9 +144,26 @@ describe('Algolia import job detail presentation', () => {
 			})
 		});
 
-		expect(screen.getByTestId('migration-job-warning-summary')).toHaveTextContent(
-			'Import completed with 1 compatibility warning: synonyms — unsupported synonym type (page 2, item 5, path $.synonyms[5]).'
+		expect(screen.getByTestId('migration-job-warning-summary').textContent).toBe(
+			'Import completed with 10 compatibility warnings.'
 		);
+		const warningRegion = screen.getByRole('region', { name: 'Compatibility warnings' });
+		const resourceLists = expectVisibleWarningGroupsInOrder(warningRegion, warningGroups);
+		let warningItemCount = 0;
+		warningGroups.forEach(({ accessibleName, warnings: groupWarnings }, groupIndex) => {
+			const groupList = resourceLists[groupIndex];
+			expect(groupList).toHaveAccessibleName(accessibleName);
+			const groupItems = within(groupList).getAllByRole('listitem');
+			expect(groupItems).toHaveLength(groupWarnings.length);
+			warningItemCount += groupItems.length;
+			groupWarnings.forEach((warning, index) => {
+				const item = within(groupItems[index]);
+				expect(item.getByText(warning.message, { exact: true })).toBeInTheDocument();
+				expect(item.getByText(warning.code, { exact: true })).toBeInTheDocument();
+				expect(item.getByText(warning.locator, { exact: true })).toBeInTheDocument();
+			});
+		});
+		expect(warningItemCount).toBe(warnings.length);
 		expect(screen.getByRole('link', { name: /test search/i })).toHaveAttribute(
 			'href',
 			'/console/indexes/products%20migrated%2F2026?tab=search'
@@ -218,15 +172,56 @@ describe('Algolia import job detail presentation', () => {
 			'href',
 			'/console/indexes/products%20migrated%2F2026'
 		);
-		expect(container).not.toHaveTextContent(arbitraryMessageCanary);
 		expect(container).not.toHaveTextContent(credentialCanary);
 		expect(container).not.toHaveTextContent(sourcePayloadCanary);
+		expect(container).not.toHaveTextContent('index-settings');
+		expect(container).not.toHaveTextContent('index_settings');
+		expect(container).not.toHaveTextContent(/\band \d+ more warnings?\b/);
+	});
+
+	it.each([
+		['a status other than completed_with_warnings', 'completed', true],
+		['an unobserved terminal outcome', 'completed_with_warnings', false]
+	] as const)('renders warning payloads for %s', (_case, status, terminalOutcomeObserved) => {
+		render(ImportJobDetail, {
+			job: publicImportJob({
+				status,
+				terminalOutcomeObserved,
+				warnings: [
+					{
+						code: 'unsupported_synonym_type',
+						message: 'Change this synonym type.',
+						resource: 'synonyms',
+						pageIndex: 2,
+						itemIndex: 5,
+						jsonPath: '$.synonyms[5]'
+					}
+				]
+			})
+		});
+
+		expect(screen.getByTestId('migration-job-warning-summary').textContent).toBe(
+			'This import has 1 compatibility warning.'
+		);
+		const warningRegion = screen.getByRole('region', { name: 'Compatibility warnings' });
+		expect(within(warningRegion).getAllByRole('listitem')).toHaveLength(1);
+	});
+
+	it('renders no warning summary or region for an empty warning payload', () => {
+		render(ImportJobDetail, {
+			job: publicImportJob({ status: 'completed_with_warnings', warnings: [] })
+		});
+
+		expect(screen.queryByTestId('migration-job-warning-summary')).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole('region', { name: 'Compatibility warnings' })
+		).not.toBeInTheDocument();
 	});
 
 	it('renders stable typed failure copy without exposing the producer message or prior key', () => {
 		const producerMessage = 'upstream detail included prior-key-canary';
 		const { container } = render(ImportJobDetail, {
-			job: publicJob({
+			job: publicImportJob({
 				status: 'failed',
 				publicationDisposition: 'unchanged',
 				resumable: true,
@@ -246,7 +241,7 @@ describe('Algolia import job detail presentation', () => {
 
 	it('blocks unknown-disposition retry pending reconciliation and still keeps the key blank', () => {
 		render(ImportJobDetail, {
-			job: publicJob({
+			job: publicImportJob({
 				status: 'interrupted',
 				publicationDisposition: 'unknown',
 				resumable: true,
@@ -267,7 +262,7 @@ describe('Algolia import job detail presentation', () => {
 
 	it('renders replacement destination_changed copy without erasure language', () => {
 		render(ImportJobDetail, {
-			job: publicJob({
+			job: publicImportJob({
 				mode: 'replace',
 				destination: {
 					kind: 'replace',
@@ -292,7 +287,7 @@ describe('Algolia import job detail presentation', () => {
 
 	it('disables Stage 5 retry entry points under runtime backpressure with typed retry-after copy', () => {
 		render(ImportJobDetail, {
-			job: publicJob({
+			job: publicImportJob({
 				status: 'failed',
 				publicationDisposition: 'unchanged',
 				resumable: true
@@ -315,7 +310,7 @@ describe('Algolia import job detail presentation', () => {
 
 	it.each([
 		['absent', undefined],
-		['all false', NO_CAPABILITIES],
+		['all false', NO_MIGRATION_CAPABILITIES],
 		['partial cancel omitted', { resume: true, replace: true } as AlgoliaMigrationCapabilities],
 		[
 			'malformed cancel by cast',
@@ -325,7 +320,7 @@ describe('Algolia import job detail presentation', () => {
 		'renders no cancel affordance, placeholder, tooltip, hint, or inert control for %s capability inputs',
 		(_name, capabilities) => {
 			render(ImportJobDetail, {
-				job: publicJob({ status: 'copying_documents' }),
+				job: publicImportJob({ status: 'copying_documents' }),
 				capabilities,
 				onCancelIntent: () => {}
 			});
@@ -338,7 +333,7 @@ describe('Algolia import job detail presentation', () => {
 
 	it.each([
 		['absent', undefined],
-		['all false', NO_CAPABILITIES],
+		['all false', NO_MIGRATION_CAPABILITIES],
 		['partial resume omitted', { cancel: true, replace: true } as AlgoliaMigrationCapabilities],
 		[
 			'malformed resume by cast',
@@ -348,7 +343,7 @@ describe('Algolia import job detail presentation', () => {
 		'renders no resume affordance, placeholder, tooltip, hint, or inert control for %s capability inputs',
 		(_name, capabilities) => {
 			render(ImportJobDetail, {
-				job: publicJob({
+				job: publicImportJob({
 					status: 'failed',
 					resumable: true,
 					publicationDisposition: 'unchanged',
@@ -375,7 +370,7 @@ describe('Algolia import job detail presentation', () => {
 
 	it('renders only the cancel arm when the cancel capability is true', () => {
 		render(ImportJobDetail, {
-			job: publicJob({ status: 'copying_documents' }),
+			job: publicImportJob({ status: 'copying_documents' }),
 			capabilities: { cancel: true, resume: false, replace: false },
 			onCancelIntent: () => {},
 			onResumeIntent: () => {}
@@ -388,7 +383,11 @@ describe('Algolia import job detail presentation', () => {
 
 	it('renders only the resume arm when the resume capability and job fields are true', () => {
 		render(ImportJobDetail, {
-			job: publicJob({ status: 'failed', resumable: true, publicationDisposition: 'unchanged' }),
+			job: publicImportJob({
+				status: 'failed',
+				resumable: true,
+				publicationDisposition: 'unchanged'
+			}),
 			capabilities: { cancel: false, resume: true, replace: false },
 			onCancelIntent: () => {},
 			onResumeIntent: () => {}
@@ -402,7 +401,7 @@ describe('Algolia import job detail presentation', () => {
 
 	it('does not let replace or an availability-like flag cross-enable job actions', () => {
 		render(ImportJobDetail, {
-			job: publicJob({ status: 'copying_documents' }),
+			job: publicImportJob({ status: 'copying_documents' }),
 			capabilities: {
 				cancel: false,
 				resume: false,
@@ -418,13 +417,13 @@ describe('Algolia import job detail presentation', () => {
 		expect(screen.queryByRole('button', { name: /replace/i })).not.toBeInTheDocument();
 	});
 
-	it.each(NON_TERMINAL_STATUSES)(
+	it.each(NON_TERMINAL_IMPORT_STATUSES)(
 		'confirms cancel with exact safety copy for non-terminal %s jobs',
 		async (status) => {
 			const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
 			const onCancelIntent = vi.fn();
 			render(ImportJobDetail, {
-				job: publicJob({ status }),
+				job: publicImportJob({ status }),
 				capabilities: { cancel: true, resume: false, replace: false },
 				onCancelIntent
 			});
@@ -440,7 +439,7 @@ describe('Algolia import job detail presentation', () => {
 		vi.spyOn(window, 'confirm').mockReturnValue(true);
 		const onCancelIntent = vi.fn();
 		render(ImportJobDetail, {
-			job: publicJob({ status: 'copying_documents' }),
+			job: publicImportJob({ status: 'copying_documents' }),
 			capabilities: { cancel: true, resume: false, replace: false },
 			onCancelIntent
 		});
@@ -457,7 +456,7 @@ describe('Algolia import job detail presentation', () => {
 		vi.spyOn(window, 'confirm').mockReturnValue(true);
 		const onCancelIntent = vi.fn();
 		const { rerender } = render(ImportJobDetail, {
-			job: publicJob({ id: 'job_first', status: 'copying_documents' }),
+			job: publicImportJob({ id: 'job_first', status: 'copying_documents' }),
 			capabilities: { cancel: true, resume: false, replace: false },
 			onCancelIntent
 		});
@@ -466,7 +465,7 @@ describe('Algolia import job detail presentation', () => {
 		expect(screen.getByRole('button', { name: /cancel import/i })).toBeDisabled();
 
 		await rerender({
-			job: publicJob({ id: 'job_second', status: 'copying_documents' }),
+			job: publicImportJob({ id: 'job_second', status: 'copying_documents' }),
 			capabilities: { cancel: true, resume: false, replace: false },
 			onCancelIntent
 		});
@@ -477,7 +476,7 @@ describe('Algolia import job detail presentation', () => {
 	it('re-enables cancel after a same-job reload cycle ends without a state change', async () => {
 		vi.spyOn(window, 'confirm').mockReturnValue(true);
 		const onCancelIntent = vi.fn();
-		const job = publicJob({ status: 'copying_documents' });
+		const job = publicImportJob({ status: 'copying_documents' });
 		const props = {
 			job,
 			capabilities: { cancel: true, resume: false, replace: false },
@@ -495,14 +494,14 @@ describe('Algolia import job detail presentation', () => {
 		vi.spyOn(window, 'confirm').mockReturnValue(true);
 		const onCancelIntent = vi.fn();
 		const { rerender } = render(ImportJobDetail, {
-			job: publicJob({ status: 'copying_documents' }),
+			job: publicImportJob({ status: 'copying_documents' }),
 			capabilities: { cancel: true, resume: false, replace: false },
 			onCancelIntent
 		});
 
 		await fireEvent.click(screen.getByRole('button', { name: /cancel import/i }));
 		await rerender({
-			job: publicJob({ status: 'cancelling' }),
+			job: publicImportJob({ status: 'cancelling' }),
 			capabilities: { cancel: true, resume: false, replace: false },
 			onCancelIntent
 		});
@@ -510,7 +509,7 @@ describe('Algolia import job detail presentation', () => {
 		expect(screen.getByTestId('migration-job-safe-reload')).toBeInTheDocument();
 
 		await rerender({
-			job: publicJob({ status: 'completed', publicationDisposition: 'promoted' }),
+			job: publicImportJob({ status: 'completed', publicationDisposition: 'promoted' }),
 			capabilities: { cancel: true, resume: false, replace: false },
 			onCancelIntent
 		});
@@ -523,7 +522,7 @@ describe('Algolia import job detail presentation', () => {
 
 	it('states cancelled jobs leave the destination unchanged and offers a fresh import only', () => {
 		render(ImportJobDetail, {
-			job: publicJob({
+			job: publicImportJob({
 				status: 'cancelled',
 				publicationDisposition: 'unchanged',
 				resumable: true
@@ -555,7 +554,7 @@ describe('Algolia import job detail presentation', () => {
 		'renders resume only for a resumable %s fixture when the capability is true',
 		async (_name, status, code) => {
 			render(ImportJobDetail, {
-				job: publicJob({
+				job: publicImportJob({
 					status,
 					resumable: true,
 					publicationDisposition: 'unchanged',
@@ -581,7 +580,7 @@ describe('Algolia import job detail presentation', () => {
 
 	it('shows the resume deadline as an absolute UTC time with its provenance when supplied', () => {
 		render(ImportJobDetail, {
-			job: publicJob({
+			job: publicImportJob({
 				status: 'interrupted',
 				resumable: true,
 				publicationDisposition: 'unchanged',
@@ -602,7 +601,7 @@ describe('Algolia import job detail presentation', () => {
 
 	it('omits the resume deadline line entirely when no deadline is supplied', () => {
 		render(ImportJobDetail, {
-			job: publicJob({
+			job: publicImportJob({
 				status: 'failed',
 				resumable: true,
 				publicationDisposition: 'unchanged',
@@ -620,7 +619,7 @@ describe('Algolia import job detail presentation', () => {
 	it('emits one fresh-key resume intent, clears the key, and disables duplicate submits', async () => {
 		const onResumeIntent = vi.fn();
 		render(ImportJobDetail, {
-			job: publicJob({
+			job: publicImportJob({
 				status: 'failed',
 				resumable: true,
 				publicationDisposition: 'unchanged',
@@ -644,7 +643,7 @@ describe('Algolia import job detail presentation', () => {
 
 	it('re-enables resume after a same-job reload cycle ends without a state change', async () => {
 		const onResumeIntent = vi.fn();
-		const job = publicJob({
+		const job = publicImportJob({
 			status: 'failed',
 			resumable: true,
 			publicationDisposition: 'unchanged',
@@ -675,7 +674,7 @@ describe('Algolia import job detail presentation', () => {
 		const replaceState = vi.spyOn(window.history, 'replaceState');
 		const onResumeIntent = vi.fn();
 		render(ImportJobDetail, {
-			job: publicJob({
+			job: publicImportJob({
 				status: 'failed',
 				resumable: true,
 				publicationDisposition: 'unchanged',
@@ -714,7 +713,7 @@ describe('Algolia import job detail presentation', () => {
 
 	it('offers retry from scratch only for non-resumable terminal failures', () => {
 		render(ImportJobDetail, {
-			job: publicJob({
+			job: publicImportJob({
 				status: 'failed',
 				resumable: false,
 				publicationDisposition: 'unchanged',
@@ -744,7 +743,7 @@ describe('Algolia import job detail presentation', () => {
 		'disables resume during %s without hiding job status',
 		(reason) => {
 			render(ImportJobDetail, {
-				job: publicJob({
+				job: publicImportJob({
 					status: 'interrupted',
 					resumable: true,
 					publicationDisposition: 'unchanged',
@@ -774,7 +773,7 @@ describe('Algolia import job detail presentation', () => {
 		['promoting', 'repository_backpressure', 'Repository ACKs are delayed.']
 	] as const)('keeps status and cancel usable for %s jobs during %s', (status, reason, message) => {
 		render(ImportJobDetail, {
-			job: publicJob({ status }),
+			job: publicImportJob({ status }),
 			admission: {
 				admitted: false,
 				reason,

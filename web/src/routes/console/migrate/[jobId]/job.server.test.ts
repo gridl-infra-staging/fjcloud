@@ -3,23 +3,37 @@ import { ApiRequestError } from '$lib/api/client';
 import type { PublicAlgoliaImportJob } from '$lib/api/types';
 
 const getAlgoliaImportJobMock = vi.fn();
+const getMigrationImportJobMock = vi.fn();
 const getAlgoliaMigrationAvailabilityMock = vi.fn();
+const getMigrationAvailabilityMock = vi.fn();
 const cancelAlgoliaImportJobMock = vi.fn();
 const resumeAlgoliaImportJobMock = vi.fn();
+const cancelMigrationImportJobMock = vi.fn();
+const resumeMigrationImportJobMock = vi.fn();
 
 vi.mock('$lib/server/api', () => ({
 	createApiClient: vi.fn(() => ({
 		getAlgoliaImportJob: getAlgoliaImportJobMock,
+		getMigrationImportJob: getMigrationImportJobMock,
 		getAlgoliaMigrationAvailability: getAlgoliaMigrationAvailabilityMock,
+		getMigrationAvailability: getMigrationAvailabilityMock,
 		cancelAlgoliaImportJob: cancelAlgoliaImportJobMock,
-		resumeAlgoliaImportJob: resumeAlgoliaImportJobMock
+		resumeAlgoliaImportJob: resumeAlgoliaImportJobMock,
+		cancelMigrationImportJob: cancelMigrationImportJobMock,
+		resumeMigrationImportJob: resumeMigrationImportJobMock
 	}))
 }));
 
 import { actions, load } from './+page.server';
 
-const JOB_FIXTURE: PublicAlgoliaImportJob = {
+const CLOSED_SOURCE_PROVIDERS = ['algolia', 'meilisearch', 'typesense'] as const;
+const INVALID_SOURCE_PROVIDERS = ['elastic', '../typesense'] as const;
+type SourceProvider = (typeof CLOSED_SOURCE_PROVIDERS)[number];
+type PublicJobWithSourceProvider = PublicAlgoliaImportJob & { sourceProvider: SourceProvider };
+
+const JOB_FIXTURE: PublicJobWithSourceProvider = {
 	id: 'job_123',
+	sourceProvider: 'algolia',
 	status: 'copying_documents',
 	mode: 'create',
 	destination: { kind: 'create', target: 'products_migrated', region: 'us-east-1' },
@@ -64,6 +78,30 @@ function localsWithToken(token = 'jwt-secret-canary') {
 	return { user: { token } };
 }
 
+function loadEvent(
+	sourceProvider: SourceProvider = 'algolia',
+	jobId = 'job_123',
+	token = 'jwt-secret-canary'
+) {
+	return loadEventWithSourceProviderQuery(sourceProvider, jobId, token);
+}
+
+function loadEventWithSourceProviderQuery(
+	sourceProvider: string | null,
+	jobId = 'job_123',
+	token = 'jwt-secret-canary'
+) {
+	const url = new URL(`http://localhost/console/migrate/${encodeURIComponent(jobId)}`);
+	if (sourceProvider !== null) {
+		url.searchParams.set('source_provider', sourceProvider);
+	}
+	return {
+		params: { jobId },
+		url,
+		locals: localsWithToken(token)
+	} as never;
+}
+
 const SECRET_CANARIES = [
 	'jwt-secret-canary',
 	'algolia_app_id_canary',
@@ -76,29 +114,56 @@ describe('[jobId] migration route server load', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		getAlgoliaImportJobMock.mockResolvedValue(JOB_FIXTURE);
+		getMigrationImportJobMock.mockImplementation(async (sourceProvider: SourceProvider) => ({
+			...JOB_FIXTURE,
+			sourceProvider
+		}));
 		getAlgoliaMigrationAvailabilityMock.mockResolvedValue(availableResponse());
+		getMigrationAvailabilityMock.mockResolvedValue(availableResponse());
 	});
 
-	it('loads the job and derives capabilities from the single availability source', async () => {
-		const result = (await load({
-			params: { jobId: 'job_123' },
-			locals: localsWithToken()
-		} as never)) as Record<string, unknown>;
+	it.each(CLOSED_SOURCE_PROVIDERS)(
+		'loads the %s job through the provider-scoped detail client and derives capabilities from the single availability source',
+		async (sourceProvider) => {
+			const expectedJob = { ...JOB_FIXTURE, sourceProvider };
+			const result = (await load(loadEvent(sourceProvider))) as Record<string, unknown>;
 
-		expect(getAlgoliaImportJobMock).toHaveBeenCalledOnce();
-		expect(getAlgoliaImportJobMock).toHaveBeenCalledWith('job_123');
-		expect(getAlgoliaMigrationAvailabilityMock).toHaveBeenCalledOnce();
-		expect(result).toEqual({
-			job: JOB_FIXTURE,
-			capabilities: AVAILABLE_CAPABILITIES
-		});
-	});
+			expect(getMigrationImportJobMock).toHaveBeenCalledOnce();
+			expect(getMigrationImportJobMock).toHaveBeenCalledWith(sourceProvider, 'job_123');
+			expect(getAlgoliaImportJobMock).not.toHaveBeenCalled();
+			expect(getMigrationAvailabilityMock).toHaveBeenCalledWith(sourceProvider);
+			expect(getAlgoliaMigrationAvailabilityMock).not.toHaveBeenCalled();
+			expect(result).toEqual({
+				job: expectedJob,
+				capabilities: AVAILABLE_CAPABILITIES
+			});
+		}
+	);
+
+	it.each([
+		['unknown', 'elastic'],
+		['path-shaped', '../typesense'],
+		['missing', null]
+	] as const)(
+		'rejects %s source_provider query values before invoking a detail API client',
+		async (_label, sourceProvider) => {
+			await expect(load(loadEventWithSourceProviderQuery(sourceProvider))).rejects.toEqual(
+				expect.objectContaining({
+					status: 400,
+					body: {
+						message: 'source_provider_unsupported'
+					}
+				})
+			);
+			expect(getMigrationImportJobMock).not.toHaveBeenCalled();
+			expect(getAlgoliaImportJobMock).not.toHaveBeenCalled();
+			expect(getMigrationAvailabilityMock).not.toHaveBeenCalled();
+			expect(getAlgoliaMigrationAvailabilityMock).not.toHaveBeenCalled();
+		}
+	);
 
 	it('serializes the job fixture without leaking tokens, credentials, or resume keys', async () => {
-		const result = await load({
-			params: { jobId: 'job_123' },
-			locals: localsWithToken()
-		} as never);
+		const result = await load(loadEvent());
 		const serialized = JSON.stringify(result);
 
 		for (const canary of SECRET_CANARIES) {
@@ -107,17 +172,14 @@ describe('[jobId] migration route server load', () => {
 	});
 
 	it('fails capabilities closed when availability reports unavailable', async () => {
-		getAlgoliaMigrationAvailabilityMock.mockResolvedValue({
+		getMigrationAvailabilityMock.mockResolvedValue({
 			available: false,
 			reason: 'temporarily_unavailable',
 			message: 'unavailable',
 			capabilities: { cancel: false, resume: false, replace: false }
 		});
 
-		const result = (await load({
-			params: { jobId: 'job_123' },
-			locals: localsWithToken()
-		} as never)) as Record<string, unknown>;
+		const result = (await load(loadEvent())) as Record<string, unknown>;
 
 		expect(result).toEqual({
 			job: JOB_FIXTURE,
@@ -126,12 +188,9 @@ describe('[jobId] migration route server load', () => {
 	});
 
 	it('fails capabilities closed on a non-auth availability failure while still serving the job', async () => {
-		getAlgoliaMigrationAvailabilityMock.mockRejectedValue(new ApiRequestError(500, 'boom'));
+		getMigrationAvailabilityMock.mockRejectedValue(new ApiRequestError(500, 'boom'));
 
-		const result = (await load({
-			params: { jobId: 'job_123' },
-			locals: localsWithToken()
-		} as never)) as Record<string, unknown>;
+		const result = (await load(loadEvent())) as Record<string, unknown>;
 
 		expect(result).toEqual({
 			job: JOB_FIXTURE,
@@ -140,12 +199,9 @@ describe('[jobId] migration route server load', () => {
 	});
 
 	it('maps a 401 on the job fetch through the dashboard auth contract', async () => {
-		getAlgoliaImportJobMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
+		getMigrationImportJobMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
 
-		const result = await load({
-			params: { jobId: 'job_123' },
-			locals: localsWithToken()
-		} as never);
+		const result = await load(loadEvent());
 
 		expect(result).toEqual(
 			expect.objectContaining({
@@ -153,16 +209,14 @@ describe('[jobId] migration route server load', () => {
 				data: expect.objectContaining({ _authSessionExpired: true, error: 'Unauthorized' })
 			})
 		);
+		expect(getMigrationAvailabilityMock).not.toHaveBeenCalled();
 		expect(getAlgoliaMigrationAvailabilityMock).not.toHaveBeenCalled();
 	});
 
 	it('maps a 403 on the availability fetch through the dashboard auth contract', async () => {
-		getAlgoliaMigrationAvailabilityMock.mockRejectedValue(new ApiRequestError(403, 'Forbidden'));
+		getMigrationAvailabilityMock.mockRejectedValue(new ApiRequestError(403, 'Forbidden'));
 
-		const result = await load({
-			params: { jobId: 'job_123' },
-			locals: localsWithToken()
-		} as never);
+		const result = await load(loadEvent());
 
 		expect(result).toEqual(
 			expect.objectContaining({
@@ -173,19 +227,17 @@ describe('[jobId] migration route server load', () => {
 	});
 
 	it('throws a 404 for a missing job', async () => {
-		getAlgoliaImportJobMock.mockRejectedValue(new ApiRequestError(404, 'not found'));
+		getMigrationImportJobMock.mockRejectedValue(new ApiRequestError(404, 'not found'));
 
-		await expect(
-			load({ params: { jobId: 'ghost' }, locals: localsWithToken() } as never)
-		).rejects.toMatchObject({ status: 404 });
+		await expect(load(loadEvent('algolia', 'ghost'))).rejects.toMatchObject({ status: 404 });
 	});
 
 	it('rejects path-traversal job ids before calling the control plane', async () => {
-		await expect(
-			load({ params: { jobId: '../admin' }, locals: localsWithToken() } as never)
-		).rejects.toMatchObject({ status: 404 });
+		await expect(load(loadEvent('algolia', '../admin'))).rejects.toMatchObject({ status: 404 });
 
+		expect(getMigrationImportJobMock).not.toHaveBeenCalled();
 		expect(getAlgoliaImportJobMock).not.toHaveBeenCalled();
+		expect(getMigrationAvailabilityMock).not.toHaveBeenCalled();
 		expect(getAlgoliaMigrationAvailabilityMock).not.toHaveBeenCalled();
 	});
 });
@@ -206,33 +258,38 @@ describe('[jobId] migration route server actions', () => {
 		vi.clearAllMocks();
 		cancelAlgoliaImportJobMock.mockResolvedValue({ ...JOB_FIXTURE, status: 'cancelling' });
 		resumeAlgoliaImportJobMock.mockResolvedValue({ ...JOB_FIXTURE, status: 'resuming' });
+		cancelMigrationImportJobMock.mockResolvedValue({ ...JOB_FIXTURE, status: 'cancelling' });
+		resumeMigrationImportJobMock.mockResolvedValue({ ...JOB_FIXTURE, status: 'resuming' });
 	});
 
 	it('exports only the cancel and resume job actions', () => {
 		expect(Object.keys(actions).sort()).toEqual(['cancel', 'resume']);
 	});
 
-	it('cancel calls cancelAlgoliaImportJob with the path job id and the server token only', async () => {
+	it('cancel calls the neutral Algolia cancellation wrapper with the path job id and server token only', async () => {
 		const result = await actions.cancel({
 			params: { jobId: 'job_123' },
-			request: actionRequest(),
+			request: actionRequest({ source_provider: 'algolia' }),
 			locals: localsWithToken()
 		} as never);
 
-		expect(cancelAlgoliaImportJobMock).toHaveBeenCalledOnce();
-		expect(cancelAlgoliaImportJobMock).toHaveBeenCalledWith('job_123');
+		expect(cancelMigrationImportJobMock).toHaveBeenCalledOnce();
+		expect(cancelMigrationImportJobMock).toHaveBeenCalledWith('algolia', 'job_123');
 		expect(JSON.stringify(result)).not.toContain('jwt-secret-canary');
 	});
 
-	it('resume parses the fresh API key and forwards it without echoing it back', async () => {
+	it('resume parses the fresh API key and forwards it through the neutral Algolia wrapper without echoing it back', async () => {
 		const result = await actions.resume({
 			params: { jobId: 'job_123' },
-			request: actionRequest({ apiKey: 'resume-secret-key-canary-0007' }),
+			request: actionRequest({
+				source_provider: 'algolia',
+				apiKey: 'resume-secret-key-canary-0007'
+			}),
 			locals: localsWithToken()
 		} as never);
 
-		expect(resumeAlgoliaImportJobMock).toHaveBeenCalledOnce();
-		expect(resumeAlgoliaImportJobMock).toHaveBeenCalledWith('job_123', {
+		expect(resumeMigrationImportJobMock).toHaveBeenCalledOnce();
+		expect(resumeMigrationImportJobMock).toHaveBeenCalledWith('algolia', 'job_123', {
 			apiKey: 'resume-secret-key-canary-0007'
 		});
 		const serialized = JSON.stringify(result);
@@ -243,20 +300,20 @@ describe('[jobId] migration route server actions', () => {
 	it('rejects a blank resume API key before calling the control plane', async () => {
 		const result = await actions.resume({
 			params: { jobId: 'job_123' },
-			request: actionRequest({ apiKey: '   ' }),
+			request: actionRequest({ source_provider: 'algolia', apiKey: '   ' }),
 			locals: localsWithToken()
 		} as never);
 
-		expect(resumeAlgoliaImportJobMock).not.toHaveBeenCalled();
+		expect(resumeMigrationImportJobMock).not.toHaveBeenCalled();
 		expect(result).toMatchObject({ status: 400 });
 	});
 
 	it('maps a 401 cancel failure through the dashboard auth contract', async () => {
-		cancelAlgoliaImportJobMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
+		cancelMigrationImportJobMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
 
 		const result = await actions.cancel({
 			params: { jobId: 'job_123' },
-			request: actionRequest(),
+			request: actionRequest({ source_provider: 'algolia' }),
 			locals: localsWithToken()
 		} as never);
 
@@ -269,11 +326,14 @@ describe('[jobId] migration route server actions', () => {
 	});
 
 	it('maps a 403 resume failure through the dashboard auth contract', async () => {
-		resumeAlgoliaImportJobMock.mockRejectedValue(new ApiRequestError(403, 'Forbidden'));
+		resumeMigrationImportJobMock.mockRejectedValue(new ApiRequestError(403, 'Forbidden'));
 
 		const result = await actions.resume({
 			params: { jobId: 'job_123' },
-			request: actionRequest({ apiKey: 'resume-secret-key-canary-0007' }),
+			request: actionRequest({
+				source_provider: 'algolia',
+				apiKey: 'resume-secret-key-canary-0007'
+			}),
 			locals: localsWithToken()
 		} as never);
 
@@ -303,5 +363,164 @@ describe('[jobId] migration route server actions', () => {
 
 		expect(cancelAlgoliaImportJobMock).not.toHaveBeenCalled();
 		expect(resumeAlgoliaImportJobMock).not.toHaveBeenCalled();
+	});
+
+	it.each(['algolia', 'meilisearch', 'typesense'] as const)(
+		'cancel forwards selected source_provider %s to the neutral job API client method',
+		async (sourceProvider) => {
+			await actions.cancel({
+				params: { jobId: 'job_123' },
+				request: actionRequest({ source_provider: sourceProvider }),
+				locals: localsWithToken()
+			} as never);
+
+			expect(cancelMigrationImportJobMock).toHaveBeenCalledOnce();
+			expect(cancelMigrationImportJobMock).toHaveBeenCalledWith(sourceProvider, 'job_123');
+			expect(cancelAlgoliaImportJobMock).not.toHaveBeenCalled();
+		}
+	);
+
+	it.each(INVALID_SOURCE_PROVIDERS)(
+		'cancel rejects invalid source_provider %s before invoking a migration client method',
+		async (sourceProvider) => {
+			const result = await actions.cancel({
+				params: { jobId: 'job_123' },
+				request: actionRequest({ source_provider: sourceProvider }),
+				locals: localsWithToken()
+			} as never);
+
+			expect(result).toEqual(
+				expect.objectContaining({
+					status: 400,
+					data: {
+						error: 'source_provider_unsupported',
+						code: 'source_provider_unsupported'
+					}
+				})
+			);
+			expect(cancelMigrationImportJobMock).not.toHaveBeenCalled();
+			expect(cancelAlgoliaImportJobMock).not.toHaveBeenCalled();
+		}
+	);
+
+	it.each(['algolia', 'meilisearch', 'typesense'] as const)(
+		'resume forwards selected source_provider %s and fresh key to the neutral job API client method',
+		async (sourceProvider) => {
+			await actions.resume({
+				params: { jobId: 'job_123' },
+				request: actionRequest({
+					source_provider: sourceProvider,
+					apiKey: `${sourceProvider}-resume-secret-key-canary`
+				}),
+				locals: localsWithToken()
+			} as never);
+
+			expect(resumeMigrationImportJobMock).toHaveBeenCalledOnce();
+			expect(resumeMigrationImportJobMock).toHaveBeenCalledWith(sourceProvider, 'job_123', {
+				apiKey: `${sourceProvider}-resume-secret-key-canary`
+			});
+			expect(resumeAlgoliaImportJobMock).not.toHaveBeenCalled();
+		}
+	);
+
+	it.each(INVALID_SOURCE_PROVIDERS)(
+		'resume rejects invalid source_provider %s before invoking a migration client method',
+		async (sourceProvider) => {
+			const result = await actions.resume({
+				params: { jobId: 'job_123' },
+				request: actionRequest({
+					source_provider: sourceProvider,
+					apiKey: 'invalid-provider-resume-secret-key-canary'
+				}),
+				locals: localsWithToken()
+			} as never);
+
+			expect(result).toEqual(
+				expect.objectContaining({
+					status: 400,
+					data: {
+						error: 'source_provider_unsupported',
+						code: 'source_provider_unsupported'
+					}
+				})
+			);
+			expect(resumeMigrationImportJobMock).not.toHaveBeenCalled();
+			expect(resumeAlgoliaImportJobMock).not.toHaveBeenCalled();
+			expect(JSON.stringify(result)).not.toContain('invalid-provider-resume-secret-key-canary');
+		}
+	);
+
+	it.each([
+		{
+			actionName: 'cancel',
+			invoke: () =>
+				actions.cancel({
+					params: { jobId: 'job_123' },
+					request: actionRequest(),
+					locals: localsWithToken()
+				} as never),
+			clientMocks: [cancelMigrationImportJobMock, cancelAlgoliaImportJobMock]
+		},
+		{
+			actionName: 'resume',
+			invoke: () =>
+				actions.resume({
+					params: { jobId: 'job_123' },
+					request: actionRequest({ apiKey: 'missing-provider-resume-key-canary' }),
+					locals: localsWithToken()
+				} as never),
+			clientMocks: [resumeMigrationImportJobMock, resumeAlgoliaImportJobMock]
+		}
+	])(
+		'$actionName rejects a missing source_provider before invoking a migration client method',
+		async ({ invoke, clientMocks }) => {
+			const result = await invoke();
+
+			expect(result).toEqual(
+				expect.objectContaining({
+					status: 400,
+					data: {
+						error: 'source_provider_unsupported',
+						code: 'source_provider_unsupported'
+					}
+				})
+			);
+			for (const clientMock of clientMocks) {
+				expect(clientMock).not.toHaveBeenCalled();
+			}
+			expect(JSON.stringify(result)).not.toContain('missing-provider-resume-key-canary');
+		}
+	);
+
+	it('returns source_provider_unsupported as a neutral typed action failure', async () => {
+		resumeMigrationImportJobMock.mockRejectedValue(
+			new ApiRequestError(400, 'source_provider_unsupported', {
+				body: {
+					error: 'source_provider_unsupported',
+					code: 'source_provider_unsupported'
+				}
+			})
+		);
+
+		const result = await actions.resume({
+			params: { jobId: 'job_123' },
+			request: actionRequest({
+				source_provider: 'typesense',
+				apiKey: 'typesense-resume-secret-key-canary'
+			}),
+			locals: localsWithToken()
+		} as never);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: {
+					error: 'source_provider_unsupported',
+					code: 'source_provider_unsupported'
+				}
+			})
+		);
+		expect(JSON.stringify(result)).not.toContain('migration_provider_unsupported');
+		expect(JSON.stringify(result)).not.toContain('typesense-resume-secret-key-canary');
 	});
 });

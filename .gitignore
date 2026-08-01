@@ -147,3 +147,15 @@ docs/runbooks/evidence/subprocessor_disclosure/
 # git zero times and the gate mechanism is `cargo fmt --check`, which is
 # git-agnostic.
 infra/api/tests/_local_ci_set_e_regression_fixture.*.rs
+
+# Suite artifact roots written by scripts/tests/apply_ses_log_read_policy_test.sh
+# under the checkout root ($REPO_ROOT/.test_artifacts/<suite>_$$_$RANDOM). The
+# suite removes them on an EXIT trap, but the trap does not run when the session
+# is hard-killed — matt terminates a session after 300s of silent stdout — so a
+# concurrent `git add -A` sweeps the residue into a commit. This is the same
+# failure mode as the set-E fixture above and takes the same fix: 77 such files
+# reached batman/jul28_6am_9_batch_union_close_and_ssot_reconcile that way.
+# The paths are repo-relative on purpose (the suite proves the SUT's relative
+# --artifact-dir handling and its sibling-preservation contract), so ignoring
+# the root is the correct guard rather than relocating the suite to mktemp.
+.test_artifacts/

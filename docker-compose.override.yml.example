@@ -5,26 +5,11 @@
 # Docker Compose automatically merges override files with docker-compose.yml.
 #
 #   cp docker-compose.override.yml.example docker-compose.override.yml
-#   docker compose up -d postgres     # start only Postgres in Docker
-#   cargo run -p api                  # run API natively (faster iteration)
-#   cd web && npm run dev             # run web natively (HMR)
-#
-# Or use the overrides below to run everything in Docker with hot reload.
+#   bash scripts/local-dev-up.sh      # start Docker dependencies + Flapjack
+#   bash scripts/api-dev.sh           # run API natively
+#   bash scripts/web-dev.sh           # run web natively with HMR
 
-services:
-  api:
-    build:
-      target: builder
-    volumes:
-      - ./infra:/build
-      - cargo-cache:/usr/local/cargo/registry
-    command: ["cargo", "watch", "-x", "run -p api"]
-
-  web:
-    volumes:
-      - ./web:/app
-      - /app/node_modules
-    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+services: {}
 
   # ---------------------------------------------------------------------------
   # Optional: Flapjack search engine
@@ -43,6 +28,3 @@ services:
   #     - "7799:7799"
   #   environment:
   #     FLAPJACK_PORT: "7799"
-
-volumes:
-  cargo-cache:

@@ -108,7 +108,8 @@ export async function collectOverviewExportRecords({
 				? error.message
 				: 'Failed to browse documents for export';
 		throw new Error(
-			`Export failed after ${exportedHits.length}/${indexEntries} documents: ${message}`
+			`Export failed after ${exportedHits.length}/${indexEntries} documents: ${message}`,
+			{ cause: error }
 		);
 	}
 

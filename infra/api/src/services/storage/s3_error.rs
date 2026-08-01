@@ -1,5 +1,6 @@
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
+use quick_xml::escape::unescape;
 use quick_xml::events::Event;
 use quick_xml::Reader;
 
@@ -144,7 +145,7 @@ impl GarageErrorBuilder {
             },
             _ => return,
         };
-        *slot = Some(value);
+        slot.get_or_insert_with(String::new).push_str(&value);
     }
 
     fn build(self) -> Option<ParsedGarageError> {
@@ -170,7 +171,6 @@ struct ParsedGarageError {
 /// the `<Error>` root, or lacks a non-empty `Code` and `Message`.
 fn parse_garage_error_xml(xml: &str) -> Option<ParsedGarageError> {
     let mut reader = Reader::from_str(xml);
-    reader.config_mut().trim_text(true);
 
     let mut open_tags = Vec::<Vec<u8>>::new();
     let mut saw_error_root = false;
@@ -194,11 +194,20 @@ fn parse_garage_error_xml(xml: &str) -> Option<ParsedGarageError> {
             }
             Ok(Event::Empty(_empty)) => {}
             Ok(Event::Text(text)) => {
-                let value = text.unescape().ok()?.into_owned();
+                let value = text.xml10_content().ok()?;
+                let value = unescape(value.as_ref()).ok()?.into_owned();
                 if open_tags.is_empty() {
-                    if value.is_empty() {
+                    if value.trim().is_empty() {
                         continue;
                     }
+                    return None;
+                }
+                builder.record(&open_tags, value);
+            }
+            Ok(Event::GeneralRef(reference)) => {
+                let value = reference.decode().ok()?;
+                let value = unescape(&format!("&{value};")).ok()?.into_owned();
+                if open_tags.is_empty() {
                     return None;
                 }
                 builder.record(&open_tags, value);
@@ -235,4 +244,36 @@ fn parse_garage_error_xml(xml: &str) -> Option<ParsedGarageError> {
 
 fn non_empty_value(value: Option<String>) -> Option<String> {
     value.and_then(|value| (!value.is_empty()).then_some(value))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn garage_error_xml_decodes_escaped_text_fields() {
+        let response = from_garage_error_xml(
+            "<Error>\
+                <Code>AccessDenied</Code>\
+                <Message>bucket &amp; key denied</Message>\
+                <Resource>/tenant/&lt;bucket&gt;</Resource>\
+                <RequestId>req-&amp;-1</RequestId>\
+            </Error>",
+            "/fallback",
+            "fallback-request",
+        );
+
+        assert_eq!(response.status, 403);
+        assert!(
+            response
+                .body
+                .contains("<Message>bucket &amp; key denied</Message>"),
+            "{}",
+            response.body
+        );
+        assert!(response
+            .body
+            .contains("<Resource>/tenant/&lt;bucket&gt;</Resource>"));
+        assert!(response.body.contains("<RequestId>req-&amp;-1</RequestId>"));
+    }
 }

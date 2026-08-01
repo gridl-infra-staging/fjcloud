@@ -90,7 +90,7 @@ resource "aws_ssm_parameter" "db_password" {
 resource "aws_ssm_parameter" "database_url" {
   name  = "/fjcloud/${var.env}/database_url"
   type  = "SecureString"
-  value = "postgres://${aws_db_instance.main.username}:${random_password.db.result}@${aws_db_instance.main.endpoint}/${aws_db_instance.main.db_name}"
+  value = "postgres://${aws_db_instance.main.username}:${random_password.db.result}@${aws_db_instance.main.endpoint}/${aws_db_instance.main.db_name}?sslmode=require"
 
   tags = {
     Name = "fjcloud-${var.env}-database-url"

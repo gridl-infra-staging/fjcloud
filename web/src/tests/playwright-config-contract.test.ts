@@ -627,21 +627,18 @@ describe('playwright config contract', () => {
 	});
 
 	it('resolvePlaywrightRuntime deletes the inherited email verification flag from real process.env', async () => {
-		await withIsolatedProcessEnv(
-			{ [PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV]: '1' },
-			async () => {
-				const runtime = resolvePlaywrightRuntime({
-					processEnv: process.env,
-					repoEnv: {},
-					webEnv: {},
-					fallbackJwtSecret: 'fallback-jwt',
-					argv: ['test', '--project', 'chromium:signup']
-				});
+		await withIsolatedProcessEnv({ [PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV]: '1' }, async () => {
+			const runtime = resolvePlaywrightRuntime({
+				processEnv: process.env,
+				repoEnv: {},
+				webEnv: {},
+				fallbackJwtSecret: 'fallback-jwt',
+				argv: ['test', '--project', 'chromium:signup']
+			});
 
-				expectLocalAutoVerificationBypass(runtime.webServerEnv);
-				expect(process.env[PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV]).toBeUndefined();
-			}
-		);
+			expectLocalAutoVerificationBypass(runtime.webServerEnv);
+			expect(process.env[PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV]).toBeUndefined();
+		});
 	});
 
 	it('resolvePlaywrightRuntime keeps local bypass for mixed project selections', () => {
@@ -650,12 +647,7 @@ describe('playwright config contract', () => {
 			repoEnv: {},
 			webEnv: {},
 			fallbackJwtSecret: 'fallback-jwt',
-			argv: [
-				'test',
-				'--project=chromium:email-verification',
-				'--project',
-				'chromium:signup'
-			]
+			argv: ['test', '--project=chromium:email-verification', '--project', 'chromium:signup']
 		});
 
 		expectLocalAutoVerificationBypass(runtime.webServerEnv);
@@ -892,11 +884,7 @@ describe('playwright config contract', () => {
 				repoEnv: {},
 				webEnv: {},
 				fallbackJwtSecret: 'fallback-jwt',
-				argv: [
-					'test',
-					'tests/e2e-ui/full/public-infrastructure.spec.ts:10:4',
-					...projectArgs
-				],
+				argv: ['test', 'tests/e2e-ui/full/public-infrastructure.spec.ts:10:4', ...projectArgs],
 				workspacePath
 			});
 

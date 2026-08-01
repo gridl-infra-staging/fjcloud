@@ -15,9 +15,7 @@ use uuid::Uuid;
 use crate::auth::{AdminAuth, Claims};
 use crate::errors::ApiError;
 use crate::models::customer::{customer_auth_state, CustomerAuthState};
-use crate::services::audit_log::{
-    write_audit_log, ACTION_IMPERSONATION_TOKEN_CREATED, ADMIN_SENTINEL_ACTOR_ID,
-};
+use crate::services::audit_log::{write_audit_log, ACTION_IMPERSONATION_TOKEN_CREATED};
 use crate::state::AppState;
 
 /// Discriminator value for the `purpose` field that triggers an audit row.
@@ -81,7 +79,7 @@ async fn require_token_customer(state: &AppState, customer_id: Uuid) -> Result<(
 /// best-effort: failures are logged at `error!` level but do NOT block token
 /// issuance — see the comment on `write_audit_log` for the rationale.
 pub async fn create_token(
-    _admin: AdminAuth,
+    auth: AdminAuth,
     State(state): State<AppState>,
     Json(req): Json<CreateTokenRequest>,
 ) -> Result<Json<CreateTokenResponse>, ApiError> {
@@ -126,7 +124,7 @@ pub async fn create_token(
         // we lose ONE audit row; tracing!error gives ops visibility.
         if let Err(err) = write_audit_log(
             &state.pool,
-            ADMIN_SENTINEL_ACTOR_ID,
+            auth.operator_id,
             ACTION_IMPERSONATION_TOKEN_CREATED,
             Some(req.customer_id),
             serde_json::json!({ "duration_secs": duration }),

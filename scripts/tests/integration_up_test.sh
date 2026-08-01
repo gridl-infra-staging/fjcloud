@@ -20,6 +20,20 @@ pass() {
     PASS_COUNT=$((PASS_COUNT + 1))
 }
 
+wait_for_nonempty_file() {
+    local file_path="$1"
+    local max_attempts="${2:-50}"
+    local attempt=0
+
+    while [ "$attempt" -lt "$max_attempts" ]; do
+        [ -s "$file_path" ] && return 0
+        sleep 0.1
+        attempt=$((attempt + 1))
+    done
+
+    return 1
+}
+
 # shellcheck source=lib/assertions.sh
 source "$SCRIPT_DIR/lib/assertions.sh"
 
@@ -750,11 +764,7 @@ esac
         bash "$REPO_ROOT/scripts/integration-up.sh" 2>&1
     ) || exit_code=$?
 
-    local wait_attempt
-    for wait_attempt in 1 2 3 4 5; do
-        [ -s "$api_env_log" ] && break
-        sleep 0.1
-    done
+    wait_for_nonempty_file "$api_env_log" || true
 
     local env_log
     env_log="$(cat "$api_env_log" 2>/dev/null || true)"
@@ -850,6 +860,7 @@ exit 1
     local output exit_code=0
     output=$(
         PATH="$tmp_dir:/usr/bin:/bin" \
+        DATABASE_URL= \
         INTEGRATION_DB="fjcloud_integration_test" \
         FLAPJACK_DEV_DIR="/nonexistent" \
         bash "$REPO_ROOT/scripts/integration-up.sh" --check-prerequisites 2>&1
@@ -962,15 +973,12 @@ test_startup_uses_isolated_local_api_environment() {
         FJCLOUD_INTEGRATION_API_BINARY="$api_bin" \
         FJCLOUD_INTEGRATION_SKIP_METERING_AGENT=1 \
         INTEGRATION_INTERNAL_AUTH_TOKEN="integration-up-shared-token" \
+        INTEGRATION_UP_API_START_DELAY=1 \
         INTEGRATION_UP_API_ENV_LOG="$api_env_log" \
         bash "$REPO_ROOT/scripts/integration-up.sh" 2>&1
     ) || exit_code=$?
 
-    local wait_attempt
-    for wait_attempt in 1 2 3 4 5; do
-        [ -s "$api_env_log" ] && break
-        sleep 0.1
-    done
+    wait_for_nonempty_file "$api_env_log" || true
 
     local env_log
     env_log="$(cat "$api_env_log" 2>/dev/null || true)"

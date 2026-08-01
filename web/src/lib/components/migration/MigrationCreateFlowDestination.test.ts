@@ -77,6 +77,7 @@ function importJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 		id: 'job_123',
 		status: 'queued',
 		mode: 'create',
+		sourceProvider: 'algolia',
 		destination: { kind: 'create', target: 'source_products', region: 'us-east-1' },
 		source: { name: 'source_products' },
 		summary: {
@@ -458,7 +459,9 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 	it('submits the canonical create request once per intent and emits one durable navigation intent', async () => {
 		let resolveCreate!: (job: PublicAlgoliaImportJob) => void;
 		const checkAlgoliaDestinationEligibility = vi.fn().mockResolvedValue(TARGET_ELIGIBILITY);
-		const createAlgoliaImportJob = vi.fn<MigrationFlowClient['createAlgoliaImportJob']>(
+		const createAlgoliaImportJob = vi.fn<
+			NonNullable<MigrationFlowClient['createAlgoliaImportJob']>
+		>(
 			() =>
 				new Promise<PublicAlgoliaImportJob>((resolve) => {
 					resolveCreate = resolve;
@@ -493,7 +496,7 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 		await waitFor(() =>
 			expect(onImportCreated).toHaveBeenCalledWith({
 				jobId: 'job_created_1',
-				href: '/console/migrate/job_created_1'
+				href: '/console/migrate/job_created_1?source_provider=algolia'
 			})
 		);
 
@@ -515,7 +518,7 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 		const createAlgoliaImportJob = vi
 			.fn()
 			.mockRejectedValueOnce(new Error('backend_unavailable'))
-			.mockResolvedValueOnce(importJob())
+			.mockRejectedValueOnce(new Error('backend_unavailable'))
 			.mockResolvedValueOnce(importJob({ id: 'job_created_2' }));
 		await connectAndSelectSource('source_products', {
 			checkAlgoliaDestinationEligibility,
@@ -527,6 +530,7 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 		await fireEvent.click(screen.getByRole('button', { name: /start import/i }));
 		await screen.findByTestId('migration-start-error');
 		await fireEvent.click(screen.getByRole('button', { name: /start import/i }));
+		await waitFor(() => expect(createAlgoliaImportJob).toHaveBeenCalledTimes(2));
 		const firstKey = createAlgoliaImportJob.mock.calls[0]?.[1];
 		expect(createAlgoliaImportJob.mock.calls[1]?.[1]).toBe(firstKey);
 
@@ -536,6 +540,7 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
 		await screen.findByTestId('migration-create-review');
 		await fireEvent.click(screen.getByRole('button', { name: /start import/i }));
+		await waitFor(() => expect(createAlgoliaImportJob).toHaveBeenCalledTimes(3));
 
 		expect(createAlgoliaImportJob.mock.calls[2]?.[1]).not.toBe(firstKey);
 		expect(createAlgoliaImportJob.mock.calls[2]?.[0]).toMatchObject({

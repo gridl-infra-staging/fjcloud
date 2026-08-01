@@ -846,7 +846,8 @@ function seedPublicInfrastructureCanaryVm(
 		seedMetadata = JSON.parse(output) as typeof seedMetadata;
 	} catch (error) {
 		throw new Error(
-			`seed public Infrastructure canary VM returned invalid JSON metadata: ${setupFailureDetailsFromError(error)}`
+			`seed public Infrastructure canary VM returned invalid JSON metadata: ${setupFailureDetailsFromError(error)}`,
+			{ cause: error }
 		);
 	}
 
@@ -1571,7 +1572,10 @@ export async function loginAsUserWithKnownMissingUserBootstrap({
 			return bootstrap.loginToken;
 		}
 
-		throw new Error(`${contextLabel} failed to re-authenticate after known missing-user bootstrap`);
+		throw new Error(
+			`${contextLabel} failed to re-authenticate after known missing-user bootstrap`,
+			{ cause: error }
+		);
 	}
 }
 
@@ -2405,7 +2409,9 @@ function parseFixtureJsonRows<T>(output: string, context: string): T {
 	try {
 		return JSON.parse(output) as T;
 	} catch (error) {
-		throw new Error(`${context} returned invalid JSON: ${output}. Error: ${error}`);
+		throw new Error(`${context} returned invalid JSON: ${output}. Error: ${error}`, {
+			cause: error
+		});
 	}
 }
 
@@ -3726,7 +3732,8 @@ async function completeFreshSignupEmailVerificationViaRoute(
 				apiUrl: diagnosticEnv.apiUrl,
 				adminKey: diagnosticEnv.adminKey,
 				alertText: setupFailureDetailsFromError(error)
-			})
+			}),
+			{ cause: error }
 		);
 	}
 }
@@ -4420,7 +4427,8 @@ async function arrangePaidInvoiceForFreshSignup({
 				apiUrl: diagnosticEnv.apiUrl,
 				adminKey: diagnosticEnv.adminKey,
 				alertText: setupFailureDetailsFromError(error)
-			})
+			}),
+			{ cause: error }
 		);
 	}
 }
@@ -5433,7 +5441,7 @@ DELETE FROM vm_inventory WHERE id = ${quoteSqlLiteral(entry.replicaVmId)}::uuid;
 				}))
 			};
 
-			let lastFailure = 'none';
+			let lastFailure: string;
 			for (let attempt = 0; attempt < TRANSIENT_API_MAX_RETRIES; attempt += 1) {
 				const res = await fetch(`${safeFlapjackUrl}/1/events`, {
 					method: 'POST',
@@ -5514,7 +5522,8 @@ DELETE FROM vm_inventory WHERE id = ${quoteSqlLiteral(entry.replicaVmId)}::uuid;
 				return await page.evaluate(async () => navigator.clipboard.readText());
 			} catch (error) {
 				throw new Error(
-					`readClipboardText failed to access navigator.clipboard.readText(): ${setupFailureDetailsFromError(error)}`
+					`readClipboardText failed to access navigator.clipboard.readText(): ${setupFailureDetailsFromError(error)}`,
+					{ cause: error }
 				);
 			}
 		};
@@ -5545,7 +5554,7 @@ DELETE FROM vm_inventory WHERE id = ${quoteSqlLiteral(entry.replicaVmId)}::uuid;
 				{}
 			);
 			const text = await response.text();
-			let body: unknown = null;
+			let body: unknown;
 			try {
 				body = JSON.parse(text) as unknown;
 			} catch {
@@ -5585,7 +5594,7 @@ DELETE FROM vm_inventory WHERE id = ${quoteSqlLiteral(entry.replicaVmId)}::uuid;
 				flapjack_url?: string;
 				ttl?: number;
 				service_type?: string;
-			} | null = null;
+			} | null;
 			try {
 				body = (await response.json()) as {
 					vm?: string;
@@ -5663,7 +5672,8 @@ DELETE FROM vm_inventory WHERE id = ${quoteSqlLiteral(entry.replicaVmId)}::uuid;
 						await seedSearchableIndex(name);
 					} catch (retryError) {
 						throw new Error(
-							`seedRecommendationsConfig failed after forced stale-index cleanup retry: ${retryError instanceof Error ? retryError.message : String(retryError)}`
+							`seedRecommendationsConfig failed after forced stale-index cleanup retry: ${retryError instanceof Error ? retryError.message : String(retryError)}`,
+							{ cause: retryError }
 						);
 					}
 				}
@@ -5711,7 +5721,8 @@ DELETE FROM vm_inventory WHERE id = ${quoteSqlLiteral(entry.replicaVmId)}::uuid;
 					result = await seedSearchableIndex(name, options);
 				} catch (retryError) {
 					throw new Error(
-						`seedSearchableIndex failed after forced stale-index cleanup retry: ${retryError instanceof Error ? retryError.message : String(retryError)}`
+						`seedSearchableIndex failed after forced stale-index cleanup retry: ${retryError instanceof Error ? retryError.message : String(retryError)}`,
+						{ cause: retryError }
 					);
 				}
 			}

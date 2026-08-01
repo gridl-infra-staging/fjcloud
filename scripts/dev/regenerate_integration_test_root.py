@@ -63,6 +63,7 @@ ROOT_GROUPS: dict[str, tuple[str, ...]] = {
         "admin_cold_test",
         "admin_deployments_test",
         "admin_migrations_test",
+        "admin_operator_identity_test",
         "admin_providers_test",
         "admin_token_audit_test",
         "admin_vm_kill_test",

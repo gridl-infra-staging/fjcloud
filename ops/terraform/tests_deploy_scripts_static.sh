@@ -13,6 +13,9 @@ deploy_file="ops/scripts/deploy.sh"
 migrate_file="ops/scripts/migrate.sh"
 rollback_file="ops/scripts/rollback.sh"
 cleanup_file="ops/scripts/cleanup_api_server_metering_ghost.sh"
+data_main_file="ops/terraform/data/main.tf"
+generate_ssm_env_file="ops/scripts/lib/generate_ssm_env.sh"
+bootstrap_file="ops/user-data/bootstrap.sh"
 
 assert_text_contains() {
   local text="$1"
@@ -128,6 +131,12 @@ echo "--- migrate.sh: migration execution ---"
 assert_file_contains "$migrate_file" 'sqlx migrate run' "migrate.sh runs sqlx migrations"
 assert_file_contains "$migrate_file" '/opt/fjcloud/migrations' "migrate.sh uses standard migrations directory"
 assert_file_not_contains "$migrate_file" 'DATABASE_URL=.*postgres://' "migrate.sh does not hardcode DATABASE_URL"
+
+echo ""
+echo "--- database_url: enforced TLS configuration and propagation ---"
+assert_contains_active "$data_main_file" 'value[[:space:]]*=.*[?]sslmode=require' "Terraform database_url requires TLS"
+assert_file_contains "$generate_ssm_env_file" 'printf.*\$\{key\}=\$\{value\}' "generate_ssm_env preserves database_url query strings"
+assert_file_contains "$bootstrap_file" 'DATABASE_URL=\$DB_URL' "bootstrap preserves database_url query strings"
 
 # ---------------------------------------------------------------------------
 # rollback.sh

@@ -7,6 +7,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use uuid::Uuid;
 
+use crate::auth::admin::AdminUserRepo;
 use crate::dns::DnsManager;
 use crate::provisioner::region_map::RegionConfig;
 use crate::provisioner::VmProvisioner;
@@ -222,6 +223,7 @@ pub struct AppState {
     pub pool: PgPool,
     pub jwt_secret: Arc<str>,
     pub admin_key: Arc<str>,
+    pub admin_user_repo: Arc<dyn AdminUserRepo>,
     pub internal_auth_token: Option<Arc<str>>,
     pub stripe_webhook_secret: Option<Arc<str>>,
     pub stripe_publishable_key: Option<String>,

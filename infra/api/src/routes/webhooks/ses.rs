@@ -10,8 +10,8 @@ use serde::Deserialize;
 use crate::errors::ApiError;
 use crate::services::alerting::{Alert, AlertSeverity};
 use crate::services::audit_log::{
-    write_audit_log, ACTION_SES_COMPLAINT_SUPPRESSED, ACTION_SES_PERMANENT_BOUNCE_SUPPRESSED,
-    ADMIN_SENTINEL_ACTOR_ID,
+    system_audit_metadata, write_audit_log, ACTION_SES_COMPLAINT_SUPPRESSED,
+    ACTION_SES_PERMANENT_BOUNCE_SUPPRESSED, SES_SYSTEM_ACTOR_ID,
 };
 use crate::services::email_suppression::{
     normalize_recipient_email, EmailSuppressionStore, PgEmailSuppressionStore,
@@ -557,10 +557,10 @@ async fn write_ses_suppression_audit(
 
     if let Err(error) = write_audit_log(
         &state.pool,
-        ADMIN_SENTINEL_ACTOR_ID,
+        SES_SYSTEM_ACTOR_ID,
         action,
         target_tenant_id,
-        metadata,
+        system_audit_metadata("ses", metadata),
     )
     .await
     {

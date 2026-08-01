@@ -34,19 +34,26 @@ Core references:
 | -------------- | -------------------------------------------------------------- | ------------- |
 | `flapjack_dev` | OSS search engine (core indexing, search, settings, analytics) | Public        |
 | `fjcloud_dev`  | This repo — SaaS infra + cloud web portal                      | Private (dev) |
-| `fjcloud`      | Production mirror                                              | Private       |
+| `fjcloud`      | Staging and production mirrors                                 | **Public**    |
+
+The staging and production mirrors (`gridl-infra-staging/fjcloud`,
+`gridl-infra-prod/fjcloud`) are **public** repositories — verify with
+`gh repo view gridl-infra-prod/fjcloud --json visibility`. Everything in the
+`.debbie.toml` sync whitelist is published there, including `ROADMAP.md`.
+Treat those paths as published when writing.
 
 ## Pre-push validation
 
 Run `bash scripts/local-ci.sh` before pushing to `main`. It mirrors every
 gate the staging `deploy-staging` job depends on (rust-lint, web-lint,
-web-test, check-sizes, secret-scan, migration-test) in parallel — fast mode
-finishes in ~20 seconds vs. ~15 minutes for staging CI. Use `--full` to
-also run `cargo test --workspace`, `--gate <name>` to run a single gate.
+web-test, check-sizes, secret-scan, migration-test) and adds fail-closed
+`dep-audit` and `web-audit` dependency checks in parallel. Use `--full` to also
+run `cargo test --workspace`, or `--gate <name>` to run a single gate.
 
 ## Key Files
 
 - `scripts/local-ci.sh` — local mirror of the staging deploy-staging gate (run before every push)
+- `infra/database-url` — shared `DATABASE_URL` transport-security policy for every production database opener
 - `infra/retention-job` / `fjcloud-retention-job` — batch job that enumerates soft-deleted customers through `CustomerRepo::list_deleted_before_cutoff` and calls `POST /admin/customers/:id/hard-erase`; operator detail lives in `docs/runbooks/account_data_policy.md`
 - `docs/LOCAL_DEV.md` — local stack setup and troubleshooting
 - `docs/checklists/LOCAL_SIGNOFF_CHECKLIST.md` — exact local-only signoff run order

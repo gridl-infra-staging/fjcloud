@@ -5,6 +5,7 @@ import type {
 	PublicAlgoliaImportError,
 	PublicAlgoliaImportJob
 } from '$lib/api/types';
+import { migrationSourceProviderLabel } from './create_success_intent';
 
 export type AlgoliaImportStatusPresentation = {
 	status: AlgoliaImportJobStatus;
@@ -61,6 +62,23 @@ export type AlgoliaImportActionPresentation = {
 	canStartNewImport: boolean;
 	canEnterRetryKey: boolean;
 	retryCopy: string | null;
+};
+
+export type AlgoliaImportCompatibilityWarningEntry = {
+	code: string;
+	message: string;
+	locator: string | null;
+};
+
+export type AlgoliaImportCompatibilityWarningGroup = {
+	resource: string;
+	resourceLabel: string;
+	warnings: AlgoliaImportCompatibilityWarningEntry[];
+};
+
+export type AlgoliaImportCompatibilityWarningPresentation = {
+	summary: string;
+	groups: AlgoliaImportCompatibilityWarningGroup[];
 };
 
 const STATUS_PRESENTATION: Record<AlgoliaImportJobStatus, AlgoliaImportStatusPresentation> = {
@@ -168,11 +186,14 @@ const NO_JOB_ACTIONS: AlgoliaImportActionPresentation = {
 	retryCopy: null
 };
 
-const ERROR_COPY: Record<PublicAlgoliaImportError['code'], string> = {
-	invalid_credentials: 'Algolia credentials were rejected. Reconnect with a valid key.',
-	missing_source_permission: 'The Algolia key does not have permission to read the source index.',
+const STATIC_ERROR_COPY: Record<
+	Exclude<
+		PublicAlgoliaImportError['code'],
+		'invalid_credentials' | 'missing_source_permission' | 'source_catalog_too_large'
+	>,
+	string
+> = {
 	source_not_found: 'The source index could not be found.',
-	source_catalog_too_large: 'The Algolia source catalog is too large to import.',
 	destination_conflict: 'The destination index conflicts with another import.',
 	quota_exceeded: 'The import exceeds the destination quota.',
 	source_too_large: 'The source index is too large to import.',
@@ -182,7 +203,8 @@ const ERROR_COPY: Record<PublicAlgoliaImportError['code'], string> = {
 	incompatible_data: 'Some source data is not compatible with the destination.',
 	engine_upgrade_required: 'The destination must be upgraded before this import can continue.',
 	migration_ha_not_supported: 'This import is not supported for high-availability destinations.',
-	migration_provider_unsupported: 'This destination provider does not support Algolia imports.',
+	migration_provider_unsupported: 'This destination provider does not support migration imports.',
+	source_provider_unsupported: 'This source provider is not supported for search imports yet.',
 	backend_unavailable: 'The migration service is temporarily unavailable.',
 	interrupted: 'The import was interrupted before it completed.',
 	cancel_not_permitted: 'This import can no longer be cancelled.',
@@ -200,8 +222,20 @@ export function describeAlgoliaImportStatus(
 	return STATUS_PRESENTATION[status];
 }
 
-export function describeAlgoliaImportError(error: PublicAlgoliaImportError | null): string | null {
-	return error === null ? null : ERROR_COPY[error.code];
+export function describeAlgoliaImportError(job: PublicAlgoliaImportJob): string | null {
+	if (job.error === null) {
+		return null;
+	}
+	switch (job.error.code) {
+		case 'invalid_credentials':
+			return `${migrationSourceProviderLabel(job.sourceProvider)} credentials were rejected. Reconnect with a valid key.`;
+		case 'missing_source_permission':
+			return `The ${migrationSourceProviderLabel(job.sourceProvider)} key does not have permission to read the source index.`;
+		case 'source_catalog_too_large':
+			return `The ${migrationSourceProviderLabel(job.sourceProvider)} source catalog is too large to import.`;
+		default:
+			return STATIC_ERROR_COPY[job.error.code];
+	}
 }
 
 export function algoliaImportSummaryRows(job: PublicAlgoliaImportJob): AlgoliaImportSummaryRow[] {
@@ -245,10 +279,10 @@ export function describeAlgoliaImportPublicationDisposition(
 	job: PublicAlgoliaImportJob
 ): AlgoliaImportDispositionPresentation {
 	if (job.mode === 'replace' && job.error?.code === 'destination_changed') {
+		const sourceProviderLabel = migrationSourceProviderLabel(job.sourceProvider);
 		return {
 			tone: 'danger',
-			message:
-				'Replacement stopped because the destination changed. Legitimate destination document or configuration writes were preserved; retry only after both Algolia and fjcloud are quiet and with a new blank Algolia key.'
+			message: `Replacement stopped because the destination changed. Legitimate destination document or configuration writes were preserved; retry only after both ${sourceProviderLabel} and fjcloud are quiet and with a new blank ${sourceProviderLabel} key.`
 		};
 	}
 	switch (job.publicationDisposition) {
@@ -382,29 +416,25 @@ export function describeAlgoliaImportJobActions(
 		canEnterRetryKey: true,
 		retryCopy:
 			capabilities?.resume === true
-				? 'Reconnect to Algolia with a fresh key. Already-imported records are skipped when the import resumes.'
-				: 'Reconnect to Algolia with a fresh key before retrying.'
+				? `Reconnect to ${migrationSourceProviderLabel(job.sourceProvider)} with a fresh key. Already-imported records are skipped when the import resumes.`
+				: `Reconnect to ${migrationSourceProviderLabel(job.sourceProvider)} with a fresh key before retrying.`
 	};
 }
 
 export function algoliaImportCompatibilityWarning(job: PublicAlgoliaImportJob): string | null {
-	if (
-		job.status !== 'completed_with_warnings' ||
-		!job.terminalOutcomeObserved ||
-		job.warnings.length === 0
-	) {
+	return algoliaImportCompatibilityWarningPresentation(job)?.summary ?? null;
+}
+
+export function algoliaImportCompatibilityWarningPresentation(
+	job: PublicAlgoliaImportJob
+): AlgoliaImportCompatibilityWarningPresentation | null {
+	if (job.warnings.length === 0) {
 		return null;
 	}
-	const visibleWarnings = job.warnings.slice(0, MAX_VISIBLE_WARNING_DETAILS);
-	const details = visibleWarnings.map(formatImportWarning);
-	const hiddenCount = job.warnings.length - visibleWarnings.length;
-	if (hiddenCount > 0) {
-		details.push(`and ${hiddenCount} more ${pluralize('warning', hiddenCount)}`);
-	}
-	return `Import completed with ${job.warnings.length} compatibility ${pluralize(
-		'warning',
-		job.warnings.length
-	)}: ${details.join('; ')}.`;
+	return {
+		summary: compatibilityWarningSummary(job),
+		groups: groupedCompatibilityWarnings(job.warnings)
+	};
 }
 
 export function algoliaImportIndexHref(target: string): `/console/indexes/${string}` {
@@ -415,10 +445,45 @@ export function algoliaImportSearchHref(target: string): `/console/indexes/${str
 	return `${algoliaImportIndexHref(target)}?tab=search`;
 }
 
-const MAX_VISIBLE_WARNING_DETAILS = 3;
 const MAX_WARNING_FIELD_LENGTH = 80;
 
-function formatImportWarning(warning: AlgoliaImportWarning): string {
+function compatibilityWarningSummary(job: PublicAlgoliaImportJob): string {
+	if (job.status === 'completed_with_warnings' && job.terminalOutcomeObserved) {
+		return `Import completed with ${job.warnings.length} compatibility ${pluralize(
+			'warning',
+			job.warnings.length
+		)}.`;
+	}
+	return `This import has ${job.warnings.length} compatibility ${pluralize(
+		'warning',
+		job.warnings.length
+	)}.`;
+}
+
+function groupedCompatibilityWarnings(
+	warnings: AlgoliaImportWarning[]
+): AlgoliaImportCompatibilityWarningGroup[] {
+	const groups = new Map<string, AlgoliaImportCompatibilityWarningGroup>();
+	for (const warning of warnings) {
+		let group = groups.get(warning.resource);
+		if (group === undefined) {
+			group = {
+				resource: warning.resource,
+				resourceLabel: warningIdentifier(warning.resource, 'configuration'),
+				warnings: []
+			};
+			groups.set(warning.resource, group);
+		}
+		group.warnings.push({
+			code: boundedWarningField(warning.code, 'compatibility warning'),
+			message: boundedWarningField(warning.message, 'Compatibility warning'),
+			locator: compatibilityWarningLocator(warning)
+		});
+	}
+	return Array.from(groups.values());
+}
+
+function compatibilityWarningLocator(warning: AlgoliaImportWarning): string | null {
 	const locations: string[] = [];
 	if (warning.pageIndex !== null) {
 		locations.push(`page ${warning.pageIndex}`);
@@ -429,11 +494,7 @@ function formatImportWarning(warning: AlgoliaImportWarning): string {
 	if (warning.jsonPath !== '') {
 		locations.push(`path ${boundedWarningField(warning.jsonPath, '$')}`);
 	}
-	const location = locations.length === 0 ? '' : ` (${locations.join(', ')})`;
-	return `${warningIdentifier(warning.resource, 'configuration')} — ${warningIdentifier(
-		warning.code,
-		'compatibility warning'
-	)}${location}`;
+	return locations.length === 0 ? null : locations.join(', ');
 }
 
 function warningIdentifier(value: string, fallback: string): string {
@@ -443,9 +504,10 @@ function warningIdentifier(value: string, fallback: string): string {
 
 function boundedWarningField(value: string, fallback: string): string {
 	const presentValue = value === '' ? fallback : value;
-	return presentValue.length <= MAX_WARNING_FIELD_LENGTH
+	const characters = Array.from(presentValue);
+	return characters.length <= MAX_WARNING_FIELD_LENGTH
 		? presentValue
-		: `${presentValue.slice(0, MAX_WARNING_FIELD_LENGTH - 1)}…`;
+		: `${characters.slice(0, MAX_WARNING_FIELD_LENGTH - 1).join('')}…`;
 }
 
 function pluralize(noun: string, count: number): string {

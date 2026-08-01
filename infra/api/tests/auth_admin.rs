@@ -17,6 +17,8 @@ mod admin_cold_test;
 mod admin_deployments_test;
 #[path = "integration/admin_migrations_test.rs"]
 mod admin_migrations_test;
+#[path = "integration/admin_operator_identity_test.rs"]
+mod admin_operator_identity_test;
 #[path = "integration/admin_providers_test.rs"]
 mod admin_providers_test;
 #[path = "integration/admin_token_audit_test.rs"]

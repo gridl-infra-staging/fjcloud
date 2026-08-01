@@ -344,6 +344,10 @@ test_local_ci_registration_is_complete() {
         "1" \
         "the repaired catalog lifecycle service-window probe is registered exactly once"
     assert_eq \
+        "$(grep -Fxc '    "scripts/tests/gitleaks_allowlist_contract_test.sh"' "$manifest" || true)" \
+        "1" \
+        "the gitleaks allowlist contract is registered exactly once"
+    assert_eq \
         "$(grep -Fxc '    "scripts/tests/chaos_ha_failover_proof_test.sh"' "$manifest" || true)" \
         "1" \
         "focused HA failover proof suite runs exactly once through the hermetic manifest"

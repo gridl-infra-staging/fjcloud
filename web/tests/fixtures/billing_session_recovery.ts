@@ -47,7 +47,7 @@ export async function loginWithFixtureCredentials(
 			const loginAlert = page.getByRole('alert');
 			const alertText = (await loginAlert.textContent().catch(() => null))?.trim() ?? '';
 			if (TRANSIENT_RATE_LIMIT_PATTERN.test(alertText)) {
-				throw new Error('Login was transiently rate-limited; retrying');
+				throw new Error('Login was transiently rate-limited; retrying', { cause: error });
 			}
 			if (!isRemoteTargetMode()) {
 				throw error;

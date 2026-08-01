@@ -20,7 +20,6 @@ use crate::services::audit_log::{
     list_audit_log_for_target_tenant, write_audit_log, AuditLogRow, ACTION_CUSTOMER_HARD_ERASE,
     ACTION_CUSTOMER_REACTIVATED, ACTION_CUSTOMER_SUSPENDED, ACTION_QUOTAS_UPDATED,
     ACTION_STRIPE_SYNC, ACTION_TENANT_CREATED, ACTION_TENANT_DELETED, ACTION_TENANT_UPDATED,
-    ADMIN_SENTINEL_ACTOR_ID,
 };
 use crate::services::billing_health::{self, BillingHealth, BillingHealthSignals, InvoiceSignals};
 use crate::state::AppState;
@@ -224,7 +223,7 @@ fn open_invoices_for_snapshot(invoices: &[InvoiceRow]) -> Vec<InvoiceListItem> {
 /// (trimmed, lowercased, format-validated). Creates the customer record and
 /// returns 201 with the tenant response.
 pub async fn create_tenant(
-    _auth: AdminAuth,
+    auth: AdminAuth,
     State(state): State<AppState>,
     Json(req): Json<CreateTenantRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -235,7 +234,7 @@ pub async fn create_tenant(
 
     if let Err(err) = write_audit_log(
         &state.pool,
-        ADMIN_SENTINEL_ACTOR_ID,
+        auth.operator_id,
         ACTION_TENANT_CREATED,
         Some(customer.id),
         json!({
@@ -300,7 +299,7 @@ pub async fn get_tenant(
 /// must be provided. Validates `billing_plan` via `BillingPlan::from_str`;
 /// name/email updates and billing plan changes are applied independently.
 pub async fn update_tenant(
-    _auth: AdminAuth,
+    auth: AdminAuth,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateTenantRequest>,
@@ -381,7 +380,7 @@ pub async fn update_tenant(
 
     if let Err(err) = write_audit_log(
         &state.pool,
-        ADMIN_SENTINEL_ACTOR_ID,
+        auth.operator_id,
         ACTION_TENANT_UPDATED,
         Some(id),
         json!({ "changed": changed }),
@@ -403,7 +402,7 @@ pub async fn update_tenant(
 }
 
 pub async fn delete_tenant(
-    _auth: AdminAuth,
+    auth: AdminAuth,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -411,7 +410,7 @@ pub async fn delete_tenant(
     if deleted {
         if let Err(err) = write_audit_log(
             &state.pool,
-            ADMIN_SENTINEL_ACTOR_ID,
+            auth.operator_id,
             ACTION_TENANT_DELETED,
             Some(id),
             json!({}),
@@ -438,7 +437,7 @@ pub async fn delete_tenant(
 /// If the customer already has a `stripe_customer_id`, returns the existing
 /// link. Otherwise creates a new Stripe customer and persists the ID.
 pub async fn sync_stripe(
-    _auth: AdminAuth,
+    auth: AdminAuth,
     State(state): State<AppState>,
     Path(customer_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -464,7 +463,7 @@ pub async fn sync_stripe(
 
     if let Err(err) = write_audit_log(
         &state.pool,
-        ADMIN_SENTINEL_ACTOR_ID,
+        auth.operator_id,
         ACTION_STRIPE_SYNC,
         Some(customer_id),
         json!({ "stripe_customer_id": &stripe_id }),
@@ -490,7 +489,7 @@ pub async fn sync_stripe(
 /// **Auth:** `AdminAuth`.
 /// Requires the customer to be in `suspended` status; returns 400 otherwise.
 pub async fn reactivate_customer(
-    _auth: AdminAuth,
+    auth: AdminAuth,
     State(state): State<AppState>,
     Path(customer_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -508,7 +507,7 @@ pub async fn reactivate_customer(
 
     if let Err(err) = write_audit_log(
         &state.pool,
-        ADMIN_SENTINEL_ACTOR_ID,
+        auth.operator_id,
         ACTION_CUSTOMER_REACTIVATED,
         Some(customer_id),
         json!({}),
@@ -531,7 +530,7 @@ pub async fn reactivate_customer(
 /// **Auth:** `AdminAuth`.
 /// Requires the customer to be in `active` status; returns 400 otherwise.
 pub async fn suspend_customer(
-    _auth: AdminAuth,
+    auth: AdminAuth,
     State(state): State<AppState>,
     Path(customer_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -549,7 +548,7 @@ pub async fn suspend_customer(
 
     if let Err(err) = write_audit_log(
         &state.pool,
-        ADMIN_SENTINEL_ACTOR_ID,
+        auth.operator_id,
         ACTION_CUSTOMER_SUSPENDED,
         Some(customer_id),
         json!({}),
@@ -588,7 +587,7 @@ pub async fn suspend_customer(
 /// * `400 Bad Request` — customer is not in `deleted` status.
 /// * `409 Conflict` — customer still has open invoices.
 pub async fn hard_erase_customer(
-    _auth: AdminAuth,
+    auth: AdminAuth,
     State(state): State<AppState>,
     Path(customer_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -610,7 +609,7 @@ pub async fn hard_erase_customer(
 
     if let Err(err) = write_audit_log(
         &state.pool,
-        ADMIN_SENTINEL_ACTOR_ID,
+        auth.operator_id,
         ACTION_CUSTOMER_HARD_ERASE,
         None,
         json!({
@@ -698,7 +697,7 @@ pub async fn get_quotas(
 /// customer, then invalidates the in-memory quota cache for each. Returns
 /// the full quotas response (defaults + per-index effective values).
 pub async fn update_quotas(
-    _auth: AdminAuth,
+    auth: AdminAuth,
     State(state): State<AppState>,
     Path(customer_id): Path<Uuid>,
     Json(req): Json<UpdateTenantQuotasRequest>,
@@ -726,7 +725,7 @@ pub async fn update_quotas(
     if !tenants.is_empty() {
         if let Err(err) = write_audit_log(
             &state.pool,
-            ADMIN_SENTINEL_ACTOR_ID,
+            auth.operator_id,
             ACTION_QUOTAS_UPDATED,
             Some(customer_id),
             json!({ "quota_keys": quota_keys }),

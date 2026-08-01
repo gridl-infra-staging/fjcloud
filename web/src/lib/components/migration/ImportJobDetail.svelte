@@ -7,7 +7,7 @@
 		ResumeAlgoliaImportJobRequest
 	} from '$lib/api/types';
 	import {
-		algoliaImportCompatibilityWarning,
+		algoliaImportCompatibilityWarningPresentation,
 		algoliaImportIndexHref,
 		algoliaImportSummaryRows,
 		describeAlgoliaImportAdmission,
@@ -17,6 +17,7 @@
 		describeAlgoliaImportStatus,
 		type AlgoliaImportAdmission
 	} from './job_presentation';
+	import { migrationSourceProviderLabel } from './create_success_intent';
 
 	const CANCEL_CONFIRM_COPY =
 		'Cancel this import? The import stops, partially-copied staging work is discarded, and the existing destination index is left exactly as it is.';
@@ -40,10 +41,10 @@
 	const status = $derived(describeAlgoliaImportStatus(job.status));
 	const summaryRows = $derived(algoliaImportSummaryRows(job));
 	const disposition = $derived(describeAlgoliaImportPublicationDisposition(job));
-	const failureCopy = $derived(describeAlgoliaImportError(job.error));
+	const failureCopy = $derived(describeAlgoliaImportError(job));
 	const actions = $derived(describeAlgoliaImportJobActions(job, admission, capabilities));
 	const admissionPresentation = $derived(describeAlgoliaImportAdmission(admission));
-	const warningSummary = $derived(algoliaImportCompatibilityWarning(job));
+	const warningPresentation = $derived(algoliaImportCompatibilityWarningPresentation(job));
 	const heading = $derived(`${job.source.name} import`);
 	const canEmitCancel = $derived(actions.canCancel && onCancelIntent !== undefined);
 	const canEmitResume = $derived(actions.canResume && onResumeIntent !== undefined);
@@ -61,6 +62,17 @@
 
 	function normalizeDeadline(formatted: string): string | null {
 		return formatted === '—' ? null : formatted;
+	}
+
+	function warningListAccessibleName(resourceLabel: string, groupIndex: number): string {
+		const matchingGroups =
+			warningPresentation?.groups.filter((group) => group.resourceLabel === resourceLabel) ?? [];
+		if (matchingGroups.length <= 1) {
+			return `${resourceLabel} compatibility warnings`;
+		}
+		const duplicateIndex =
+			matchingGroups.findIndex((group) => group === warningPresentation?.groups[groupIndex]) + 1;
+		return `${resourceLabel} compatibility warnings ${duplicateIndex}`;
 	}
 	let cancelIntentSent = $state(false);
 	let resumeIntentSent = $state(false);
@@ -151,7 +163,13 @@
 		{/if}
 	</header>
 
-	<section class="grid gap-3 sm:grid-cols-3" aria-label="Import fields">
+	<section class="grid gap-3 sm:grid-cols-4" aria-label="Import fields">
+		<div>
+			<p class="text-xs font-medium uppercase text-flapjack-ink/75">Source provider</p>
+			<p data-testid="migration-job-source-provider" class="text-sm text-flapjack-ink">
+				{job.sourceProvider}
+			</p>
+		</div>
 		<div>
 			<p class="text-xs font-medium uppercase text-flapjack-ink/75">Source</p>
 			<p data-testid="migration-job-source" class="text-sm text-flapjack-ink">{job.source.name}</p>
@@ -189,13 +207,36 @@
 		{/each}
 	</section>
 
-	{#if warningSummary}
-		<p
-			data-testid="migration-job-warning-summary"
-			class="rounded border border-flapjack-yellow/50 p-3 text-sm text-flapjack-ink"
-		>
-			{warningSummary}
-		</p>
+	{#if warningPresentation}
+		<div class="space-y-3 rounded border border-flapjack-yellow/50 p-3 text-sm text-flapjack-ink">
+			<p data-testid="migration-job-warning-summary">
+				{warningPresentation.summary}
+			</p>
+			<section aria-labelledby="migration-job-warning-title" class="space-y-3">
+				<h4 id="migration-job-warning-title" class="text-sm font-semibold text-flapjack-ink">
+					Compatibility warnings
+				</h4>
+				{#each warningPresentation.groups as group, groupIndex (group.resource)}
+					<div class="space-y-2">
+						<h5 class="text-sm font-medium text-flapjack-ink">{group.resourceLabel}</h5>
+						<ul
+							class="space-y-2"
+							aria-label={warningListAccessibleName(group.resourceLabel, groupIndex)}
+						>
+							{#each group.warnings as warning, warningIndex (`${group.resource}-${warningIndex}`)}
+								<li class="space-y-1 break-words">
+									<p>{warning.message}</p>
+									<p class="text-xs text-flapjack-ink/70">{warning.code}</p>
+									{#if warning.locator}
+										<p class="text-xs text-flapjack-ink/70">{warning.locator}</p>
+									{/if}
+								</li>
+							{/each}
+						</ul>
+					</div>
+				{/each}
+			</section>
+		</div>
 	{/if}
 
 	<p data-testid="migration-job-disposition" class="text-sm text-flapjack-ink/75">
@@ -286,7 +327,7 @@
 				</p>
 			{/if}
 			<label class="block text-sm font-medium text-flapjack-ink/80" for="migration-retry-api-key">
-				Algolia API key
+				{migrationSourceProviderLabel(job.sourceProvider)} API key
 			</label>
 			<input
 				id="migration-retry-api-key"

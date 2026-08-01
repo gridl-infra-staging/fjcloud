@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "billing",
+    "database-url",
     "metering-agent",
     "aggregation-job",
     "retention-job",
@@ -33,4 +34,4 @@ aws-sdk-s3 = { version = "1", default-features = false, features = ["default-htt
 aws-sdk-sesv2 = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio", "sigv4a"] }
 aws-sdk-cloudwatch = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
 aes-gcm = "0.10"
-quick-xml = { version = "0.37", features = ["serialize"] }
+quick-xml = { version = "0.41", features = ["serialize"] }

@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type {
-	AlgoliaImportJobStatus,
+	AlgoliaImportWarning,
 	AlgoliaMigrationCapabilities,
-	PublicAlgoliaImportError,
-	PublicAlgoliaImportJob
+	PublicAlgoliaImportError
 } from '$lib/api/types';
 import {
-	algoliaImportCompatibilityWarning,
+	algoliaImportCompatibilityWarningPresentation,
 	algoliaImportSummaryRows,
 	describeAlgoliaImportAdmission,
 	describeAlgoliaImportError,
@@ -15,14 +14,9 @@ import {
 	describeAlgoliaImportPublicationDisposition,
 	describeAlgoliaImportStatus
 } from './job_presentation';
+import { NO_MIGRATION_CAPABILITIES, publicImportJob } from './migration_test_fixtures';
 
-const ALL_STATUSES: Array<{
-	status: AlgoliaImportJobStatus;
-	label: string;
-	phase: string;
-	running: boolean;
-	terminal: boolean;
-}> = [
+const ALL_STATUSES: Array<ReturnType<typeof describeAlgoliaImportStatus>> = [
 	{ status: 'queued', label: 'Queued', phase: 'Waiting to start', running: true, terminal: false },
 	{
 		status: 'validating_source',
@@ -104,54 +98,6 @@ const ALL_STATUSES: Array<{
 	}
 ];
 
-function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgoliaImportJob {
-	const status = overrides.status ?? 'completed';
-	return {
-		id: 'job_123',
-		status,
-		mode: 'create',
-		destination: {
-			kind: 'create',
-			target: 'products_migrated',
-			region: 'us-east-1'
-		},
-		source: {
-			name: 'products'
-		},
-		summary: {
-			documentsExpected: 17,
-			documentsImported: 13,
-			documentsRejected: 4,
-			settingsApplied: 2,
-			settingsUnsupported: 1,
-			synonymsExpected: 5,
-			synonymsImported: 3,
-			synonymsRejected: 2,
-			rulesExpected: 7,
-			rulesImported: 6,
-			rulesRejected: 1
-		},
-		error: null,
-		cancelRequestedAt: null,
-		resumeProvenance: null,
-		resumeDeadline: null,
-		resumable: false,
-		resumeCount: 0,
-		publicationDisposition: 'promoted',
-		terminalOutcomeObserved: status === 'completed' || status === 'completed_with_warnings',
-		warnings: [],
-		createdAt: '2026-07-18T10:00:00Z',
-		updatedAt: '2026-07-18T10:05:00Z',
-		...overrides
-	};
-}
-
-const NO_CAPABILITIES: AlgoliaMigrationCapabilities = {
-	cancel: false,
-	resume: false,
-	replace: false
-};
-
 const ERROR_PRESENTATIONS: Array<[PublicAlgoliaImportError['code'], string]> = [
 	['invalid_credentials', 'Algolia credentials were rejected. Reconnect with a valid key.'],
 	[
@@ -172,7 +118,11 @@ const ERROR_PRESENTATIONS: Array<[PublicAlgoliaImportError['code'], string]> = [
 		'migration_ha_not_supported',
 		'This import is not supported for high-availability destinations.'
 	],
-	['migration_provider_unsupported', 'This destination provider does not support Algolia imports.'],
+	[
+		'migration_provider_unsupported',
+		'This destination provider does not support migration imports.'
+	],
+	['source_provider_unsupported', 'This source provider is not supported for search imports yet.'],
 	['backend_unavailable', 'The migration service is temporarily unavailable.'],
 	['interrupted', 'The import was interrupted before it completed.'],
 	['cancel_not_permitted', 'This import can no longer be cancelled.'],
@@ -188,7 +138,9 @@ describe('Algolia import job presentation seam', () => {
 	it.each(['copying_documents', 'failed', 'cancelled', 'completed'] as const)(
 		'renders documents only for %s jobs without an observed terminal outcome',
 		(status) => {
-			const rows = algoliaImportSummaryRows(publicJob({ status, terminalOutcomeObserved: false }));
+			const rows = algoliaImportSummaryRows(
+				publicImportJob({ status, terminalOutcomeObserved: false })
+			);
 
 			expect(rows).toEqual([
 				{ kind: 'documents', label: 'Documents', imported: 13, expected: 17, rejected: 4 }
@@ -200,9 +152,9 @@ describe('Algolia import job presentation seam', () => {
 	it('preserves an observed all-zero terminal outcome without fabricating denominators', () => {
 		expect(
 			algoliaImportSummaryRows(
-				publicJob({
+				publicImportJob({
 					summary: {
-						...publicJob().summary,
+						...publicImportJob().summary,
 						settingsApplied: 0,
 						synonymsImported: 0,
 						rulesImported: 0
@@ -218,7 +170,7 @@ describe('Algolia import job presentation seam', () => {
 	});
 
 	it('presents only observed terminal facts for a nonzero outcome', () => {
-		expect(algoliaImportSummaryRows(publicJob())).toEqual([
+		expect(algoliaImportSummaryRows(publicImportJob())).toEqual([
 			{ kind: 'documents', label: 'Documents', imported: 13, expected: 17, rejected: 4 },
 			{ kind: 'settings', label: 'Settings', applied: true },
 			{ kind: 'imported', label: 'Synonyms', imported: 3 },
@@ -226,108 +178,279 @@ describe('Algolia import job presentation seam', () => {
 		]);
 	});
 
-	it('does not infer compatibility warnings from rejected summary counts', () => {
-		expect(algoliaImportCompatibilityWarning(publicJob({ warnings: [] }))).toBeNull();
-	});
+	it('presents every warning in raw-resource groups without losing producer detail', () => {
+		const warnings: AlgoliaImportWarning[] = [
+			{
+				code: 'unsupported_setting_0',
+				message: 'Settings warning zero.',
+				resource: 'settings',
+				pageIndex: 1,
+				itemIndex: 0,
+				jsonPath: '$.settings[0]'
+			},
+			{
+				code: 'unsupported_setting_1',
+				message: 'Settings warning one.',
+				resource: 'settings',
+				pageIndex: null,
+				itemIndex: 1,
+				jsonPath: '$.settings[1]'
+			},
+			{
+				code: 'unsupported_setting_2',
+				message: 'Settings warning two.',
+				resource: 'settings',
+				pageIndex: 2,
+				itemIndex: null,
+				jsonPath: ''
+			},
+			{
+				code: 'unsupported_index_option_0',
+				message: 'Hyphenated resource zero.',
+				resource: 'index-settings',
+				pageIndex: 3,
+				itemIndex: 0,
+				jsonPath: '$.indexSettings[0]'
+			},
+			{
+				code: 'unsupported_index_option_1',
+				message: 'Hyphenated resource one.',
+				resource: 'index-settings',
+				pageIndex: null,
+				itemIndex: null,
+				jsonPath: ''
+			},
+			{
+				code: 'unsupported_index_option_2',
+				message: 'Underscored resource zero.',
+				resource: 'index_settings',
+				pageIndex: 4,
+				itemIndex: 2,
+				jsonPath: '$.indexSettings[2]'
+			},
+			{
+				code: 'unsupported_index_option_3',
+				message: 'Underscored resource one.',
+				resource: 'index_settings',
+				pageIndex: null,
+				itemIndex: 3,
+				jsonPath: '$.indexSettings[3]'
+			},
+			{
+				code: 'unsupported_synonym_type_0',
+				message: 'Synonym warning zero.',
+				resource: 'synonyms',
+				pageIndex: 2,
+				itemIndex: 5,
+				jsonPath: '$.synonyms[5]'
+			},
+			{
+				code: 'unsupported_synonym_type_1',
+				message: 'Synonym warning one.',
+				resource: 'synonyms',
+				pageIndex: 5,
+				itemIndex: 6,
+				jsonPath: '$.synonyms[6]'
+			},
+			{
+				code: 'unsupported_synonym_type_2',
+				message: 'Synonym warning two.',
+				resource: 'synonyms',
+				pageIndex: null,
+				itemIndex: null,
+				jsonPath: '$.synonyms[7]'
+			}
+		];
 
-	it('does not publish warning payloads before a successful observed terminal outcome', () => {
-		expect(
-			algoliaImportCompatibilityWarning(
-				publicJob({
-					status: 'copying_documents',
-					terminalOutcomeObserved: false,
+		const presentation = algoliaImportCompatibilityWarningPresentation(
+			publicImportJob({ status: 'completed_with_warnings', warnings })
+		);
+
+		expect(presentation).toEqual({
+			summary: 'Import completed with 10 compatibility warnings.',
+			groups: [
+				{
+					resource: 'settings',
+					resourceLabel: 'settings',
 					warnings: [
 						{
-							code: 'unsupported_synonym_type',
-							message: 'must not render',
-							resource: 'synonyms',
-							pageIndex: 2,
-							itemIndex: 5,
-							jsonPath: '$.synonyms[5]'
+							code: 'unsupported_setting_0',
+							message: 'Settings warning zero.',
+							locator: 'page 1, item 0, path $.settings[0]'
+						},
+						{
+							code: 'unsupported_setting_1',
+							message: 'Settings warning one.',
+							locator: 'item 1, path $.settings[1]'
+						},
+						{ code: 'unsupported_setting_2', message: 'Settings warning two.', locator: 'page 2' }
+					]
+				},
+				{
+					resource: 'index-settings',
+					resourceLabel: 'index settings',
+					warnings: [
+						{
+							code: 'unsupported_index_option_0',
+							message: 'Hyphenated resource zero.',
+							locator: 'page 3, item 0, path $.indexSettings[0]'
+						},
+						{
+							code: 'unsupported_index_option_1',
+							message: 'Hyphenated resource one.',
+							locator: null
 						}
 					]
-				})
-			)
-		).toBeNull();
+				},
+				{
+					resource: 'index_settings',
+					resourceLabel: 'index settings',
+					warnings: [
+						{
+							code: 'unsupported_index_option_2',
+							message: 'Underscored resource zero.',
+							locator: 'page 4, item 2, path $.indexSettings[2]'
+						},
+						{
+							code: 'unsupported_index_option_3',
+							message: 'Underscored resource one.',
+							locator: 'item 3, path $.indexSettings[3]'
+						}
+					]
+				},
+				{
+					resource: 'synonyms',
+					resourceLabel: 'synonyms',
+					warnings: [
+						{
+							code: 'unsupported_synonym_type_0',
+							message: 'Synonym warning zero.',
+							locator: 'page 2, item 5, path $.synonyms[5]'
+						},
+						{
+							code: 'unsupported_synonym_type_1',
+							message: 'Synonym warning one.',
+							locator: 'page 5, item 6, path $.synonyms[6]'
+						},
+						{
+							code: 'unsupported_synonym_type_2',
+							message: 'Synonym warning two.',
+							locator: 'path $.synonyms[7]'
+						}
+					]
+				}
+			]
+		});
+		expect(presentation?.groups.flatMap((group) => group.warnings)).toHaveLength(warnings.length);
+		expect(presentation?.summary).not.toMatch(/\band \d+ more warnings?\b/);
 	});
 
-	it('summarizes typed terminal warnings without producer-authored messages', () => {
-		const producerMessage = 'credential-canary-from-arbitrary-message';
-		const warning = algoliaImportCompatibilityWarning(
-			publicJob({
+	it('bounds every displayed warning field without dropping grouped warnings', () => {
+		const hiddenResourceTail = 'RESOURCE_HIDDEN_TAIL';
+		const hiddenCodeTail = 'CODE_HIDDEN_TAIL';
+		const hiddenMessageTail = 'MESSAGE_HIDDEN_TAIL';
+		const hiddenPathTail = 'PATH_HIDDEN_TAIL';
+		const warning = {
+			code: `${'c'.repeat(79)}${hiddenCodeTail}`,
+			message: `${'m'.repeat(78)}🙂${hiddenMessageTail}`,
+			resource: `${'r'.repeat(79)}${hiddenResourceTail}`,
+			pageIndex: 8,
+			itemIndex: 13,
+			jsonPath: `${'$'.repeat(79)}${hiddenPathTail}`
+		};
+
+		const presentation = algoliaImportCompatibilityWarningPresentation(
+			publicImportJob({
 				status: 'completed_with_warnings',
+				warnings: [
+					warning,
+					{
+						code: 'short_warning',
+						message: 'Short warning.',
+						resource: warning.resource,
+						pageIndex: null,
+						itemIndex: null,
+						jsonPath: ''
+					}
+				]
+			})
+		);
+
+		expect(presentation).toEqual({
+			summary: 'Import completed with 2 compatibility warnings.',
+			groups: [
+				{
+					resource: warning.resource,
+					resourceLabel: `${'r'.repeat(79)}…`,
+					warnings: [
+						{
+							code: `${'c'.repeat(79)}…`,
+							message: `${'m'.repeat(78)}🙂…`,
+							locator: `page 8, item 13, path ${'$'.repeat(79)}…`
+						},
+						{
+							code: 'short_warning',
+							message: 'Short warning.',
+							locator: null
+						}
+					]
+				}
+			]
+		});
+		expect(presentation?.groups.flatMap((group) => group.warnings)).toHaveLength(2);
+		const customerVisiblePresentation = JSON.stringify({
+			summary: presentation?.summary,
+			groups: presentation?.groups.map(({ resourceLabel, warnings }) => ({
+				resourceLabel,
+				warnings
+			}))
+		});
+		expect(customerVisiblePresentation).not.toContain(hiddenResourceTail);
+		expect(customerVisiblePresentation).not.toContain(hiddenCodeTail);
+		expect(customerVisiblePresentation).not.toContain(hiddenMessageTail);
+		expect(customerVisiblePresentation).not.toContain(hiddenPathTail);
+	});
+
+	it('uses warning payload presence rather than lifecycle inference for visibility', () => {
+		const presentation = algoliaImportCompatibilityWarningPresentation(
+			publicImportJob({
+				status: 'copying_documents',
+				terminalOutcomeObserved: false,
 				warnings: [
 					{
 						code: 'unsupported_synonym_type',
-						message: producerMessage,
+						message: 'The synonym type must be changed before retrying.',
 						resource: 'synonyms',
 						pageIndex: 2,
 						itemIndex: 5,
 						jsonPath: '$.synonyms[5]'
-					},
-					{
-						code: 'unsupported_setting',
-						message: 'source-payload-canary',
-						resource: 'settings',
-						pageIndex: null,
-						itemIndex: null,
-						jsonPath: '$.settings.attributesForFaceting[2]'
 					}
 				]
 			})
 		);
 
-		expect(warning).toBe(
-			'Import completed with 2 compatibility warnings: synonyms — unsupported synonym type (page 2, item 5, path $.synonyms[5]); settings — unsupported setting (path $.settings.attributesForFaceting[2]).'
-		);
-		expect(warning).not.toContain(producerMessage);
-		expect(warning).not.toContain('source-payload-canary');
+		expect(presentation).toEqual({
+			summary: 'This import has 1 compatibility warning.',
+			groups: [
+				{
+					resource: 'synonyms',
+					resourceLabel: 'synonyms',
+					warnings: [
+						{
+							code: 'unsupported_synonym_type',
+							message: 'The synonym type must be changed before retrying.',
+							locator: 'page 2, item 5, path $.synonyms[5]'
+						}
+					]
+				}
+			]
+		});
 	});
 
-	it('bounds warning detail while preserving the total warning count', () => {
-		const warnings = Array.from({ length: 5 }, (_, index) => ({
-			code: `warning_${index}`,
-			message: `producer-message-${index}`,
-			resource: `resource_${index}`,
-			pageIndex: index,
-			itemIndex: null,
-			jsonPath: `$[${index}]`
-		}));
-
-		const warning = algoliaImportCompatibilityWarning(
-			publicJob({ status: 'completed_with_warnings', warnings })
-		);
-
-		expect(warning).toContain('Import completed with 5 compatibility warnings:');
-		expect(warning).toContain('resource 0 — warning 0');
-		expect(warning).toContain('resource 2 — warning 2');
-		expect(warning).toContain('and 2 more warnings');
-		expect(warning).not.toContain('resource 3');
-		expect(warning).not.toContain('producer-message');
-	});
-
-	it('bounds individual warning fields from the typed producer contract', () => {
-		const hiddenTail = 'must-not-survive-warning-truncation';
-		const longValue = `${'x'.repeat(160)}${hiddenTail}`;
-		const warning = algoliaImportCompatibilityWarning(
-			publicJob({
-				status: 'completed_with_warnings',
-				warnings: [
-					{
-						code: longValue,
-						message: 'producer-message',
-						resource: longValue,
-						pageIndex: null,
-						itemIndex: null,
-						jsonPath: `$.${longValue}`
-					}
-				]
-			})
-		);
-
-		expect(warning?.length).toBeLessThan(350);
-		expect(warning).not.toContain(hiddenTail);
-		expect(warning).not.toContain('producer-message');
+	it('returns no warning presentation for an empty warning payload', () => {
+		expect(
+			algoliaImportCompatibilityWarningPresentation(publicImportJob({ warnings: [] }))
+		).toBeNull();
 	});
 
 	it.each([
@@ -342,21 +465,40 @@ describe('Algolia import job presentation seam', () => {
 	] as const)('presents backend-authored %s publication disposition', (value, tone, message) => {
 		expect(
 			describeAlgoliaImportPublicationDisposition(
-				publicJob({ publicationDisposition: value, error: null })
+				publicImportJob({ publicationDisposition: value, error: null })
 			)
 		).toEqual({ tone, message });
 	});
 
 	it.each(ERROR_PRESENTATIONS)('maps backend error %s to stable copy', (code, expected) => {
-		expect(describeAlgoliaImportError({ code })).toBe(expected);
+		expect(describeAlgoliaImportError(publicImportJob({ error: { code } }))).toBe(expected);
 	});
 
 	it('presents no failure copy when the backend reports no error', () => {
-		expect(describeAlgoliaImportError(null)).toBeNull();
+		expect(describeAlgoliaImportError(publicImportJob({ error: null }))).toBeNull();
+	});
+
+	it('renders provider-specific source-credential copy for non-Algolia jobs', () => {
+		expect(
+			describeAlgoliaImportError(
+				publicImportJob({
+					sourceProvider: 'meilisearch',
+					error: { code: 'invalid_credentials' }
+				})
+			)
+		).toBe('Meilisearch credentials were rejected. Reconnect with a valid key.');
+		expect(
+			describeAlgoliaImportError(
+				publicImportJob({
+					sourceProvider: 'typesense',
+					error: { code: 'missing_source_permission' }
+				})
+			)
+		).toBe('The Typesense key does not have permission to read the source index.');
 	});
 
 	it('uses only closed DTO fields for disposition and action policy', () => {
-		const failed = publicJob({
+		const failed = publicImportJob({
 			status: 'failed',
 			publicationDisposition: 'unknown',
 			resumable: true
@@ -367,7 +509,9 @@ describe('Algolia import job presentation seam', () => {
 			message:
 				'Destination safety is unproven. Reconcile the destination before retrying into this target.'
 		});
-		expect(describeAlgoliaImportJobActions(failed, { admitted: true }, NO_CAPABILITIES)).toEqual({
+		expect(
+			describeAlgoliaImportJobActions(failed, { admitted: true }, NO_MIGRATION_CAPABILITIES)
+		).toEqual({
 			canViewIndex: false,
 			canTestSearch: false,
 			canCancel: false,
@@ -383,7 +527,7 @@ describe('Algolia import job presentation seam', () => {
 		(publicationDisposition) => {
 			expect(
 				describeAlgoliaImportPublicationDisposition(
-					publicJob({
+					publicImportJob({
 						mode: 'replace',
 						destination: {
 							kind: 'replace',
@@ -402,6 +546,29 @@ describe('Algolia import job presentation seam', () => {
 			});
 		}
 	);
+
+	it('uses the job source provider in replacement retry guidance', () => {
+		expect(
+			describeAlgoliaImportPublicationDisposition(
+				publicImportJob({
+					sourceProvider: 'meilisearch',
+					mode: 'replace',
+					destination: {
+						kind: 'replace',
+						target: 'existing_products',
+						region: 'us-west-2'
+					},
+					status: 'failed',
+					publicationDisposition: 'unchanged',
+					error: { code: 'destination_changed' }
+				})
+			)
+		).toEqual({
+			tone: 'danger',
+			message:
+				'Replacement stopped because the destination changed. Legitimate destination document or configuration writes were preserved; retry only after both Meilisearch and fjcloud are quiet and with a new blank Meilisearch key.'
+		});
+	});
 
 	it('describes runtime admission backpressure with a typed reason and retry-after copy', () => {
 		expect(
@@ -445,7 +612,7 @@ describe('Algolia import job presentation seam', () => {
 
 	it.each([
 		['absent', undefined],
-		['all false', NO_CAPABILITIES],
+		['all false', NO_MIGRATION_CAPABILITIES],
 		['partial cancel omitted', { resume: true, replace: true } as AlgoliaMigrationCapabilities],
 		[
 			'malformed cancel by cast',
@@ -454,7 +621,7 @@ describe('Algolia import job presentation seam', () => {
 	])('fails closed for %s cancel capability inputs', (_name, capabilities) => {
 		expect(
 			describeAlgoliaImportJobActions(
-				publicJob({ status: 'copying_documents' }),
+				publicImportJob({ status: 'copying_documents' }),
 				undefined,
 				capabilities
 			)
@@ -466,7 +633,7 @@ describe('Algolia import job presentation seam', () => {
 
 	it.each([
 		['absent', undefined],
-		['all false', NO_CAPABILITIES],
+		['all false', NO_MIGRATION_CAPABILITIES],
 		['partial resume omitted', { cancel: true, replace: true } as AlgoliaMigrationCapabilities],
 		[
 			'malformed resume by cast',
@@ -475,7 +642,7 @@ describe('Algolia import job presentation seam', () => {
 	])('fails closed for %s resume capability inputs', (_name, capabilities) => {
 		expect(
 			describeAlgoliaImportJobActions(
-				publicJob({ status: 'failed', resumable: true, publicationDisposition: 'unchanged' }),
+				publicImportJob({ status: 'failed', resumable: true, publicationDisposition: 'unchanged' }),
 				undefined,
 				capabilities
 			)
@@ -491,8 +658,8 @@ describe('Algolia import job presentation seam', () => {
 	});
 
 	it('gates cancel and resume independently without using availability as an action gate', () => {
-		const running = publicJob({ status: 'copying_documents' });
-		const resumableFailure = publicJob({
+		const running = publicImportJob({ status: 'copying_documents' });
+		const resumableFailure = publicImportJob({
 			status: 'failed',
 			resumable: true,
 			publicationDisposition: 'unchanged'
@@ -539,7 +706,7 @@ describe('Algolia import job presentation seam', () => {
 		(_name, status, code) => {
 			expect(
 				describeAlgoliaImportJobActions(
-					publicJob({
+					publicImportJob({
 						status,
 						resumable: true,
 						publicationDisposition: 'unchanged',
@@ -557,10 +724,30 @@ describe('Algolia import job presentation seam', () => {
 		}
 	);
 
+	it('uses the job source provider in resumable retry guidance', () => {
+		expect(
+			describeAlgoliaImportJobActions(
+				publicImportJob({
+					sourceProvider: 'typesense',
+					status: 'failed',
+					resumable: true,
+					publicationDisposition: 'unchanged',
+					error: { code: 'invalid_credentials' }
+				}),
+				undefined,
+				{ cancel: false, resume: true, replace: false }
+			)
+		).toMatchObject({
+			canResume: true,
+			retryCopy:
+				'Reconnect to Typesense with a fresh key. Already-imported records are skipped when the import resumes.'
+		});
+	});
+
 	it('offers only a start-over path for non-resumable terminal failures', () => {
 		expect(
 			describeAlgoliaImportJobActions(
-				publicJob({
+				publicImportJob({
 					status: 'failed',
 					resumable: false,
 					publicationDisposition: 'unchanged',
@@ -582,7 +769,7 @@ describe('Algolia import job presentation seam', () => {
 		(reason) => {
 			expect(
 				describeAlgoliaImportJobActions(
-					publicJob({
+					publicImportJob({
 						status: 'interrupted',
 						resumable: true,
 						publicationDisposition: 'unchanged',

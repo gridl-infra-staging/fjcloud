@@ -139,15 +139,7 @@ Usage: run_migrations <db_url> <migrations_dir>. |
 | privacy_com_client.sh | Privacy.com transport owner for create/get/list/close card flows.
 shellcheck disable=SC1091,SC2034. |
 | rc_invocation.sh | Shared RC wrapper data helpers. |
-| security_checks.sh | Security validation checks for the backend reliability gate.
-
-Three automated checks:
-  check_cargo_audit         — cargo audit for known vulnerable dependencies
-  check_secret_scan         — scan tracked files for leaked secrets/key patterns
-  check_unsafe_code_patterns — grep Rust source for SQL interpolation and unsafe Command::new
-
-Each function prints a single JSON line to stdout and returns 0 (pass) or 1 (fail/skip).
-On failure, emits REASON:<code> to stderr for structured reason extraction. |
+| security_suite_summary.py | Validate classified security-check TSV rows, build the canonical JSON counters, and return the suite verdict. |
 | ses_coverage_a1_integrity.py | Canonical §1 SES coverage integrity checker for the six-probe in-VPC bundle.
 
 Validates a completed evidence bundle by cross-checking probe_results.tsv rows

@@ -35,12 +35,18 @@ const NO_CAPABILITIES: AlgoliaMigrationCapabilities = {
 	resume: false,
 	replace: false
 };
+const CLOSED_SOURCE_PROVIDERS = ['algolia', 'meilisearch', 'typesense'] as const;
+type SourceProvider = (typeof CLOSED_SOURCE_PROVIDERS)[number];
+type PublicJobWithSourceProvider = PublicAlgoliaImportJob & { sourceProvider: SourceProvider };
 
-function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgoliaImportJob {
+function publicJob(
+	overrides: Partial<PublicAlgoliaImportJob> & { sourceProvider?: SourceProvider } = {}
+): PublicJobWithSourceProvider {
 	return {
 		id: 'job_123',
 		status: 'copying_documents',
 		mode: 'create',
+		sourceProvider: 'algolia',
 		destination: { kind: 'create', target: 'products_migrated', region: 'us-east-1' },
 		source: { name: 'products' },
 		summary: {
@@ -68,7 +74,7 @@ function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 		createdAt: '2026-07-18T10:00:00Z',
 		updatedAt: '2026-07-18T10:05:00Z',
 		...overrides
-	};
+	} as PublicJobWithSourceProvider;
 }
 
 function renderJobPage(
@@ -114,6 +120,36 @@ describe('[jobId] job detail page presentation', () => {
 		expect(screen.queryByTestId('migration-job-capability-actions')).not.toBeInTheDocument();
 	});
 
+	it('renders source-provider unsupported copy distinct from destination-provider unsupported copy', () => {
+		renderJobPage(
+			publicJob({
+				status: 'failed',
+				error: { code: 'source_provider_unsupported' } as PublicAlgoliaImportJob['error']
+			}),
+			NO_CAPABILITIES
+		);
+
+		expect(screen.getByTestId('migration-job-error')).toHaveTextContent(
+			'This source provider is not supported for search imports yet.'
+		);
+		expect(screen.getByTestId('migration-job-error')).not.toHaveTextContent(
+			'This destination provider does not support migration imports.'
+		);
+		cleanup();
+
+		renderJobPage(
+			publicJob({ status: 'failed', error: { code: 'migration_provider_unsupported' } }),
+			NO_CAPABILITIES
+		);
+
+		expect(screen.getByTestId('migration-job-error')).toHaveTextContent(
+			'This destination provider does not support migration imports.'
+		);
+		expect(screen.getByTestId('migration-job-error')).not.toHaveTextContent(
+			'This source provider is not supported for search imports yet.'
+		);
+	});
+
 	it('renders cancel inside capability actions and no resume affordances when only cancel is enabled', () => {
 		renderJobPage(publicJob({ status: 'copying_documents' }), RUNNING_CAPABILITIES);
 
@@ -143,6 +179,48 @@ describe('[jobId] job detail page presentation', () => {
 
 		await expect(getAccessibilityViolations(failedContainer)).resolves.toEqual([]);
 	});
+
+	it.each([
+		{
+			sourceProvider: 'algolia',
+			label: /algolia api key/i,
+			excludedLabels: [/meilisearch api key/i, /typesense api key/i]
+		},
+		{
+			sourceProvider: 'meilisearch',
+			label: /meilisearch api key/i,
+			excludedLabels: [/algolia api key/i, /typesense api key/i]
+		},
+		{
+			sourceProvider: 'typesense',
+			label: /typesense api key/i,
+			excludedLabels: [/algolia api key/i, /meilisearch api key/i]
+		}
+	] as const)(
+		'has no structural accessibility violations while showing the $sourceProvider resumable credential panel',
+		async ({ sourceProvider, label, excludedLabels }) => {
+			const { container } = renderJobPage(
+				publicJob({
+					status: 'interrupted',
+					error: { code: 'interrupted' },
+					resumable: true,
+					resumeDeadline: '2099-07-18T11:02:00Z',
+					resumeProvenance: 'engine_checkpoint',
+					sourceProvider,
+					source: { name: `${sourceProvider}_products` }
+				}),
+				{ cancel: false, resume: true, replace: false }
+			);
+
+			expect(screen.getByTestId('migration-job-detail')).toHaveTextContent(sourceProvider);
+			expect(screen.getByTestId('migration-job-retry-panel')).toBeInTheDocument();
+			expect(screen.getByLabelText(label)).toHaveAttribute('type', 'password');
+			for (const excludedLabel of excludedLabels) {
+				expect(screen.queryByLabelText(excludedLabel)).not.toBeInTheDocument();
+			}
+			await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+		}
+	);
 });
 
 describe('[jobId] job detail live refresh', () => {
@@ -197,24 +275,36 @@ describe('[jobId] job detail actions', () => {
 		vi.stubGlobal('fetch', fetchMock);
 	});
 
-	it('submits the cancel action through the server-only action boundary and refreshes on success', async () => {
-		deserializeMock.mockReturnValue({ type: 'success', status: 200, data: { job: publicJob() } });
-		invalidateAllMock.mockResolvedValue(undefined);
-		vi.spyOn(window, 'confirm').mockReturnValue(true);
+	it.each(CLOSED_SOURCE_PROVIDERS)(
+		'submits the cancel action with exact source_provider %s FormData and refreshes on success',
+		async (sourceProvider) => {
+			deserializeMock.mockReturnValue({
+				type: 'success',
+				status: 200,
+				data: { job: publicJob({ sourceProvider }) }
+			});
+			invalidateAllMock.mockResolvedValue(undefined);
+			vi.spyOn(window, 'confirm').mockReturnValue(true);
 
-		renderJobPage(publicJob({ status: 'copying_documents' }), RUNNING_CAPABILITIES);
+			renderJobPage(
+				publicJob({ status: 'copying_documents', sourceProvider }),
+				RUNNING_CAPABILITIES
+			);
 
-		await fireEvent.click(screen.getByRole('button', { name: /cancel import/i }));
+			await fireEvent.click(screen.getByRole('button', { name: /cancel import/i }));
 
-		expect(fetchMock).toHaveBeenCalledWith(
-			'?/cancel',
-			expect.objectContaining({
-				method: 'POST',
-				headers: { 'x-sveltekit-action': 'true' }
-			})
-		);
-		await vi.waitFor(() => expect(invalidateAllMock).toHaveBeenCalled());
-	});
+			expect(fetchMock).toHaveBeenCalledWith(
+				'?/cancel',
+				expect.objectContaining({
+					method: 'POST',
+					headers: { 'x-sveltekit-action': 'true' }
+				})
+			);
+			const submittedBody = fetchMock.mock.calls[0][1].body as FormData;
+			expect(Array.from(submittedBody.entries())).toEqual([['source_provider', sourceProvider]]);
+			await vi.waitFor(() => expect(invalidateAllMock).toHaveBeenCalled());
+		}
+	);
 
 	it('surfaces the reloading marker during a post-action refresh, then clears it', async () => {
 		deserializeMock.mockReturnValue({ type: 'success', status: 200, data: { job: publicJob() } });
@@ -243,30 +333,45 @@ describe('[jobId] job detail actions', () => {
 		);
 	});
 
-	it('submits the resume action with the entered API key without leaking it into the page', async () => {
-		const resumableJob = publicJob({
-			status: 'interrupted',
-			error: { code: 'interrupted' },
-			resumable: true
-		});
-		deserializeMock.mockReturnValue({ type: 'success', status: 200, data: { job: resumableJob } });
-		invalidateAllMock.mockResolvedValue(undefined);
+	it.each(CLOSED_SOURCE_PROVIDERS)(
+		'submits the resume action with exact source_provider %s FormData and no retained key',
+		async (sourceProvider) => {
+			const resumableJob = publicJob({
+				status: 'interrupted',
+				error: { code: 'interrupted' },
+				resumable: true,
+				sourceProvider
+			});
+			deserializeMock.mockReturnValue({
+				type: 'success',
+				status: 200,
+				data: { job: resumableJob }
+			});
+			invalidateAllMock.mockResolvedValue(undefined);
 
-		const { container } = renderJobPage(resumableJob, {
-			cancel: false,
-			resume: true,
-			replace: false
-		});
+			const { container } = renderJobPage(resumableJob, {
+				cancel: false,
+				resume: true,
+				replace: false
+			});
 
-		const apiKeyInput = screen.getByLabelText(/algolia api key/i);
-		await fireEvent.input(apiKeyInput, { target: { value: 'resume-secret-key-canary-0007' } });
-		await fireEvent.click(screen.getByRole('button', { name: /resume import/i }));
+			const apiKey = `${sourceProvider}-resume-secret-key-canary-0007`;
+			const apiKeyInput = screen.getByLabelText(new RegExp(`${sourceProvider} api key`, 'i'));
+			await fireEvent.input(apiKeyInput, { target: { value: apiKey } });
+			await fireEvent.click(screen.getByRole('button', { name: /resume import/i }));
 
-		expect(fetchMock).toHaveBeenCalledWith('?/resume', expect.objectContaining({ method: 'POST' }));
-		const submittedBody = fetchMock.mock.calls[0][1].body as FormData;
-		expect(submittedBody.get('apiKey')).toBe('resume-secret-key-canary-0007');
-		expect(container.innerHTML).not.toContain('resume-secret-key-canary-0007');
-	});
+			expect(fetchMock).toHaveBeenCalledWith(
+				'?/resume',
+				expect.objectContaining({ method: 'POST' })
+			);
+			const submittedBody = fetchMock.mock.calls[0][1].body as FormData;
+			expect(Array.from(submittedBody.entries())).toEqual([
+				['source_provider', sourceProvider],
+				['apiKey', apiKey]
+			]);
+			expect(container.innerHTML).not.toContain(apiKey);
+		}
+	);
 });
 
 const TERMINAL_STATUSES: AlgoliaImportJobStatus[] = [

@@ -174,6 +174,31 @@ exit 0'
 # Tests
 # ============================================================================
 
+test_compose_leaves_api_startup_to_component_scripts() {
+    local compose_files=(
+        "$REPO_ROOT/docker-compose.yml"
+        "$REPO_ROOT/docker-compose.override.yml.example"
+    )
+
+    if rg -q '^[[:space:]]{2}(api|web):[[:space:]]*$' "${compose_files[@]}"; then
+        fail "Compose configuration should leave API and web startup to component scripts"
+    else
+        pass "Compose configuration leaves API and web startup to component scripts"
+    fi
+}
+
+test_source_provider_ports_bind_to_loopback() {
+    local compose
+    compose="$(cat "$REPO_ROOT/docker-compose.yml")"
+
+    assert_contains "$compose" \
+        '- "127.0.0.1:${LOCAL_MEILISEARCH_PORT:-7700}:7700"' \
+        "Meilisearch should not expose its predictable local development key beyond loopback"
+    assert_contains "$compose" \
+        '- "127.0.0.1:${LOCAL_TYPESENSE_PORT:-8108}:8108"' \
+        "Typesense should not expose its predictable local development key beyond loopback"
+}
+
 test_calls_down_before_starting() {
     local tmp_dir
     tmp_dir=$(mktemp -d)
@@ -1390,6 +1415,8 @@ main() {
     echo "=== local-dev-up.sh tests ==="
     echo ""
 
+    test_compose_leaves_api_startup_to_component_scripts
+    test_source_provider_ports_bind_to_loopback
     test_calls_down_before_starting
     test_starts_only_postgres_service
     test_waits_for_postgres_with_superuser_probe

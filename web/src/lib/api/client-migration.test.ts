@@ -1,9 +1,8 @@
-import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { ApiClient, ApiRequestError } from './client';
 import type {
 	AlgoliaDestinationEligibilityRequest,
 	AlgoliaDestinationEligibilityResponse,
-	AlgoliaIndexMetadata,
 	AlgoliaMigrationAvailabilityResponse,
 	AlgoliaImportWarning,
 	AlgoliaSourceListResponse,
@@ -11,148 +10,23 @@ import type {
 	CreateAlgoliaImportJobRequest,
 	ListAlgoliaImportJobsRequest,
 	ListAlgoliaIndexesRequest,
-	PublicAlgoliaImportJob,
 	PublicAlgoliaImportJobPage,
 	ResumeAlgoliaImportJobRequest
 } from './types';
-import { BASE_URL, mockFetch, createAuthenticatedClient } from './client.test.shared';
-
-const AUTH_HEADERS = {
-	'Content-Type': 'application/json',
-	Authorization: 'Bearer my-jwt-token'
-};
-const VOLATILE_SOURCE_CREDENTIALS = {
-	appId: 'ALGOLIA_APP_123',
-	apiKey: 'algolia-source-key',
-	sourceName: 'source_products'
-};
-
-function expectRequestBody(fetch: ReturnType<typeof mockFetch>, expected: unknown): void {
-	const init = (fetch as unknown as Mock).mock.calls[0]?.[1] as RequestInit | undefined;
-	expect(init?.body).toBe(JSON.stringify(expected));
-}
-
-function requestJsonBody(fetch: ReturnType<typeof mockFetch>, callIndex = 0): unknown {
-	const body = requestInit(fetch, callIndex).body;
-	expect(typeof body).toBe('string');
-	return JSON.parse(body as string);
-}
-
-function requestInit(fetch: ReturnType<typeof mockFetch>, callIndex = 0): RequestInit {
-	const init = (fetch as unknown as Mock).mock.calls[callIndex]?.[1] as RequestInit | undefined;
-	expect(init).toBeDefined();
-	return init as RequestInit;
-}
-
-function requestUrl(fetch: ReturnType<typeof mockFetch>, callIndex = 0): string {
-	const url = (fetch as unknown as Mock).mock.calls[callIndex]?.[0] as string | undefined;
-	expect(url).toBeDefined();
-	return url as string;
-}
-
-function mockFetchWithHeaders(
-	status: number,
-	body: unknown,
-	headers: Record<string, string>
-): typeof globalThis.fetch {
-	return vi.fn().mockResolvedValue({
-		ok: status >= 200 && status < 300,
-		status,
-		headers: new Headers(headers),
-		json: () => Promise.resolve(body)
-	});
-}
-
-function serializedRequest(fetch: ReturnType<typeof mockFetch>, callIndex = 0): string {
-	const init = requestInit(fetch, callIndex);
-	return `${requestUrl(fetch, callIndex)} ${JSON.stringify(init.headers)} ${String(init.body ?? '')}`;
-}
-
-function expectNoAlgoliaCredentialBytes(fetch: ReturnType<typeof mockFetch>, callIndex = 0): void {
-	const serialized = serializedRequest(fetch, callIndex);
-	for (const credential of [
-		VOLATILE_SOURCE_CREDENTIALS.appId,
-		VOLATILE_SOURCE_CREDENTIALS.apiKey,
-		VOLATILE_SOURCE_CREDENTIALS.sourceName
-	]) {
-		expect(serialized).not.toContain(credential);
-	}
-}
-
-async function expectApiRequestError(
-	action: () => Promise<unknown>,
-	expected: {
-		status: number;
-		body: Record<string, unknown>;
-		requestId: string;
-		retryAfter?: string;
-	}
-): Promise<void> {
-	try {
-		await action();
-		throw new Error('Expected ApiRequestError');
-	} catch (error) {
-		expect(error).toBeInstanceOf(ApiRequestError);
-		const apiError = error as ApiRequestError;
-		expect(apiError.status).toBe(expected.status);
-		expect(apiError.message).toBe(expected.body.error);
-		expect(apiError.body).toEqual(expected.body);
-		expect(apiError.requestId).toBe(expected.requestId);
-		expect(apiError.headers?.get('Retry-After') ?? undefined).toBe(expected.retryAfter);
-	}
-}
-
-function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgoliaImportJob {
-	return {
-		id: '11111111-1111-1111-1111-111111111111',
-		status: 'failed',
-		mode: 'create',
-		destination: { kind: 'create', target: 'fj_products', region: 'us-east-1' },
-		source: {
-			name: VOLATILE_SOURCE_CREDENTIALS.sourceName
-		},
-		summary: {
-			documentsExpected: 17,
-			documentsImported: 13,
-			documentsRejected: 4,
-			settingsApplied: 1,
-			settingsUnsupported: 2,
-			synonymsExpected: 5,
-			synonymsImported: 3,
-			synonymsRejected: 2,
-			rulesExpected: 7,
-			rulesImported: 6,
-			rulesRejected: 1
-		},
-		terminalOutcomeObserved: false,
-		warnings: [],
-		error: null,
-		cancelRequestedAt: null,
-		resumeProvenance: 'engine_checkpoint',
-		resumeDeadline: '2026-07-18T11:02:00Z',
-		resumable: true,
-		resumeCount: 2,
-		publicationDisposition: 'unchanged',
-		createdAt: '2026-07-18T10:00:00Z',
-		updatedAt: '2026-07-18T10:05:00Z',
-		...overrides
-	};
-}
-
-function fullSourceMetadata(overrides: Partial<AlgoliaIndexMetadata> = {}): AlgoliaIndexMetadata {
-	return {
-		name: 'source_products',
-		entries: 1234,
-		dataSize: 2048,
-		fileSize: 4096,
-		updatedAt: '2026-07-18T10:00:00Z',
-		lastBuildTimeS: 17,
-		pendingTask: false,
-		primary: 'primary_products',
-		replicas: ['source_products_price_asc'],
-		...overrides
-	};
-}
+import { BASE_URL, createAuthenticatedClient, mockFetch } from './client.test.shared';
+import {
+	AUTH_HEADERS,
+	VOLATILE_SOURCE_CREDENTIALS,
+	expectApiRequestError,
+	expectNoAlgoliaCredentialBytes,
+	expectRequestBody,
+	fullSourceMetadata,
+	mockFetchWithHeaders,
+	publicJob,
+	requestInit,
+	requestJsonBody,
+	serializedRequest
+} from './client_migration_test_fixtures';
 
 describe('ApiClient - migration availability', () => {
 	let client: ApiClient;

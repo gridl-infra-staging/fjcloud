@@ -34,6 +34,7 @@ argon2             = "0.5"
 rand               = "0.8"
 hex                = "0.4"
 billing            = { path = "../billing" }
+database-url       = { path = "../database-url" }
 pricing-calculator = { path = "../pricing-calculator" }
 rust_decimal       = { workspace = true }
 async-stripe       = { version = "0.41", default-features = false, features = ["runtime-tokio-hyper", "billing", "checkout", "chrono"] }

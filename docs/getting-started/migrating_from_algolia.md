@@ -137,18 +137,43 @@ curl -X PUT "$API_BASE_URL/indexes/$INDEX_NAME/rules/$RULE_ID" \
   }'
 ```
 
+## Data migration with the console
+
+The examples above are the manual fjcloud operation path. When migration availability reports that imports can start, [open the migration console](/console/migrate) to move one Algolia primary index through the retained-job workflow:
+
+1. Choose whether to create a destination index or, when the advertised `replace` capability allows it, select an existing destination. Confirm the destination provider, region, and index name before connecting to Algolia.
+2. Select Algolia as the source provider. Enter the Algolia Application ID and a temporary API key with `listIndexes`, `browse`, and `settings`; add `seeUnretrievableAttributes` only when the source uses unretrievable attributes.
+3. Connect and preview the source indexes. Select a primary index. Replica rows cannot be selected directly; importing a primary reconstructs supported replicas as fjcloud virtual replicas.
+4. Review the source, destination, scope, and admission result, then select **Start import**. The scope covers primary records, settings, synonyms, and rules. A failed replica reconstruction leaves the imported primary in place.
+5. Follow the retained job-detail link for status, imported-versus-expected document counts, settings and synonym/rule summaries, warnings, and the final publication result. You can leave or reload the detail page without stopping a running import.
+6. After a successful import, use **View index** and **Test search** from the detail page. Compare representative searches, document counts, settings, synonyms, and rules with the source before moving application traffic.
+7. If **Cancel import** is visible, the availability response and current job state allow cancellation. Cancel from the detail page and wait for its retained status to become terminal.
+8. If an import fails or is interrupted, use **Start a new import**. Do not plan around resume: customer-advertised capabilities force `resume` to `false` even though internal resume route code exists.
+
+Delete the temporary API key in Algolia after the import completes or fails. fjcloud clears its in-memory credential copy but cannot revoke the key at Algolia.
+
+For pricing, account setup, and shared error-envelope behavior, use [Pricing FAQ](./pricing-faq.md), [Customer Quickstart](./customer-quickstart.md), and [Error Reference](./error-reference.md) instead of duplicating those contracts here.
+
 ## Algolia import availability
 
-Customer-facing Algolia discovery and import are temporarily unavailable while the importer is replaced. `/console/migrate` remains reachable for authenticated customers, but it is a read-only explanation page and does not collect Algolia credentials or start imports.
+`/console/migrate` is reachable for authenticated customers, but the create flow fails closed. `FJCLOUD_ALGOLIA_MIGRATION_ENABLED` defaults to `false`; when it is not enabled, the page shows the unavailable explanation and does not mount credential or import controls. Enabling the flag is necessary, but the availability response remains the final authority because `current_migration_availability` also intersects route and engine capabilities.
 
-The only customer migration route currently exposed is the authenticated availability read path:
+Check the authenticated availability path before starting an import:
 
 ```bash
 curl -X GET "$API_BASE_URL/migration/algolia/availability" \
   -H "Authorization: Bearer $AUTH_TOKEN"
 ```
 
-The retired `POST /migration/algolia/list-indexes` and `POST /migration/algolia/migrate` routes are not available customer functionality. Do not build new customer flows against them.
+Do not infer availability for any deployed environment from this guide. Treat `available: false` and any absent or false capability as unavailable. In particular, start a new import after a failed attempt instead of calling the mounted resume route while the response advertises `resume: false`.
+
+## Unsupported concepts
+
+The import scope is intentionally bounded to primary records, settings, synonyms, rules, and supported replica reconstruction. Treat Algolia resources outside that list as not included in the import contract.
+
+- Recreate fjcloud API keys after verifying the destination; never copy an Algolia key into fjcloud application authentication.
+- Rebuild analytics integrations and experiments against the destination after cutover instead of expecting historical state to move with the index.
+- Review settings and rule behavior with representative searches. When an Algolia option has no direct fjcloud payload equivalent, express the intent through fjcloud settings, synonyms, or rules and test the result before routing production traffic.
 
 ## Source evidence
 
@@ -156,5 +181,8 @@ The retired `POST /migration/algolia/list-indexes` and `POST /migration/algolia/
 - Account prerequisite owner: [Customer Quickstart](./customer-quickstart.md).
 - Route assembly owners: `infra/api/src/router/route_assembly.rs` (`add_index_lifecycle_and_replica_routes`, `add_index_configuration_routes`, `add_migration_routes`).
 - Index route owners: `infra/api/src/routes/indexes/lifecycle.rs` (`create_index`, `list_indexes`), `infra/api/src/routes/indexes/documents.rs` (`batch_documents`, `get_document`, `delete_document`), `infra/api/src/routes/indexes/search.rs` (`test_search`), `infra/api/src/routes/indexes/synonyms.rs` (`save_synonym`), and `infra/api/src/routes/indexes/rules.rs` (`save_rule`).
-- Migration availability owner: `infra/api/src/routes/migration.rs` (`algolia_availability`).
-- Payload-shape owners: `infra/api/tests/integration/indexes_test.rs` for batch, get/delete, synonym, and rule examples, plus `infra/api/tests/integration/migration_routes_test.rs` for migration availability and retired POST-route rejection.
+- Migration availability owners: `infra/api/src/config.rs` (`FJCLOUD_ALGOLIA_MIGRATION_ENABLED`) and `infra/api/src/routes/migration.rs` (`current_migration_availability`, `compute_availability`).
+- Console contract and credential owners: `docs/screen_specs/migrate.md`, `web/src/lib/components/migration/MigrationAlgoliaConnection.svelte`, and `web/src/lib/components/migration/MigrationSourceConnection.svelte`.
+- Review and retained-detail owners: `web/src/lib/components/migration/MigrationCreateReview.svelte` and `web/src/lib/components/migration/ImportJobDetail.svelte`.
+- Migration handler owners: `infra/api/src/routes/migration/source.rs`, `infra/api/src/routes/migration/eligibility.rs`, `infra/api/src/routes/migration/jobs.rs`, and `infra/api/src/routes/migration/retained_jobs.rs`.
+- Payload-shape owners: `infra/api/tests/integration/indexes_test.rs` for batch, get/delete, synonym, and rule examples, plus `infra/api/tests/integration/migration_routes_test.rs` for migration availability and job lifecycle coverage.

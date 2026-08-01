@@ -132,10 +132,10 @@ run_security_dep_audit() {
     local output exit_code=$PASS
     output="$(check_dep_audit 2>&1)" || exit_code=$?
     echo "$output" >&2
-    # Treat missing cargo-audit as an actionable gate failure in CI.
-    if [ "$exit_code" -eq "$PASS" ] && [[ "$output" == *"SECURITY_DEP_AUDIT_SKIP_TOOL_MISSING"* ]]; then
-        return "$FAIL"
-    fi
+    # Missing cargo-audit is an actionable gate failure. That rule is owned by
+    # check_dep_audit itself (scripts/reliability/lib/security_checks.sh), which
+    # returns 1 on SECURITY_DEP_AUDIT_SKIP_TOOL_MISSING — do not re-implement it
+    # here; a second owner of the same rule can only drift.
     return "$exit_code"
 }
 

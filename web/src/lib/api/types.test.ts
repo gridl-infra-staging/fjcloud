@@ -17,7 +17,8 @@ function checkApiTypeContract() {
 	} catch (error) {
 		const result = error as { message?: string; stdout?: string; stderr?: string };
 		throw new Error(
-			[result.message, result.stdout, result.stderr].filter(Boolean).join('\n').trim()
+			[result.message, result.stdout, result.stderr].filter(Boolean).join('\n').trim(),
+			{ cause: error }
 		);
 	}
 }

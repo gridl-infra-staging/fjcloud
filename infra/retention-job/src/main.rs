@@ -19,6 +19,7 @@ async fn main() -> Result<()> {
         "retention job starting"
     );
 
+    database_url::validate_database_url_tls(&cfg.database_url).map_err(anyhow::Error::msg)?;
     let pool = sqlx::PgPool::connect(&cfg.database_url).await?;
     let summary = job::run_from_config(&cfg, pool.clone()).await?;
     pool.close().await;

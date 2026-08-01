@@ -34,6 +34,12 @@ STAGE2_ALGOLIA_BEFORE="191 passed, 0 failed; real 67.64 user 25.74 sys 17.58"
 STAGE2_ALGOLIA_AFTER="213 passed, 0 failed; real 92.49 user 28.46 sys 21.75"
 STAGE2_SES_BEFORE="100 passed, 0 failed; real 20.69 user 6.38 sys 3.87"
 STAGE2_SES_AFTER="108 passed, 0 failed; real 36.25 user 8.17 sys 6.18"
+# A source-pinned timing row may disappear from the live manifest only through
+# an explicit, dated deletion decision. Filesystem absence alone is ambiguous:
+# the suite may have been renamed, which must remain a failing drift signal.
+SLOW_SUITE_DELETIONS=(
+    "2026-07-30|scripts/tests/security_checks_lib_test.sh"
+)
 FINAL_ACCEPTANCE_FIXTURE_FIELDS=(
     "local_ci_exit_code=0"
     "elapsed_seconds_exact=100.25"
@@ -646,14 +652,39 @@ test_real_stage2_timing_evidence_is_present_and_source_pinned() {
         "Stage 2 receipt explains why added fake-sleep coverage changed timing"
 }
 
+# Cross-check a pinned slow-suite TSV against the CURRENT manifest.
+#
+# Every pinned suite must still be registered unless its path is present in the
+# explicit dated deletion ledger above. Filesystem absence is not deletion
+# evidence because a renamed suite is also absent at its old path.
+#
+# Args: <slow_tsv_abs> <suite_root> <manifest_path>...
 validate_slow_suite_tsv_manifest_residency() {
-    local slow_tsv_abs="$1"
-    shift
-    local manifest_paths suite_path rc=0
+    local slow_tsv_abs="$1" suite_root="$2"
+    shift 2
+    local manifest_paths suite_path deletion_entry deleted_path rc=0
 
     manifest_paths="$(mktemp)"
     printf '%s\n' "$@" | LC_ALL=C sort -u > "$manifest_paths"
     while IFS=$'\t' read -r _ suite_path _; do
+        if [ ! -e "$suite_root/$suite_path" ]; then
+            if grep -Fxq "$suite_path" "$manifest_paths"; then
+                printf 'ERROR: deleted slow-suite path still registered in manifest: %s\n' \
+                    "$suite_path" >&2
+                rc=1
+                break
+            fi
+            deleted_path=""
+            for deletion_entry in "${SLOW_SUITE_DELETIONS[@]}"; do
+                if [ "${deletion_entry#*|}" = "$suite_path" ]; then
+                    deleted_path="$suite_path"
+                    break
+                fi
+            done
+            if [ "$deleted_path" = "$suite_path" ]; then
+                continue
+            fi
+        fi
         if ! grep -Fxq "$suite_path" "$manifest_paths"; then
             printf 'ERROR: slow-suite TSV path absent from current manifest: %s\n' \
                 "$suite_path" >&2
@@ -673,6 +704,7 @@ test_real_slow_suite_tsv_matches_registered_manifest() {
 
     output="$(validate_slow_suite_tsv_manifest_residency \
         "$REPO_ROOT/$slow_tsv_rel" \
+        "$REPO_ROOT" \
         "${TEST_REACHABILITY_HERMETIC_TESTS[@]}" 2>&1)" || rc=$?
 
     assert_eq "$rc" "0" "every source-pinned slow-suite TSV path remains registered"
@@ -687,6 +719,7 @@ test_source_pinned_slow_suite_tsv_survives_later_manifest_growth() {
 
     output="$(validate_slow_suite_tsv_manifest_residency \
         "$REPO_ROOT/$slow_tsv_rel" \
+        "$REPO_ROOT" \
         "${TEST_REACHABILITY_HERMETIC_TESTS[@]}" 2>&1)" || rc=$?
     unset "TEST_REACHABILITY_HERMETIC_TESTS[$appended_index]"
 
@@ -699,15 +732,77 @@ test_fixture_rejects_slow_suite_path_absent_from_manifest() {
     tmpdir="$(mktemp -d)"
     slow_tsv_abs="$tmpdir/slow_suites.tsv"
     printf '1\tscripts/tests/fixture_absent_test.sh\t0\n' > "$slow_tsv_abs"
+    # The suite must exist under suite_root, otherwise this specimen would
+    # exercise the deletion branch instead of the drift branch.
+    mkdir -p "$tmpdir/scripts/tests"
+    : > "$tmpdir/scripts/tests/fixture_absent_test.sh"
 
     output="$(validate_slow_suite_tsv_manifest_residency \
         "$slow_tsv_abs" \
+        "$tmpdir" \
         "scripts/tests/fixture_present_test.sh" 2>&1)" || rc=$?
 
     assert_eq "$rc" "1" "slow-suite TSV path absent from the manifest fails closed"
     assert_contains "$output" \
         "slow-suite TSV path absent from current manifest: scripts/tests/fixture_absent_test.sh" \
         "missing manifest residency failure names the absent suite path"
+    rm -rf "$tmpdir"
+}
+
+test_fixture_rejects_deleted_slow_suite_still_registered_in_manifest() {
+    local tmpdir slow_tsv_abs output rc=0
+    tmpdir="$(mktemp -d)"
+    slow_tsv_abs="$tmpdir/slow_suites.tsv"
+    # No file is created under $tmpdir, so the suite reads as deleted while the
+    # manifest still lists it — the state that breaks the reachability gate.
+    printf '0\tscripts/tests/fixture_deleted_test.sh\t0\n' > "$slow_tsv_abs"
+
+    output="$(validate_slow_suite_tsv_manifest_residency \
+        "$slow_tsv_abs" \
+        "$tmpdir" \
+        "scripts/tests/fixture_deleted_test.sh" 2>&1)" || rc=$?
+
+    assert_eq "$rc" "1" "a deleted suite left registered in the manifest fails closed"
+    assert_contains "$output" \
+        "deleted slow-suite path still registered in manifest: scripts/tests/fixture_deleted_test.sh" \
+        "deleted-suite failure names the stale manifest entry"
+    rm -rf "$tmpdir"
+}
+
+test_fixture_accepts_deleted_slow_suite_dropped_from_manifest() {
+    local tmpdir slow_tsv_abs output rc=0
+    tmpdir="$(mktemp -d)"
+    slow_tsv_abs="$tmpdir/slow_suites.tsv"
+    printf '0\tscripts/tests/security_checks_lib_test.sh\t0\n' > "$slow_tsv_abs"
+
+    output="$(validate_slow_suite_tsv_manifest_residency \
+        "$slow_tsv_abs" \
+        "$tmpdir" \
+        "scripts/tests/fixture_present_test.sh" 2>&1)" || rc=$?
+
+    assert_eq "$rc" "0" \
+        "a suite deleted from the repo and dropped from the manifest is not drift"
+    assert_eq "$output" "" "clean deletion should emit no residency error"
+    rm -rf "$tmpdir"
+}
+
+test_fixture_rejects_renamed_slow_suite_dropped_from_manifest() {
+    local tmpdir slow_tsv_abs output rc=0
+    tmpdir="$(mktemp -d)"
+    slow_tsv_abs="$tmpdir/slow_suites.tsv"
+    printf '0\tscripts/tests/renamed_old_test.sh\t0\n' > "$slow_tsv_abs"
+    mkdir -p "$tmpdir/scripts/tests"
+    : > "$tmpdir/scripts/tests/renamed_new_test.sh"
+
+    output="$(validate_slow_suite_tsv_manifest_residency \
+        "$slow_tsv_abs" \
+        "$tmpdir" \
+        "scripts/tests/renamed_new_test.sh" 2>&1)" || rc=$?
+
+    assert_eq "$rc" "1" "a renamed suite cannot silently orphan its pinned timing row"
+    assert_contains "$output" \
+        "slow-suite TSV path absent from current manifest: scripts/tests/renamed_old_test.sh" \
+        "renamed-suite drift names the orphaned pinned path"
     rm -rf "$tmpdir"
 }
 
@@ -753,6 +848,9 @@ test_real_stage2_timing_evidence_is_present_and_source_pinned
 test_real_slow_suite_tsv_matches_registered_manifest
 test_source_pinned_slow_suite_tsv_survives_later_manifest_growth
 test_fixture_rejects_slow_suite_path_absent_from_manifest
+test_fixture_rejects_deleted_slow_suite_still_registered_in_manifest
+test_fixture_accepts_deleted_slow_suite_dropped_from_manifest
+test_fixture_rejects_renamed_slow_suite_dropped_from_manifest
 test_real_baseline_is_under_budget
 
 run_test_summary

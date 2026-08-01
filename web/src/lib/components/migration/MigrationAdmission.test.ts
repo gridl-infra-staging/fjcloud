@@ -45,6 +45,7 @@ function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 		id: 'job_123',
 		status: 'failed',
 		mode: 'create',
+		sourceProvider: 'algolia',
 		destination: {
 			kind: 'create',
 			target: 'products_migrated',
@@ -291,7 +292,7 @@ describe('Algolia import admission presentation', () => {
 		expect(screen.getByTestId('migration-recent-imports')).toBeInTheDocument();
 		expect(screen.getByRole('link', { name: /open import job_retry/i })).toHaveAttribute(
 			'href',
-			'/console/migrate/job_retry'
+			'/console/migrate/job_retry?source_provider=algolia'
 		);
 	});
 

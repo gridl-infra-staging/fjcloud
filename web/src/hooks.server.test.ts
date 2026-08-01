@@ -73,18 +73,17 @@ async function callHandle(
 }> {
 	const event = makeEvent(pathname, token);
 	const resolve = vi.fn(resolveImpl ?? (async () => new Response('ok')));
-	let resolved = false;
 	let response: Response | undefined;
 	try {
 		response = await (handle as Handle)({ event, resolve } as never);
-		resolved = true;
 	} catch (e) {
 		if (e instanceof MockRedirect) {
 			return { resolved: false, event, resolveSpy: resolve };
 		}
 		throw e;
 	}
-	return { resolved, event, response, resolveSpy: resolve };
+	// Only a completed try block reaches here, so resolution succeeded.
+	return { resolved: true, event, response, resolveSpy: resolve };
 }
 
 type RedirectCapture = {

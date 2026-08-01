@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 
+use api::auth::admin::{
+    AdminCredentialCandidate, AdminUserRepo, PgAdminUserRepo, ADMIN_CREDENTIAL_PREFIX_LENGTH,
+};
 use api::dns::mock::MockDnsManager;
 use api::provisioner::mock::MockVmProvisioner;
 use api::provisioner::region_map::RegionConfig;
@@ -32,9 +35,12 @@ use api::services::tenant_quota::{FreeTierLimits, QuotaDefaults, TenantQuotaServ
 use api::services::vm_orphan_reconcile::{VmOrphanDependencies, VmOrphanReconciler};
 use api::state::{AppState, MetricsCache, PublicInfrastructureCache};
 use api::state::{OAuthCookieSameSite, OAuthProviderRuntimeConfig, OAuthRuntimeConfig};
+use async_trait::async_trait;
 use axum::Router;
+use sha2::{Digest, Sha256};
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
+use uuid::Uuid;
 
 use super::mocks::{
     mock_alert_service, mock_api_key_repo, mock_cold_snapshot_repo, mock_deployment_repo,
@@ -53,6 +59,40 @@ pub const TEST_JWT_SECRET: &str = "test-jwt-secret-min-32-chars-ok!";
 pub const TEST_ADMIN_KEY: &str = "test-admin-key-16";
 pub const TEST_INTERNAL_AUTH_TOKEN: &str = "test-internal-key";
 pub const TEST_WEBHOOK_SECRET: &str = "test-webhook-secret";
+
+const TEST_ADMIN_OPERATOR_ID: Uuid = Uuid::from_u128(0xa11d_0000_0000_0000_0000_0000_0000_0001);
+
+struct TestAdminUserRepo {
+    credential_prefix: String,
+    candidate: AdminCredentialCandidate,
+}
+
+#[async_trait]
+impl AdminUserRepo for TestAdminUserRepo {
+    async fn active_candidates_by_prefix(
+        &self,
+        credential_prefix: &str,
+    ) -> anyhow::Result<Vec<AdminCredentialCandidate>> {
+        if credential_prefix == self.credential_prefix {
+            Ok(vec![self.candidate.clone()])
+        } else {
+            Ok(Vec::new())
+        }
+    }
+}
+
+fn test_admin_user_repo() -> Arc<dyn AdminUserRepo> {
+    let credential_prefix = TEST_ADMIN_KEY[..ADMIN_CREDENTIAL_PREFIX_LENGTH].to_string();
+    let credential_sha256 = hex::encode(Sha256::digest(TEST_ADMIN_KEY.as_bytes()));
+    Arc::new(TestAdminUserRepo {
+        credential_prefix,
+        candidate: AdminCredentialCandidate {
+            operator_id: TEST_ADMIN_OPERATOR_ID,
+            identifier: "test-admin-key".to_string(),
+            credential_sha256,
+        },
+    })
+}
 
 fn lazy_pool() -> sqlx::PgPool {
     PgPoolOptions::new()
@@ -202,7 +242,8 @@ pub(crate) fn test_engine_health_wait_policy() -> EngineHealthWaitPolicy {
 /// repos/services relevant to the scenario being tested.
 ///
 /// Key defaults:
-/// - Auth: `TEST_JWT_SECRET`, `TEST_ADMIN_KEY`, `TEST_INTERNAL_AUTH_TOKEN`, `TEST_WEBHOOK_SECRET`
+/// - Auth: `TEST_JWT_SECRET`, a persisted-credential-shaped operator for
+///   `TEST_ADMIN_KEY`, `TEST_INTERNAL_AUTH_TOKEN`, and `TEST_WEBHOOK_SECRET`
 /// - All repos: mock or in-memory (no Postgres)
 /// - `FlapjackProxy`: mock (no real flapjack node)
 /// - `GarageProxy`: points at `http://127.0.0.1:3900` (safe; never called in unit tests)
@@ -214,6 +255,7 @@ pub(crate) fn test_engine_health_wait_policy() -> EngineHealthWaitPolicy {
 pub struct TestStateBuilder {
     jwt_secret: Arc<str>,
     admin_key: Arc<str>,
+    admin_user_repo: Arc<dyn AdminUserRepo>,
     internal_auth_token: Option<Arc<str>>,
     stripe_webhook_secret: Option<Arc<str>>,
     stripe_publishable_key: Option<String>,
@@ -277,6 +319,7 @@ impl TestStateBuilder {
         Self {
             jwt_secret: Arc::from(TEST_JWT_SECRET),
             admin_key: Arc::from(TEST_ADMIN_KEY),
+            admin_user_repo: test_admin_user_repo(),
             internal_auth_token: Some(Arc::from(TEST_INTERNAL_AUTH_TOKEN)),
             stripe_webhook_secret: Some(Arc::from(TEST_WEBHOOK_SECRET)),
             stripe_publishable_key: None,
@@ -432,10 +475,11 @@ impl TestStateBuilder {
     }
 
     /// Back the built `AppState` with a real Postgres pool (e.g. from
-    /// `connect_and_migrate`) so route handlers that construct a
-    /// `PgAlgoliaImportJobRepo` from `state.pool` exercise real SQL instead of
-    /// the never-connecting lazy pool.
+    /// `connect_and_migrate`) so admin authentication and route handlers that
+    /// construct a `PgAlgoliaImportJobRepo` from `state.pool` exercise real SQL
+    /// instead of test repositories and the never-connecting lazy pool.
     pub fn with_pool(mut self, pool: sqlx::PgPool) -> Self {
+        self.admin_user_repo = Arc::new(PgAdminUserRepo::new(pool.clone()));
         self.pool_override = Some(pool);
         self
     }
@@ -629,6 +673,7 @@ impl TestStateBuilder {
             pool: pool.clone(),
             jwt_secret: self.jwt_secret,
             admin_key: self.admin_key,
+            admin_user_repo: self.admin_user_repo,
             internal_auth_token: self.internal_auth_token,
             stripe_webhook_secret: self.stripe_webhook_secret,
             stripe_publishable_key: self.stripe_publishable_key,

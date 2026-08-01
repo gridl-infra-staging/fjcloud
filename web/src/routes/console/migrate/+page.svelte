@@ -3,16 +3,18 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import type { ActionResult } from '@sveltejs/kit';
-	import { onMount } from 'svelte';
+	import { untrack } from 'svelte';
 	import { DEFAULT_INTERNAL_REGIONS, SUPPORT_EMAIL } from '$lib/format';
 	import type {
 		AlgoliaDestinationEligibilityRequest,
 		AlgoliaDestinationEligibilityResponse,
 		AlgoliaMigrationAvailabilityResponse,
 		AlgoliaSourceListResponse,
-		CreateAlgoliaImportJobRequest,
+		CreateMigrationImportJobRequest,
+		ListMigrationSourceIndexesRequest,
 		PublicAlgoliaImportJob,
-		PublicAlgoliaImportJobPage
+		PublicAlgoliaImportJobPage,
+		SourceProvider
 	} from '$lib/api/types';
 	import MigrationCreateFlow from '$lib/components/migration/MigrationCreateFlow.svelte';
 	import RecentImports from '$lib/components/migration/RecentImports.svelte';
@@ -21,6 +23,7 @@
 		type ProviderEligibilityState
 	} from '$lib/components/migration/provider_eligibility';
 	import type { MigrationCreateSuccessIntent } from '$lib/components/migration/create_success_intent';
+	import type { MigrationCreateClient } from '$lib/components/migration/migration_create_client';
 
 	const RECENT_IMPORTS_PAGE_SIZE = 10;
 	const RECENT_IMPORTS_FAILED = 'Recent imports could not be loaded';
@@ -35,6 +38,8 @@
 	const availability = $derived(data.availability);
 	const defaultMigrationRegion = DEFAULT_INTERNAL_REGIONS[0]?.id ?? 'us-east-1';
 	let providerEligibility = $state<ProviderEligibilityState>(defaultProviderEligibility());
+	let providerEligibilityRequest: Promise<void> | null = null;
+	let providerEligibilitySource = $state<SourceProvider | null>(null);
 
 	// The SSR load owns the first recent-import page; browser retry/load-more go
 	// back through the single server-only recentImports action, never a browser
@@ -47,8 +52,15 @@
 	// svelte-ignore state_referenced_locally
 	let recentImportsError = $state<string | null>(data.recentImports?.error ?? null);
 	let recentImportsLoading = $state(false);
+	let recentImportsRequestId = 0;
+	const initialSourceProvider = untrack(
+		() => data.recentImports?.page?.jobs[0]?.sourceProvider ?? ('algolia' satisfies SourceProvider)
+	);
+	let sourceProvider = $state<SourceProvider>(initialSourceProvider);
+	let recentImportsProvider = $state<SourceProvider>(initialSourceProvider);
 
 	$effect(() => {
+		recentImportsRequestId += 1;
 		recentImportsPage = data.recentImports?.page ?? null;
 		recentImportsError = data.recentImports?.error ?? null;
 		recentImportsLoading = false;
@@ -66,7 +78,7 @@
 	function actionFailureMessage(result: ActionResult): string {
 		const data = result.type === 'failure' ? result.data : null;
 		const error = data && typeof data.error === 'string' ? data.error.trim() : '';
-		return error || 'Algolia migration request failed';
+		return error || 'Migration request failed';
 	}
 
 	async function postAction(actionName: string, body: FormData): Promise<ActionResult> {
@@ -99,12 +111,20 @@
 	// A null cursor reloads the first page and replaces rows; a non-null cursor
 	// (retry-after-error or load-more) appends the next page onto the existing
 	// rows. Both paths keep pagination in this single route owner.
-	async function loadRecentImportsPage(cursor: string | null): Promise<void> {
+	async function loadRecentImportsPage(
+		cursor: string | null,
+		requestedProvider: SourceProvider = sourceProvider,
+		eligibilityRequest: Promise<void> | null = providerEligibilityRequest
+	): Promise<void> {
 		if (recentImportsLoading) return;
+		const requestId = ++recentImportsRequestId;
 		recentImportsLoading = true;
 		recentImportsError = null;
 		try {
+			await eligibilityRequest;
+			if (!recentImportsRequestIsCurrent(requestId, requestedProvider)) return;
 			const body = new FormData();
+			body.set('source_provider', requestedProvider);
 			if (cursor !== null) body.set('cursor', cursor);
 			body.set('limit', String(RECENT_IMPORTS_PAGE_SIZE));
 			const result = await postAction('recentImports', body);
@@ -112,13 +132,25 @@
 				result,
 				'recentImports'
 			);
+			if (!recentImportsRequestIsCurrent(requestId, requestedProvider)) return;
 			recentImportsPage = cursor === null ? nextPage : mergeRecentImports(nextPage);
 		} catch (error) {
-			recentImportsError =
-				error instanceof Error && error.message ? error.message : RECENT_IMPORTS_FAILED;
+			if (recentImportsRequestIsCurrent(requestId, requestedProvider)) {
+				recentImportsError =
+					error instanceof Error && error.message ? error.message : RECENT_IMPORTS_FAILED;
+			}
 		} finally {
-			recentImportsLoading = false;
+			if (recentImportsRequestIsCurrent(requestId, requestedProvider)) {
+				recentImportsLoading = false;
+			}
 		}
+	}
+
+	function recentImportsRequestIsCurrent(
+		requestId: number,
+		requestedProvider: SourceProvider
+	): boolean {
+		return recentImportsRequestId === requestId && sourceProvider === requestedProvider;
 	}
 
 	function mergeRecentImports(nextPage: PublicAlgoliaImportJobPage): PublicAlgoliaImportJobPage {
@@ -137,52 +169,60 @@
 	}
 
 	const migrationClient = {
-		listAlgoliaSourceIndexes: (request) =>
-			submitMigrationAction<AlgoliaSourceListResponse>(
+		listMigrationSourceIndexes: async (
+			selectedSourceProvider: SourceProvider,
+			request: ListMigrationSourceIndexesRequest
+		) => {
+			await providerEligibilityRequest;
+			return submitMigrationAction<AlgoliaSourceListResponse>(
 				'listSourceIndexes',
-				request,
+				{ source_provider: selectedSourceProvider, ...request },
 				'sourceIndexes'
-			),
-		checkAlgoliaDestinationEligibility: (request) =>
-			submitMigrationAction<AlgoliaDestinationEligibilityResponse>(
+			);
+		},
+		checkMigrationDestinationEligibility: async (
+			selectedSourceProvider: SourceProvider,
+			request: AlgoliaDestinationEligibilityRequest
+		) => {
+			await providerEligibilityRequest;
+			return submitMigrationAction<AlgoliaDestinationEligibilityResponse>(
 				'checkDestinationEligibility',
-				request,
+				{ source_provider: selectedSourceProvider, ...request },
 				'targetEligibility'
-			),
-		createAlgoliaImportJob: (request, idempotencyKey) =>
-			submitMigrationAction<PublicAlgoliaImportJob>(
+			);
+		},
+		createMigrationImportJob: async (
+			selectedSourceProvider: SourceProvider,
+			request: CreateMigrationImportJobRequest,
+			idempotencyKey: string
+		) => {
+			await providerEligibilityRequest;
+			return submitMigrationAction<PublicAlgoliaImportJob>(
 				'createImportJob',
-				request,
+				{ source_provider: selectedSourceProvider, ...request },
 				'job',
 				idempotencyKey
-			)
-	} satisfies {
-		listAlgoliaSourceIndexes: (request: {
-			appId: string;
-			apiKey: string;
-			cursor?: string | null;
-		}) => Promise<AlgoliaSourceListResponse>;
-		checkAlgoliaDestinationEligibility: (
-			request: AlgoliaDestinationEligibilityRequest
-		) => Promise<AlgoliaDestinationEligibilityResponse>;
-		createAlgoliaImportJob: (
-			request: CreateAlgoliaImportJobRequest,
-			idempotencyKey: string
-		) => Promise<PublicAlgoliaImportJob>;
-	};
+			);
+		}
+	} satisfies MigrationCreateClient;
 
-	async function loadProviderEligibility(): Promise<void> {
+	async function loadProviderEligibility(selectedSourceProvider: SourceProvider): Promise<void> {
 		try {
-			providerEligibility = await submitMigrationAction<AlgoliaDestinationEligibilityResponse>(
+			const eligibility = await submitMigrationAction<AlgoliaDestinationEligibilityResponse>(
 				'providerEligibility',
-				{ region: defaultMigrationRegion },
+				{ source_provider: selectedSourceProvider, region: defaultMigrationRegion },
 				'providerEligibility'
 			);
+			if (sourceProvider === selectedSourceProvider) {
+				providerEligibility = eligibility;
+			}
 		} catch (error) {
-			providerEligibility = {
-				status: 'unsupported',
-				message: error instanceof Error ? error.message : 'Algolia migration request failed'
-			};
+			if (sourceProvider === selectedSourceProvider) {
+				providerEligibility = {
+					status: 'unsupported',
+					message: error instanceof Error ? error.message : 'Migration request failed'
+				};
+			}
 		}
 	}
 
@@ -190,26 +230,38 @@
 		void goto(resolve(intent.href));
 	}
 
-	onMount(() => {
-		if (availability.available) {
-			void loadProviderEligibility();
+	$effect(() => {
+		const selectedSourceProvider = sourceProvider;
+		if (!availability.available || providerEligibilitySource === selectedSourceProvider) return;
+
+		providerEligibilitySource = selectedSourceProvider;
+		providerEligibility = defaultProviderEligibility();
+		const eligibilityRequest = loadProviderEligibility(selectedSourceProvider);
+		providerEligibilityRequest = eligibilityRequest;
+		void eligibilityRequest;
+
+		if (recentImportsProvider !== selectedSourceProvider) {
+			recentImportsProvider = selectedSourceProvider;
+			recentImportsPage = null;
+			recentImportsError = null;
+			recentImportsLoading = false;
+			void loadRecentImportsPage(null, selectedSourceProvider, eligibilityRequest);
 		}
 	});
 </script>
 
 <svelte:head>
-	<title>Migrate from Algolia</title>
+	<title>Migrate search data</title>
 </svelte:head>
 
 <div class="space-y-6">
 	<header class="space-y-2">
-		<h2 class="text-xl font-semibold text-flapjack-ink">Migrate from Algolia</h2>
+		<h2 class="text-xl font-semibold text-flapjack-ink">Migrate search data</h2>
 		<p class="max-w-3xl text-sm leading-6 text-flapjack-ink/70">
 			{#if availability.available}
 				Local activation is wired and the migration surface can report live capability state.
 			{:else}
-				Direct imports from Algolia are paused while we replace the importer with a safer migration
-				path.
+				Search data imports are paused while we replace the importer with a safer migration path.
 			{/if}
 		</p>
 	</header>
@@ -222,19 +274,21 @@
 		>
 			<div class="space-y-3">
 				<p id="migration-available-title" class="text-base font-semibold text-flapjack-ink">
-					Algolia migration is available
+					Search data migration is available
 				</p>
 				<p class="text-sm leading-6 text-flapjack-ink/75">
 					{availability.message}
 				</p>
 				<MigrationCreateFlow
 					client={migrationClient}
+					bind:sourceProvider
 					{providerEligibility}
 					capabilities={availability.capabilities}
 					onImportCreated={handleImportCreated}
 				/>
 				<RecentImports
 					page={recentImportsPage}
+					{sourceProvider}
 					loading={recentImportsLoading}
 					error={recentImportsError}
 					onRetry={handleRecentImportsRetry}
@@ -250,14 +304,14 @@
 		>
 			<div class="space-y-3">
 				<p id="migration-unavailable-title" class="text-base font-semibold text-flapjack-ink">
-					Algolia migration is temporarily unavailable
+					Search data migration is temporarily unavailable
 				</p>
 				<p class="text-sm leading-6 text-flapjack-ink/75">
 					{availability.message}
 				</p>
 				<p class="text-sm leading-6 text-flapjack-ink/75">
-					We have temporarily turned off new Algolia imports while we replace the customer import
-					flow. Existing fjcloud indexes and search APIs continue to work.
+					We have temporarily turned off new search data imports while we replace the customer
+					import flow. Existing fjcloud indexes and search APIs continue to work.
 				</p>
 				<p class="text-sm leading-6 text-flapjack-ink/75">
 					For migration planning help while this is unavailable, contact

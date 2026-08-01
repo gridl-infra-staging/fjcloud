@@ -6,7 +6,7 @@ use crate::models::InvoiceRow;
 use crate::repos::{DisputeRow, DisputeUpsertInput};
 use crate::services::alerting::{Alert, AlertSeverity};
 use crate::services::audit_log::{
-    write_audit_log, ACTION_STRIPE_DISPUTE_UPDATED, ADMIN_SENTINEL_ACTOR_ID,
+    system_audit_metadata, write_audit_log, ACTION_STRIPE_DISPUTE_UPDATED, STRIPE_SYSTEM_ACTOR_ID,
 };
 use crate::state::AppState;
 
@@ -317,17 +317,20 @@ async fn write_dispute_audit_best_effort(
 
     if let Err(error) = write_audit_log(
         &state.pool,
-        ADMIN_SENTINEL_ACTOR_ID,
+        STRIPE_SYSTEM_ACTOR_ID,
         ACTION_STRIPE_DISPUTE_UPDATED,
         target_tenant_id,
-        serde_json::json!({
-            "event_type": event_type,
-            "invoice_resolution_source": resolution_source,
-            "stripe_dispute_id": dispute.stripe_dispute_id,
-            "stripe_charge_id": dispute.stripe_charge_id,
-            "status": dispute.status,
-            "invoice_id": dispute.invoice_id,
-        }),
+        system_audit_metadata(
+            "stripe",
+            serde_json::json!({
+                "event_type": event_type,
+                "invoice_resolution_source": resolution_source,
+                "stripe_dispute_id": dispute.stripe_dispute_id,
+                "stripe_charge_id": dispute.stripe_charge_id,
+                "status": dispute.status,
+                "invoice_id": dispute.invoice_id,
+            }),
+        ),
     )
     .await
     {

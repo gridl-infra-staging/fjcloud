@@ -99,19 +99,39 @@ if ! configure_caddy "$CADDY_SERVED_HOSTNAME"; then
 fi
 "#;
 
-fn caddy_runtime_sections(runtime: &CaddyRuntime) -> (String, String) {
+struct CaddyScriptSections {
+    metadata_assignment: String,
+    preflight: String,
+    configure: String,
+}
+
+fn caddy_runtime_sections(runtime: &CaddyRuntime) -> CaddyScriptSections {
     match runtime {
-        CaddyRuntime::Unavailable => (String::new(), String::new()),
+        CaddyRuntime::Unavailable => CaddyScriptSections {
+            metadata_assignment: String::new(),
+            preflight: String::new(),
+            configure: String::new(),
+        },
         CaddyRuntime::Available { served_hostname } => {
-            let quoted_hostname = if is_safe_caddy_hostname(served_hostname) {
-                shell_single_quote(served_hostname)
+            if is_safe_caddy_hostname(served_hostname) {
+                CaddyScriptSections {
+                    metadata_assignment: format!(
+                        "CADDY_SERVED_HOSTNAME={}\n",
+                        shell_single_quote(served_hostname)
+                    ),
+                    preflight: String::new(),
+                    configure: CADDY_SHELL_CONTRACT.to_string(),
+                }
             } else {
-                "''".to_string()
-            };
-            (
-                format!("CADDY_SERVED_HOSTNAME={quoted_hostname}\n"),
-                CADDY_SHELL_CONTRACT.to_string(),
-            )
+                CaddyScriptSections {
+                    metadata_assignment: "CADDY_SERVED_HOSTNAME=''\n".to_string(),
+                    preflight: r#"logger -t "$LOG_TAG" "ERROR: refusing bootstrap; invalid Caddy served hostname for TLS-enabled runtime"
+exit 1
+"#
+                    .to_string(),
+                    configure: String::new(),
+                }
+            }
         }
     }
 }
@@ -156,8 +176,7 @@ DISCORD_WEBHOOK_URL="#,
     let quoted_node_id = shell_single_quote(node_id);
     let quoted_region = shell_single_quote(region);
     let quoted_environment = shell_single_quote(environment);
-    let (caddy_metadata_assignment, caddy_shell_contract) =
-        caddy_runtime_sections(&params.caddy_runtime);
+    let caddy_sections = caddy_runtime_sections(&params.caddy_runtime);
 
     format!(
         r#"#!/bin/bash
@@ -174,6 +193,7 @@ ENVIRONMENT={quoted_environment}
 
 logger -t "$LOG_TAG" "customer_id=$CUSTOMER_ID node_id=$NODE_ID region=$REGION environment=$ENVIRONMENT"
 
+{caddy_preflight}
 {secret_block}
 
 if [ "$ENVIRONMENT" = "staging" ] && [[ "$DNS_DOMAIN" != staging.* ]]; then
@@ -256,10 +276,13 @@ logger -t "$LOG_TAG" "env files written"
 # Enable and start services
 systemctl daemon-reload
 systemctl enable --now flapjack fj-metering-agent
-{caddy_shell_contract}
+{caddy_configure}
 
 logger -t "$LOG_TAG" "services started, bootstrap complete"
-"#
+"#,
+        caddy_metadata_assignment = caddy_sections.metadata_assignment,
+        caddy_preflight = caddy_sections.preflight,
+        caddy_configure = caddy_sections.configure
     )
 }
 
@@ -386,6 +409,51 @@ mod tests {
         assert!(script.contains("systemctl enable --now flapjack fj-metering-agent"));
         assert!(!script.contains("systemctl enable flapjack fj-metering-agent\n"));
         assert!(!script.contains("systemctl start flapjack fj-metering-agent\n"));
+    }
+
+    #[test]
+    fn cloud_init_starts_flapjack_services_before_caddy_config() {
+        let service_start_anchor = "systemctl enable --now flapjack fj-metering-agent";
+        let caddy_config_anchor = "cat > /etc/caddy/Caddyfile <<CADDYEOF";
+        let params = CloudInitParams {
+            customer_id: "cust-456".to_string(),
+            node_id: "node-xyz".to_string(),
+            region: "eu-central-1".to_string(),
+            environment: "prod".to_string(),
+            caddy_runtime: CaddyRuntime::Available {
+                served_hostname: "vm-abc.example.com".to_string(),
+            },
+            secrets: SecretDelivery::Direct {
+                db_url: "postgres://db.example.com/fjcloud".to_string(),
+                api_key: "sk-secret-key".to_string(),
+            },
+        };
+        let script = generate_cloud_init(&params);
+
+        assert_core_flapjack_and_metering_script(&script);
+        assert_caddy_enabled_script(&script, "vm-abc.example.com");
+
+        let service_start_offset = script
+            .find(service_start_anchor)
+            .expect("Flapjack and metering services should be started");
+        let caddy_config_offset = script
+            .find(caddy_config_anchor)
+            .expect("Caddy config block should be rendered when Caddy is available");
+        assert!(
+            service_start_offset < caddy_config_offset,
+            "Flapjack and metering services should start before Caddy configuration"
+        );
+
+        let params_without_caddy = CloudInitParams {
+            caddy_runtime: CaddyRuntime::Unavailable,
+            ..params
+        };
+        let script_without_caddy = generate_cloud_init(&params_without_caddy);
+
+        assert_core_flapjack_and_metering_script(&script_without_caddy);
+        assert_caddy_disabled_script(&script_without_caddy);
+        assert!(script_without_caddy.contains(service_start_anchor));
+        assert!(!script_without_caddy.contains(caddy_config_anchor));
     }
 
     #[test]
@@ -547,7 +615,7 @@ mod tests {
     }
 
     #[test]
-    fn cloud_init_drops_unsafe_caddy_hostname() {
+    fn cloud_init_rejects_unsafe_caddy_hostname_before_starting_services() {
         let params = CloudInitParams {
             customer_id: "cust".to_string(),
             node_id: "node".to_string(),
@@ -564,8 +632,24 @@ mod tests {
         let script = generate_cloud_init(&params);
 
         assert!(script.contains("CADDY_SERVED_HOSTNAME=''"));
-        assert!(script.contains("WARN: Caddy setup skipped; unsafe served hostname"));
+        assert!(script.contains(
+            "ERROR: refusing bootstrap; invalid Caddy served hostname for TLS-enabled runtime"
+        ));
         assert!(!script.contains("reverse_proxy attacker:80"));
+        assert!(!script.contains("systemctl enable --now caddy"));
+
+        let reject_offset = script
+            .find(
+                "ERROR: refusing bootstrap; invalid Caddy served hostname for TLS-enabled runtime",
+            )
+            .expect("invalid hostname preflight should be present");
+        let service_start_offset = script
+            .find("systemctl enable --now flapjack fj-metering-agent")
+            .expect("service start should still be rendered later in the script");
+        assert!(
+            reject_offset < service_start_offset,
+            "invalid TLS hostnames must fail before services are started"
+        );
     }
 
     #[test]

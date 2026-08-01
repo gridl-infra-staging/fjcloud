@@ -106,7 +106,7 @@ function mapUpgradeFailure(error: ApiRequestError): BillingUpgradeOutcome {
 export const load: PageServerLoad = async ({ locals }) => {
 	const api = createApiClient(locals.user?.token);
 
-	let paymentMethods: PaymentMethod[] = [];
+	let paymentMethods: PaymentMethod[];
 	try {
 		paymentMethods = await api.getPaymentMethods();
 	} catch (err) {
@@ -128,7 +128,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		throw err;
 	}
 
-	let upgradeStatus: CustomerUpgradeStatusResponse | null = null;
+	let upgradeStatus: CustomerUpgradeStatusResponse | null;
 	try {
 		upgradeStatus = await api.getUpgradeStatus();
 	} catch (err) {

@@ -1,6 +1,25 @@
 #!/usr/bin/env bash
 # Security validation checks for the backend reliability gate.
 #
+# CANONICAL OWNER (consolidated 2026-07-30).
+# This file is the single tracked `security_checks.sh` in the repo. Two rivals
+# were deleted in the same commit that repointed their pointers:
+#   - scripts/lib/security_checks.sh          (rival library)
+#   - scripts/reliability/security_checks.sh  (CLI orchestrator)
+# This file won because it has the callers and the downstream contract:
+#   - sourced by scripts/local-ci.sh and
+#     scripts/reliability/run_backend_reliability_gate.sh,
+#   - sole owner of check_sql_guard / check_cmd_injection / run_security_suite,
+#   - run_security_suite is exposed as raw JSON by
+#     scripts/reliability/run_security_suite.sh and wrapped for human use by
+#     local-ci's opt-in security-suite gate, while its JSON/counting contract
+#     lives in security_suite_summary.py,
+#   - sole owner of the SECURITY_* reason codes that the reliability gate and
+#     the RC evidence collectors parse.
+# The rival's one *better* behaviour — failing closed when cargo-audit is
+# absent — was ported into check_dep_audit here rather than kept over there.
+# `scripts/tests/security_checks_test.sh` is the sole test owner of this file.
+#
 # This library provides security checks that can be run individually or
 # as a grouped security suite. Each check function follows the existing
 # gate pattern: exit 0 = pass, exit 1 = fail, with REASON: code output.
@@ -16,8 +35,13 @@
 #   SECURITY_SECRET_FOUND        — Secret detected in source
 #   SECURITY_SECRET_CLEAN        — No secrets found in scanned paths
 #   SECURITY_DEP_AUDIT_PASS      — Dependency audit passed
-#   SECURITY_DEP_AUDIT_FAIL      — Vulnerabilities found
-#   SECURITY_DEP_AUDIT_SKIP_TOOL_MISSING  — cargo-audit not installed
+#   SECURITY_DEP_AUDIT_FAIL_ADVISORIES
+#                                  — Critical/high vulnerabilities found
+#   SECURITY_DEP_AUDIT_FAIL      — Audit output was unusable
+#   SECURITY_DEP_AUDIT_SKIP_TOOL_MISSING  — cargo-audit not installed (FAILS the
+#                                  check; the code stays distinct from
+#                                  SECURITY_DEP_AUDIT_FAIL so callers can still
+#                                  tell "tool absent" from "vulnerabilities found")
 #   SECURITY_DEP_AUDIT_WARN      — Advisory/low/medium/info vulnerabilities found
 #   SECURITY_SQL_UNSAFE          — Unsafe SQL pattern detected
 #   SECURITY_SQL_CLEAN           — No unsafe SQL patterns found
@@ -68,7 +92,7 @@ SECURITY_EXCLUDED_FILES=(
 # whole-token (e.g. `fj_local_dev_admin_key_…`, `fj_<random>`) and start at a
 # word boundary, so this preserves true-positive coverage. Word boundaries are
 # supported by both GNU grep (CI on Ubuntu) and BSD grep (local dev on macOS).
-SECURITY_SECRET_PATTERN='AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{24,}|sk_test_[A-Za-z0-9]{24,}|\<fj_[A-Za-z0-9_]{20,}'
+SECURITY_SECRET_PATTERN='AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{24,}|sk_test_[A-Za-z0-9]{24,}|rk_live_[A-Za-z0-9]{24,}|rk_test_[A-Za-z0-9]{24,}|whsec_[A-Za-z0-9]{20,}|\<fj_[A-Za-z0-9_]{20,}'
 
 # _ms_now is provided by live_gate.sh (shared across all gate libs)
 
@@ -304,10 +328,25 @@ check_cmd_injection() {
     return 0
 }
 
+# check_dep_audit — run `cargo audit` over the infra workspace.
+#
+# Exit contract:
+#   0 — audit ran and found nothing at critical/high severity
+#       (SECURITY_DEP_AUDIT_PASS, or SECURITY_DEP_AUDIT_WARN for advisory/low/
+#       medium/info findings)
+#   1 — audit found critical/high vulnerabilities
+#       (SECURITY_DEP_AUDIT_FAIL_ADVISORIES),
+#       the audit output was unparsable (SECURITY_DEP_AUDIT_FAIL), or
+#       cargo-audit is not installed (SECURITY_DEP_AUDIT_SKIP_TOOL_MISSING)
+#
+# Missing tooling FAILS CLOSED. A dependency audit that never ran proves
+# nothing about the dependency tree, so reporting it as a pass would be a guard
+# that cannot fail. The distinct SKIP_TOOL_MISSING reason code is retained so
+# callers can still tell "install cargo-audit" from "you have a live CVE".
 check_dep_audit() {
     if ! command -v cargo-audit &>/dev/null; then
         echo "REASON: SECURITY_DEP_AUDIT_SKIP_TOOL_MISSING" >&2
-        return 0
+        return 1
     fi
 
     local audit_output_file
@@ -318,51 +357,15 @@ check_dep_audit() {
         :
     fi
 
+    # Severity classification lives in scripts/lib/cvss_severity.py. It was
+    # extracted from an embedded heredoc: bash 3.2 scans a $( ... ) command
+    # substitution for quote balance even inside a quoted heredoc, so a single
+    # apostrophe in that Python broke this whole library at parse time. The
+    # script prints one of pass/warn/fail on stdout, names blocking advisories
+    # on stderr, and exits non-zero only when the report is unparsable — in
+    # which case we fail closed rather than trust an unreadable audit.
     local audit_verdict
-    if ! audit_verdict="$(python3 - "$audit_output_file" <<'PY'
-import json
-import sys
-
-path = sys.argv[1]
-
-try:
-    with open(path, "r", encoding="utf-8", errors="ignore") as f:
-        data = json.load(f)
-except Exception:
-    print("parse_error")
-    sys.exit(2)
-
-vulnerabilities = []
-if isinstance(data, dict):
-    container = data.get("vulnerabilities") or {}
-    if isinstance(container, dict):
-        vulnerabilities = container.get("list", []) or []
-
-critical_or_high = 0
-warn_or_lower = 0
-for vuln in vulnerabilities:
-    if not isinstance(vuln, dict):
-        continue
-    advisory = vuln.get("advisory", {})
-    if not isinstance(advisory, dict):
-        advisory = {}
-    severity = str(advisory.get("severity", "")).lower()
-    if severity in {"critical", "high"}:
-        critical_or_high += 1
-    elif severity in {"advisory", "low", "medium", "info", "warning"}:
-        warn_or_lower += 1
-    else:
-        warn_or_lower += 1
-
-if critical_or_high:
-    print("fail")
-    sys.exit(0)
-if warn_or_lower:
-    print("warn")
-    sys.exit(0)
-print("pass")
-PY
-    )"; then
+    if ! audit_verdict="$(python3 "$REPO_ROOT/scripts/lib/cvss_severity.py" "$audit_output_file")"; then
         rm -f "$audit_output_file"
         echo "REASON: SECURITY_DEP_AUDIT_FAIL" >&2
         echo "Unable to parse cargo audit JSON output" >&2
@@ -381,7 +384,7 @@ PY
             return 0
             ;;
         fail)
-            echo "REASON: SECURITY_DEP_AUDIT_FAIL" >&2
+            echo "REASON: SECURITY_DEP_AUDIT_FAIL_ADVISORIES" >&2
             echo "Vulnerabilities found by cargo audit" >&2
             return 1
             ;;
@@ -440,11 +443,13 @@ check_sql_guard() {
     return 0
 }
 
+# Execute all canonical checks and emit their shared machine-readable summary.
 run_security_suite() {
-    local checks_failed=0
-    local checks_run=0
-    local checks_skipped=0
-
+    # Counting has a single owner: security_suite_summary.py rebuilds every
+    # counter from the TSV and decides the suite verdict via its exit status.
+    # The bash loop only classifies each check into a TSV row — it must not
+    # keep its own failure/run/skip counters, or the exit code and the JSON
+    # `passed` field would be two copies of the same rule that can drift apart.
     local suite_start_ms
     suite_start_ms="$(_ms_now)"
 
@@ -488,21 +493,33 @@ run_security_suite() {
         case "$exit_code" in
             0)
                 if [[ "$reason_code" == *"SKIP"* ]]; then
+                    # The check chose to skip and still exited success — a
+                    # genuine non-failing skip (status vocabulary matches
+                    # live-backend-gate.sh, where "skipped" does not fail).
                     status="skipped"
-                    checks_skipped=$((checks_skipped + 1))
                     error_class="precondition"
                 else
                     status="pass"
-                    checks_run=$((checks_run + 1))
                 fi
                 ;;
             1|*)
-                status="fail"
-                checks_failed=$((checks_failed + 1))
-                checks_run=$((checks_run + 1))
-                error_class="runtime"
-                if [ -z "$reason_code" ]; then
-                    reason_code="SECURITY_CHECK_ERROR"
+                if [[ "$reason_code" == *"SKIP"* ]]; then
+                    # A precondition failure (e.g. cargo-audit not installed):
+                    # the check never ran its substantive logic AND exited
+                    # non-zero, so it FAILS the suite — a guard that never ran
+                    # proves nothing. It is a real failure, so it carries
+                    # status="fail" (aligned with live-backend-gate.sh, which
+                    # treats "skipped" as non-failing). error_class="precondition"
+                    # is what preserves the "tool absent" vs "vulnerability found"
+                    # distinction and keeps it out of checks_run.
+                    status="fail"
+                    error_class="precondition"
+                else
+                    status="fail"
+                    error_class="runtime"
+                    if [ -z "$reason_code" ]; then
+                        reason_code="SECURITY_CHECK_ERROR"
+                    fi
                 fi
                 ;;
         esac
@@ -517,71 +534,15 @@ run_security_suite() {
     suite_end_ms="$(_ms_now)"
     local total_elapsed=$(( suite_end_ms - suite_start_ms ))
 
-    python3 - "$data_file" "$total_elapsed" <<'PYEOF'
-import json, sys
-
-data_file = sys.argv[1]
-total_elapsed = int(sys.argv[2])
-
-check_results = []
-failures = []
-checks_run = 0
-checks_failed = 0
-checks_skipped = 0
-
-with open(data_file) as f:
-    for line in f:
-        line = line.rstrip('\n')
-        if not line:
-            continue
-        # Columns: name, status, elapsed_ms, reason, error_class
-        # First 4 columns match build_json in live-backend-gate.sh
-        parts = line.split('\t', 4)
-        name = parts[0]
-        status = parts[1] if len(parts) > 1 else 'unknown'
-        elapsed = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
-        reason = parts[3] if len(parts) > 3 else ''
-        error_class = parts[4] if len(parts) > 4 else ''
-
-        entry = {
-            'elapsed_ms': elapsed,
-            'name': name,
-            'reason': reason,
-            'status': status,
-        }
-        if error_class:
-            entry['error_class'] = error_class
-        check_results.append(entry)
-
-        if status == 'fail':
-            checks_failed += 1
-            checks_run += 1
-            failures.append(name)
-        elif status == 'pass':
-            checks_run += 1
-        elif status == 'skipped':
-            checks_skipped += 1
-
-passed = checks_failed == 0
-
-output = {
-    'check_results': check_results,
-    'checks_failed': checks_failed,
-    'checks_run': checks_run,
-    'checks_skipped': checks_skipped,
-    'elapsed_ms': total_elapsed,
-    'failures': failures,
-    'passed': passed,
-}
-print(json.dumps(output, sort_keys=True))
-PYEOF
+    local suite_exit=0
+    # The helper owns both the JSON `passed` field and the exit code, so those
+    # two representations of the suite verdict cannot drift.
+    python3 "$REPO_ROOT/scripts/lib/security_suite_summary.py" \
+        "$data_file" "$total_elapsed" || suite_exit=$?
 
     rm -f "$data_file"
 
-    if [ "$checks_failed" -gt 0 ]; then
-        return 1
-    fi
-    return 0
+    return "$suite_exit"
 }
 
 __SECURITY_CHECKS_SOURCED=1

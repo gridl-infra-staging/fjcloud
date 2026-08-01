@@ -44,11 +44,10 @@ write_closeout() {
 }
 
 run_wrapper() {
-    local -a args=("$@")
     set +e
     RUN_OUTPUT="$(
         cd "$WORK_DIR/repo" &&
-            bash scripts/close_batch_union_gate.sh "${args[@]}" 2>&1
+            bash scripts/close_batch_union_gate.sh "$@" 2>&1
     )"
     RUN_EXIT_CODE=$?
     set -e

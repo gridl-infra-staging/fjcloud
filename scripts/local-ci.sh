@@ -39,7 +39,9 @@
 #                    wave3-phase-receipt, launch-closeout, debbie-dry-run,
 #                    status-doc-consistency,
 #                    roadmap-v2-shape, local-dev-runbook-currency,
-#                    web-lint, secret-scan, evidence-secret-hygiene,
+#                    web-lint, secret-scan, dep-audit, baseline-integrity, web-audit,
+#                    security-suite,
+#                    evidence-secret-hygiene,
 #                    index-export-clientside-contract,
 #                    engine-exposure-probe-contract,
 #                    fleet-dataplane-probe-contract,
@@ -112,8 +114,9 @@ done
 # Only a whole-suite `--fast` run acquires the lock. `--gate <name>` and
 # `--summary-only` dispatch no full run, so they stay lock-free and can always
 # run alongside a held lock. Acquisition happens here, before any gate is
-# scheduled, so a second concurrent `--fast` refuses up front (exit 75) instead
-# of racing gate bodies against the in-flight run. Released by the
+# scheduled, so a second concurrent `--fast` queues behind the holder for
+# FAST_LOCK_DEFAULT_WAIT_SECONDS and refuses (exit 75) only after that budget
+# elapses, instead of racing gate bodies against the in-flight run. Released by the
 # cleanup_local_ci_logs EXIT trap installed below. `acquire_fast_lock` returns
 # the refusal code on contention; propagate it as this script's exit status.
 FAST_LOCK_HELD=0
@@ -193,7 +196,7 @@ render_prod_drift() {
 # preserved and no gates are scheduled or executed.
 if [ "$SUMMARY_ONLY" -eq 1 ]; then
     printf '=== local-ci summary (summary-only) ===\n'
-    printf 'Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape web-lint secret-scan evidence-secret-hygiene index-export-clientside-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract usage-rollup-freshness-contract launch-evidence-freshness-contract test-reachability-contract local-real-pipeline-contract local-schema-drift-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver\n'
+    printf 'Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape web-lint secret-scan dep-audit baseline-integrity web-audit security-suite evidence-secret-hygiene index-export-clientside-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract usage-rollup-freshness-contract launch-evidence-freshness-contract test-reachability-contract local-real-pipeline-contract local-schema-drift-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver script-exec-bits port-collision-diagnose compose-project\n'
     render_prod_drift
     exit 0
 fi
@@ -751,6 +754,47 @@ gate_secret_scan() {
     check_secret_scan "$REPO_ROOT"
 }
 
+gate_dep_audit() {
+    # Rust dependency audit. check_dep_audit fails closed: it returns 1 both
+    # when cargo-audit reports critical/high advisories AND when cargo-audit is
+    # not installed, because an audit that never ran proves nothing about the
+    # dependency tree. The distinct SECURITY_DEP_AUDIT_SKIP_TOOL_MISSING reason
+    # code on stderr tells the two apart.
+    set -e
+    source "$REPO_ROOT/scripts/reliability/lib/security_checks.sh"
+    check_dep_audit
+}
+
+gate_baseline_integrity() {
+    bash "$REPO_ROOT/scripts/security/probe_baseline_integrity.sh" --baseline-file "$REPO_ROOT/docs/security/control_baseline.md" || return $?
+}
+
+gate_web_audit() {
+    local web_audit_root="${FJCLOUD_WEB_AUDIT_ROOT:-$REPO_ROOT/web}"
+
+    if [ ! -f "$web_audit_root/package.json" ]; then
+        echo "ERROR: web-audit root is missing package.json: $web_audit_root" >&2
+        return 1
+    fi
+    if [ ! -f "$web_audit_root/package-lock.json" ]; then
+        echo "ERROR: web-audit root is missing package-lock.json: $web_audit_root" >&2
+        return 1
+    fi
+
+    cd "$web_audit_root" || return $?
+    # Start at high: block high/critical advisories without making lower
+    # severity findings pre-push blockers.
+    npm audit --audit-level=high --package-lock-only || return $?
+}
+
+gate_security_suite() {
+    # Human-oriented local-CI wrapper around the stable machine-readable CLI.
+    # The generic run_gate layer captures gate output for its summary, so
+    # automation that needs raw JSON calls run_security_suite.sh directly.
+    set -e
+    bash "$REPO_ROOT/scripts/reliability/run_security_suite.sh"
+}
+
 gate_evidence_secret_hygiene() {
     bash "$REPO_ROOT/scripts/tests/redact_playwright_json_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/check_evidence_secret_hygiene_test.sh" || return $?
@@ -764,6 +808,7 @@ gate_algolia_safety_probe_contract() {
 gate_engine_exposure_probe_contract() {
     # Hermetic known-answer classifier suite; fixture mode forbids live network commands.
     bash "$REPO_ROOT/scripts/security/tests_probe_engine_exposure.sh" || return $?
+    bash "$REPO_ROOT/ops/terraform/tests_iac_validation_static.sh" || return $?
 }
 
 gate_fleet_dataplane_probe_contract() {
@@ -908,16 +953,38 @@ reachability_result_stem() {
     printf '%s' "$1" | tr '/' '_'
 }
 
+write_reachability_timing_row() {
+    local results_dir="$1" result_stem="$2" elapsed="$3" test_path="$4" rc="$5"
+    local tmp_path
+
+    mkdir -p "$results_dir"
+    tmp_path="$results_dir/$result_stem.timing.$$"
+    printf '%s\t%s\t%s\n' "$elapsed" "$test_path" "$rc" >"$tmp_path"
+    mv "$tmp_path" "$results_dir/$result_stem.timing"
+}
+
 run_reachability_suite() {
     local test_path="$1" results_dir="$2"
-    local result_stem start rc=0
+    local result_stem start rc=0 suite_pid=""
 
     result_stem="$(reachability_result_stem "$test_path")"
     start="$(now_seconds)"
-    bash "$REPO_ROOT/$test_path" >"$results_dir/$result_stem.log" 2>&1 || rc=$?
+    write_reachability_timing_row "$results_dir" "$result_stem" "0" "$test_path" "RUNNING"
+    trap '
+        if [ -n "$suite_pid" ]; then
+            kill "$suite_pid" 2>/dev/null || true
+            wait "$suite_pid" 2>/dev/null || true
+        fi
+        exit 143
+    ' TERM INT HUP
+    bash "$REPO_ROOT/$test_path" >"$results_dir/$result_stem.log" 2>&1 &
+    suite_pid="$!"
+    wait "$suite_pid" || rc=$?
+    suite_pid=""
+    trap - TERM INT HUP
     printf '%s\n' "$rc" >"$results_dir/$result_stem.rc"
-    printf '%s\t%s\t%s\n' "$(( $(now_seconds) - start ))" "$test_path" "$rc" \
-        >"$results_dir/$result_stem.timing"
+    write_reachability_timing_row \
+        "$results_dir" "$result_stem" "$(( $(now_seconds) - start ))" "$test_path" "$rc"
 }
 
 write_reachability_timings() {
@@ -934,6 +1001,31 @@ write_reachability_timings() {
         return 1
     fi
     printf '%s\n' "$actual_rows"
+}
+
+report_reachability_inflight_receipts() {
+    local results_dir="$1"
+    [ -d "$results_dir" ] || return 0
+
+    awk -F '\t' '
+        $3 == "RUNNING" {
+            printf "reachability gate: in-flight suite retained: %s (elapsed %ss)\n", $2, $1
+        }
+    ' "$results_dir"/*.timing >&2 2>/dev/null || true
+}
+
+terminate_reachability_workers() {
+    local results_dir="$1" worker_pid worker_pids
+
+    report_reachability_inflight_receipts "$results_dir"
+    worker_pids="$(jobs -pr)"
+    while IFS= read -r worker_pid; do
+        [ -n "$worker_pid" ] || continue
+        kill "$worker_pid" 2>/dev/null || true
+    done <<EOF
+$worker_pids
+EOF
+    wait 2>/dev/null || true
 }
 
 gate_test_reachability_contract() {
@@ -962,7 +1054,10 @@ gate_test_reachability_contract() {
     source "$REPO_ROOT/scripts/lib/test_reachability_manifest.sh"
 
     max_jobs="$(sanitize_parallel_cap "${TEST_REACHABILITY_MAX_JOBS:-$MAX_PARALLEL}" "$MAX_PARALLEL")"
-    results_dir="$(mktemp -d)"
+    results_dir="$LOG_DIR/test_reachability_results"
+    rm -rf "$results_dir"
+    mkdir -p "$results_dir"
+    trap 'terminate_reachability_workers "$results_dir"; exit 143' TERM INT HUP
 
     # A measured minority of the manifest is not isolated from its siblings and
     # fails only under concurrency. Those run sequentially after the concurrent
@@ -971,7 +1066,6 @@ gate_test_reachability_contract() {
     serial_registry="$REPO_ROOT/scripts/tests/serial_only_tests.txt"
     if [ ! -f "$serial_registry" ]; then
         echo "reachability gate: serial registry missing: scripts/tests/serial_only_tests.txt" >&2
-        rm -rf "$results_dir"
         return 1
     fi
     serial_list="$(sed -e 's/[[:space:]]*#.*$//' -e 's/[[:space:]]*$//' -e '/^[[:space:]]*$/d' \
@@ -980,7 +1074,7 @@ gate_test_reachability_contract() {
     # Refill each open slot through the same `jobs -pr` polling throttle used by
     # the outer gate scheduler. This stays compatible with macOS Bash 3.2 while
     # avoiding fixed max_jobs-wide batches, whose wait-for-the-slowest barriers
-    # left most slots idle during long probe suites.
+    # leave most slots idle during long probe suites.
     for test_path in "${TEST_REACHABILITY_HERMETIC_TESTS[@]}"; do
         if printf '%s\n' "$serial_list" | grep -Fxq "$test_path"; then
             continue
@@ -997,7 +1091,6 @@ gate_test_reachability_contract() {
         [ -n "$test_path" ] || continue
         if ! printf '%s\n' "${TEST_REACHABILITY_HERMETIC_TESTS[@]}" | grep -Fxq "$test_path"; then
             echo "reachability gate: serial registry names a test not in the hermetic manifest: $test_path" >&2
-            rm -rf "$results_dir"
             return 1
         fi
         run_reachability_suite "$test_path" "$results_dir"
@@ -1022,12 +1115,11 @@ EOF
         write_reachability_timings \
             "$results_dir" "$timings_file" "${#TEST_REACHABILITY_HERMETIC_TESTS[@]}"
     )" || {
-        rm -rf "$results_dir"
         return 1
     }
     printf 'reachability gate: %s receipt timing row(s) retained in test_reachability_slow_suites.tsv\n' \
         "$timing_rows"
-    rm -rf "$results_dir"
+    trap - TERM INT HUP
 
     if [ "${#failed[@]}" -gt 0 ]; then
         echo "reachability gate: ${#failed[@]} hermetic suite(s) failed; each is named above" >&2
@@ -1131,6 +1223,9 @@ schedule roadmap-v2-shape
 schedule package-manager-consistency
 schedule dirmap-merge-driver
 schedule secret-scan
+schedule dep-audit
+schedule baseline-integrity
+schedule web-audit
 schedule evidence-secret-hygiene
 schedule web-lint
 schedule index-export-clientside-contract
@@ -1146,6 +1241,11 @@ schedule usage-rollup-freshness-contract
 schedule launch-evidence-freshness-contract
 schedule local-real-pipeline-contract
 schedule local-multinode-migration-contract
+
+# The grouped suite is also opt-in because it includes dep-audit.
+if [ "$SINGLE_GATE" = "security-suite" ]; then
+    schedule security-suite
+fi
 
 # Run rc-wrapper after the parallel batch because its nested paid-beta RC
 # fixtures write under repo-local .local artifact paths.
@@ -1204,7 +1304,7 @@ if [ "${#SCHEDULED_GATES[@]}" -eq 0 ] \
     && [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 0 ]; then
     if [ -n "$SINGLE_GATE" ]; then
         echo "ERROR: --gate '$SINGLE_GATE' did not match any known gate" >&2
-        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape web-lint secret-scan evidence-secret-hygiene index-export-clientside-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract usage-rollup-freshness-contract launch-evidence-freshness-contract test-reachability-contract local-real-pipeline-contract local-schema-drift-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver" >&2
+        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape web-lint secret-scan dep-audit baseline-integrity web-audit security-suite evidence-secret-hygiene index-export-clientside-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract usage-rollup-freshness-contract launch-evidence-freshness-contract test-reachability-contract local-real-pipeline-contract local-schema-drift-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver script-exec-bits port-collision-diagnose compose-project" >&2
         exit 2
     fi
     echo "ERROR: no gates scheduled" >&2
@@ -1278,6 +1378,10 @@ if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
             package-manager-consistency) run_gate package-manager-consistency gate_package_manager_consistency ;;
             dirmap-merge-driver) run_gate dirmap-merge-driver gate_dirmap_merge_driver ;;
             secret-scan)     run_gate secret-scan     gate_secret_scan ;;
+            dep-audit)       run_gate dep-audit       gate_dep_audit ;;
+            baseline-integrity) run_gate baseline-integrity gate_baseline_integrity ;;
+            web-audit)       run_gate web-audit       gate_web_audit ;;
+            security-suite)  run_gate security-suite  gate_security_suite ;;
             evidence-secret-hygiene) run_gate evidence-secret-hygiene gate_evidence_secret_hygiene ;;
             web-lint)        run_gate web-lint        gate_web_lint ;;
             index-export-clientside-contract) run_gate index-export-clientside-contract gate_index_export_clientside_contract ;;

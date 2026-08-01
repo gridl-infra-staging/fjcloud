@@ -1,17 +1,12 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import {
-		INDEX_NAME_MAX_LENGTH,
-		proposeDestinationIndexName,
-		validateIndexName
-	} from '$lib/index-name';
-	import type { ApiClient } from '$lib/api/client';
+	import { INDEX_NAME_MAX_LENGTH, proposeDestinationIndexName } from '$lib/index-name';
 	import type {
 		AlgoliaDestinationEligibilityResponse,
 		AlgoliaIndexMetadata,
 		AlgoliaMigrationCapabilities,
-		AlgoliaMigrationDestinationMode,
-		CreateAlgoliaImportJobRequest
+		CreateMigrationImportJobRequest,
+		SourceProvider
 	} from '$lib/api/types';
 	import {
 		describeAlgoliaImportAdmission,
@@ -22,6 +17,14 @@
 		migrationCreateSuccessIntent,
 		type MigrationCreateSuccessIntent
 	} from './create_success_intent';
+	import {
+		checkMigrationDestination,
+		createMigrationJob,
+		listMigrationSources,
+		migrationSourceCredentials,
+		sourceCredentialFingerprint,
+		type MigrationCreateClient
+	} from './migration_create_client';
 	import MigrationCreateReview from './MigrationCreateReview.svelte';
 	import { scheduleEligibilityExpiry } from './eligibility';
 	import {
@@ -40,55 +43,50 @@
 		targetEligibilityExpired as isTargetEligibilityExpired,
 		targetEligibilityInputsBinding as buildTargetEligibilityInputsBinding
 	} from './target_eligibility';
-	import MigrationAlgoliaConnection from './MigrationAlgoliaConnection.svelte';
 	import MigrationProviderEligibility from './MigrationProviderEligibility.svelte';
 	import MigrationReplaceDestination from './MigrationReplaceDestination.svelte';
+	import MigrationSourceConnection from './MigrationSourceConnection.svelte';
 	import MigrationSourceIndexRow from './MigrationSourceIndexRow.svelte';
-
-	type MigrationCreateClient = Pick<
-		ApiClient,
-		'listAlgoliaSourceIndexes' | 'checkAlgoliaDestinationEligibility' | 'createAlgoliaImportJob'
-	>;
-
+	import { migrationCreateDestinationState } from './migration_create_flow_state';
+	import { toErrorMessage } from './migration_error_redaction';
 	let {
 		client,
+		sourceProvider = $bindable<SourceProvider>('algolia'),
 		providerEligibility = defaultProviderEligibility(),
 		admission = defaultAlgoliaImportAdmission(),
 		capabilities = undefined,
 		onImportCreated = undefined
 	}: {
 		client: MigrationCreateClient;
+		sourceProvider?: SourceProvider;
 		providerEligibility?: ProviderEligibilityState;
 		admission?: AlgoliaImportAdmission;
 		capabilities?: AlgoliaMigrationCapabilities;
 		onImportCreated?: (intent: MigrationCreateSuccessIntent) => void;
 	} = $props();
-
-	// Algolia credentials live only in this component's volatile memory: they are
-	// never persisted, serialized into markup, or lifted into load data, so a
-	// remount deliberately starts blank and forces the customer to reconnect.
+	// Source credentials stay in volatile component memory, never markup or load
+	// data. A remount deliberately starts blank and requires reconnection.
 	let appId = $state('');
+	let host = $state('');
 	let apiKey = $state('');
-
 	let sources = $state<AlgoliaIndexMetadata[]>([]);
 	let nextCursor = $state<string | null>(null);
 	let discoveryError = $state<string | null>(null);
-	let activeDiscoveryRequest = $state<{ id: number; providerEligibilityBinding: string } | null>(
-		null
-	);
+	let activeDiscoveryRequest = $state<{
+		id: number;
+		providerEligibilityBinding: string;
+		sourceProvider: SourceProvider;
+	} | null>(null);
 	let nextDiscoveryRequestId = 0;
 	let searchTerm = $state('');
 	let selectedSourceName = $state<string | null>(null);
 	let sourceStepHeading = $state<HTMLHeadingElement>();
 	let destinationStepHeading = $state<HTMLHeadingElement>();
 	let destinationErrorMessage = $state<HTMLParagraphElement>();
-	// Seeded from the selected source and then owned by the customer. The proposal
-	// is advisory only: whether the destination is actually available is decided
-	// by producer target eligibility, never here.
+	// Seeded from the source, then customer-owned; producer eligibility decides
+	// whether this advisory proposal is actually available.
 	let destinationName = $state('');
-	// Replace mode requires the customer to re-type the fixed existing
-	// destination name exactly before Start; the confirmation gates submit only
-	// and is never sent to the producer.
+	// Replace confirmation gates submit locally and is never sent to the producer.
 	let replaceConfirmation = $state('');
 	let targetEligibility = $state<AlgoliaDestinationEligibilityResponse | null>(null);
 	let targetEligibilityBinding = $state<string | null>(null);
@@ -100,22 +98,16 @@
 	let submitIntentBinding = $state<string | null>(null);
 	let submitIntentIdempotencyKey = $state<string | null>(null);
 	let successfulSubmitIntentBinding = $state<string | null>(null);
-	// Distinguishes "not connected yet" from "connected and the account is empty",
-	// which an empty `sources` array alone cannot express.
+	// An empty source array cannot distinguish unconnected from an empty account.
 	let hasDiscovered = $state(false);
-	// The app id is not secret, so the connected value can be retained to detect
-	// edits. The API key is reduced to a one-way fingerprint instead of keeping a
-	// second raw copy in component state after connect.
-	let connectedAppId = $state('');
+	// Retain the non-secret identity, but only a one-way fingerprint of the key.
+	let connectedSourceIdentity = $state('');
 	let connectedApiKeyFingerprint = $state<string | null>(null);
 	let liveApiKeyFingerprint = $state<string | null>(null);
-	let nextApiKeyFingerprintRequestId = 0;
-	// All volatile connection state belongs to the provider eligibility envelope
-	// that made credential entry possible. A refreshed token, expiry, provider,
-	// or region starts a new envelope and cannot inherit credentials or cursors.
+	let credentialRevision = 0;
+	// A changed eligibility envelope cannot inherit credentials or cursors.
 	let activeProviderEligibilityBinding = $state<string | null>(null);
 	let eligibilityNowMillis = $state(Date.now());
-
 	const currentProviderEligibility = $derived(
 		activeProviderEligibilityForNow({
 			providerEligibility,
@@ -132,54 +124,37 @@
 	);
 	const admissionPresentation = $derived(describeAlgoliaImportAdmission(admission));
 	const startsDisabled = $derived(admissionPresentation.disablesStarts);
-	const hasCredentials = $derived(appId.trim() !== '' && apiKey.trim() !== '');
+	const sourceIdentity = $derived(sourceProvider === 'algolia' ? appId : host);
+	const hasCredentials = $derived(sourceIdentity.trim() !== '' && apiKey.trim() !== '');
 	const canDiscover = $derived(hasCredentials && !isDiscovering && !startsDisabled);
-	// The catalog and `nextCursor` belong to the credentials that fetched them.
-	// Once either input is edited the displayed catalog describes an application
-	// the customer is no longer pointing at, and replaying the cursor would append
-	// another application's page onto this one's list, so treat it as disconnected
-	// until the customer reconnects.
+	// Catalog and cursor belong to their credential pair; any edit disconnects
+	// them so one source's page cannot append to another source's catalog.
 	const credentialsChanged = $derived(
 		hasDiscovered &&
-			(appId !== connectedAppId || liveApiKeyFingerprint !== connectedApiKeyFingerprint)
+			(sourceIdentity !== connectedSourceIdentity ||
+				liveApiKeyFingerprint !== connectedApiKeyFingerprint)
 	);
 	const hasConnected = $derived(sources.length > 0 && !credentialsChanged);
 	const canStartReconnect = $derived(hasDiscovered && !credentialsChanged);
-	const replaceDestination = $derived(
-		currentProviderEligibility?.mode === 'replace' ? currentProviderEligibility.target : null
+	const destinationState = $derived(
+		migrationCreateDestinationState({
+			currentProviderEligibility,
+			selectedSourceName,
+			destinationName,
+			replaceConfirmation
+		})
 	);
-	const migrationMode = $derived<AlgoliaMigrationDestinationMode>(
-		replaceDestination !== null ? 'replace' : 'create'
-	);
+	const replaceDestination = $derived(destinationState.replaceDestination);
+	const migrationMode = $derived(destinationState.migrationMode);
 	const providerEligible = $derived(currentProviderEligibility !== null);
 	const providerEligibilityMessage = $derived(
 		describeProviderEligibilityState(providerEligibility, currentProviderEligibility)
 	);
-	// The identity target eligibility is checked against: the customer-edited
-	// slug in create mode, or the fixed existing destination in replace mode.
-	const eligibilityTargetRegion = $derived(
-		replaceDestination !== null
-			? replaceDestination.region
-			: currentProviderEligibility?.mode === 'create'
-				? currentProviderEligibility.target.region
-				: null
-	);
-	const eligibilityTargetName = $derived(
-		replaceDestination !== null ? (replaceDestination.name ?? '') : destinationName
-	);
-	// Only meaningful once a source is chosen in create mode, since that is when
-	// the editable destination field exists; replace mode has no editable slug.
-	const destinationError = $derived(
-		replaceDestination !== null || selectedSourceName === null
-			? null
-			: validateIndexName(destinationName)
-	);
-	// Start stays blocked in replace mode until the confirmation matches the
-	// producer-provided destination name exactly.
-	const replaceConfirmed = $derived(
-		replaceDestination === null || replaceConfirmation === replaceDestination.name
-	);
-	const targetEligibilityInputsBinding = $derived(
+	const eligibilityTargetRegion = $derived(destinationState.eligibilityTargetRegion);
+	const eligibilityTargetName = $derived(destinationState.eligibilityTargetName);
+	const destinationError = $derived(destinationState.destinationError);
+	const replaceConfirmed = $derived(destinationState.replaceConfirmed);
+	const targetEligibilityInputsBindingWithoutProvider = $derived(
 		buildTargetEligibilityInputsBinding({
 			providerEligibilityBinding:
 				currentProviderEligibility !== null ? currentProviderBinding : null,
@@ -189,6 +164,11 @@
 			destinationError,
 			region: eligibilityTargetRegion
 		})
+	);
+	const targetEligibilityInputsBinding = $derived(
+		targetEligibilityInputsBindingWithoutProvider === null
+			? null
+			: `${sourceProvider}:${targetEligibilityInputsBindingWithoutProvider}`
 	);
 	const targetEligibilityMatchesInputs = $derived(
 		matchingTargetEligibilityForInputs({
@@ -226,8 +206,7 @@
 			startsDisabled
 	);
 
-	// The producer discovery contract carries no query parameter, so search
-	// filters the pages already loaded rather than implying a server-side search.
+	// Discovery has no query parameter, so search filters only loaded pages.
 	const visibleSources = $derived(
 		searchTerm.trim() === ''
 			? sources
@@ -236,8 +215,7 @@
 				)
 	);
 
-	// Selecting a source re-seeds the proposal: an edit made for the previous
-	// source is not a choice the customer made about this one.
+	// A new source re-seeds its destination proposal.
 	async function selectSource(name: string): Promise<void> {
 		selectedSourceName = name;
 		destinationName = proposeDestinationIndexName(name);
@@ -258,20 +236,6 @@
 		destinationErrorMessage?.focus();
 	}
 
-	function toErrorMessage(error: unknown): string {
-		return error instanceof Error ? error.message : String(error);
-	}
-
-	async function apiKeyFingerprint(value: string): Promise<string> {
-		const digest = await globalThis.crypto.subtle.digest(
-			'SHA-256',
-			new TextEncoder().encode(value)
-		);
-		return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(
-			''
-		);
-	}
-
 	function clearSourceSelection(): void {
 		selectedSourceName = null;
 		destinationName = '';
@@ -284,20 +248,46 @@
 		clearSourceSelection();
 	}
 
-	function clearVolatileConnection(): void {
-		appId = '';
-		apiKey = '';
+	function clearConnectionState(): void {
 		clearSourceCatalog();
 		discoveryError = null;
 		searchTerm = '';
-		hasDiscovered = false;
-		connectedAppId = '';
+		connectedSourceIdentity = '';
 		connectedApiKeyFingerprint = null;
 		liveApiKeyFingerprint = null;
 		clearTargetEligibility();
 	}
 
-	function clearTargetEligibility(): void {
+	function clearVolatileConnection(): void {
+		appId = '';
+		host = '';
+		apiKey = '';
+		clearConnectionState();
+		hasDiscovered = false;
+	}
+
+	function handleCredentialsChange(): void {
+		credentialRevision += 1;
+		const hadConnectionState =
+			hasDiscovered ||
+			sources.length > 0 ||
+			nextCursor !== null ||
+			selectedSourceName !== null ||
+			targetEligibility !== null ||
+			submitIntentIdempotencyKey !== null;
+		clearConnectionState();
+		hasDiscovered = hadConnectionState;
+	}
+
+	function selectSourceProvider(nextProvider: SourceProvider): void {
+		if (nextProvider === sourceProvider) {
+			return;
+		}
+		clearVolatileConnection();
+		sourceProvider = nextProvider;
+	}
+
+	function clearTargetEligibility(options?: { preserveReplaceConfirmation?: boolean }): void {
 		targetEligibility = null;
 		targetEligibilityBinding = null;
 		targetEligibilityError = null;
@@ -305,7 +295,9 @@
 		submitIntentBinding = null;
 		submitIntentIdempotencyKey = null;
 		successfulSubmitIntentBinding = null;
-		replaceConfirmation = '';
+		if (!options?.preserveReplaceConfirmation) {
+			replaceConfirmation = '';
+		}
 	}
 
 	function resetConnection(): void {
@@ -327,8 +319,16 @@
 		void loadSourcePage(null);
 	}
 
-	function liveCredentialsMatch(requestAppId: string, requestApiKey: string): boolean {
-		return appId === requestAppId && apiKey === requestApiKey;
+	function liveCredentialsMatch(
+		requestProvider: SourceProvider,
+		requestIdentity: string,
+		requestApiKey: string
+	): boolean {
+		return (
+			sourceProvider === requestProvider &&
+			sourceIdentity === requestIdentity &&
+			apiKey === requestApiKey
+		);
 	}
 
 	function updateEligibilityClock(nowMillis: number): void {
@@ -369,15 +369,16 @@
 		}
 		const requestId = nextTargetEligibilityRequestId + 1;
 		nextTargetEligibilityRequestId = requestId;
-		clearTargetEligibility();
+		clearTargetEligibility({ preserveReplaceConfirmation: true });
 		activeTargetEligibilityRequest = { id: requestId, binding };
 		try {
-			const eligibility = await client.checkAlgoliaDestinationEligibility({
+			const request = {
 				phase: 'target',
 				mode: migrationMode,
 				target: { region: provider.target.region, name: eligibilityTargetName },
 				eligibilityToken: provider.eligibilityToken
-			});
+			} as const;
+			const eligibility = await checkMigrationDestination(client, sourceProvider, request);
 			if (targetEligibilityInputsBinding !== binding) {
 				return null;
 			}
@@ -406,7 +407,7 @@
 			return validatedEligibility;
 		} catch (error) {
 			if (targetEligibilityInputsBinding === binding) {
-				targetEligibilityError = toErrorMessage(error);
+				targetEligibilityError = toErrorMessage(error, [provider.eligibilityToken]);
 				targetEligibility = null;
 				targetEligibilityBinding = null;
 			}
@@ -446,21 +447,40 @@
 			return;
 		}
 		const idempotencyKey = idempotencyKeyFor(intentBinding);
-		const request: CreateAlgoliaImportJobRequest = {
-			mode,
-			appId,
-			apiKey,
-			sourceName,
-			target: { eligibilityToken: eligibility.eligibilityToken }
-		};
+		const request: CreateMigrationImportJobRequest =
+			sourceProvider === 'algolia'
+				? {
+						mode,
+						appId,
+						apiKey,
+						sourceName,
+						target: { eligibilityToken: eligibility.eligibilityToken }
+					}
+				: {
+						mode,
+						host,
+						apiKey,
+						sourceName,
+						target: { eligibilityToken: eligibility.eligibilityToken }
+					};
 		activeSubmit = true;
 		submitError = null;
 		try {
-			const job = await client.createAlgoliaImportJob(request, idempotencyKey);
+			const job = await createMigrationJob(client, sourceProvider, request, idempotencyKey);
 			successfulSubmitIntentBinding = intentBinding;
-			onImportCreated?.(migrationCreateSuccessIntent(job));
+			// Source credentials are no longer needed after the job exists. Clear
+			// them even when this component is embedded without a navigation callback.
+			clearVolatileConnection();
+			if (onImportCreated !== undefined) {
+				await tick();
+				onImportCreated(migrationCreateSuccessIntent(job));
+			}
 		} catch (error) {
-			submitError = toErrorMessage(error);
+			submitError = toErrorMessage(error, [
+				sourceProvider === 'algolia' ? appId : host,
+				apiKey,
+				eligibility.eligibilityToken
+			]);
 		} finally {
 			activeSubmit = false;
 		}
@@ -489,54 +509,43 @@
 		return scheduleEligibilityExpiry(targetEligibilityMatchesInputs, updateEligibilityClock);
 	});
 
-	$effect(() => {
-		const requestApiKey = apiKey;
-		const requestId = nextApiKeyFingerprintRequestId + 1;
-		nextApiKeyFingerprintRequestId = requestId;
-		if (requestApiKey === '') {
-			liveApiKeyFingerprint = null;
-			return;
-		}
-		// Any live edit should break the connected-state equality immediately.
-		liveApiKeyFingerprint = null;
-		void apiKeyFingerprint(requestApiKey).then((fingerprint) => {
-			if (nextApiKeyFingerprintRequestId === requestId && apiKey === requestApiKey) {
-				liveApiKeyFingerprint = fingerprint;
-			}
-		});
-	});
-
 	async function loadSourcePage(cursor: string | null): Promise<void> {
 		const requestProviderEligibilityBinding = currentProviderBinding;
+		const requestSourceProvider = sourceProvider;
 		if (
 			startsDisabled ||
 			requestProviderEligibilityBinding === null ||
-			activeDiscoveryRequest?.providerEligibilityBinding === requestProviderEligibilityBinding
+			(activeDiscoveryRequest?.providerEligibilityBinding === requestProviderEligibilityBinding &&
+				activeDiscoveryRequest.sourceProvider === requestSourceProvider)
 		) {
 			return;
 		}
-		// Pin the credentials this request is issued with. The inputs stay editable
-		// while the request is in flight, so reading them again after the await
-		// would stamp the arriving catalog with credentials that did not fetch it —
-		// the guard would then read as connected and hand out a cursor belonging to
-		// the previous application.
-		const requestAppId = appId;
+		// Pin credentials because inputs remain editable while discovery is in flight.
+		const requestIdentity = sourceIdentity;
 		const requestApiKey = apiKey;
-		const requestApiKeyFingerprint = apiKeyFingerprint(requestApiKey);
+		const requestCredentialRevision = credentialRevision;
+		const requestApiKeyFingerprint = sourceCredentialFingerprint(requestApiKey);
 		const requestId = nextDiscoveryRequestId + 1;
 		nextDiscoveryRequestId = requestId;
 		activeDiscoveryRequest = {
 			id: requestId,
-			providerEligibilityBinding: requestProviderEligibilityBinding
+			providerEligibilityBinding: requestProviderEligibilityBinding,
+			sourceProvider: requestSourceProvider
 		};
 		discoveryError = null;
 		try {
-			const page = await client.listAlgoliaSourceIndexes({
-				appId: requestAppId,
-				apiKey: requestApiKey,
+			const credentials = {
+				...migrationSourceCredentials(requestSourceProvider, requestIdentity, requestApiKey),
 				...(cursor === null ? {} : { cursor })
-			});
-			if (currentProviderBinding !== requestProviderEligibilityBinding) {
+			};
+			const [page, apiKeyFingerprint] = await Promise.all([
+				listMigrationSources(client, requestSourceProvider, credentials),
+				requestApiKeyFingerprint
+			]);
+			if (
+				currentProviderBinding !== requestProviderEligibilityBinding ||
+				sourceProvider !== requestSourceProvider
+			) {
 				return;
 			}
 			// A first page replaces; a cursor page appends to what is already shown.
@@ -546,8 +555,13 @@
 				// A filter typed against the previous application would hide every row
 				// of the new one and read as an empty account.
 				searchTerm = '';
-				connectedAppId = requestAppId;
-				connectedApiKeyFingerprint = await requestApiKeyFingerprint;
+				connectedSourceIdentity = requestIdentity;
+				connectedApiKeyFingerprint = apiKeyFingerprint;
+				liveApiKeyFingerprint =
+					credentialRevision === requestCredentialRevision &&
+					liveCredentialsMatch(requestSourceProvider, requestIdentity, requestApiKey)
+						? apiKeyFingerprint
+						: null;
 			}
 			nextCursor = page.nextCursor;
 			hasDiscovered = true;
@@ -558,16 +572,13 @@
 		} catch (error) {
 			if (
 				currentProviderBinding !== requestProviderEligibilityBinding ||
-				!liveCredentialsMatch(requestAppId, requestApiKey)
+				!liveCredentialsMatch(requestSourceProvider, requestIdentity, requestApiKey)
 			) {
 				return;
 			}
-			// Fail closed: a partially-loaded catalog must not be presented as the
-			// customer's real source list once discovery has broken. Because this
-			// discards the pages already loaded, retry must restart from the first
-			// page — replaying the failed cursor would append its page onto an
-			// empty list and show that tail as if it were the whole catalog.
-			discoveryError = toErrorMessage(error);
+			// Fail closed and restart at page one; a failed cursor page cannot
+			// become the apparent beginning of a partially loaded catalog.
+			discoveryError = toErrorMessage(error, [requestIdentity, requestApiKey]);
 			clearSourceCatalog();
 		} finally {
 			if (activeDiscoveryRequest?.id === requestId) {
@@ -588,40 +599,29 @@
 			/>
 		{/if}
 
-		<MigrationAlgoliaConnection
+		<MigrationSourceConnection
+			{sourceProvider}
 			bind:appId
+			bind:host
 			bind:apiKey
-			{startsDisabled}
-			{canStartReconnect}
-			{isDiscovering}
-			{canDiscover}
-			{admissionPresentation}
-			onConnect={handleConnectAction}
+			state={{
+				startsDisabled,
+				canStartReconnect,
+				isDiscovering,
+				canDiscover,
+				admissionPresentation,
+				discoveryError,
+				showLoading: isDiscovering,
+				showCredentialsChanged: credentialsChanged && !isDiscovering,
+				showEmpty: hasDiscovered && !isDiscovering && !credentialsChanged
+			}}
+			actions={{
+				onProviderChange: selectSourceProvider,
+				onCredentialsChange: handleCredentialsChange,
+				onConnect: handleConnectAction,
+				onRetry: () => loadSourcePage(null)
+			}}
 		/>
-	{/if}
-
-	{#if providerEligible && isDiscovering}
-		<p data-testid="migration-source-loading" class="text-sm text-flapjack-ink/70" role="status">
-			Loading source indexes…
-		</p>
-	{/if}
-
-	{#if providerEligible && discoveryError}
-		<div
-			data-testid="migration-source-error"
-			role="alert"
-			class="space-y-3 rounded border border-flapjack-plum/40 p-4"
-		>
-			<p class="text-sm text-flapjack-plum">{discoveryError}</p>
-			<button
-				type="button"
-				disabled={isDiscovering || startsDisabled}
-				onclick={() => loadSourcePage(null)}
-				class="rounded border border-flapjack-ink/30 px-3 py-1.5 text-sm font-medium"
-			>
-				Retry
-			</button>
-		</div>
 	{/if}
 
 	{#if providerEligible && hasConnected}
@@ -770,13 +770,5 @@
 				{/if}
 			{/if}
 		</section>
-	{:else if providerEligible && credentialsChanged && !isDiscovering && !discoveryError}
-		<p data-testid="migration-credentials-changed" class="text-sm text-flapjack-ink/70">
-			These credentials have changed. Connect again to load source indexes.
-		</p>
-	{:else if providerEligible && hasDiscovered && !isDiscovering && !discoveryError}
-		<p data-testid="migration-source-empty" class="text-sm text-flapjack-ink/70">
-			This Algolia application has no indexes available to import.
-		</p>
 	{/if}
 </div>

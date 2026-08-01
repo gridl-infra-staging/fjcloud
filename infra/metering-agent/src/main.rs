@@ -68,6 +68,7 @@ async fn main() -> Result<()> {
         "metering agent starting"
     );
 
+    database_url::validate_database_url_tls(&cfg.database_url).map_err(anyhow::Error::msg)?;
     let db_pool = sqlx::PgPool::connect(&cfg.database_url).await?;
     run(cfg, db_pool).await
 }

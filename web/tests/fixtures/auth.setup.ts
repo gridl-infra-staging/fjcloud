@@ -139,7 +139,8 @@ setup('authenticate as customer', async ({ page }) => {
 					alertText: toBootstrapFailureAlertText(finalLoginAttempt, error),
 					responseStatus: finalLoginAttempt.responseStatus,
 					responseUrl: finalLoginAttempt.responseUrl
-				})
+				}),
+				{ cause: error }
 			);
 		}
 	}

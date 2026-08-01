@@ -1,17 +1,19 @@
 <script lang="ts">
 	import { formatDate } from '$lib/format';
-	import type { PublicAlgoliaImportJobPage } from '$lib/api/types';
-	import { migrationJobHref } from './create_success_intent';
+	import type { PublicAlgoliaImportJobPage, SourceProvider } from '$lib/api/types';
+	import { migrationJobHref, migrationSourceProviderLabel } from './create_success_intent';
 	import { describeAlgoliaImportStatus } from './job_presentation';
 
 	let {
 		page,
+		sourceProvider = 'algolia',
 		loading = false,
 		error = null,
 		onRetry,
 		onLoadMore
 	}: {
 		page: PublicAlgoliaImportJobPage | null;
+		sourceProvider?: SourceProvider;
 		loading?: boolean;
 		error?: string | null;
 		onRetry: (cursor: string | null) => void;
@@ -87,7 +89,7 @@
 			</div>
 		{:else}
 			<p data-testid="migration-recent-imports-empty" class="text-sm text-flapjack-ink/70">
-				No Algolia imports yet
+				No {migrationSourceProviderLabel(sourceProvider)} imports yet
 			</p>
 		{/if}
 	{:else}
@@ -104,13 +106,16 @@
 								{job.source.name} to {job.destination.target}
 							</p>
 							<p class="text-xs text-flapjack-ink/70">
+								Source provider {migrationSourceProviderLabel(job.sourceProvider)}
+							</p>
+							<p class="text-xs text-flapjack-ink/70">
 								{status.label} · {job.destination.region} · Updated {formatDate(job.updatedAt)}
 							</p>
 						</div>
 						<!-- eslint-disable svelte/no-navigation-without-resolve -- this durable route stays dormant until the activation lane mounts it -->
 						<a
 							class="text-sm font-medium text-flapjack-rose hover:text-flapjack-plum"
-							href={migrationJobHref(job.id)}
+							href={migrationJobHref(job.id, job.sourceProvider)}
 						>
 							Open import {job.id}
 						</a>

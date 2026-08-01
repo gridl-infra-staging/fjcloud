@@ -43,6 +43,18 @@ run_local_dev_down() {
         bash "$REPO_ROOT/scripts/local-dev-down.sh" "$@"
 }
 
+create_local_dev_down_script_checkout() {
+    local checkout_root="$1"
+
+    mkdir -p "$checkout_root/scripts/lib"
+    cp "$REPO_ROOT/scripts/local-dev-down.sh" "$checkout_root/scripts/"
+    cp "$REPO_ROOT/scripts/lib/process.sh" \
+        "$REPO_ROOT/scripts/lib/compose_project.sh" \
+        "$REPO_ROOT/scripts/lib/docker.sh" \
+        "$REPO_ROOT/scripts/lib/local_source_providers.sh" \
+        "$checkout_root/scripts/lib/"
+}
+
 write_mock_script() {
     local path="$1" body="$2"
     cat > "$path" << MOCK
@@ -433,10 +445,12 @@ test_honors_fjcloud_repo_root_override() {
     trap 'restore_local_dev_runtime_state; rm -rf "'"$tmp_dir"'"' RETURN
     setup_local_dev_runtime_state "$tmp_dir"
 
-    local fixture_root fixture_pid_dir checkout_pid_dir checkout_sentinel
+    local fixture_root fixture_pid_dir script_checkout_root checkout_pid_dir checkout_sentinel
     fixture_root="$(create_local_dev_fixture_repo_root "$tmp_dir")"
     fixture_pid_dir="$fixture_root/.local"
-    checkout_pid_dir="$REPO_ROOT/.local"
+    script_checkout_root="$tmp_dir/script_checkout"
+    create_local_dev_down_script_checkout "$script_checkout_root"
+    checkout_pid_dir="$script_checkout_root/.local"
     checkout_sentinel="$checkout_pid_dir/stage3_checkout_$$_${RANDOM}.log"
     mkdir -p "$checkout_pid_dir" "$fixture_pid_dir"
     printf 'checkout sentinel\n' > "$checkout_sentinel"
@@ -451,7 +465,7 @@ test_honors_fjcloud_repo_root_override() {
         PATH="$tmp_dir:$PATH" \
         FJCLOUD_REPO_ROOT="$fixture_root" \
         COMPOSE_PROJECT_NAME="fjcloud_stage3_down_$$" \
-        bash "$REPO_ROOT/scripts/local-dev-down.sh" --clean 2>&1
+        bash "$script_checkout_root/scripts/local-dev-down.sh" --clean 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "local-dev-down honors FJCLOUD_REPO_ROOT override"
@@ -470,8 +484,6 @@ test_honors_fjcloud_repo_root_override() {
     assert_contains "$(cat "$tmp_dir/docker_calls.log" 2>/dev/null || true)" \
         "COMPOSE_PROJECT_NAME=fjcloud_stage3_down_$$ compose down -v" \
         "explicit COMPOSE_PROJECT_NAME is passed through to docker compose down"
-    rm -f "$checkout_sentinel"
-    rmdir "$checkout_pid_dir" 2>/dev/null || true
 }
 
 # ============================================================================

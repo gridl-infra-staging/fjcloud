@@ -39,6 +39,7 @@ function publicJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgol
 		id: 'job_123',
 		status: 'copying_documents',
 		mode: 'create',
+		sourceProvider: 'algolia',
 		destination: {
 			kind: 'create',
 			target: 'products_migrated',
@@ -112,9 +113,15 @@ describe('Recent Algolia imports', () => {
 			'status'
 		);
 
-		await rerender({ page: page([]), loading: false, error: null, ...actions });
+		await rerender({
+			page: page([]),
+			sourceProvider: 'typesense',
+			loading: false,
+			error: null,
+			...actions
+		});
 		expect(screen.getByTestId('migration-recent-imports-empty')).toHaveTextContent(
-			'No Algolia imports yet'
+			'No Typesense imports yet'
 		);
 		expect(screen.getByTestId('migration-create-flow')).toBeInTheDocument();
 
@@ -161,7 +168,7 @@ describe('Recent Algolia imports', () => {
 		).toBeInTheDocument();
 		expect(
 			within(first).getByRole('link', { name: /open import job alpha\/tenant/i })
-		).toHaveAttribute('href', '/console/migrate/job%20alpha%2Ftenant');
+		).toHaveAttribute('href', '/console/migrate/job%20alpha%2Ftenant?source_provider=algolia');
 
 		const second = screen.getByTestId('migration-recent-import-job_beta');
 		expect(within(second).getByText('products_migrated to products')).toBeInTheDocument();
@@ -170,7 +177,7 @@ describe('Recent Algolia imports', () => {
 		).toBeInTheDocument();
 		expect(within(second).getByRole('link', { name: /open import job_beta/i })).toHaveAttribute(
 			'href',
-			'/console/migrate/job_beta'
+			'/console/migrate/job_beta?source_provider=algolia'
 		);
 	});
 

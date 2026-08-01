@@ -46,6 +46,15 @@ run_start_metering() {
         bash "$REPO_ROOT/scripts/start-metering.sh" "$@"
 }
 
+create_start_metering_script_checkout() {
+    local checkout_root="$1"
+
+    mkdir -p "$checkout_root/scripts/lib"
+    cp "$REPO_ROOT/scripts/start-metering.sh" "$checkout_root/scripts/"
+    cp "$REPO_ROOT/scripts/lib/env.sh" "$REPO_ROOT/scripts/lib/health.sh" \
+        "$checkout_root/scripts/lib/"
+}
+
 write_mock_script() {
     local path="$1" body="$2"
     cat > "$path" << MOCK
@@ -67,7 +76,8 @@ echo "'"$MOCK_CUSTOMER_UUID"'"'
 
     # Mock cargo: log env vars and arguments instead of building/running.
     write_mock_script "$mock_dir/cargo" \
-        'echo "DATABASE_URL=${DATABASE_URL:-} FLAPJACK_URL=${FLAPJACK_URL:-} FLAPJACK_API_KEY=${FLAPJACK_API_KEY:-} CUSTOMER_ID=${CUSTOMER_ID:-} NODE_ID=${NODE_ID:-} REGION=${REGION:-} SCRAPE_INTERVAL_SECS=${SCRAPE_INTERVAL_SECS:-} HEALTH_PORT=${HEALTH_PORT:-} cargo $@" >> "'"$call_log"'"
+        'sleep "${METERING_TEST_CARGO_START_DELAY:-0}"
+echo "DATABASE_URL=${DATABASE_URL:-} FLAPJACK_URL=${FLAPJACK_URL:-} FLAPJACK_API_KEY=${FLAPJACK_API_KEY:-} CUSTOMER_ID=${CUSTOMER_ID:-} NODE_ID=${NODE_ID:-} REGION=${REGION:-} SCRAPE_INTERVAL_SECS=${SCRAPE_INTERVAL_SECS:-} HEALTH_PORT=${HEALTH_PORT:-} cargo $@" >> "'"$call_log"'"
 # Sleep briefly so the PID file is written before the process exits
 sleep 0.2'
 
@@ -75,9 +85,10 @@ sleep 0.2'
     write_mock_script "$mock_dir/docker" \
         'echo "docker $@" >> "'"$call_log"'"; exit 0'
 
-    # Mock nohup: run the command directly in background.
+    # The target script owns backgrounding; real nohup replaces itself with the
+    # command, so the mock must not create an unsynchronized grandchild.
     write_mock_script "$mock_dir/nohup" \
-        '"$@" &'
+        'exec "$@"'
 
     # Mock curl: succeed (health checks).
     write_mock_script "$mock_dir/curl" \
@@ -118,13 +129,13 @@ test_single_region_passes_correct_env_vars() {
     local output exit_code=0
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
+        METERING_TEST_CARGO_START_DELAY=2 \
         run_start_metering 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "single-region start should succeed"
 
-    # Wait for the backgrounded nohup/cargo process to finish writing to the log.
-    sleep 1
+    wait_for_call_log_contains "$call_log" "cargo run --manifest-path" || true
 
     local calls
     calls=$(cat "$call_log" 2>/dev/null || true)
@@ -396,10 +407,13 @@ test_honors_fjcloud_repo_root_override() {
     trap 'restore_metering_test_state; rm -rf "'"$tmp_dir"'"' RETURN
     setup_metering_test_state "$tmp_dir"
 
-    local fixture_root fixture_pid_dir checkout_pid_dir checkout_sentinel call_log
+    local fixture_root fixture_pid_dir script_checkout_root checkout_pid_dir
+    local checkout_sentinel call_log
     fixture_root="$(create_local_dev_fixture_repo_root "$tmp_dir" "$LOCAL_DEV_TEST_DB_URL")"
     fixture_pid_dir="$fixture_root/.local"
-    checkout_pid_dir="$REPO_ROOT/.local"
+    script_checkout_root="$tmp_dir/script_checkout"
+    create_start_metering_script_checkout "$script_checkout_root"
+    checkout_pid_dir="$script_checkout_root/.local"
     checkout_sentinel="$checkout_pid_dir/stage3_checkout_$$_${RANDOM}.log"
     call_log="$tmp_dir/calls.log"
     mkdir -p "$tmp_dir/bin" "$checkout_pid_dir"
@@ -412,7 +426,7 @@ test_honors_fjcloud_repo_root_override() {
         FJCLOUD_REPO_ROOT="$fixture_root" \
         COMPOSE_PROJECT_NAME="fjcloud_stage3_metering_$$" \
         FLAPJACK_PORT=17770 \
-        bash "$REPO_ROOT/scripts/start-metering.sh" 2>&1
+        bash "$script_checkout_root/scripts/start-metering.sh" 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "0" "start-metering honors FJCLOUD_REPO_ROOT override"

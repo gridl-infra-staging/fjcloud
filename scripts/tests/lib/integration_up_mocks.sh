@@ -14,6 +14,9 @@ write_fake_api_binary() {
     mkdir -p "$(dirname "$api_bin")"
     cat > "$api_bin" <<'MOCK'
 #!/usr/bin/env bash
+if [ -n "${INTEGRATION_UP_API_START_DELAY:-}" ]; then
+    sleep "$INTEGRATION_UP_API_START_DELAY"
+fi
 if [ -n "${INTEGRATION_UP_API_ENV_LOG:-}" ]; then
     {
         echo "LISTEN_ADDR=${LISTEN_ADDR:-}"

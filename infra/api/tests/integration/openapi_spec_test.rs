@@ -514,8 +514,9 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
     );
 
     let repo_root = repo_root_path();
-    let client_source = std::fs::read_to_string(repo_root.join("web/src/lib/api/client.ts"))
-        .expect("read generated API client");
+    let client_source =
+        std::fs::read_to_string(repo_root.join("web/src/lib/api/migration_client.ts"))
+            .expect("read migration API client");
     assert!(
         client_source.contains(
             "getAlgoliaMigrationAvailability(): Promise<AlgoliaMigrationAvailabilityResponse>"
@@ -523,8 +524,9 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
         "generated client must expose the availability binding"
     );
     assert!(
-        client_source.contains("this.api('GET', '/migration/algolia/availability')"),
-        "generated client must call the availability GET route"
+        client_source.contains("return this.getMigrationAvailability('algolia');")
+            && client_source.contains("`/migration/${pathSegment(sourceProvider)}/availability`"),
+        "migration client must bind the Algolia wrapper to the neutral availability GET route"
     );
     assert!(
         client_source.contains("listAlgoliaSourceIndexes(")
@@ -534,28 +536,45 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
     );
     assert!(
         client_source.contains(
-            "return this.api('POST', '/migration/algolia/list-indexes', algoliaSourceListRequest(request));"
+            "return this.listMigrationSourceIndexes('algolia', algoliaSourceListRequest(request));"
+        ) && client_source.contains(
+            "`/migration/${pathSegment(sourceProvider)}/list-indexes`"
         ),
-        "client must call the source discovery route with the canonical sanitized request body"
+        "migration client must bind Algolia discovery to the neutral route with the canonical sanitized request body"
     );
     for (method, route) in [
         (
             "checkAlgoliaDestinationEligibility(",
-            "/migration/algolia/destination-eligibility",
+            "`/migration/${pathSegment(sourceProvider)}/destination-eligibility`",
         ),
-        ("createAlgoliaImportJob(", "/migration/algolia/jobs"),
-        ("getAlgoliaImportJob(", "/migration/algolia/jobs/"),
-        ("listAlgoliaImportJobs(", "/migration/algolia/jobs"),
-        ("cancelAlgoliaImportJob(", "/migration/algolia/jobs/"),
-        ("resumeAlgoliaImportJob(", "/migration/algolia/jobs/"),
+        (
+            "createAlgoliaImportJob(",
+            "`/migration/${pathSegment(sourceProvider)}/jobs`",
+        ),
+        (
+            "getAlgoliaImportJob(",
+            "`/migration/${pathSegment(sourceProvider)}/jobs/${pathSegment(jobId)}`",
+        ),
+        (
+            "listAlgoliaImportJobs(",
+            "`/migration/${pathSegment(sourceProvider)}/jobs${query}`",
+        ),
+        (
+            "cancelAlgoliaImportJob(",
+            "`/migration/${pathSegment(sourceProvider)}/jobs/${pathSegment(jobId)}/cancel`",
+        ),
+        (
+            "resumeAlgoliaImportJob(",
+            "`/migration/${pathSegment(sourceProvider)}/jobs/${pathSegment(jobId)}/resume`",
+        ),
     ] {
         assert!(
             client_source.contains(method),
-            "client method {method} must be exposed for mounted route {route}"
+            "migration client method {method} must remain exposed"
         );
         assert!(
             client_source.contains(route),
-            "client route binding {route} must be exposed after route activation"
+            "neutral migration client route binding {route} must remain exposed"
         );
     }
 

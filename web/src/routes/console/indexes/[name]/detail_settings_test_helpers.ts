@@ -62,6 +62,21 @@ import { createMockPageData } from './detail.test.shared';
 type DetailPageOverrides = Parameters<typeof createMockPageData>[0];
 type DetailPageForm = ComponentProps<typeof IndexDetailPage>['form'];
 
+export const DEFAULT_SEARCH_SETTINGS_URL_CASES = [
+	['missing', '/console/indexes/products?tab=settings'],
+	['empty', '/console/indexes/products?tab=settings&settingsTab='],
+	['invalid', '/console/indexes/products?tab=settings&settingsTab=unknown']
+] as const;
+
+export const SETTINGS_DEEP_LINK_CASES = [
+	['search', 'Search settings', /searchable attributes/i],
+	['ranking', 'Ranking', /ranking rules/i],
+	['advanced-json', 'Advanced JSON', /settings json/i],
+	['language-text', 'Language & Text', /query-language editing is not available/i],
+	['facets-filters', 'Facets & Filters', /filterable attributes/i],
+	['display', 'Display', /displayed attributes/i]
+] as const;
+
 export function resetSettingsTestState(): void {
 	cleanup();
 	vi.clearAllMocks();
@@ -118,13 +133,13 @@ export function getSettingsSubtabList(): HTMLElement {
 	return nestedTabLists[0] as HTMLElement;
 }
 
-export function getSettingsSubtab(name: string): HTMLElement {
-	return within(getSettingsSubtabList()).getByRole('tab', { name });
+export function getSettingsSubtab(accessibleName: string): HTMLElement {
+	return within(getSettingsSubtabList()).getByRole('tab', { name: accessibleName });
 }
 
-export async function openSettingsSubtab(name: string): Promise<void> {
+export async function openSettingsSubtab(accessibleName: string): Promise<void> {
 	await openSettingsTab();
-	await fireEvent.click(getSettingsSubtab(name));
+	await fireEvent.click(getSettingsSubtab(accessibleName));
 }
 
 export function getActiveSettingsPanel(): HTMLElement {
@@ -151,7 +166,7 @@ export function getSettingsOwnedPanels(): HTMLElement[] {
 		});
 }
 
-export function expectSettingsSubtabOwnership(selectedTabName: string): void {
+export function expectSettingsSubtabOwnership(selectedAccessibleName: string): void {
 	const nestedTabList = getSettingsSubtabList();
 	const nestedTabs = within(nestedTabList).getAllByRole('tab');
 	expect(nestedTabs.map((tab) => tab.textContent?.trim())).toEqual([
@@ -172,13 +187,13 @@ export function expectSettingsSubtabOwnership(selectedTabName: string): void {
 
 	const selectedTabs = within(nestedTabList).getAllByRole('tab', { selected: true });
 	expect(selectedTabs).toHaveLength(1);
-	expect(selectedTabs[0]).toHaveTextContent(selectedTabName);
+	expect(selectedTabs[0]).toHaveAccessibleName(selectedAccessibleName);
 	for (const tab of nestedTabs) {
 		expect(tab).toHaveAttribute('aria-selected', tab === selectedTabs[0] ? 'true' : 'false');
 	}
 
 	const activePanel = getActiveSettingsPanel();
-	expect(activePanel).toHaveAccessibleName(selectedTabName);
+	expect(activePanel).toHaveAccessibleName(selectedAccessibleName);
 	for (const panel of getSettingsOwnedPanels()) {
 		if (panel === activePanel) {
 			expect(panel).toBeVisible();
@@ -186,6 +201,28 @@ export function expectSettingsSubtabOwnership(selectedTabName: string): void {
 			expect(panel).not.toBeVisible();
 		}
 	}
+}
+
+export async function expectNestedSearchSettingsTabWiring(): Promise<void> {
+	const parentTabList = screen.getByRole('tablist', { name: /index detail sections/i });
+	const parentSearchTab = within(parentTabList).getByRole('tab', { name: 'Search' });
+	const nestedSearchTab = within(getSettingsSubtabList()).getByRole('tab', {
+		name: 'Search settings'
+	});
+	expect(parentSearchTab).toHaveAccessibleName('Search');
+	expect(nestedSearchTab).toHaveAccessibleName('Search settings');
+	expect(nestedSearchTab).toHaveTextContent(/^Search$/);
+	expect(nestedSearchTab).toHaveAttribute('aria-selected', 'true');
+	expect(nestedSearchTab).toHaveAttribute('aria-controls', 'settings-panel-search');
+
+	const nestedSearchPanel = document.getElementById('settings-panel-search');
+	expect(nestedSearchPanel).toHaveAttribute('role', 'tabpanel');
+	expect(nestedSearchPanel).toHaveAttribute('aria-labelledby', nestedSearchTab.id);
+	expect(nestedSearchPanel).toHaveAccessibleName('Search settings');
+
+	nestedSearchTab.focus();
+	await fireEvent.keyDown(nestedSearchTab, { key: 'ArrowRight' });
+	expect(getSettingsSubtab('Ranking')).toHaveFocus();
 }
 
 export function expectSingleSettingsForm(): HTMLFormElement {

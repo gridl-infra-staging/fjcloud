@@ -22,6 +22,32 @@ The screen uses the shared `bg-flapjack-mint text-flapjack-ink` auth canvas and 
 - Error: wrong password and unknown email show the same generic credential failure and remain on `/login`.
 - Success: valid credentials redirect to `/console`.
 
+### OAuth control states
+
+`OAuthButtons.svelte` renders one control per provider (`google`, `github`) and
+resolves availability once on mount from `GET {apiBaseUrl}/auth/oauth/_status`.
+Three states, and the third is deliberate:
+
+- **Available** (`{provider: {enabled: true}}`): renders an enabled `<a>` with
+  `data-testid="oauth-button-<provider>"` and
+  `href="{apiBaseUrl}/auth/oauth/<provider>/start"`, accessible name
+  `Continue with Google` / `Continue with GitHub`.
+- **Unavailable** (`{provider: {enabled: false}}`): renders a `disabled`
+  `<button>` keeping the same `data-testid`, plus explanatory copy at
+  `data-testid="oauth-unavailable-<provider>"` reading
+  `<Provider> sign-in is unavailable in this environment.` The control still
+  renders — it is never removed from the DOM.
+- **Unknown** — the initial state, and the state kept when the status fetch
+  throws, returns non-OK, returns unparseable JSON, or returns a payload in
+  which any provider entry is missing or its `enabled` is not a boolean:
+  renders exactly as **Available**. The parse is all-or-nothing, so a payload
+  naming one provider `enabled: false` while omitting the other leaves **both**
+  controls enabled. This is fail-open by design — a transient status failure
+  must not hide a provider that still works — and it is asserted by the
+  `preserves enabled links without helper copy for %s` cases in
+  `web/src/lib/components/OAuthButtons.test.ts`. Do not "fix" it to render
+  disabled.
+
 ## Mobile Narrow Contract
 
 Baseline viewport: 390px wide (iPhone 14). The auth card remains one column, fills available width within page padding, keeps both fields and the primary action readable, and preserves the OAuth divider plus forgot-password link below the form without signup discovery.

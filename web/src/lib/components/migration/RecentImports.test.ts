@@ -30,7 +30,8 @@ function migrationClient(listAlgoliaSourceIndexes = vi.fn()): MigrationFlowClien
 	return {
 		listAlgoliaSourceIndexes,
 		checkAlgoliaDestinationEligibility: vi.fn(),
-		createAlgoliaImportJob: vi.fn()
+		createAlgoliaImportJob: vi.fn(),
+		previewMigrationImport: vi.fn()
 	};
 }
 

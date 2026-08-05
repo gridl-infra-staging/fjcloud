@@ -214,6 +214,21 @@ validate_and_accumulate_row() {
     return 0
 }
 
+# Folds every ledger row into the caller's count_<disposition> accumulators,
+# reporting each malformed row. Returns 1 when any row failed validation, which
+# tells the caller the disposition census is too damaged to reconcile against.
+accumulate_disposition_rows() {
+    local ledger_path="$1"
+    local entry_count disposition evidence lane_id rows_valid=1
+
+    while IFS=$'\034' read -r entry_count disposition evidence lane_id; do
+        [ -n "$entry_count" ] || continue
+        validate_and_accumulate_row \
+            "$entry_count" "$disposition" "$evidence" "$lane_id" || rows_valid=0
+    done < <(parse_disposition_rows "$ledger_path")
+    [ "$rows_valid" -eq 1 ]
+}
+
 parse_feed_census() {
     local feed_path="$1"
     awk '
@@ -235,6 +250,54 @@ parse_feed_census() {
             printf "%d %d\n", open_window, out_of_window_open
         }
     ' "$feed_path"
+}
+
+parse_feed_lane_locations() {
+    local feed_path="$1"
+    awk '
+        /^## Open[[:space:]]*$/ {
+            section = "Open"
+            next
+        }
+        /^## Harvested[[:space:]]*$/ {
+            section = "Harvested"
+            next
+        }
+        /^## Closed[[:space:]]*$/ {
+            section = "Closed"
+            next
+        }
+        /^## / {
+            section = "Other"
+            next
+        }
+        /^- lane_id:/ {
+            lane_id = $0
+            sub(/^- lane_id:[[:space:]]*/, "", lane_id)
+            print lane_id "\034" section
+        }
+    ' "$feed_path"
+}
+
+# The feed's three section headings are the coordinate system every location
+# check depends on, so a repeated or missing heading is reported before any
+# census is trusted.
+validate_feed_headings() {
+    local feed_path="$1"
+    local heading heading_count failures=0
+
+    for heading in Open Harvested Closed; do
+        heading_count="$(
+            awk -v heading="## $heading" \
+                '$0 ~ ("^" heading "[[:space:]]*$") { count++ }
+                 END { print count + 0 }' "$feed_path"
+        )"
+        if [ "$heading_count" -ne 1 ]; then
+            echo "STRUCTURE_FAIL: heading '## $heading' count=$heading_count expected=1"
+            failures=$((failures + 1))
+        fi
+    done
+    [ "$failures" -eq 0 ]
 }
 
 validate_open_section_statuses() {
@@ -301,6 +364,10 @@ validate_open_section_statuses() {
     ' "$feed_path"
 }
 
+# Emits one `lane_id\034resolution` row per `## Closed` lane that carries a
+# resolution, accepting both the `resolution: |` literal block and the
+# generator's single-quoted multiline scalar. Malformed quoted scalars fail
+# closed with exact `STRUCTURE_FAIL:` diagnostics instead of a silent row.
 parse_closed_resolution_rows() {
     local feed_path="$1"
     awk '
@@ -309,48 +376,155 @@ parse_closed_resolution_rows() {
                 print lane_id "\034" resolution
             }
         }
+        function reset_lane() {
+            lane_id = ""
+            status = ""
+            resolution = ""
+            resolution_seen = 0
+            in_literal = 0
+        }
+        # Closes an unterminated single-quoted scalar at a structural boundary,
+        # naming its owning Closed lane. Detached and duplicate scalars already
+        # reported their own diagnostic, so they stay silent here.
+        function flush_open_quote() {
+            if (in_quoted) {
+                if (quote_lane != "" && !capture_suppressed) {
+                    print "STRUCTURE_FAIL: unterminated quoted resolution for Closed lane " quote_lane
+                }
+                in_quoted = 0
+            }
+        }
+        # Appends the single-quoted scalar text in `chunk` to qbuf, folding a
+        # doubled quote into one literal quote (the YAML escape). Returns 1 when
+        # the closing quote is reached, 0 while the scalar stays open.
+        function scan_quoted(chunk,   i, c, n) {
+            n = length(chunk)
+            for (i = 1; i <= n; i++) {
+                c = substr(chunk, i, 1)
+                if (c == "\047") {
+                    if (substr(chunk, i + 1, 1) == "\047") {
+                        qbuf = qbuf "\047"
+                        i++
+                        continue
+                    }
+                    quoted_tail = substr(chunk, i + 1)
+                    if (quoted_tail !~ /^[[:space:]]*(#.*)?$/) {
+                        print "STRUCTURE_FAIL: invalid text after quoted resolution for Closed lane " quote_lane
+                        capture_suppressed = 1
+                    }
+                    return 1
+                }
+                qbuf = qbuf c
+            }
+            return 0
+        }
+        function close_quoted_scalar() {
+            in_quoted = 0
+            if (!capture_suppressed) {
+                resolution = qbuf
+                resolution_seen = 1
+            }
+        }
+        function start_quoted_resolution(record) {
+            capture_suppressed = 0
+            if (lane_id == "") {
+                print "STRUCTURE_FAIL: detached quoted resolution before any Closed lane_id"
+                capture_suppressed = 1
+            } else if (resolution_seen) {
+                print "STRUCTURE_FAIL: ambiguous duplicate resolution for Closed lane " lane_id
+                capture_suppressed = 1
+            }
+            quote_lane = lane_id
+            tail = record
+            sub(/^[[:space:]]*resolution:[[:space:]]*\047/, "", tail)
+            qbuf = ""
+            in_quoted = 1
+            if (scan_quoted(tail)) {
+                close_quoted_scalar()
+            }
+        }
+        function start_literal_resolution() {
+            if (resolution_seen) {
+                print "STRUCTURE_FAIL: ambiguous duplicate resolution for Closed lane " lane_id
+                literal_suppressed = 1
+            } else {
+                literal_suppressed = 0
+                resolution = ""
+                resolution_seen = 1
+            }
+            in_literal = 1
+        }
         /^## Closed[[:space:]]*$/ {
             in_closed = 1
             next
         }
         in_closed && /^## / {
+            flush_open_quote()
             emit_resolution()
-            lane_id = ""
-            status = ""
+            reset_lane()
             in_closed = 0
+            next
         }
         !in_closed {
             next
         }
         /^- lane_id:/ {
+            flush_open_quote()
             emit_resolution()
+            reset_lane()
             lane_id = $0
             sub(/^- lane_id:[[:space:]]*/, "", lane_id)
-            status = ""
-            resolution = ""
-            resolution_seen = 0
-            in_resolution = 0
             next
         }
-        lane_id != "" && /^  status:[[:space:]]*closed[[:space:]]*$/ {
+        in_quoted && /^```/ {
+            flush_open_quote()
+            next
+        }
+        in_literal && /^  resolution:[[:space:]]*\047/ {
+            in_literal = 0
+            start_quoted_resolution($0)
+            next
+        }
+        in_literal && /^  resolution:[[:space:]]*\|[[:space:]]*$/ {
+            in_literal = 0
+            start_literal_resolution()
+            next
+        }
+        !in_quoted && !in_literal && /^[[:space:]]*resolution:[[:space:]]*\047/ {
+            start_quoted_resolution($0)
+            next
+        }
+        in_quoted {
+            line = $0
+            sub(/^[[:space:]]+/, "", line)
+            qbuf = qbuf "\035"
+            if (scan_quoted(line)) {
+                close_quoted_scalar()
+            }
+            next
+        }
+        !in_quoted && !in_literal && lane_id != "" && \
+            /^[[:space:]]+resolution:[[:space:]]*\|[[:space:]]*$/ {
+            start_literal_resolution()
+            next
+        }
+        !in_quoted && lane_id != "" && /^  status:[[:space:]]*closed[[:space:]]*$/ {
             status = "closed"
             next
         }
-        lane_id != "" && /^[[:space:]]+resolution:[[:space:]]*\|[[:space:]]*$/ {
-            resolution_seen = 1
-            in_resolution = 1
-            next
-        }
-        in_resolution && /^    / {
+        in_literal && /^    / {
             line = $0
             sub(/^    /, "", line)
-            resolution = resolution "\035" line
+            if (!literal_suppressed) {
+                resolution = resolution "\035" line
+            }
             next
         }
-        in_resolution {
-            in_resolution = 0
+        in_literal {
+            in_literal = 0
         }
         END {
+            flush_open_quote()
             emit_resolution()
         }
     ' "$feed_path"
@@ -385,7 +559,17 @@ closed_resolution_contains_all_residual_markers() {
 
 validate_residual_markers() {
     local feed_path="$1"
-    local marker missing_marker=0
+    local marker missing_marker=0 structural_errors
+
+    # A malformed quoted resolution is a structural defect, not a missing
+    # marker: surface the parser's exact diagnostic before any marker search so
+    # a fully-marked sibling row can never mask an unterminated, detached, or
+    # duplicate scalar.
+    structural_errors="$(parse_closed_resolution_rows "$feed_path" | grep '^STRUCTURE_FAIL:' || true)"
+    if [ -n "$structural_errors" ]; then
+        printf '%s\n' "$structural_errors"
+        return 1
+    fi
 
     closed_resolution_contains_all_residual_markers "$feed_path" && return 0
 
@@ -419,6 +603,277 @@ parse_rewrite_outcome_value() {
     ' "$ledger_path"
 }
 
+parse_pinned_base_sha() {
+    local ledger_path="$1"
+    awk '
+        /^- Pinned base SHA: `/ {
+            value = $0
+            sub(/^- Pinned base SHA: `/, "", value)
+            sub(/`.*/, "", value)
+            print value
+        }
+    ' "$ledger_path"
+}
+
+validate_pinned_feed_snapshot() {
+    local repo_root="$1" ledger_path="$2" feed_path="$3"
+    local pinned_sha pinned_sha_count feed_relative
+    pinned_sha="$(parse_pinned_base_sha "$ledger_path")"
+    pinned_sha_count="$(printf '%s\n' "$pinned_sha" | awk 'NF { count++ } END { print count + 0 }')"
+    if [ "$pinned_sha_count" -eq 0 ] &&
+        [ "${FJCLOUD_STRUCTURE_FIXTURE_ALLOW_MISSING_PIN:-0}" = "1" ]; then
+        return 0
+    fi
+    if [ "$pinned_sha_count" -ne 1 ] ||
+        ! [[ "$pinned_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+        echo "STRUCTURE_FAIL: TRIAGE.md must contain exactly one 40-hex pinned base SHA"
+        return 1
+    fi
+    feed_relative="${feed_path#"$repo_root"/}"
+    if ! git -C "$repo_root" cat-file -e "$pinned_sha:$feed_relative" 2>/dev/null; then
+        echo "STRUCTURE_FAIL: pinned feed snapshot is unavailable at base SHA '$pinned_sha'"
+        return 1
+    fi
+}
+
+# Reads the single fenced `text` block under one `###` identity heading. Every
+# open-window identity summand (historical arrivals, later arrivals, and pinned
+# singleton residuals) is recorded in this one shape, so this parser is the sole
+# owner of the block grammar.
+parse_identity_block() {
+    local ledger_path="$1" heading="$2"
+    awk -v heading="$heading" '
+        function trim_trailing(value) {
+            sub(/[[:space:]]+$/, "", value)
+            return value
+        }
+        function trim(value) {
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+            return value
+        }
+        function fail(message) {
+            print "STRUCTURE_FAIL: " message
+            failures++
+        }
+        trim_trailing($0) == heading {
+            heading_count++
+            in_section = 1
+            next
+        }
+        in_section && /^### / {
+            if (in_text_block) {
+                fail("heading \047" heading "\047 has an unterminated fenced text identity block")
+            }
+            in_section = 0
+            in_text_block = 0
+            next
+        }
+        in_section && /^## / {
+            if (in_text_block) {
+                fail("heading \047" heading "\047 has an unterminated fenced text identity block")
+            }
+            in_section = 0
+            in_text_block = 0
+            next
+        }
+        in_section && in_text_block && /^```[[:space:]]*$/ {
+            in_text_block = 0
+            next
+        }
+        in_section && /^```text[[:space:]]*$/ {
+            text_block_count++
+            if (text_block_count > 1) {
+                fail("heading \047" heading "\047 has repeated fenced text identity blocks")
+            }
+            in_text_block = 1
+            next
+        }
+        in_text_block {
+            identity = trim($0)
+            if (identity == "") {
+                fail("heading \047" heading "\047 contains a blank identity")
+                next
+            }
+            if (seen[identity]++) {
+                fail("heading \047" heading "\047 has duplicate identity \047" identity "\047")
+                next
+            }
+            print "IDENTITY\034" identity
+            next
+        }
+        END {
+            if (heading_count != 1) {
+                fail("heading \047" heading "\047 count=" heading_count " expected=1")
+            } else if (text_block_count != 1) {
+                fail("heading \047" heading "\047 has fenced text identity block count=" text_block_count " expected=1")
+            } else if (in_text_block) {
+                fail("heading \047" heading "\047 has an unterminated fenced text identity block")
+            }
+        }
+    ' "$ledger_path"
+}
+
+# Writes one identity block's identities to `identities_path`. Malformed blocks
+# still yield the identities that parsed cleanly, so a single bad heading never
+# silently empties an open-window summand; the parser's diagnostics are printed
+# and the non-zero return tells the caller to count a structure failure.
+extract_identity_block() {
+    local ledger_path="$1" heading="$2" identities_path="$3"
+    local block_rows block_failures
+    block_rows="$(parse_identity_block "$ledger_path" "$heading")"
+    printf '%s\n' "$block_rows" |
+        awk -F '\034' '$1 == "IDENTITY" { print $2 }' > "$identities_path"
+    block_failures="$(printf '%s\n' "$block_rows" | grep '^STRUCTURE_FAIL:' || true)"
+    [ -n "$block_failures" ] || return 0
+    printf '%s\n' "$block_failures"
+    return 1
+}
+
+# Prefixes each non-blank identity line read on stdin with the record kind it is
+# classified as, using the \034 delimiter the membership comparison splits on.
+# The one canonical owner of the kind-tagging convention.
+tag_identities() {
+    awk -v record_kind="$1" 'NF { print record_kind "\034" $0 }'
+}
+
+# Tags each identity with the record kind it is recorded as, so membership
+# diagnostics can say whether a defective identity was expected as a post-pin
+# arrival or as a pinned singleton residual.
+label_recorded_open_identities() {
+    local identities_path="$1" record_kind="$2"
+    tag_identities "$record_kind" < "$identities_path"
+}
+
+count_lines() {
+    wc -l < "$1" | tr -d ' '
+}
+
+# Reads every open-window identity block into `workdir`, leaving one file per
+# block for the cardinality checks plus a `recorded_open_identities` file that
+# tags each identity with the record kind membership diagnostics should name.
+# Returns 1 when any block is malformed.
+collect_recorded_open_identities() {
+    local ledger_path="$1" workdir="$2"
+    local blocks_valid=1
+
+    extract_identity_block "$ledger_path" "### post_pin_arrivals identities" \
+        "$workdir/historical_arrivals" || blocks_valid=0
+    extract_identity_block "$ledger_path" \
+        "### post_reconciliation_arrival identities" \
+        "$workdir/post_reconciliation_arrivals" || blocks_valid=0
+    # The singleton residual block is optional by absence, matching a ledger that
+    # holds no pinned singleton under `## Open`. It is not optional by content:
+    # the scalar must equal this block's cardinality, so a nonzero
+    # `singleton_residual_open` cannot stand without named identities.
+    : > "$workdir/singleton_residuals"
+    if grep -q '^### singleton_residual_open identities[[:space:]]*$' \
+        "$ledger_path"; then
+        extract_identity_block "$ledger_path" \
+            "### singleton_residual_open identities" \
+            "$workdir/singleton_residuals" || blocks_valid=0
+    fi
+    {
+        label_recorded_open_identities \
+            "$workdir/historical_arrivals" post_pin_arrival
+        label_recorded_open_identities \
+            "$workdir/post_reconciliation_arrivals" post_pin_arrival
+        label_recorded_open_identities \
+            "$workdir/singleton_residuals" singleton_residual
+    } > "$workdir/recorded_open_identities"
+    [ "$blocks_valid" -eq 1 ]
+}
+
+parse_disposition_ledger_identities() {
+    local ledger_path="$1" disposition_filter="${2:-}"
+    local entry_count disposition evidence lane_id
+    while IFS=$'\034' read -r entry_count disposition evidence lane_id; do
+        [ -n "$entry_count" ] || continue
+        if [ "$entry_count" != "PARSE_ERROR" ] &&
+            { [ -z "$disposition_filter" ] ||
+                [ "$disposition" = "$disposition_filter" ]; }; then
+            printf '%s\n' "$lane_id"
+        fi
+    done < <(parse_disposition_rows "$ledger_path")
+}
+
+parse_pinned_out_of_window_open_identities() {
+    local repo_root="$1" ledger_path="$2" feed_path="$3"
+    local pinned_sha feed_relative
+    pinned_sha="$(parse_pinned_base_sha "$ledger_path")"
+    [ -n "$pinned_sha" ] || return 0
+    feed_relative="${feed_path#"$repo_root"/}"
+    git -C "$repo_root" show "$pinned_sha:$feed_relative" 2>/dev/null |
+        awk '
+            /^## Open[[:space:]]*$/ {
+                section = "open"
+                next
+            }
+            /^## / {
+                section = "other"
+                next
+            }
+            /^- lane_id:/ {
+                lane_id = $0
+                sub(/^- lane_id:[[:space:]]*/, "", lane_id)
+            }
+            section != "open" && /^[[:space:]]+status: open[[:space:]]*$/ {
+                print lane_id
+            }
+        '
+}
+
+parse_pinned_open_identities() {
+    local repo_root="$1" ledger_path="$2" feed_path="$3"
+    local pinned_sha feed_relative
+    pinned_sha="$(parse_pinned_base_sha "$ledger_path")"
+    [ -n "$pinned_sha" ] || return 0
+    feed_relative="${feed_path#"$repo_root"/}"
+    git -C "$repo_root" show "$pinned_sha:$feed_relative" 2>/dev/null |
+        awk '
+            /^## Open[[:space:]]*$/ {
+                section = "open"
+                next
+            }
+            /^## / {
+                section = "other"
+                next
+            }
+            section == "open" && /^- lane_id:/ {
+                lane_id = $0
+                sub(/^- lane_id:[[:space:]]*/, "", lane_id)
+                print lane_id
+            }
+        '
+}
+
+# Known non-arrival owners include every disposition-ledger identity and every
+# record the feed carried at the pinned base SHA. The membership comparison uses
+# these typed owners both to recognize existing Open rows and to prevent a
+# recorded arrival or singleton from claiming an already-owned identity.
+collect_known_open_non_arrival_identities() {
+    local repo_root="$1" ledger_path="$2" feed_path="$3"
+
+    parse_disposition_ledger_identities "$ledger_path" |
+        tag_identities ledger_disposition
+    parse_disposition_ledger_identities "$ledger_path" unclassified |
+        tag_identities ledger_unclassified
+    parse_pinned_open_identities "$repo_root" "$ledger_path" "$feed_path" |
+        tag_identities pinned_open
+    parse_pinned_out_of_window_open_identities \
+        "$repo_root" "$ledger_path" "$feed_path" |
+        tag_identities pinned_out_of_window_open
+}
+
+write_known_open_non_arrival_identities() {
+    local repo_root="$1" ledger_path="$2" feed_path="$3" output_path="$4"
+    if ! validate_pinned_feed_snapshot "$repo_root" "$ledger_path" "$feed_path"; then
+        : > "$output_path"
+        return 1
+    fi
+    collect_known_open_non_arrival_identities \
+        "$repo_root" "$ledger_path" "$feed_path" > "$output_path"
+}
+
 validate_rewrite_outcome_value() {
     local key="$1" value="$2"
     if ! [[ "$value" =~ ^[0-9]+$ ]]; then
@@ -435,15 +890,183 @@ validate_rewrite_outcome_value() {
     fi
 }
 
-add_structure_open_window_count() {
-    local target_name="$1" addend="$2" context="$3"
-    local accumulated="${!target_name:-0}"
+# Reads one `## Rewrite outcome` scalar into the caller-scoped variable named by
+# `target_name`, printing the validator's diagnostic and returning 1 when the
+# line is absent or noncanonical.
+read_rewrite_outcome_scalar() {
+    local ledger_path="$1" key="$2" target_name="$3"
+    local value
+    value="$(parse_rewrite_outcome_value "$ledger_path" "$key")"
+    printf -v "$target_name" '%s' "$value"
+    validate_rewrite_outcome_value "$key" "$value"
+}
 
-    if ((addend > MAX_SAFE_ENTRY_COUNT - accumulated)); then
-        echo "STRUCTURE_FAIL: $context exceeds supported width"
-        return 1
+# Same, for a scalar that is optional by absence only: an omitted line reads as
+# 0, while a present line must still be canonical.
+read_optional_rewrite_outcome_scalar() {
+    local ledger_path="$1" key="$2" target_name="$3"
+    if ! grep -qE "^- $key:" "$ledger_path"; then
+        printf -v "$target_name" '%d' 0
+        return 0
     fi
-    printf -v "$target_name" '%d' "$((accumulated + addend))"
+    read_rewrite_outcome_scalar "$ledger_path" "$key" "$target_name"
+}
+
+structure_summands_are_safe() {
+    local summand
+    for summand in "$@"; do
+        is_safe_nonnegative_integer "$summand" || return 1
+    done
+}
+
+# A reconciliation scalar must equal the cardinality of the identity block that
+# owns it, so a total can never drift away from the records it claims to count.
+# A scalar that failed its own validator is left to that diagnostic.
+validate_summand_cardinality() {
+    local key="$1" scalar="$2" identity_count="$3" description="$4"
+
+    if ! structure_summands_are_safe "$scalar" ||
+        [ "$scalar" -eq "$identity_count" ]; then
+        return 0
+    fi
+    echo "STRUCTURE_FAIL: $key=$scalar must equal $description=$identity_count"
+    return 1
+}
+
+# Totals the open-window summands into the caller-scoped variable named by the
+# first argument, refusing any addition that would overflow Bash arithmetic.
+sum_structure_open_window() {
+    local target_name="$1" summand accumulated=0
+    shift
+
+    for summand in "$@"; do
+        if ((summand > MAX_SAFE_ENTRY_COUNT - accumulated)); then
+            echo "STRUCTURE_FAIL: rewrite outcome open-window sum exceeds supported width"
+            return 1
+        fi
+        accumulated=$((accumulated + summand))
+    done
+    printf -v "$target_name" '%d' "$accumulated"
+}
+
+# Names every open-window summand so a reconciliation failure is diagnosable
+# without re-deriving the ledger by hand. `unclassified_departed_open` is shown
+# only when it is subtracting something.
+format_open_window_summands() {
+    local unclassified="$1" departed="$2" singleton_residual="$3"
+    local historical_arrivals="$4" later_arrivals="$5" readmitted="$6"
+    local departed_note=""
+
+    if [ "$departed" -gt 0 ]; then
+        departed_note=" unclassified_departed_open=$departed"
+    fi
+    printf 'unclassified=%s%s singleton_residual_open=%s historical_post_pin_arrivals=%s post_reconciliation_arrivals=%s readmitted_out_of_window=%s' \
+        "$unclassified" "$departed_note" "$singleton_residual" \
+        "$historical_arrivals" "$later_arrivals" "$readmitted"
+}
+
+# Every open-window record beyond the pinned `unclassified` census must be owned
+# by name: recorded identities must sit exactly once under `## Open`, and every
+# `## Open` identity must be either recorded here or already known from the
+# pinned ledger. There is no positional allowance, so which identity is reported
+# never depends on feed row order.
+compare_recorded_open_identity_membership() {
+    local recorded_identities_path="$1" feed_locations_path="$2"
+    local known_open_identities_path="$3"
+    awk -F '\034' \
+        -v recorded_path="$recorded_identities_path" \
+        -v feed_path="$feed_locations_path" \
+        -v known_path="$known_open_identities_path" '
+        FILENAME == recorded_path {
+            if ($2 != "") {
+                if ($2 in recorded_kind) {
+                    if (recorded_kind[$2] == $1) {
+                        print "STRUCTURE_FAIL: identity \047" $2 \
+                            "\047 is recorded more than once as " $1
+                    } else {
+                        print "STRUCTURE_FAIL: identity \047" $2 \
+                            "\047 is recorded as " recorded_kind[$2] " and " $1
+                    }
+                    failures++
+                    next
+                }
+                recorded_kind[$2] = $1
+                recorded_order[++recorded_count] = $2
+            }
+            next
+        }
+        FILENAME == known_path {
+            if ($2 != "") {
+                known[$2] = known[$2] " " $1
+            }
+            next
+        }
+        FILENAME == feed_path {
+            lane_id = $1
+            location = $2
+            feed_count[lane_id]++
+            if (location == "Open") {
+                open_count[lane_id]++
+                if (!open_order_seen[lane_id]++) {
+                    open_order[++open_order_count] = lane_id
+                }
+            } else {
+                outside_open_count[lane_id]++
+            }
+            next
+        }
+        END {
+            for (i = 1; i <= recorded_count; i++) {
+                identity = recorded_order[i]
+                kind = recorded_kind[identity]
+                is_known = identity in known
+                is_pinned_open = is_known && \
+                    known[identity] ~ /(^| )pinned_open( |$)/
+                singleton_from_pinned_open = kind == "singleton_residual" && \
+                    is_pinned_open && \
+                    known[identity] !~ /(^| )(ledger_disposition|pinned_out_of_window_open)( |$)/
+                if (kind == "singleton_residual" && !is_pinned_open) {
+                    print "STRUCTURE_FAIL: singleton_residual identity \047" identity \
+                        "\047 was not under ## Open at pinned base SHA"
+                    failures++
+                }
+                if (is_known && !singleton_from_pinned_open) {
+                    print "STRUCTURE_FAIL: " kind " identity \047" identity \
+                        "\047 overlaps known non-arrival classification"
+                    failures++
+                }
+                if (open_count[identity] == 0) {
+                    if (feed_count[identity] > 0) {
+                        print "STRUCTURE_FAIL: " kind " identity \047" identity "\047 is outside ## Open"
+                    } else {
+                        print "STRUCTURE_FAIL: " kind " identity \047" identity "\047 is missing from ## Open"
+                    }
+                    failures++
+                } else if (open_count[identity] != 1) {
+                    print "STRUCTURE_FAIL: " kind " identity \047" identity "\047 appears " open_count[identity] " times under ## Open expected=1"
+                    failures++
+                } else if (outside_open_count[identity] > 0) {
+                    print "STRUCTURE_FAIL: " kind " identity \047" identity \
+                        "\047 appears under ## Open and outside ## Open"
+                    failures++
+                }
+            }
+            for (i = 1; i <= open_order_count; i++) {
+                identity = open_order[i]
+                pinned_open_authorized = known[identity] ~ \
+                    /(^| )pinned_open( |$)/ && \
+                    known[identity] !~ /(^| )ledger_disposition( |$)/
+                known_open_member = known[identity] ~ \
+                    /(^| )(ledger_unclassified|pinned_out_of_window_open)( |$)/ || \
+                    pinned_open_authorized
+                if (!(identity in recorded_kind) && !known_open_member) {
+                    print "STRUCTURE_FAIL: post_pin_arrival identity \047" identity "\047 is present under ## Open but is not recorded"
+                    failures++
+                }
+            }
+            exit failures > 0 ? 1 : 0
+        }
+    ' "$recorded_identities_path" "$known_open_identities_path" "$feed_locations_path"
 }
 
 run_ledger_accounting_check() {
@@ -649,89 +1272,93 @@ run_structure_check() {
     local ledger_path="$repo_root/docs/audits/followup-triage/TRIAGE.md"
     local feed_path="$repo_root/chats/icg/_followups.md"
     local failures=0 feed_open_window feed_out_of_window_open
-    local heading heading_count row_status
-    local entry_count disposition evidence lane_id
     local count_done=0 count_superseded=0 count_open_rehomed=0
     local count_abandon=0 count_unclassified=0 disposition_rows_valid=1
     local singleton_residual_open post_pin_arrivals readmitted_out_of_window
-    local expected_open_window
+    local historical_arrival_count post_reconciliation_arrival_count
+    local singleton_residual_identity_count unclassified_departed_open
+    local expected_open_window structure_tmpdir
     if [ ! -f "$ledger_path" ] || [ ! -f "$feed_path" ]; then
         echo "STRUCTURE_FAIL: structure inputs missing under repo root $repo_root"
         return 1
     fi
-    for heading in Open Harvested Closed; do
-        heading_count="$(
-            awk -v heading="## $heading" \
-                '$0 ~ ("^" heading "[[:space:]]*$") { count++ }
-                 END { print count + 0 }' "$feed_path"
-        )"
-        if [ "$heading_count" -ne 1 ]; then
-            echo "STRUCTURE_FAIL: heading '## $heading' count=$heading_count expected=1"
-            failures=$((failures + 1))
-        fi
-    done
+    structure_tmpdir="$(mktemp -d)"
+    validate_feed_headings "$feed_path" || failures=$((failures + 1))
     read -r feed_open_window feed_out_of_window_open < <(parse_feed_census "$feed_path")
-    if ! validate_open_section_statuses "$feed_path"; then
-        failures=$((failures + 1))
-    fi
+    validate_open_section_statuses "$feed_path" || failures=$((failures + 1))
     if [ "$feed_out_of_window_open" -ne 0 ]; then
         echo "STRUCTURE_FAIL: feed_out_of_window_open=$feed_out_of_window_open expected=0"
         failures=$((failures + 1))
     fi
-    if ! validate_residual_markers "$feed_path"; then
+    validate_residual_markers "$feed_path" || failures=$((failures + 1))
+    if ! accumulate_disposition_rows "$ledger_path"; then
         failures=$((failures + 1))
+        disposition_rows_valid=0
     fi
-    while IFS=$'\034' read -r entry_count disposition evidence lane_id; do
-        [ -n "$entry_count" ] || continue
-        row_status=0
-        validate_and_accumulate_row \
-            "$entry_count" "$disposition" "$evidence" "$lane_id" || row_status=$?
-        if [ "$row_status" -ne 0 ]; then
-            failures=$((failures + 1))
-            disposition_rows_valid=0
-        fi
-    done < <(parse_disposition_rows "$ledger_path")
-    singleton_residual_open="$(
-        parse_rewrite_outcome_value "$ledger_path" "singleton_residual_open"
+    read_rewrite_outcome_scalar "$ledger_path" singleton_residual_open \
+        singleton_residual_open || failures=$((failures + 1))
+    read_rewrite_outcome_scalar "$ledger_path" post_pin_arrivals \
+        post_pin_arrivals || failures=$((failures + 1))
+    read_rewrite_outcome_scalar "$ledger_path" readmitted_out_of_window \
+        readmitted_out_of_window || failures=$((failures + 1))
+    # `unclassified_departed_open` records pinned records the ledger still marks
+    # `unclassified` that have since left `## Open` (the generator placed them in
+    # `## Closed`, Harvested, or absent). Its subtraction keeps the open-window
+    # identity honest without rewriting the disposition ledger's 999 census.
+    read_optional_rewrite_outcome_scalar "$ledger_path" \
+        unclassified_departed_open unclassified_departed_open ||
+        failures=$((failures + 1))
+    collect_recorded_open_identities "$ledger_path" "$structure_tmpdir" ||
+        failures=$((failures + 1))
+    historical_arrival_count="$(count_lines "$structure_tmpdir/historical_arrivals")"
+    post_reconciliation_arrival_count="$(
+        count_lines "$structure_tmpdir/post_reconciliation_arrivals"
     )"
-    if ! validate_rewrite_outcome_value \
-        "singleton_residual_open" "$singleton_residual_open"; then
-        failures=$((failures + 1))
-    fi
-    post_pin_arrivals="$(parse_rewrite_outcome_value "$ledger_path" "post_pin_arrivals")"
-    if ! validate_rewrite_outcome_value "post_pin_arrivals" "$post_pin_arrivals"; then
-        failures=$((failures + 1))
-    fi
-    readmitted_out_of_window="$(
-        parse_rewrite_outcome_value "$ledger_path" "readmitted_out_of_window"
+    singleton_residual_identity_count="$(
+        count_lines "$structure_tmpdir/singleton_residuals"
     )"
-    if ! validate_rewrite_outcome_value \
-        "readmitted_out_of_window" "$readmitted_out_of_window"; then
+    validate_summand_cardinality post_pin_arrivals "$post_pin_arrivals" \
+        "$historical_arrival_count" "historical identity count" ||
         failures=$((failures + 1))
-    fi
+    validate_summand_cardinality singleton_residual_open \
+        "$singleton_residual_open" "$singleton_residual_identity_count" \
+        "singleton residual identity count" || failures=$((failures + 1))
+    parse_feed_lane_locations "$feed_path" > "$structure_tmpdir/feed_locations"
+    write_known_open_non_arrival_identities \
+        "$repo_root" "$ledger_path" "$feed_path" \
+        "$structure_tmpdir/known_open_non_arrivals" || failures=$((failures + 1))
+    compare_recorded_open_identity_membership \
+        "$structure_tmpdir/recorded_open_identities" \
+        "$structure_tmpdir/feed_locations" \
+        "$structure_tmpdir/known_open_non_arrivals" ||
+        failures=$((failures + 1))
     if [ "$disposition_rows_valid" -eq 1 ] &&
-        is_safe_nonnegative_integer "$singleton_residual_open" &&
-        is_safe_nonnegative_integer "$post_pin_arrivals" &&
-        is_safe_nonnegative_integer "$readmitted_out_of_window"; then
-        expected_open_window=0
-        if ! add_structure_open_window_count \
-            expected_open_window "$count_unclassified" \
-            "rewrite outcome open-window sum" ||
-            ! add_structure_open_window_count \
-                expected_open_window "$singleton_residual_open" \
-                "rewrite outcome open-window sum" ||
-            ! add_structure_open_window_count \
-                expected_open_window "$post_pin_arrivals" \
-                "rewrite outcome open-window sum" ||
-            ! add_structure_open_window_count \
-                expected_open_window "$readmitted_out_of_window" \
-                "rewrite outcome open-window sum"; then
+        structure_summands_are_safe "$singleton_residual_open" \
+            "$post_pin_arrivals" "$readmitted_out_of_window" \
+            "$unclassified_departed_open"; then
+        if [ "$unclassified_departed_open" -gt "$count_unclassified" ]; then
+            echo "STRUCTURE_FAIL: unclassified_departed_open=$unclassified_departed_open exceeds unclassified=$count_unclassified"
             failures=$((failures + 1))
-        elif [ "$feed_open_window" -ne "$expected_open_window" ]; then
-            echo "STRUCTURE_FAIL: feed_open_window=$feed_open_window expected=$expected_open_window (unclassified=$count_unclassified singleton_residual_open=$singleton_residual_open post_pin_arrivals=$post_pin_arrivals readmitted_out_of_window=$readmitted_out_of_window)"
+        elif ! sum_structure_open_window expected_open_window \
+            "$count_unclassified" "$singleton_residual_open" \
+            "$historical_arrival_count" "$post_reconciliation_arrival_count" \
+            "$readmitted_out_of_window"; then
             failures=$((failures + 1))
+        else
+            expected_open_window=$((expected_open_window - unclassified_departed_open))
+            if [ "$feed_open_window" -ne "$expected_open_window" ]; then
+                echo "STRUCTURE_FAIL: feed_open_window=$feed_open_window expected=$expected_open_window ($(
+                    format_open_window_summands "$count_unclassified" \
+                        "$unclassified_departed_open" "$singleton_residual_open" \
+                        "$historical_arrival_count" \
+                        "$post_reconciliation_arrival_count" \
+                        "$readmitted_out_of_window"
+                ))"
+                failures=$((failures + 1))
+            fi
         fi
     fi
+    rm -rf "$structure_tmpdir"
     if [ "$failures" -gt 0 ]; then
         return 1
     fi

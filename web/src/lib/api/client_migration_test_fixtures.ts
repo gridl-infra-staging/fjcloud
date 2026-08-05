@@ -10,9 +10,14 @@ import type {
 	CreateAlgoliaImportJobRequest,
 	ListAlgoliaImportJobsRequest,
 	ListAlgoliaIndexesRequest,
+	MigrationPreviewArguments,
+	MigrationPreviewResponse,
+	MigrationPreviewSourceProvider,
 	PublicAlgoliaImportJob,
 	PublicAlgoliaImportJobPage,
-	ResumeAlgoliaImportJobRequest
+	ResumeAlgoliaImportJobRequest,
+	VerifySourceMigrationRequest,
+	VerifySourceMigrationResponse
 } from './types';
 import { mockFetch } from './client.test.shared';
 
@@ -83,6 +88,11 @@ export type NeutralMigrationClient = ApiClient & {
 		jobId: string,
 		request: NeutralResumeRequest
 	) => Promise<PublicAlgoliaImportJob>;
+	previewMigrationImport: (...args: MigrationPreviewArguments) => Promise<MigrationPreviewResponse>;
+	verifySourceMigration: (
+		sourceProvider: SourceProvider,
+		request: VerifySourceMigrationRequest
+	) => Promise<VerifySourceMigrationResponse>;
 };
 
 export function neutralSourceListRequest(sourceProvider: SourceProvider): NeutralSourceListRequest {
@@ -118,6 +128,99 @@ export function neutralCreateRequest(sourceProvider: SourceProvider): NeutralCre
 		apiKey: `${sourceProvider}-neutral-source-key`,
 		sourceName: `${sourceProvider}_products`,
 		target: { eligibilityToken: `${sourceProvider}-target-token` }
+	};
+}
+
+/**
+ * Providers whose preview request body is published by the API contract today.
+ * Typesense is deliberately absent: `MigrationPreviewRequest` in
+ * `docs/reference/openapi.json` publishes only the Algolia and Meilisearch arms,
+ * and guessing a third would fork the producer's transport contract. The drift
+ * test `src/tests/openapi-drift.test.ts` fails the moment that arm is published,
+ * which is the signal to extend the production provider set and this builder.
+ */
+export function neutralPreviewArguments(
+	sourceProvider: MigrationPreviewSourceProvider
+): MigrationPreviewArguments {
+	if (sourceProvider === 'algolia') {
+		return [
+			sourceProvider,
+			{
+				appId: 'ALGOLIA_NEUTRAL_APP',
+				apiKey: 'algolia-neutral-source-key',
+				sourceIndex: 'algolia_products',
+				targetIndex: 'algolia_target'
+			}
+		];
+	}
+	return [
+		sourceProvider,
+		{
+			endpoint: `https://${sourceProvider}.example.test`,
+			apiKey: `${sourceProvider}-neutral-source-key`,
+			sourceIndex: `${sourceProvider}_products`,
+			targetIndex: `${sourceProvider}_target`
+		}
+	];
+}
+
+export function previewResponse(sourceProvider: SourceProvider): MigrationPreviewResponse {
+	return {
+		sourceCounts: { indexes: 3, records: 42 },
+		report: {
+			summary: { totalEntries: 2, hardRejections: 1, warnings: 1, scopeGaps: 0 },
+			entries: [
+				{
+					severity: 'Warning',
+					code: 'UnsupportedSourceField',
+					resource: 'Settings',
+					pageIndex: null,
+					itemIndex: 0,
+					jsonPath: '$.settings.attributesForFaceting[0]'
+				},
+				{
+					severity: 'HardRejection',
+					code: 'MalformedDocumentPayload',
+					resource: 'Document',
+					pageIndex: 1,
+					itemIndex: 7,
+					jsonPath: '$.hits[7]'
+				}
+			],
+			reportDigest: `sha256:${sourceProvider}-preview-report`
+		}
+	};
+}
+
+export function verifySourceMigrationRequest(): VerifySourceMigrationRequest {
+	return {
+		appId: 'ALGOLIA_VERIFY_APP_CANARY',
+		apiKey: 'algolia-verify-key-canary',
+		sourceIndex: 'source_products',
+		destinationIndex: 'fj_products',
+		queries: ['running shoes'],
+		resultLimit: 4
+	};
+}
+
+export function verifySourceMigrationResponse(): VerifySourceMigrationResponse {
+	return {
+		sourceIndex: 'source_products',
+		destinationIndex: 'fj_products',
+		resultLimit: 4,
+		queries: [
+			{
+				query: 'running shoes',
+				overlapCount: 3,
+				sourceOnly: ['p2'],
+				destinationOnly: ['p5'],
+				hits: [
+					{ objectID: 'p1', sourceRank: 1, destinationRank: 3, rankDelta: 2 },
+					{ objectID: 'p3', sourceRank: 3, destinationRank: 1, rankDelta: -2 },
+					{ objectID: 'p4', sourceRank: 4, destinationRank: 4, rankDelta: 0 }
+				]
+			}
+		]
 	};
 }
 

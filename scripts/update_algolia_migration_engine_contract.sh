@@ -79,10 +79,15 @@ run_ack_semantic_check() {
             || action_required "engine ACK semantic check override failed"
         return 0
     fi
-    cargo test --quiet -p flapjack-http x_algolia_application_id_required \
+    # The engine checkout is shared with other workers, and its incremental
+    # cache has produced `ld: symbol(s) not found` link failures that made this
+    # gate report ACTION_REQUIRED for a semantic proof that actually passes.
+    # A one-shot verification gate gains nothing from incremental artifacts, so
+    # bypass them rather than reading a corrupt cache as a contract violation.
+    CARGO_INCREMENTAL=0 cargo test --quiet -p flapjack-http x_algolia_application_id_required \
         --manifest-path "$git_root/engine/Cargo.toml" \
         || action_required "engine ACK semantic proof missing required x-algolia-application-id guard"
-    cargo test --quiet -p flapjack-http \
+    CARGO_INCREMENTAL=0 cargo test --quiet -p flapjack-http \
         async_acknowledge_running_job_fails_closed_without_mutating_phase \
         --manifest-path "$git_root/engine/Cargo.toml" \
         || action_required "engine ACK semantic proof missing migration_ack_too_early fail-closed behavior"
@@ -212,6 +217,10 @@ def provider_discriminated_routes(payload: dict) -> dict:
             "method": "POST",
             "path": "/1/migrations/{source_provider}/{job_id}/acknowledge",
         },
+        "preview": {
+            "method": "POST",
+            "path": "/1/migrations/{source_provider}/preview",
+        },
     }
     provider_aliases: dict[str, dict[str, str]] = {}
     for provider in providers:
@@ -221,6 +230,18 @@ def provider_discriminated_routes(payload: dict) -> dict:
         }
         for role, path in aliases.items():
             path_method(payload, path, shared_routes[role]["method"])
+            if role == "preview":
+                schema_ref = route_response_schema_ref(
+                    payload,
+                    path,
+                    shared_routes[role]["method"],
+                    "200",
+                )
+                if schema_ref != "#/components/schemas/MigrationPreviewResponse":
+                    action_required(
+                        f"OpenAPI artifact preview route {path} response schema drifted",
+                        exit_code=3,
+                    )
         provider_aliases[provider] = aliases
 
     return {
@@ -549,6 +570,204 @@ def array_items_ref(value: dict, owner: str) -> dict:
         action_required(f"{owner} array items must be a $ref", exit_code=3)
     return {"type": "array", "items_ref": items["$ref"]}
 
+def schema_ref(value: object, owner: str) -> str:
+    if not isinstance(value, dict) or not isinstance(value.get("$ref"), str):
+        action_required(f"{owner} must be a $ref", exit_code=3)
+    return value["$ref"]
+
+def route_response_schema_ref(payload: dict, path: str, method: str, status: str) -> str:
+    paths = required_object_field(payload, "paths", "OpenAPI artifact")
+    path_value = required_object_field(paths, path, "OpenAPI artifact paths")
+    operation = required_object_field(
+        path_value,
+        method.lower(),
+        f"OpenAPI artifact path {path}",
+    )
+    responses = required_object_field(
+        operation,
+        "responses",
+        f"OpenAPI artifact {method.upper()} {path}",
+    )
+    response = required_object_field(
+        responses,
+        status,
+        f"OpenAPI artifact {method.upper()} {path} responses",
+    )
+    response_schema = (
+        response
+        .get("content", {})
+        .get("application/json", {})
+        .get("schema")
+    )
+    return schema_ref(
+        response_schema,
+        f"OpenAPI artifact {method.upper()} {path} HTTP {status} response schema",
+    )
+
+def route_request_schema_ref(payload: dict, path: str, method: str) -> str:
+    paths = required_object_field(payload, "paths", "OpenAPI artifact")
+    path_value = required_object_field(paths, path, "OpenAPI artifact paths")
+    operation = required_object_field(
+        path_value,
+        method.lower(),
+        f"OpenAPI artifact path {path}",
+    )
+    request_schema = (
+        operation
+        .get("requestBody", {})
+        .get("content", {})
+        .get("application/json", {})
+        .get("schema")
+    )
+    return schema_ref(
+        request_schema,
+        f"OpenAPI artifact {method.upper()} {path} request schema",
+    )
+
+def component_schema_name(ref: str, owner: str) -> str:
+    prefix = "#/components/schemas/"
+    if not ref.startswith(prefix) or len(ref) == len(prefix):
+        action_required(f"{owner} must reference a component schema", exit_code=3)
+    return ref.removeprefix(prefix)
+
+def schema_ref_property(payload: dict, name: str, field: str) -> str:
+    return schema_ref(
+        property_schema(payload, name, field),
+        f"schema {name} field {field}",
+    )
+
+def preview_report_entry_contract(payload: dict) -> dict:
+    field_types: dict[str, list[str]] = {}
+    refs: dict[str, str] = {}
+    for field, value in sorted(schema_properties(payload, "MigrationPreviewReportEntry").items()):
+        if field in {"code", "resource", "severity"}:
+            refs[field] = schema_ref(value, f"schema MigrationPreviewReportEntry field {field}")
+        else:
+            field_types[field] = type_values(
+                value,
+                f"schema MigrationPreviewReportEntry field {field}",
+            )
+    return {
+        "required_fields": sorted_required(payload, "MigrationPreviewReportEntry"),
+        "optional_fields": sorted_optional(payload, "MigrationPreviewReportEntry"),
+        "field_types": field_types,
+        "refs": refs,
+    }
+
+def runtime_preview_support(provider_aliases: dict) -> dict[str, bool]:
+    source_path = "engine/flapjack-http/src/handlers/migration/mod.rs"
+    source = subprocess.run(
+        ["git", "show", f"{actual_head}:{source_path}"],
+        cwd=git_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if source.returncode != 0:
+        action_required(
+            f"could not read supports_preview owner at {actual_head}:{source_path}",
+            exit_code=3,
+        )
+    supports_preview = re.search(
+        r"fn\s+supports_preview\s*\(\s*&self\s*\)\s*->\s*bool\s*"
+        r"\{\s*matches!\(\s*self\s*,(?P<variants>.*?)\)\s*\}",
+        source.stdout,
+        flags=re.DOTALL,
+    )
+    if supports_preview is None:
+        action_required("could not derive runtime preview support from supports_preview", exit_code=3)
+
+    provider_variants = {
+        provider: "".join(part.capitalize() for part in provider.split("_"))
+        for provider in provider_aliases
+    }
+    supported_variants = set(
+        re.findall(r"Self::([A-Za-z][A-Za-z0-9_]*)", supports_preview.group("variants"))
+    )
+    unknown_variants = supported_variants - set(provider_variants.values())
+    if unknown_variants:
+        action_required(
+            "supports_preview contains providers outside the OpenAPI closed union: "
+            + ", ".join(sorted(unknown_variants)),
+            exit_code=3,
+        )
+    return {
+        provider: variant in supported_variants
+        for provider, variant in sorted(provider_variants.items())
+    }
+
+def preview_contract(payload: dict, provider_aliases: dict) -> dict:
+    request_schema_refs = {
+        provider: route_request_schema_ref(payload, aliases["preview"], "POST")
+        for provider, aliases in sorted(provider_aliases.items())
+    }
+    return {
+        "runtime_preview_support": runtime_preview_support(provider_aliases),
+        "request_schema_refs": request_schema_refs,
+        "request_fields": {
+            provider: {
+                "required_fields": sorted_required(
+                    payload,
+                    component_schema_name(ref, f"{provider} preview request"),
+                ),
+                "optional_fields": sorted_optional(
+                    payload,
+                    component_schema_name(ref, f"{provider} preview request"),
+                ),
+            }
+            for provider, ref in request_schema_refs.items()
+        },
+        "response": {
+            "required_fields": sorted_required(payload, "MigrationPreviewResponse"),
+            "optional_fields": sorted_optional(payload, "MigrationPreviewResponse"),
+            "report_ref": schema_ref_property(
+                payload,
+                "MigrationPreviewResponse",
+                "report",
+            ),
+            "source_counts_ref": schema_ref_property(
+                payload,
+                "MigrationPreviewResponse",
+                "sourceCounts",
+            ),
+        },
+        "source_counts": {
+            "required_fields": sorted_required(payload, "MigrationPreviewSourceCounts"),
+            "optional_fields": sorted_optional(payload, "MigrationPreviewSourceCounts"),
+            "field_types": field_type_map(payload, "MigrationPreviewSourceCounts"),
+        },
+        "report": {
+            "required_fields": sorted_required(payload, "MigrationPreviewReport"),
+            "optional_fields": sorted_optional(payload, "MigrationPreviewReport"),
+            "entries": array_items_ref(
+                property_schema(payload, "MigrationPreviewReport", "entries"),
+                "schema MigrationPreviewReport field entries",
+            ),
+            "summary_ref": schema_ref_property(
+                payload,
+                "MigrationPreviewReport",
+                "summary",
+            ),
+            "reportDigest": {
+                "type": type_values(
+                    property_schema(payload, "MigrationPreviewReport", "reportDigest"),
+                    "schema MigrationPreviewReport field reportDigest",
+                ),
+            },
+        },
+        "report_summary": {
+            "required_fields": sorted_required(payload, "MigrationPreviewReportSummary"),
+            "optional_fields": sorted_optional(payload, "MigrationPreviewReportSummary"),
+            "field_types": field_type_map(payload, "MigrationPreviewReportSummary"),
+        },
+        "report_entry": preview_report_entry_contract(payload),
+        "enums": {
+            "code": enum_values(payload, "ReportCode"),
+            "resource": enum_values(payload, "ReportResource"),
+            "severity": enum_values(payload, "ReportSeverity"),
+        },
+    }
+
 def field_type_map(payload: dict, name: str) -> dict:
     return {
         field: type_values(value, f"schema {name} field {field}")
@@ -814,6 +1033,7 @@ def extract_contract(payload: dict, fixture: dict) -> dict:
             "required_fields": sorted_required(payload, "AsyncMigrationExportProgress"),
             "optional_fields": sorted_optional(payload, "AsyncMigrationExportProgress"),
         },
+        "preview": preview_contract(payload, provider_contract["provider_aliases"]),
         "enums": {
             "phase": enum_values(payload, "AsyncMigrationPhase"),
             "disposition": enum_values(payload, "AsyncMigrationDisposition"),
@@ -835,11 +1055,19 @@ contract_keys = [
     "count",
     "warning",
     "progress",
+    "preview",
     "enums",
     "errors",
 ]
 provider_metadata_keys = {"provider_discriminator", "provider_aliases"}
-accepted_status_optional_growth = {"objectsImported", "targetIndex", "topology"}
+accepted_status_optional_growth = {
+    "objectsImported",
+    "operation",
+    "resumable",
+    "resumeHandle",
+    "targetIndex",
+    "topology",
+}
 missing_contract_keys = [key for key in contract_keys if key not in fixture]
 if mode == "check" and missing_contract_keys:
     action_required(
@@ -898,9 +1126,138 @@ def is_provider_metadata_widening(extracted: dict) -> bool:
     if set(current_aliases) - current_value_set:
         return False
     for provider in current_values:
-        if current_aliases.get(provider) != extracted_aliases.get(provider):
+        current_provider_aliases = required_object_field(
+            current_aliases,
+            provider,
+            "fixture provider_aliases",
+        )
+        extracted_provider_aliases = required_object_field(
+            extracted_aliases,
+            provider,
+            "generated provider_aliases",
+        )
+        if any(
+            extracted_provider_aliases.get(role) != path
+            for role, path in current_provider_aliases.items()
+        ):
             return False
     return True
+
+def is_preview_route_widening(extracted: dict) -> bool:
+    if mode != "update" or "routes" not in fixture or "provider_aliases" not in fixture:
+        return False
+    if "preview" in fixture:
+        return False
+    current_routes = required_object_field(fixture, "routes", "fixture")
+    extracted_routes = required_object_field(extracted, "routes", "generated contract")
+    if "preview" in current_routes:
+        return False
+    expected_routes = copy.deepcopy(current_routes)
+    expected_routes["preview"] = {
+        "method": "POST",
+        "path": "/1/migrations/{source_provider}/preview",
+    }
+    routes_match = expected_routes == extracted_routes
+    if not routes_match:
+        return False
+
+    current_aliases = required_object_field(fixture, "provider_aliases", "fixture")
+    extracted_aliases = required_object_field(
+        extracted,
+        "provider_aliases",
+        "generated contract",
+    )
+    if set(current_aliases) != set(extracted_aliases):
+        return False
+    for provider, aliases in current_aliases.items():
+        if not isinstance(provider, str):
+            return False
+        current_provider_aliases = required_object_field(
+            current_aliases,
+            provider,
+            "fixture provider_aliases",
+        )
+        extracted_provider_aliases = required_object_field(
+            extracted_aliases,
+            provider,
+            "generated provider_aliases",
+        )
+        expected_aliases = copy.deepcopy(current_provider_aliases)
+        expected_aliases.setdefault("preview", f"/1/migrations/{provider}/preview")
+        if extracted_provider_aliases != expected_aliases:
+            return False
+    return True
+
+def is_preview_request_schema_ref_pin(extracted: dict) -> bool:
+    if mode != "update" or "preview" not in fixture:
+        return False
+    current_preview = required_object_field(fixture, "preview", "fixture")
+    if "request_schema_refs" in current_preview:
+        return False
+    extracted_preview = required_object_field(extracted, "preview", "generated contract")
+    expected_preview = copy.deepcopy(current_preview)
+    request_schema_refs = extracted_preview.get("request_schema_refs")
+    if not isinstance(request_schema_refs, dict) or not request_schema_refs:
+        return False
+    expected_preview["request_schema_refs"] = request_schema_refs
+    return extracted_preview == expected_preview
+
+def is_preview_request_schema_ref_widening(extracted: dict) -> bool:
+    if mode != "update" or "preview" not in fixture:
+        return False
+    current_preview = required_object_field(fixture, "preview", "fixture")
+    extracted_preview = required_object_field(extracted, "preview", "generated contract")
+    current_refs = current_preview.get("request_schema_refs")
+    extracted_refs = extracted_preview.get("request_schema_refs")
+    if not isinstance(current_refs, dict) or not isinstance(extracted_refs, dict):
+        return False
+    if not set(current_refs) < set(extracted_refs):
+        return False
+    for provider, schema_ref in current_refs.items():
+        if extracted_refs.get(provider) != schema_ref:
+            return False
+    current_fields = current_preview.get("request_fields")
+    extracted_fields = extracted_preview.get("request_fields")
+    if not isinstance(current_fields, dict) or not isinstance(extracted_fields, dict):
+        return False
+    if set(extracted_fields) != set(extracted_refs):
+        return False
+    for provider, fields in current_fields.items():
+        if extracted_fields.get(provider) != fields:
+            return False
+    expected_preview = copy.deepcopy(current_preview)
+    expected_preview["request_schema_refs"] = extracted_refs
+    expected_preview["request_fields"] = extracted_fields
+    return extracted_preview == expected_preview
+
+def is_preview_request_fields_pin(extracted: dict) -> bool:
+    if mode != "update" or "preview" not in fixture:
+        return False
+    current_preview = required_object_field(fixture, "preview", "fixture")
+    if "request_fields" in current_preview:
+        return False
+    extracted_preview = required_object_field(extracted, "preview", "generated contract")
+    request_fields = extracted_preview.get("request_fields")
+    if not isinstance(request_fields, dict) or not request_fields:
+        return False
+    expected_preview = copy.deepcopy(current_preview)
+    expected_preview["request_fields"] = request_fields
+    return extracted_preview == expected_preview
+
+def is_preview_runtime_support_pin(extracted: dict) -> bool:
+    if mode != "update" or "preview" not in fixture:
+        return False
+    current_preview = required_object_field(fixture, "preview", "fixture")
+    if "runtime_preview_support" in current_preview:
+        return False
+    extracted_preview = required_object_field(extracted, "preview", "generated contract")
+    runtime_support = extracted_preview.get("runtime_preview_support")
+    if not isinstance(runtime_support, dict) or not runtime_support:
+        return False
+    expected_preview = copy.deepcopy(current_preview)
+    expected_preview["runtime_preview_support"] = runtime_support
+    return extracted_preview == expected_preview
+
 
 def is_accepted_status_optional_widening(extracted: dict) -> bool:
     if mode != "update" or "status" not in fixture:
@@ -922,7 +1279,7 @@ def is_accepted_status_optional_widening(extracted: dict) -> bool:
     added = extracted_optional_set - current_optional_set
     return (
         current_optional_set < extracted_optional_set
-        and added == accepted_status_optional_growth
+        and added <= accepted_status_optional_growth
         and current_optional == sorted(current_optional)
         and extracted_optional == sorted(extracted_optional)
     )
@@ -934,6 +1291,16 @@ def comparable_fixture_contract(extracted: dict) -> dict:
         ignored_keys.add("routes")
     elif is_provider_metadata_widening(extracted):
         ignored_keys.update(provider_metadata_keys)
+        if is_preview_request_schema_ref_widening(extracted):
+            ignored_keys.add("preview")
+    if is_preview_route_widening(extracted):
+        ignored_keys.update({"routes", "provider_aliases", "preview"})
+    elif is_preview_request_schema_ref_pin(extracted):
+        ignored_keys.add("preview")
+    elif is_preview_request_fields_pin(extracted):
+        ignored_keys.add("preview")
+    elif is_preview_runtime_support_pin(extracted):
+        ignored_keys.add("preview")
     if is_accepted_status_optional_widening(extracted):
         ignored_keys.add("status")
     return {

@@ -1,0 +1,94 @@
+Stage 1 nested-arm recursive-writer correction
+captured_at_utc=2026-08-02T00:50:17Z
+snapshot_at_utc=2026-08-02T00:51:47Z
+completed_at_utc=2026-08-02T00:52:47Z
+head=538045736fb7f51735a4e7ec6c7388c6a2d11827
+nested_source_diff_to_current_head=none
+receipt_capture=exact selected command output, unelided
+snapshot_seconds=90
+watchdog_seconds=150
+watchdog_fired=yes
+exit_status_after_watchdog=143
+wall_clock_millis=150347
+process_signals_sent=TERM to stage-owned process group 38522
+pre_existing_process_signals_sent=none
+
+CORRECTION TO 20260801T233524Z_nested_writer_exact.txt:
+The earlier 65-second cutoff was shorter than a separately observed clean 66.64-second run. Its snapshot caught normal active work and was not a fail-capable hang proof. This capture allows 150 seconds, takes the diagnostic snapshot at 90 seconds, and identifies the recursive writer chain rather than inferring a leak from runtime alone.
+
+EXACT RED COMMAND:
+bash scripts/tests/probe_browser_stack_exclusive_test.sh
+
+STAGE-OWNED DIAGNOSTIC WRAPPER:
+The command above ran as process-group leader 38522 with stdout and stderr redirected to separate files. A wrapper-owned timer captured ps/lsof at 90 seconds, waited through an absolute 150-second ceiling, then sent TERM only to process group 38522 and reaped it. The BASH_ENV hook enabled xtrace only when FJCLOUD_EXCLUSIVE_TEST_NESTED=1; it did not change the nested arm or the ps shim.
+
+OBSERVED STDOUT TAIL COMMAND:
+tail -n 12 "$diagnostic_dir/stdout"
+
+OBSERVED STDOUT TAIL:
+PASS: local_demo.sh: exit 1 (held)
+PASS: local_demo.sh: holders increment by one
+PASS: local_demo.sh: released baseline exit
+PASS: local_demo.sh: holders return to expected
+baseline[prompt text]: expected_holders=0
+PASS: prompt text: decoy is alive
+PASS: prompt text: decoy argv carries the trigger words
+PASS: prompt text: baseline exit (not a holder)
+PASS: prompt text: holders stay expected
+PASS: prompt text: superseded inline probe is fooled
+baseline[nested-arm:outer]: expected_holders=0
+PASS: nested arm: external holder is alive
+
+STDOUT_BYTES=1865
+STDERR_BYTES=0
+
+EXACT PROCESS SELECTION COMMAND:
+awk 'NR==1 || $1==38522 || $1==43960 || $1==43962 || $1==44188 || $1==44189 || $1==44220 || $1==44224 || $1==44244 || $1==44245 || $1==44248 || $1==44251' "$diagnostic_dir/ps_90s"
+
+EXACT PROCESS SELECTION OUTPUT:
+  PID  PPID  PGID STAT ELAPSED  %CPU COMMAND
+38522 38503 38522 S      01:30   0.0 bash scripts/tests/probe_browser_stack_exclusive_test.sh
+43960 38522 38522 S      00:57   0.0 bash /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.nLP6mpIJwa/fakestack/scripts/local-dev-up.sh
+43962 43960 38522 S      00:57   0.0 sleep 3600
+44188 38522 38522 S      00:56   0.0 bash scripts/tests/probe_browser_stack_exclusive_test.sh
+44189 44188 38522 S      00:56   0.0 bash scripts/tests/probe_browser_stack_exclusive_test.sh
+44220 44189 38522 S      00:56   0.0 bash scripts/tests/probe_browser_stack_exclusive_test.sh
+44224 44223 38522 S      00:56   0.0 bash /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.AMBV4E3oZ4/bin/ps -axo args=
+44244 44224 38522 S      00:56   0.0 bash /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.AMBV4E3oZ4/bin/ps -axo args=
+44245 44244 38522 S      00:56   0.0 bash /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.nLP6mpIJwa/bin/ps -axo args=
+44248 44245 38522 S      00:56   0.0 bash /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.nLP6mpIJwa/bin/ps -axo args=
+44251 44250 38522 S      00:56   0.0 bash /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.nLP6mpIJwa/bin/ps -axo args=
+
+EXACT FD SELECTION COMMAND:
+awk 'NR==1 || $2==44224 || $2==44244 || $2==44245 || $2==44248 || $2==44251' "$diagnostic_dir/lsof_90s"
+
+EXACT FD SELECTION OUTPUT:
+COMMAND   PID   USER   FD   TYPE             DEVICE SIZE/OFF       NODE NAME
+bash    44224 stuart    0   PIPE 0x9c66faca2d1b537a    16384            ->0xd1c8219ad64ae93a
+bash    44224 stuart    1   PIPE 0x42d2c0cd32029325    16384            ->0xb5dd384528a58302
+bash    44224 stuart    2   PIPE 0x671dcc8e9b1c8587    16384            ->0xc5200a6b4f3e72df
+bash    44244 stuart    0r   CHR                3,2      0t0        336 /dev/null
+bash    44244 stuart    1   PIPE 0xd1c8219ad64ae93a    16384            ->0x9c66faca2d1b537a
+bash    44244 stuart    2   PIPE 0x671dcc8e9b1c8587    16384            ->0xc5200a6b4f3e72df
+bash    44245 stuart    0   PIPE 0x91ad9d502b513556    16384            ->0x1ee248a08e2f0ea1
+bash    44245 stuart    1   PIPE 0xd1c8219ad64ae93a    16384            ->0x9c66faca2d1b537a
+bash    44245 stuart    2   PIPE 0x671dcc8e9b1c8587    16384            ->0xc5200a6b4f3e72df
+bash    44248 stuart    0r   CHR                3,2      0t0        336 /dev/null
+bash    44248 stuart    1   PIPE 0x1ee248a08e2f0ea1    16384            ->0x91ad9d502b513556
+bash    44248 stuart    2   PIPE 0x671dcc8e9b1c8587    16384            ->0xc5200a6b4f3e72df
+bash    44251 stuart    0   PIPE 0xce01dcb237ec58a9    16384            ->0x2c76132302aaf9d0
+bash    44251 stuart    1   PIPE 0x94461cc7d562e32a    16384            ->0x472dab5edc0186ce
+bash    44251 stuart    2   PIPE 0x671dcc8e9b1c8587    16384            ->0xc5200a6b4f3e72df
+
+BASH 3.2 RESOLUTION REPRODUCTION COMMAND:
+shim_dir="$(mktemp -d)"; printf '%s\n' '#!/bin/sh' 'exec /bin/ps "$@"' >"$shim_dir/ps"; chmod +x "$shim_dir/ps"; PATH="$shim_dir:$PATH" /bin/bash -c 'printf "command_-p=%s\n" "$(command -p -v ps)"; printf "command=%s\n" "$(command -v ps)"'
+
+BASH 3.2 RESOLUTION REPRODUCTION OUTPUT:
+command_-p=/var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.ZUxBe3OIit/ps
+command=/var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.ZUxBe3OIit/ps
+
+WRITER IDENTIFICATION:
+The nested child inherits the outer run's PATH, so resolve_system_ps at scripts/tests/probe_browser_stack_exclusive_test.sh:28 resolves the outer ps shim instead of /bin/ps under the host's Bash 3.2. The child then exports that shim as FJCLOUD_EXCLUSIVE_TEST_REAL_PS. Its new inner shim invokes the outer shim, whose environment now points REAL_PS back to itself. PIDs 44224, 44244, 44245, 44248 and 44251 show the resulting recursive shim chain. Their shared fd 2 pipe 0x671dcc8e9b1c8587 remains inherited from the nested command substitution, so nested_out at lines 416-418 cannot observe EOF.
+
+CLEANUP RECEIPT:
+After the 150-second ceiling and evidence capture, TERM was sent to stage-owned process group 38522 and the group was reaped with exit 143. No pre-existing host PID was signaled.

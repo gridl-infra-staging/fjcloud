@@ -4,9 +4,11 @@ import { ApiRequestError } from '$lib/api/client';
 import { createApiClientForBaseUrl } from '$lib/server/api';
 import { mapAuthActionFailure } from '$lib/server/auth-action-errors';
 import { authCookieOptions } from '$lib/server/auth-cookies';
+import { formDataString } from '$lib/server/form-data';
 import { privateEnvValue } from '$lib/server/runtime-env';
 import { resolveAuth } from '$lib/auth/guard';
 import { AUTH_COOKIE, COOKIE_MAX_AGE } from '$lib/config';
+import { passwordApiValidationError } from '$lib/auth/password-policy';
 import { validateSignupPassword } from './signup-validation';
 
 const SIGNUP_FAILURE_MESSAGE =
@@ -21,10 +23,10 @@ export const load: PageServerLoad = async ({ locals }) => ({
 export const actions = {
 	default: async ({ request, cookies, url, fetch, locals, platform }) => {
 		const data = await request.formData();
-		const name = (data.get('name') as string)?.trim();
-		const email = (data.get('email') as string)?.trim().toLowerCase();
-		const password = data.get('password') as string;
-		const confirmPassword = data.get('confirm_password') as string;
+		const name = formDataString(data, 'name').trim();
+		const email = formDataString(data, 'email').trim().toLowerCase();
+		const password = formDataString(data, 'password');
+		const confirmPassword = formDataString(data, 'confirm_password');
 
 		const errors: Record<string, string> = {};
 		if (!name) errors.name = 'Name is required';
@@ -44,6 +46,16 @@ export const actions = {
 			const result = await api.register({ name, email, password });
 			token = result.token;
 		} catch (e) {
+			if (e instanceof ApiRequestError) {
+				const passwordError = passwordApiValidationError(e.message);
+				if (passwordError) {
+					return fail(400, {
+						errors: { password: passwordError },
+						name,
+						email
+					});
+				}
+			}
 			// Do not reflect duplicate-email conflicts back to the browser because
 			// that turns signup into an account-enumeration oracle.
 			if (e instanceof ApiRequestError && e.status === 409) {

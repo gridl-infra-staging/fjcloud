@@ -1,4 +1,5 @@
 use crate::common::support::pg_schema_harness;
+use std::time::Duration;
 
 #[test]
 fn missing_database_url_is_a_hard_test_failure() {
@@ -56,5 +57,45 @@ async fn db_harness_drop_cleans_schema_after_panic_unwind() {
     assert!(
         !pg_schema_harness::schema_exists(&pool, &schema).await,
         "DbHarness must drop isolated schema even when test panics"
+    );
+}
+
+#[tokio::test]
+async fn db_harness_drop_returns_when_schema_cleanup_is_blocked() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo_drop_block").await
+    else {
+        return;
+    };
+    let schema = db.schema.clone();
+    let blocker_pool = pg_schema_harness::pool_in_schema(&schema, 1).await;
+    let mut blocker = blocker_pool.begin().await.expect("begin cleanup blocker");
+    sqlx::query("LOCK TABLE vm_inventory IN ACCESS SHARE MODE")
+        .execute(&mut *blocker)
+        .await
+        .expect("hold lock that blocks DROP SCHEMA");
+
+    let (dropped_tx, dropped_rx) = std::sync::mpsc::channel();
+    let drop_thread = std::thread::spawn(move || {
+        drop(db);
+        let _ = dropped_tx.send(());
+    });
+
+    let drop_returned_while_blocked = dropped_rx.recv_timeout(Duration::from_millis(750)).is_ok();
+    blocker.commit().await.expect("release cleanup blocker");
+    drop_thread.join().expect("join harness drop thread");
+
+    assert!(
+        drop_returned_while_blocked,
+        "DbHarness::drop must not wait on blocked schema cleanup after a timed-out test"
+    );
+    for _ in 0..20 {
+        if !pg_schema_harness::schema_exists(&blocker_pool, &schema).await {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    assert!(
+        !pg_schema_harness::schema_exists(&blocker_pool, &schema).await,
+        "schema cleanup should finish after the blocking lock is released"
     );
 }

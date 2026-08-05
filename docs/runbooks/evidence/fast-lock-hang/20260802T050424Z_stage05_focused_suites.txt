@@ -1,0 +1,456 @@
+Stage 5 focused suites evidence
+HEAD 128016f77cb61a4093bf2bec3a46867608da09c6
+clean_tree True
+
+$ validation_cache.check('bash scripts/tests/local_ci_reachability_timeout_test.sh', head=128016f77cb61a4093bf2bec3a46867608da09c6, clean_tree=True)
+CACHE MISS
+$ /usr/bin/time -p bash scripts/tests/local_ci_reachability_timeout_test.sh
+PASS: the non-terminating fixture reaches the real suite runner
+PASS: the non-terminating fixture records an epoch millisecond start marker
+PASS: run_reachability_suite completes within the configured one-second bound plus 300ms TERM grace and 500ms scheduling allowance on the serial tail path
+PASS: run_reachability_suite honors the configured one-second bound without test-watchdog intervention on the serial tail path
+PASS: timed-out suite writes the reserved timeout receipt code on the serial tail path
+PASS: failure output names the exact timed-out suite on the serial tail path
+PASS: failure output classifies expiry as a timeout rather than a generic failure on the serial tail path
+reachability timeout specimen (serial tail): configured_timeout_seconds=1 allowance_ms=500 elapsed_ms=1281 watchdog_fired=0 harness_rc=0 suite_rc=124 expected_timeout_rc=124
+PASS: the non-terminating fixture reaches the real suite runner
+PASS: the non-terminating fixture records an epoch millisecond start marker
+PASS: run_reachability_suite completes within the configured one-second bound plus 300ms TERM grace and 500ms scheduling allowance on the concurrent batch path
+PASS: run_reachability_suite honors the configured one-second bound without test-watchdog intervention on the concurrent batch path
+PASS: timed-out suite writes the reserved timeout receipt code on the concurrent batch path
+PASS: failure output names the exact timed-out suite on the concurrent batch path
+PASS: failure output classifies expiry as a timeout rather than a generic failure on the concurrent batch path
+reachability timeout specimen (concurrent batch): configured_timeout_seconds=1 allowance_ms=500 elapsed_ms=1277 watchdog_fired=0 harness_rc=0 suite_rc=124 expected_timeout_rc=124
+PASS: the non-terminating fixture reaches the real suite runner
+PASS: the non-terminating fixture records an epoch millisecond start marker
+PASS: run_reachability_suite completes within the configured one-second bound plus 300ms TERM grace and 500ms scheduling allowance on the serial tail path
+PASS: run_reachability_suite honors the configured one-second bound without test-watchdog intervention on the serial tail path
+PASS: timed-out suite writes the reserved timeout receipt code on the serial tail path
+PASS: failure output names the exact timed-out suite on the serial tail path
+PASS: failure output classifies expiry as a timeout rather than a generic failure on the serial tail path
+reachability timeout specimen (serial tail): configured_timeout_seconds=1 allowance_ms=500 elapsed_ms=1499 watchdog_fired=0 harness_rc=0 suite_rc=124 expected_timeout_rc=124
+PASS: the non-terminating fixture reaches the real suite runner
+PASS: the non-terminating fixture records an epoch millisecond start marker
+PASS: run_reachability_suite completes within the configured one-second bound plus 300ms TERM grace and 500ms scheduling allowance on the concurrent batch path
+PASS: run_reachability_suite honors the configured one-second bound without test-watchdog intervention on the concurrent batch path
+PASS: timed-out suite writes the reserved timeout receipt code on the concurrent batch path
+PASS: failure output names the exact timed-out suite on the concurrent batch path
+PASS: failure output classifies expiry as a timeout rather than a generic failure on the concurrent batch path
+reachability timeout specimen (concurrent batch): configured_timeout_seconds=1 allowance_ms=500 elapsed_ms=1500 watchdog_fired=0 harness_rc=0 suite_rc=124 expected_timeout_rc=124
+PASS: the TERM-cooperative leader fixture reaches the real suite runner
+PASS: the TERM-cooperative leader fixture starts a TERM-ignoring descendant
+PASS: the TERM-ignoring descendant records its exact PID
+PASS: the TERM-cooperative leader fixture records an epoch millisecond start marker
+PASS: run_reachability_suite finishes within the timeout budget when the leader exits on TERM and the descendant ignores TERM on the serial tail path
+PASS: run_reachability_suite does not need test-watchdog intervention when the leader exits on TERM and the descendant ignores TERM on the serial tail path
+PASS: leader-exits-first timeout cleanup still writes rc 124 on the serial tail path
+PASS: failure output names the leader-exits-first timeout fixture on the serial tail path
+PASS: failure output keeps the leader-exits-first timeout classified as timed out on the serial tail path
+PASS: timeout cleanup kills the TERM-ignoring descendant after the leader exits on TERM on the serial tail path
+reachability timeout leader-exits-first specimen (serial tail): configured_timeout_seconds=1 allowance_ms=500 elapsed_ms=1271 watchdog_fired=0 harness_rc=0 suite_rc=124 child_pid=72874
+PASS: the TERM-cooperative leader fixture reaches the real suite runner
+PASS: the TERM-cooperative leader fixture starts a TERM-ignoring descendant
+PASS: the TERM-ignoring descendant records its exact PID
+PASS: the TERM-cooperative leader fixture records an epoch millisecond start marker
+PASS: run_reachability_suite finishes within the timeout budget when the leader exits on TERM and the descendant ignores TERM on the concurrent batch path
+PASS: run_reachability_suite does not need test-watchdog intervention when the leader exits on TERM and the descendant ignores TERM on the concurrent batch path
+PASS: leader-exits-first timeout cleanup still writes rc 124 on the concurrent batch path
+PASS: failure output names the leader-exits-first timeout fixture on the concurrent batch path
+PASS: failure output keeps the leader-exits-first timeout classified as timed out on the concurrent batch path
+PASS: timeout cleanup kills the TERM-ignoring descendant after the leader exits on TERM on the concurrent batch path
+reachability timeout leader-exits-first specimen (concurrent batch): configured_timeout_seconds=1 allowance_ms=500 elapsed_ms=1228 watchdog_fired=0 harness_rc=0 suite_rc=124 child_pid=73395
+PASS: ordinary failing suites preserve their original receipt code
+PASS: ordinary failing suites are distinguishable from timeout receipts
+PASS: ordinary failure output names the original suite exit code
+PASS: ordinary failure output is not classified as a timeout
+
+=== Results: 52 passed, 0 failed ===
+
+real 8.834
+user n/a
+sys n/a
+exit_code 0
+timeout False
+
+---
+$ validation_cache.check('bash scripts/tests/probe_browser_stack_exclusive_test.sh', head=128016f77cb61a4093bf2bec3a46867608da09c6, clean_tree=True)
+CACHE MISS
+$ /usr/bin/time -p bash scripts/tests/probe_browser_stack_exclusive_test.sh
+PASS: system ps resolver ignores shimmed PATH
+baseline[free]: expected_holders=0
+PASS: free: baseline exit
+PASS: free: expected holders
+baseline[held:local-dev-up]: expected_holders=0
+PASS: held: starter is alive
+PASS: held: starter argv is visible
+PASS: held: exit 1
+PASS: held: holders increment by one
+PASS: held: names the holder
+PASS: released: baseline exit
+PASS: released: holders return to expected
+baseline[unrelated holder]: expected_holders=0
+PASS: unrelated holder: starter is alive
+PASS: unrelated holder: starter argv is visible
+PASS: unrelated holder: ps shim excludes outside-root starter
+PASS: unrelated holder: baseline exit
+PASS: unrelated holder: holders stay expected
+baseline[web-dev.sh]: expected_holders=0
+PASS: web-dev.sh: starter is alive
+PASS: web-dev.sh: starter argv is visible
+PASS: web-dev.sh: exit 1 (held)
+PASS: web-dev.sh: holders increment by one
+PASS: web-dev.sh: released baseline exit
+PASS: web-dev.sh: holders return to expected
+baseline[api-dev.sh]: expected_holders=0
+PASS: api-dev.sh: starter is alive
+PASS: api-dev.sh: starter argv is visible
+PASS: api-dev.sh: exit 1 (held)
+PASS: api-dev.sh: holders increment by one
+PASS: api-dev.sh: released baseline exit
+PASS: api-dev.sh: holders return to expected
+baseline[local_demo.sh]: expected_holders=0
+PASS: local_demo.sh: starter is alive
+PASS: local_demo.sh: starter argv is visible
+PASS: local_demo.sh: exit 1 (held)
+PASS: local_demo.sh: holders increment by one
+PASS: local_demo.sh: released baseline exit
+PASS: local_demo.sh: holders return to expected
+baseline[prompt text]: expected_holders=0
+PASS: prompt text: decoy is alive
+PASS: prompt text: decoy argv carries the trigger words
+PASS: prompt text: baseline exit (not a holder)
+PASS: prompt text: holders stay expected
+PASS: prompt text: superseded inline probe is fooled
+baseline[nested-arm:outer]: expected_holders=0
+PASS: nested arm: external holder is alive
+PASS: nested arm: nested suite exits 0 with a pre-existing holder
+nested arm: outer_baseline=0 nested_free_baseline=1
+PASS: nested arm: nested run measured an elevated baseline (>=1)
+PASS: nested arm: recursive ps leaked-writer specimen fails fast by timeout
+PASS: nested arm: recursive ps leaked-writer specimen returns timeout rc
+PASS: nested arm: recursive ps specimen leaves no owned process alive
+PASS: nested arm: TERM-ignoring specimen fails fast by timeout
+PASS: nested arm: TERM-ignoring specimen returns timeout rc
+nested arm: term_ignoring_cleanup_elapsed=7s bound=15s
+PASS: nested arm: TERM-ignoring cleanup stays within its wall-clock bound
+PASS: nested arm: TERM-ignoring specimen leaves no owned process alive
+
+Totals: pass=48 fail=0
+
+real 48.036
+user n/a
+sys n/a
+exit_code 0
+timeout False
+
+---
+$ validation_cache.check('bash scripts/tests/local_ci_fast_lock_test.sh', head=128016f77cb61a4093bf2bec3a46867608da09c6, clean_tree=True)
+CACHE MISS
+$ /usr/bin/time -p bash scripts/tests/local_ci_fast_lock_test.sh
+PASS: free lock acquisition succeeds
+PASS: free lock acquisition writes a holder record
+PASS: holder record contains the acquiring shell PID
+PASS: holder record contains the exact worktree path
+PASS: holder record contains an acquisition epoch timestamp
+PASS: default lock key is stable when one clone is entered through a symlink
+PASS: contended acquisition returns the reserved refusal code
+PASS: contention is not reported as success
+PASS: contention is distinct from a failed gate
+PASS: contention stderr identifies the holder and gives actionable refusal guidance
+PASS: contention keeps the refusal diagnostic on stderr
+PASS: refusal consumes the exported holder-description helper
+PASS: release removes the owned lock directory
+PASS: a subsequent acquire succeeds after release
+PASS: a lock owned by a reaped PID is reclaimed
+PASS: stale-lock diagnostic names the exact dead PID
+PASS: stale reclamation replaces the dead holder record
+PASS: stale-lock reclamation emits its diagnostic only on stderr
+PASS: legitimate-runtime specimen protects three measured 1241-second --fast runs
+PASS: a live holder older than the reclaim bound releases the lock to the waiter
+PASS: stale-live reclamation is loud rather than silently stealing the lock
+PASS: stale-live reclamation identifies the displaced holder in the canonical shape
+PASS: stale-live reclamation replaces the old holder record
+PASS: stale reclaim decision never signals the holder
+PASS: a recent live holder inside the reclaim bound remains protected
+PASS: recent refusal preserves the canonical holder diagnostic
+PASS: recent refusal leaves the holder record unchanged
+PASS: recent refusal preserves the complete holder record
+PASS: recent reclaim decision never signals the holder
+PASS: a legitimate_runtime live holder inside the reclaim bound remains protected
+PASS: legitimate_runtime refusal preserves the canonical holder diagnostic
+PASS: legitimate_runtime refusal leaves the holder record unchanged
+PASS: legitimate_runtime refusal preserves the complete holder record
+PASS: legitimate_runtime reclaim decision never signals the holder
+PASS: missing_started_at age evidence is rejected by the canonical parser
+PASS: missing_started_at age evidence cannot produce a held-seconds value
+PASS: a missing_started_at live holder inside the reclaim bound remains protected
+PASS: missing_started_at refusal preserves the canonical holder diagnostic
+PASS: missing_started_at refusal leaves the holder record unchanged
+PASS: missing_started_at refusal preserves the complete holder record
+PASS: missing_started_at reclaim decision never signals the holder
+PASS: unparseable_started_at age evidence is rejected by the canonical parser
+PASS: unparseable_started_at age evidence cannot produce a held-seconds value
+PASS: a unparseable_started_at live holder inside the reclaim bound remains protected
+PASS: unparseable_started_at refusal preserves the canonical holder diagnostic
+PASS: unparseable_started_at refusal leaves the holder record unchanged
+PASS: unparseable_started_at refusal preserves the complete holder record
+PASS: unparseable_started_at reclaim decision never signals the holder
+PASS: a PID-less holder record is reclaimed
+PASS: corrupt-lock diagnostic explains the exact defect
+PASS: corrupt reclamation writes a valid replacement holder
+PASS: corrupt-lock reclamation emits its diagnostic only on stderr
+PASS: an invalid-PID holder record is reclaimed
+PASS: invalid-PID reclamation reuses the corrupt-lock diagnostic
+PASS: invalid-PID reclamation writes a valid replacement holder
+PASS: invalid-PID reclamation emits its diagnostic only on stderr
+PASS: bounded contention waits for the configured interval without hanging
+PASS: bounded contention still returns the reserved refusal code
+PASS: bounded-wait refusal preserves the exact holder diagnostic
+PASS: bounded-wait refusal keeps the diagnostic on stderr
+PASS: metadata-guard work is charged to the configured wait budget
+PASS: slow metadata-guard contention returns the reserved refusal code
+PASS: slow metadata-guard refusal preserves the holder diagnostic
+PASS: missing-guard fallback race is still charged to the configured wait budget
+PASS: missing-guard fallback race still returns the reserved refusal code
+PASS: missing-guard fallback race reuses the completed holder diagnostic
+PASS: leading-zero wait values are normalized as decimal
+PASS: normalized decimal wait values are safe in Bash arithmetic
+PASS: negative wait values clamp to immediate refusal
+PASS: non-numeric wait values clamp to immediate refusal
+PASS: an unset wait budget falls back to the bounded-wait default
+PASS: the default budget is positive so contention queues instead of refusing
+PASS: an empty wait budget falls back to the same default
+PASS: an explicit 0 still opts into immediate refusal
+PASS: publisher acquires the lock after delayed holder publication
+PASS: default-zero contender refuses immediately while publication is paused
+PASS: contender refuses instead of reclaiming an in-progress holder publication
+PASS: in-progress refusal names the true paused publisher
+PASS: in-progress publication is not treated as a corrupt holder
+PASS: in-progress publication refusal keeps the diagnostic on stderr
+PASS: an orphaned reclaim claim does not wedge immediate acquisition
+PASS: orphaned reclaim recovery replaces the dead holder record
+PASS: an unlocked orphaned metadata guard is reclaimed
+PASS: metadata-guard recovery installs the current holder
+PASS: metadata guard path is removed after acquisition metadata completes
+PASS: an interrupted reclaimer releases the metadata guard
+PASS: acquisition after reclaimer interruption installs a live holder
+PASS: torn-owner contender immediately refuses during publisher metadata
+PASS: torn-owner refusal uses the atomic publisher guard record
+PASS: torn-owner refusal never names an arbitrary waiting contender
+PASS: torn-owner refusal keeps the diagnostic on stderr
+PASS: stale takeover permits exactly one concurrent reclaimer
+PASS: stale takeover refuses the losing reclaimer with exit 75
+PASS: corrupt takeover permits exactly one concurrent reclaimer
+PASS: corrupt takeover refuses the losing reclaimer with exit 75
+
+=== Results: 95 passed, 0 failed ===
+
+real 22.680
+user n/a
+sys n/a
+exit_code 0
+timeout False
+
+---
+$ validation_cache.check('bash scripts/tests/local_ci_parallel_safety_test.sh', head=128016f77cb61a4093bf2bec3a46867608da09c6, clean_tree=True)
+CACHE MISS
+$ /usr/bin/time -p bash scripts/tests/local_ci_parallel_safety_test.sh
+PASS: bootstrap env gate joins the parallel gate batch
+PASS: web-test must not join the parallel gate batch
+PASS: rust-lint checkout-isolation checks must not overlap the parallel gate batch
+PASS: test-reachability-contract must not join the parallel gate batch
+PASS: rc-wrapper-contract must not overlap gates that mutate repo-local .local state
+PASS: local-schema-drift-contract must not overlap gates that mutate repo-local .local state
+PASS: bootstrap env gate dispatches through the parallel scheduler
+PASS: bootstrap env temporary sequential flag is removed
+PASS: bootstrap env temporary sequential label is removed
+PASS: bootstrap env gate has exactly one run path
+PASS: local schema drift tests must not replace the shared .local runtime tree
+PASS: web-test starts after the parallel batch
+PASS: test-reachability-contract starts after the parallel batch
+PASS: rc-wrapper-contract starts after the parallel batch
+PASS: local-schema-drift-contract starts after rc-wrapper-contract
+PASS: bootstrap env gate remains selectable through --gate
+PASS: web-test remains selectable through --gate
+PASS: rust-lint starts after the parallel batch drains
+PASS: rust-lint completes before the existing sequential web-test lane
+PASS: rust-lint has exactly one run path
+PASS: rust-lint remains selectable through --gate
+PASS: rc-wrapper-contract remains selectable through --gate
+PASS: local schema drift gate has exactly one run path
+PASS: local schema drift gate remains selectable through --gate
+PASS: reachability gate starts after the parallel batch drains
+PASS: reachability gate completes before local schema drift
+PASS: reachability gate has exactly one run path
+PASS: reachability gate remains selectable through --gate
+PASS: scripts/tests/api_dev_test.sh is promoted out of the serial tail after duplicate-green isolation
+PASS: scripts/tests/local_demo_test.sh is promoted out of the serial tail after duplicate-green isolation
+PASS: scripts/tests/local_dev_migrate_test.sh is promoted out of the serial tail after duplicate-green isolation
+PASS: scripts/tests/local_dev_up_test.sh is promoted out of the serial tail after duplicate-green isolation
+PASS: scripts/tests/run_aggregation_job_test.sh is promoted out of the serial tail after duplicate-green isolation
+PASS: scripts/tests/seed_local_test.sh is promoted out of the serial tail after duplicate-green isolation
+PASS: scripts/tests/seed_synthetic_traffic_test.sh is promoted out of the serial tail after duplicate-green isolation
+PASS: scripts/tests/web_dev_test.sh is promoted out of the serial tail after duplicate-green isolation
+PASS: reachability result paths use one canonical stem mapping
+PASS: reachability suite runner records an in-flight receipt before the suite exits
+PASS: reachability suite runner preserves the fixture return code
+PASS: reachability suite runner preserves the fixture log
+PASS: reachability suite runner records elapsed seconds, path, and return code
+PASS: reachability gate interruption preserves the signal exit
+PASS: reachability gate interruption terminates its exact running suite
+PASS: reachability interrupt handler reports receipts before terminating workers
+PASS: interrupted suite retains a reportable in-flight receipt
+PASS: interrupted suite retains its RUNNING receipt
+PASS: reachability timing writer reports the complete measured population
+PASS: reachability timing writer preserves every row and sorts by elapsed seconds then path
+PASS: reachability timing writer fails when a suite timing row is missing
+PASS: missing timing evidence reports exact expected and actual populations
+PASS: rust-test must not join the parallel gate batch
+PASS: rust-test starts after web-test in the sequential lane
+PASS: rust-test remains selectable through --gate
+PASS: rust-test remains scheduled sequentially in --full mode
+PASS: concurrency cap is overridable via LOCAL_CI_MAX_PARALLEL
+PASS: concurrency cap resolves a MAX_PARALLEL value
+PASS: parallel cap sanitizer preserves valid numeric caps
+PASS: parallel cap sanitizer clamps zero to one worker
+PASS: parallel cap sanitizer falls back when the cap is non-numeric
+PASS: throttle_parallel is called inside the dispatch loop
+PASS: throttle_parallel runs before the per-gate case-dispatch
+PASS: throttle polls running jobs via jobs -pr
+PASS: throttle avoids wait -n (unsupported on bash 3.2)
+PASS: throttle_parallel blocks until running gates < cap (0 < 2)
+PASS: throttle_parallel accepts the reachability scheduler's explicit cap
+PASS: throttle_parallel falls back to MAX_PARALLEL when an explicit cap is invalid
+PASS: reachability scheduler refills an open slot before launching each suite
+PASS: reachability scheduler has no fixed-size barrier batch
+PASS: cleanup_local_ci_logs waits for background gate writers
+PASS: cleanup waits before moving the temp log directory
+PASS: EXIT trap uses the cleanup function
+PASS: local-ci sources the fast-lock helper
+PASS: local-ci help documents the reserved fast-lock contention exit
+PASS: fast-lock acquisition is gated on MODE=fast + empty SINGLE_GATE + SUMMARY_ONLY=0
+PASS: local-ci acquires the fast lock
+PASS: --gate runs stay lock-free (guard requires empty SINGLE_GATE)
+PASS: --summary-only runs stay lock-free (guard requires SUMMARY_ONLY=0)
+PASS: fast lock is acquired before the first run_gate dispatch
+PASS: cleanup drains background gate writers before releasing the fast lock
+PASS: fast lock is released before logs are persisted
+PASS: release is gated on whether this run acquired the lock
+
+=== Results: 81 passed, 0 failed ===
+
+real 3.264
+user n/a
+sys n/a
+exit_code 0
+timeout False
+
+---
+$ validation_cache.check('bash scripts/tests/probe_test_reachability_test.sh', head=128016f77cb61a4093bf2bec3a46867608da09c6, clean_tree=True)
+CACHE MISS
+$ /usr/bin/time -p bash scripts/tests/probe_test_reachability_test.sh
+PASS: all local-ci-referenced tests should pass reachability
+PASS: success output should be affirmative
+PASS: success output should name the reached fixture test
+PASS: orphan non-allowlisted tests must fail reachability
+PASS: failure must name the exact orphan test
+PASS: failure must explain that the test is not reachable
+PASS: allowlisted orphan with reason should pass reachability
+PASS: success output should name the allowlisted orphan
+PASS: success output should preserve the literal allowlist reason
+PASS: stale allowlist entries must fail reachability
+PASS: failure must name the missing allowlisted test
+PASS: failure must explain the stale allowlist entry
+PASS: empty allowlist reasons must fail reachability
+PASS: failure must name the empty-reason allowlist entry
+PASS: failure must explain the reason contract
+PASS: missing allowlist reasons must fail reachability
+PASS: failure must name the missing-reason allowlist entry
+PASS: failure must explain the reason contract
+PASS: comment-only root references must not make tests reachable
+PASS: failure must name the shell-comment decoy
+PASS: failure must name the Python-comment decoy
+PASS: failure must name the JavaScript-comment decoy
+PASS: comment decoys must preserve the exact denominator
+PASS: every supported recursive root kind should seed reachability
+PASS: root discovery must report exact hand-calculated counts
+PASS: nested shell roots must be scanned
+PASS: nested Python roots must be scanned
+PASS: nested JavaScript roots must be scanned
+PASS: arbitrary .github files must be scanned
+PASS: the root Makefile must be scanned
+PASS: owned quarantine entries should satisfy reachability accounting
+PASS: the full first quarantine entry must be listed
+PASS: the full second quarantine entry must be listed
+PASS: quarantine counts must use the discovered corpus
+PASS: reachable tests must not also remain quarantined
+PASS: overlap output must name the conflicting quarantined test
+PASS: all quarantine registry defects must make the verdict fail
+PASS: stale quarantine output must name the missing corpus file
+PASS: stale quarantine output must explain the defect
+PASS: malformed quarantine output must name the row
+PASS: malformed quarantine output must explain the missing reason
+PASS: ownerless quarantine output must name the row
+PASS: ownerless quarantine output must explain the owner contract
+PASS: quarantine owners must stay inside the repo root
+PASS: traversal output must name the quarantined test
+PASS: traversal output must reject outside-repo owners
+PASS: multiple simultaneous unaccounted tests must fail together
+PASS: the first unaccounted test must be reported
+PASS: the second unaccounted test must be reported
+PASS: all five summary counts must match the hand-calculated fixture
+PASS: a zero-file corpus must fail closed
+PASS: zero corpus output must use the explicit VACUOUS label
+PASS: zero corpus output must still include all five counts
+PASS: local-ci-to-test-to-test reachability should pass
+PASS: success output should name the direct test
+PASS: success output should name the transitive test
+PASS: classified hermetic reachability tests have a canonical manifest
+PASS: the repaired Algolia dispatch probe is registered exactly once
+PASS: the repaired catalog lifecycle service-window probe is registered exactly once
+PASS: the gitleaks allowlist contract is registered exactly once
+PASS: the reachability timeout contract is registered exactly once
+PASS: focused HA failover proof suite runs exactly once through the hermetic manifest
+PASS: aggregate chaos suite is absent so it cannot duplicate the focused HA execution
+PASS: local-ci usage help names the reachability gate exactly once
+PASS: local-ci defines the reachability gate exactly once
+PASS: local-ci fast scheduler keeps the reachability gate out of the parallel batch
+PASS: local-ci sequential selector names the reachability gate exactly once
+PASS: local-ci has no parallel dispatch arm for the reachability gate
+PASS: local-ci runs the reachability gate exactly once in the sequential tail
+PASS: local-ci summary-only inventory names the reachability gate exactly once
+PASS: local-ci unknown-gate help names the reachability gate exactly once
+PASS: reachability gate loads the canonical hermetic test manifest
+PASS: reachability gate iterates every entry in the canonical manifest
+PASS: reachability gate sends every classified hermetic test through its suite runner
+PASS: reachability gate executes every classified hermetic test
+PASS: reachability gate records each failing suite rather than discarding its status
+PASS: reachability gate fails when any hermetic suite fails
+PASS: reachability gate consults the serial-only registry
+PASS: reachability gate rejects a serial entry that is not in the manifest
+PASS: the serial-only registry exists
+PASS: real concurrency-8 browser-lane failure should override the earlier duplicate-green proxy
+PASS: real concurrency-8 start-metering interference should keep the suite in the serial tail
+PASS: duplicate-green synthetic traffic contract should not remain in the serial tail
+PASS: duplicate-green api-dev contract should not remain in the serial tail
+PASS: browser stack exclusivity subprocess specimen must remain in the serial tail
+PASS: organic alert dispatch env-shim specimen must remain in the serial tail
+PASS: integration-up environment export specimen must remain in the serial tail
+PASS: serial-only entry scripts/tests/integration_up_test.sh is still in the hermetic manifest and therefore still runs
+PASS: serial-only entry scripts/tests/local_source_providers_test.sh is still in the hermetic manifest and therefore still runs
+PASS: serial-only entry scripts/tests/probe_browser_stack_exclusive_test.sh is still in the hermetic manifest and therefore still runs
+PASS: serial-only entry scripts/tests/probe_organic_alert_dispatch_test.sh is still in the hermetic manifest and therefore still runs
+PASS: serial-only entry scripts/tests/run_browser_lane_against_staging_test.sh is still in the hermetic manifest and therefore still runs
+PASS: serial-only entry scripts/tests/start_metering_test.sh is still in the hermetic manifest and therefore still runs
+PASS: reachability gate runs the hermetic contract suite
+PASS: reachability gate audits the real corpus
+
+=== Results: 95 passed, 0 failed ===
+
+real 6.529
+user n/a
+sys n/a
+exit_code 0
+timeout False
+
+---

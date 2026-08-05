@@ -11,6 +11,7 @@ use super::*;
 async fn enforce_free_tier_search_limit(
     state: &AppState,
     customer: &crate::models::customer::Customer,
+    requested_searches: u64,
 ) -> Result<Option<Response>, ApiError> {
     if customer.billing_plan_enum() != BillingPlan::Free {
         return Ok(None);
@@ -22,13 +23,15 @@ async fn enforce_free_tier_search_limit(
         .get_monthly_search_count(customer.id, now.year(), now.month())
         .await?;
     let max_searches_per_month = state.free_tier_limits.max_searches_per_month;
-    let percent_used = if max_searches_per_month == 0 {
+    let projected_search_count =
+        monthly_search_count.saturating_add(i64::try_from(requested_searches).unwrap_or(i64::MAX));
+    let warning_percent_used = if max_searches_per_month == 0 {
         100.0
     } else {
         (monthly_search_count as f64 / max_searches_per_month as f64) * 100.0
     };
 
-    if percent_used >= 80.0 {
+    if warning_percent_used >= 80.0 {
         let warning_already_sent_this_month = customer
             .quota_warning_sent_at
             .is_some_and(|sent_at| sent_at.year() == now.year() && sent_at.month() == now.month());
@@ -45,7 +48,7 @@ async fn enforce_free_tier_search_limit(
                     .send_quota_warning_email(
                         &customer_email,
                         "monthly_searches",
-                        percent_used,
+                        warning_percent_used,
                         current_usage,
                         max_searches_per_month,
                     )
@@ -74,7 +77,7 @@ async fn enforce_free_tier_search_limit(
     }
 
     let max_searches_per_month = i64::try_from(max_searches_per_month).unwrap_or(i64::MAX);
-    if monthly_search_count < max_searches_per_month {
+    if projected_search_count <= max_searches_per_month {
         return Ok(None);
     }
 
@@ -89,6 +92,20 @@ async fn enforce_free_tier_search_limit(
         )
             .into_response(),
     ))
+}
+
+pub(crate) async fn admit_monthly_search_allowance(
+    state: &AppState,
+    customer_id: Uuid,
+    requested_searches: u64,
+) -> Result<Option<Response>, ApiError> {
+    let customer = state
+        .customer_repo
+        .find_by_id(customer_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("customer not found".into()))?;
+
+    enforce_free_tier_search_limit(state, &customer, requested_searches).await
 }
 
 /// `POST /indexes/{name}/search` — execute a search query against an index.
@@ -124,39 +141,17 @@ pub async fn test_search(
 ) -> Result<impl IntoResponse, ApiError> {
     validate_length("query", &req.query, MAX_SEARCH_QUERY_LEN)?;
 
-    let summary = state
-        .tenant_repo
-        .find_by_name(auth.customer_id, &name)
-        .await?
-        .ok_or_else(|| ApiError::NotFound(format!("index '{name}' not found")))?;
-
-    // Check cold/restoring tier before proxying
-    if let Some(response) =
-        super::lifecycle::check_cold_tier(&state, auth.customer_id, &name).await?
+    let target = match admit_ready_search(
+        &state,
+        auth.customer_id,
+        &name,
+        SearchAdmissionOptions::single(IndexNotReadyBehavior::BadRequest),
+    )
+    .await?
     {
-        return Ok(response);
-    }
-
-    let customer = state
-        .customer_repo
-        .find_by_id(auth.customer_id)
-        .await?
-        .ok_or_else(|| ApiError::NotFound("customer not found".into()))?;
-
-    if let Some(limited_response) = enforce_free_tier_search_limit(&state, &customer).await? {
-        return Ok(limited_response);
-    }
-
-    if let Some(throttled) =
-        super::enforce_query_rate_limit(&state, auth.customer_id, &name).await?
-    {
-        return Ok(throttled);
-    }
-
-    let target =
-        super::resolve_flapjack_target(&state, auth.customer_id, &name, summary.deployment_id)
-            .await?
-            .ok_or_else(|| ApiError::BadRequest("endpoint not ready yet".into()))?;
+        SearchAdmission::ShortCircuit(response) => return Ok(response),
+        SearchAdmission::Ready(target) => target,
+    };
 
     // Build search body: extend extra first, then insert validated query so it can't be
     // overridden by a duplicate "query" key smuggled through the flattened extra params.
@@ -180,4 +175,92 @@ pub async fn test_search(
         .await?;
 
     Ok(Json(result).into_response())
+}
+
+/// Outcome of the shared read-search admission flow: either a ready flapjack
+/// target, or a short-circuit `Response` (cold/restoring tier, free-tier quota,
+/// or query rate limit) that the caller must return verbatim.
+pub(crate) enum SearchAdmission {
+    Ready(ResolvedFlapjackTarget),
+    ShortCircuit(Response),
+}
+
+pub(super) async fn resolve_flapjack_target_from_summary(
+    state: &AppState,
+    summary: &CustomerTenantSummary,
+) -> Result<Option<ResolvedFlapjackTarget>, ApiError> {
+    let Some(vm_id) = summary.vm_id else {
+        return Ok(None);
+    };
+
+    super::resolve_flapjack_target_from_parts(
+        state,
+        summary.customer_id,
+        &summary.tenant_id,
+        summary.deployment_id,
+        vm_id,
+    )
+    .await
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct SearchAdmissionOptions {
+    not_ready_behavior: IndexNotReadyBehavior,
+    requested_searches: u64,
+}
+
+impl SearchAdmissionOptions {
+    pub(crate) fn single(not_ready_behavior: IndexNotReadyBehavior) -> Self {
+        Self::batch(not_ready_behavior, 1)
+    }
+
+    pub(crate) fn batch(
+        not_ready_behavior: IndexNotReadyBehavior,
+        requested_searches: u64,
+    ) -> Self {
+        Self {
+            not_ready_behavior,
+            requested_searches,
+        }
+    }
+}
+
+/// Run the read-side admission checks that must pass before an authenticated
+/// tenant's search may reach flapjack: index existence, cold/restoring tier,
+/// free-tier monthly quota, and per-index query rate limit. This is the single
+/// owner of that sequence, shared by the index search route and the migration
+/// verify route so neither duplicates the quota/rate-limit/ready-target logic.
+pub(crate) async fn admit_ready_search(
+    state: &AppState,
+    customer_id: Uuid,
+    index_name: &str,
+    options: SearchAdmissionOptions,
+) -> Result<SearchAdmission, ApiError> {
+    let summary = state
+        .tenant_repo
+        .find_by_name(customer_id, index_name)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("index '{index_name}' not found")))?;
+
+    // Cold/restoring tiers surface their own customer-facing restore/poll bodies.
+    if let Some(response) = super::lifecycle::cold_tier_response_for_tier(&summary.tier, index_name)
+    {
+        return Ok(SearchAdmission::ShortCircuit(response));
+    }
+
+    if let Some(limited_response) =
+        admit_monthly_search_allowance(state, customer_id, options.requested_searches).await?
+    {
+        return Ok(SearchAdmission::ShortCircuit(limited_response));
+    }
+
+    if let Some(throttled) = super::enforce_query_rate_limit(state, customer_id, index_name).await?
+    {
+        return Ok(SearchAdmission::ShortCircuit(throttled));
+    }
+
+    let target = resolve_flapjack_target_from_summary(state, &summary)
+        .await?
+        .ok_or_else(|| options.not_ready_behavior.into_error(index_name))?;
+    Ok(SearchAdmission::Ready(target))
 }

@@ -25,7 +25,10 @@ into a new or replacement fjcloud index without persisting source credentials.
    validation message, and target eligibility refresh status.
 7. Review step: exact source provider, source, destination, scope,
    quota/admission summary, and `Start import`.
-8. Recent imports: compact list with status, source provider, source, target,
+8. Preview step: an advisory, inline state between review and execution of
+   `Start import`, with source counts, compatibility findings, retry, and a
+   proceed-anyway action; it is not a route, modal, or second create flow.
+9. Recent imports: compact list with status, source provider, source, target,
    updated time, reopen link, empty state, error state, and pagination. It must
    not hide or block the create workflow when the list fails.
 
@@ -50,8 +53,10 @@ into a new or replacement fjcloud index without persisting source credentials.
   retry from the first page for the selected `source_provider`.
 - Recent-import errors leave the create flow visible and expose a retry control.
 - Capability-gated lifecycle controls fail closed: absent, omitted, or `false`
-  `cancel`, `resume`, or `replace` capabilities hide those controls; `true`
-  enables only the matching UI action if the job state also allows it.
+  `cancel`, `resume`, `replace`, or `verify` capabilities hide those controls;
+  `true` enables only the matching UI action if the job state also allows it.
+  An absent, omitted, or `false` `capabilities.verify` hides the cutover
+  verification controls.
 
 ### Shipped Unavailable
 
@@ -127,6 +132,65 @@ into a new or replacement fjcloud index without persisting source credentials.
 - Same-tenant conflicts and quota refusals come only from producer eligibility
   or job admission responses; equal names in other tenant fixtures are allowed.
 
+### Preview
+
+- Preview is the next state in the existing `MigrationCreateFlow.svelte`
+  machine after review and before job creation on the same `/console/migrate`
+  route when the provider-scoped availability response reports
+  `capabilities.preview: true`. Review exposes `Preview import` as its primary
+  action; `Start import` is unavailable until one preview attempt has resolved
+  as success or error.
+- If `capabilities.preview` is not true, the preview panel states that preview
+  is unavailable for the selected source, the migration can still run, and
+  compatibility warnings appear after the job starts. `Start import` remains
+  reachable without a preview attempt in this state.
+- Stage 2 adds one provider-neutral preview call to
+  `web/src/lib/api/migration_client.ts`. It takes `source_provider` separately
+  from the selected provider's live credential/source/destination payload and
+  calls `/migration/{source_provider}/preview`; it does not add Algolia-,
+  Meilisearch-, or Typesense-specific client methods.
+- Loading keeps the review summary visible, labels the active action
+  `Previewing import`, prevents duplicate preview requests, and does not expose
+  `Start import` until the attempt resolves.
+- Success shows exact `sourceCounts.indexes` and `sourceCounts.records`, then
+  the report-summary counts for hard rejections, warnings, and scope gaps,
+  followed by every compatibility entry. No browser-visible entry-set
+  truncation or `and N more` copy is allowed.
+- Preview and post-import compatibility entries use the same
+  `AlgoliaImportCompatibilityWarningPresentation` group/entry model from
+  `job_presentation.ts` and the same shared warning component. Stage 2 extracts
+  the warning-only block currently inside `ImportJobDetail.svelte` into
+  `MigrationCompatibilityWarnings.svelte`; both preview and
+  `ImportJobDetail.svelte` render that component. The existing
+  `algoliaImportCompatibilityWarningPresentation` remains the retained-job
+  adapter, while the preview adapter returns the same presentation type.
+- Until the producer publishes a customer-facing `message`, each preview entry
+  uses the shared presentation owner's bounded `Compatibility warning` fallback
+  as its primary line. It also preserves bounded `code` and the same locator
+  construction used after import: present page index, present item index, and
+  bounded JSON path. Grouping, field order, bounds, and accessible list
+  structure remain shared with retained-job warnings.
+- Empty: when the preview returns zero compatibility entries, keep the source
+  counts visible and show the positive state `No compatibility issues found`;
+  do not render an empty warning container.
+- Error: network failure, rejected/bad credentials, and
+  `source_provider_unsupported` render sanitized, human-readable copy inside
+  this step. The copy says no preview was completed and no import job was
+  created, preserves non-secret review selections, leaves credentials editable,
+  and offers `Retry preview` without restarting the flow.
+- Hard rejections in a successful report and preview-request errors are
+  advisory. They warn that the import may fail or omit incompatible data, but
+  do not by themselves disable the explicit `Start import anyway` action.
+  Existing target-eligibility, admission, replace-confirmation, and duplicate-
+  submit guards remain authoritative and may still block Start.
+- Preview is report-only: requesting it, retrying it, receiving findings, or
+  receiving an error creates no import job, consumes no create idempotency key,
+  and emits no job-detail navigation. Only `Start import` calls the existing
+  neutral create-job seam.
+- A source-provider, credential, selected-source, destination, mode, or target-
+  eligibility change invalidates the preview result/error and returns the same
+  machine to review with `Preview import` as the primary action.
+
 ### Review And Start
 
 - Review shows exact source provider, source, destination, scope, and
@@ -177,6 +241,85 @@ into a new or replacement fjcloud index without persisting source credentials.
   locator derived from page index, item index, and a bounded JSON path when
   those fields are present. The 80-character per-field presentation bound does
   not remove warning entries from the list.
+
+### Cutover Verification Detail
+
+- Owner: the retained job detail route
+  `/console/migrate/[jobId]?source_provider={job.sourceProvider}`. This panel is
+  mounted only for retained jobs whose server-loaded status is `completed` or
+  `completed_with_warnings`; the create wizard never renders it.
+- Supported state: driven solely by the server-published, provider-scoped
+  `capabilities.verify: true` for this job's `source_provider`, loaded by the
+  route alongside the retained job. The panel never infers support from the
+  job's provider.
+- Unsupported-provider state: a state distinct from the loading and error
+  states, entered whenever `capabilities.verify` is absent, omitted, or `false`.
+  It renders provider-labelled explanation-only copy with no credential fields,
+  no query or result-limit controls, and no submit control. The backend
+  publishes `verify: true` for Algolia sources only, so Meilisearch and
+  Typesense retained jobs always land here.
+- Read-only job identity: source provider, source index name, destination index
+  name, job id, and job status come from the retained job loaded by the route.
+  Source and destination index names are displayed as read-only values and are
+  not accepted from hidden or editable form fields.
+- Customer inputs: supported verification asks for a fresh Algolia Application
+  ID and temporary API key, a query list, and a result limit. The secret fields
+  start blank on page load/remount and after any completed attempt. Queries are
+  customer-entered lines; empty lines are ignored. Result limit is a numeric
+  control whose canonical acceptance bounds remain owned by FS-7.
+- Submission path: the route action reloads the retained job, derives
+  `sourceIndex` from `job.source.name`, derives `destinationIndex` from
+  `job.destination.target`, and calls
+  `POST /migration/{source_provider}/verify` with request fields `appId`,
+  `apiKey`, `sourceIndex`, `destinationIndex`, `queries`, and `resultLimit`.
+  The action uses no create-job idempotency key and returns only sanitized
+  structured error data or the report.
+- Idle: show the read-only source/destination pair, blank credential fields, the
+  query/result-limit controls, and copy stating the report compares top result
+  identifiers and rank positions. Copy must say this is an inspection report,
+  not a migration verdict, score, threshold, pass badge, or deployment approval.
+- Running: disable duplicate submissions immediately, keep the read-only job
+  fields and non-secret query/result-limit values visible, and announce
+  `Running cutover verification`.
+- Complete with high agreement: render the exact report values for each query
+  without a success, pass, ready, safe, green, or equivalent verdict. The
+  allowed customer copy is neutral, for example `Review the matching result
+  identifiers and rank movement before cutover`.
+- Complete with differences: render the same report shape and include
+  source-only, destination-only, and rank-delta rows. Differences do not imply a
+  failure verdict; they are inspectable facts.
+- Report shape: the response renders read-only `sourceIndex`,
+  `destinationIndex`, `resultLimit`, and one query report per response item.
+  Each query report renders `query`, `overlapCount`, `sourceOnly`,
+  `destinationOnly`, and `hits`. Each hit renders `objectID`, `sourceRank`,
+  `destinationRank`, and `rankDelta`, where FS-7 defines
+  `rankDelta = destinationRank - sourceRank`.
+- Accessible names: the report summary uses
+  `aria-label="Cutover verification report"`. Per-query result lists use
+  `aria-label="Cutover verification query report: <query>"`. Source-only and
+  destination-only lists use `aria-label="Source-only object IDs: <query>"` and
+  `aria-label="Destination-only object IDs: <query>"`. Hit-rank tables use
+  `aria-label="Hit rank comparison: <query>"`.
+- Rejected credentials: `invalid_credentials` renders source-provider-labelled
+  copy telling the customer to enter a valid Algolia key. The rejected key and
+  Application ID never appear in the action result, retained markup, URLs, or
+  non-input text.
+- Missing source permission or source not found:
+  `missing_source_permission` and `source_not_found` render source-oriented copy
+  from the migration presentation owner. They do not claim the destination is
+  unhealthy.
+- Unavailable comparison: `backend_unavailable` renders origin-neutral copy
+  because FS-7 can return that same public code for source and destination
+  transport failures. The UI must not say which side failed unless the published
+  response message explicitly identifies it.
+- Validation and destination readiness failures: request validation errors,
+  incompatible destination responses, destination not ready, destination not
+  found, destination cold/restore-required, rate limiting, or quota errors render
+  sanitized structured error code/message data from the route action. The panel
+  keeps safe non-secret inputs available for correction or retry.
+- Unsupported provider: `source_provider_unsupported` or a retained job whose
+  source provider is not Stage-1 supported renders source-provider unsupported
+  copy and no verification credential fields.
 
 ### Credential Containment
 
@@ -262,6 +405,53 @@ into a new or replacement fjcloud index without persisting source credentials.
       real browser detail page renders the warning summary, grouped resource
       headings, every warning entry with its bounded message, code, and locator,
       and no `and N more` warning-set truncation copy.
+- [ ] Given a retained `completed` or `completed_with_warnings` Algolia job,
+      the cutover verification panel derives source and destination indexes
+      from the retained job, accepts fresh Algolia credentials plus query and
+      result-limit controls, emits one provider-scoped verify request with no
+      idempotency key, and renders the returned per-query overlap,
+      source-only, destination-only, and hit-rank facts with no verdict copy.
+- [ ] Given cutover verification returns rejected credentials, missing source
+      permission/source not found, unavailable comparison, validation or
+      destination-readiness failure, or unsupported-provider data, the retained
+      job detail renders sanitized customer copy and never serializes credential
+      canaries outside the live credential input value.
+- [x] Given an Algolia source index served by a real local search engine, the
+      API verification path returns a per-query report whose `overlapCount`,
+      `sourceOnly`, `destinationOnly`, `objectID`, `sourceRank`,
+      `destinationRank`, and `rankDelta` values equal a hand-calculated
+      known-answer oracle, and a source whose transport is unreachable maps to
+      `503` with `retry-after: 30` and the labelled backend-unavailable body
+      before any destination search runs. Proven against a lane-local
+      Flapjack reached through the `FJCLOUD_ALGOLIA_SOURCE_BASE_URL` loopback
+      override, seeded with a five-document corpus whose ranking is derivable
+      from the document titles rather than from engine scoring internals.
+- [ ] Given a real Algolia (`algolia.net`) source index, the API verification
+      path returns the same report values against the live vendor. Unproven:
+      this lane never contacted `algolia.net` and holds no Algolia credentials,
+      so vendor-specific authentication, request shape, result ordering, and
+      rate-limit behavior remain unverified.
+- [x] Given a valid review, when the customer activates `Preview import`, one
+      provider-neutral preview request carries the selected `source_provider`
+      and no create-job request, idempotency key, or navigation is emitted.
+- [x] Given a successful preview, source index/record counts and all hard-
+      rejection, warning, and scope-gap counts render with the full compatibility
+      list through `MigrationCompatibilityWarnings.svelte`.
+- [x] Given a successful preview with zero compatibility entries, the exact
+      source counts and `No compatibility issues found` render with no empty
+      warning container.
+- [ ] Given a preview hard rejection, network error, rejected/bad credentials,
+      or `source_provider_unsupported`, the customer is warned that import may
+      fail or omit incompatible data, can correct credentials and retry, and can
+      use `Start import anyway` when all pre-existing Start guards pass.
+- [x] Given the same compatibility entry appears before and after import, both
+      states render identical resource grouping, bounded code, page/item/JSON-
+      path locator, field order, and accessible list structure through the shared
+      warning component; the preview primary line remains the bounded fallback
+      until the producer publishes the retained-job message.
+- [x] Given any preview-bound source, credential, destination, mode, or target-
+      eligibility input changes, the old preview is removed and a new preview
+      attempt is required before Start becomes available.
 
 ## Edge Cases
 
@@ -282,6 +472,17 @@ into a new or replacement fjcloud index without persisting source credentials.
 - Operational pause or backpressure after route activation: preserve route,
   help, recent imports, reopen/status, and cancel presentation; disable fresh
   start/resume with typed reason and retry-after.
+- Preview returns hard rejections, warnings, and scope gaps together: render the
+  exact summary counts and every entry, then leave Start governed by the existing
+  Start guards rather than report severity.
+- Preview fails after a prior success or while its bound inputs change: discard
+  the stale response/error, preserve safe non-secret selections, and require a
+  fresh preview attempt for the current inputs.
+- Cutover verification submits twice before the first request resolves: the
+  second submit is ignored and the first request remains the only active action.
+- Cutover verification returns after the retained job, query list, or result
+  limit binding has changed: discard the stale report/error and require a fresh
+  attempt for the current inputs.
 
 ## Mobile Narrow Contract
 
@@ -291,25 +492,107 @@ into a new or replacement fjcloud index without persisting source credentials.
   horizontal scrolling.
 - Source metadata wraps within each row without horizontal scrolling.
 - Review rows use label/value stacking rather than side-by-side columns.
+- Preview counts and the shared compatibility-warning list stack vertically at
+  390px; message, code, and locator wrap within their rows, and neither the
+  summary nor entries introduce horizontal scrolling. This mirrors retained
+  warning-detail behavior.
+- Cutover verification stacks the read-only job fields, credential controls,
+  query controls, per-query source-only/destination-only lists, and hit-rank
+  rows vertically at 390px. Long object IDs wrap inside their rows without
+  horizontal scrolling.
 - Recent imports show status, source provider, source, target, and updated time
   in one vertical row per job.
 
 ## Current Implementation Gaps
 
-- The public `/console/migrate` route remains unavailable by default. Unmocked
-  browser coverage proves the unavailable explanation and absence of migration
-  controls, while the neutral create-flow, recent-import, and job-detail
-  contracts remain activated only under test-owned availability fixtures.
-- The grouped warning-detail browser proof is desktop-only. The 390px mobile
-  contract for warning detail remains a named gap owned by this spec and
-  `web/tests/e2e-ui/mocked/migration_console_flow.spec.ts`.
+- Current: `MigrationCreateFlow.svelte` invokes the inline advisory preview
+  after target eligibility and before the existing start path. Preview state is
+  owned by `migration_create_preview_state.ts`; the flow rejects stale preview
+  responses, suppresses duplicate preview requests, and keeps create
+  idempotency-key allocation inside the explicit start path. Evidence:
+  `web/src/lib/components/migration/MigrationCreateFlow.svelte`,
+  `web/src/lib/components/migration/MigrationCreateDestination.svelte`, and
+  `web/src/lib/components/migration/migration_create_preview_state.ts`.
+- Current: `MigrationCompatibilityWarnings.svelte` owns warning markup and
+  accessible names, `ImportJobDetail.svelte` uses it, and the preview adapter in
+  `job_presentation.ts` returns the same presentation type. The preview adapter
+  carries severity as an optional warning-entry field, uses the shared bounded
+  `Compatibility warning` fallback while producer `message` is absent, and does
+  not own per-code customer-facing message copy. Evidence:
+  `web/src/lib/components/migration/MigrationCompatibilityWarnings.svelte`,
+  `web/src/lib/components/migration/ImportJobDetail.svelte`, and
+  `web/src/lib/components/migration/job_presentation.ts`.
+- Upstream engine gap: `MigrationPreviewReportEntry` publishes code,
+  resource, severity, page/item indexes, and JSON path but no customer-visible
+  `message`, while the shared warning entry requires `message`, `code`, and
+  locator. The preview adapter uses the existing bounded fallback until the
+  producer adds a public message; the OpenAPI tripwire then requires adopting it.
+  Evidence: `infra/api/src/routes/migration/preview.rs:80` and
+  `web/src/lib/components/migration/job_presentation.ts:70`.
+- Current: FS-7 publishes one read-only Algolia verification route at
+  `POST /migration/{source_provider}/verify` with request fields `appId`,
+  `apiKey`, `sourceIndex`, `destinationIndex`, `queries`, and `resultLimit`,
+  response fields `sourceIndex`, `destinationIndex`, `resultLimit`, and
+  `queries`, per-query fields `query`, `overlapCount`, `sourceOnly`,
+  `destinationOnly`, and `hits`, and hit fields `objectID`, `sourceRank`,
+  `destinationRank`, and `rankDelta`. The route rejects Meilisearch and
+  Typesense before source I/O. Evidence:
+  `infra/api/src/routes/migration/verify.rs`.
+- Gap: cutover verification remains Algolia-only. The console publishes
+  `capabilities.verify` true only for Algolia through
+  `infra/api/src/routes/migration/capabilities.rs`; Meilisearch and Typesense
+  retained jobs render the unsupported state until the engine and
+  `infra/api/src/routes/migration/verify.rs` guard widen together. Those two
+  owners state the same rule and must move together.
+- Current: the API verification path now has a real-source execution proof, not
+  only a transport proof. `verify_seeded_local_source_red_proof` seeds a
+  five-document corpus into a lane-local Flapjack, reaches it through the
+  `FJCLOUD_ALGOLIA_SOURCE_BASE_URL` loopback override, and asserts full-body
+  equality against a hand-calculated parity oracle covering ranking,
+  per-query result limit, `objectID` overlap, source-only, destination-only,
+  and rank deltas. The corpus separates on proximity and single-term exact
+  match, so the expected ranking is derivable by reading the document titles
+  and does not depend on the engine's scoring weights. Evidence:
+  `infra/api/tests/integration/migration_routes_test/verify.rs` and
+  `infra/api/tests/integration/migration_routes_test/verify_support.rs`.
+- Gap: no vendor round-trip exists. Every verification proof runs against a
+  local engine or a stub; nothing in this repository has contacted
+  `algolia.net`, and no Algolia credentials are available to it. Algolia's
+  authentication, exact request shape, result ordering, and rate-limit
+  behavior are therefore assumed from the documented contract, not observed.
+  The local proof narrows the source-behavior gap; it does not close the
+  vendor-compatibility gap.
+- Gap: the retained-job cutover verification browser proof remains mocked.
+  `web/tests/e2e-ui/mocked/migration_cutover_verification.spec.ts` drives the
+  panel against mocked responses, so the two unchecked cutover acceptance
+  criteria stay unchecked regardless of the API-side proof above.
+- Gap: FS-7 can return the same public `backend_unavailable` code for source
+  and destination transport failures. The screen must keep that copy
+  origin-neutral and must not claim a source-versus-engine diagnosis unless a
+  future published response identifies the side.
+- Upstream engine gap: the route/provider enum admits Typesense, but
+  `MigrationPreviewRequest` publishes only Algolia and Meilisearch request arms.
+  That lane must publish and contract-test the Typesense host/API-key/source/
+  target request shape before the preview client admits Typesense. Evidence:
+  `infra/api/src/routes/migration/preview.rs:21` and
+  `infra/api/tests/integration/migration_routes_test/preview.rs:13`.
+- The public `/console/migrate` route remains unavailable by default. The
+  unmocked owner in `web/tests/e2e-ui/full/migration-recovery.spec.ts` now targets
+  a test-enabled Meilisearch preview journey, but it is not a closing proof: the
+  test runtime does not yet enable migration for the owner selection, and the
+  Meilisearch list-index request shape is not accepted by the producer route.
+- The unmocked preview owner logs preview and retained-job text rather than
+  asserting fixture-exact counts, complete warning identities, terminal-state
+  parity, or the 390px mobile contract. The grouped retained-warning detail proof
+  remains desktop-only.
 
 ## Automated Coverage
 
-- Unmocked unavailable-route proof:
-  `web/tests/e2e-ui/full/migration-recovery.spec.ts` verifies direct
-  authenticated visits to `/console/migrate` render the unavailable explanation
-  and no migration controls.
+- Unmocked preview owner:
+  `web/tests/e2e-ui/full/migration-recovery.spec.ts` defines the intended direct
+  Meilisearch preview-before-start journey and its no-job-before-start check. It
+  is not yet executable or fixture-exact for the implementation gaps above, so
+  it does not currently close unmocked preview coverage.
 - Mocked real-browser console-flow proof:
   `web/tests/e2e-ui/mocked/migration_console_flow.spec.ts` completes enabled
   Algolia, Meilisearch, and Typesense create journeys under mocked availability.
@@ -329,6 +612,28 @@ into a new or replacement fjcloud index without persisting source credentials.
   message, code, and locator, each resource heading,
   `data-testid="migration-job-warning-summary"`, and no `and N more`
   warning-set truncation copy.
+- API cutover-verification parity owner:
+  `infra/api/tests/integration/migration_routes_test/verify.rs` drives
+  `POST /migration/algolia/verify` through the real router. Its
+  `verify_seeded_local_source_red_proof` runs against a lane-local Flapjack
+  seeded with the corpus in `verify_support.rs::seeded_source_batch`, reached
+  through the `FJCLOUD_ALGOLIA_SOURCE_BASE_URL` loopback override, and asserts
+  full-body equality against `verify_support.rs::expected_parity_report`. That
+  oracle is the single owner of the hand-calculated arithmetic and is shared by
+  all three proofs: the fake-source unit proof, the wiremock real-HTTP proof
+  `verify_matches_the_parity_oracle_over_real_http_against_a_stubbed_source`,
+  and the seeded-engine proof. `verify_maps_unreachable_source_to_labelled_backend_error`
+  covers the real-transport failure arm. `infra/api/src/services/algolia_source/tests.rs`
+  pins that the override seam falls back to the production
+  `https://{app}.algolia.net/1/indexes` host when the override is absent.
+  None of these contact `algolia.net`.
+- Mocked cutover-verification browser owner:
+  `web/tests/e2e-ui/mocked/migration_cutover_verification.spec.ts` opens a
+  retained completed job from the recent-imports list, asserts the idle/running
+  controls, exact high-agreement and difference reports, sanitized error copy,
+  unsupported Meilisearch/Typesense retained-job states, and the negative
+  control where a Meilisearch job with `publishedVerifyCapability: true` renders
+  the verification control instead of inferring support from provider identity.
 - Route component owners:
   `web/src/routes/console/migrate/migrate.test.ts` and
   `web/src/routes/console/migrate/[jobId]/job.test.ts` verify provider-scoped
@@ -355,3 +660,13 @@ into a new or replacement fjcloud index without persisting source credentials.
 - API client owner: `web/src/lib/api/client-migration.test.ts` verifies neutral
   `/migration/{sourceProvider}/...` paths, exact bodies, error typing,
   source-provider identity, and Algolia compatibility wrappers.
+- Stage-2 preview proof extends the existing create-flow component, route
+  component, server-action, API-client, and mocked browser owners rather than
+  introducing a new route suite. Those owners assert exact counts and warning
+  fields for success, the positive zero-warning state, non-blocking hard-
+  rejection and request-error states, input invalidation, no preview-created
+  job/idempotency/navigation, and shared-renderer output. Exact unmocked
+  before/after parity and the required retry/no-job error copy remain open.
+  The API-client owner asserts one neutral
+  `/migration/{sourceProvider}/preview` method and exact provider-specific
+  bodies without per-provider convenience methods.

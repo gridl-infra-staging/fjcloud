@@ -30,8 +30,17 @@
 # apply_ses_log_read_policy_test.sh 110/0, local_dev_down_test.sh 35/0,
 # start_metering_test.sh 39/0, local_dev_migrate_test.sh 50/0,
 # integration_up_test.sh 87/0, seed_local_test.sh 149/0,
-# local_dev_up_test.sh 92/0, seed_synthetic_traffic_test.sh 246/0.
+# local_dev_up_test.sh 92/0. The synthetic-traffic duplicate-green result did
+# not establish isolation from the full manifest; its measured evidence is below.
+# Reclassified 2026-08-01 after the full reachability manifest exposed an
+# environment-evidence failure while the standalone suite passed 87/0.
 # Promoted 2026-07-29 after two simultaneous copies passed with exact totals:
 # api_dev_test.sh 130/0, web_dev_test.sh 41/0, local_demo_test.sh 29/0,
 # run_aggregation_job_test.sh 21/0, run_browser_lane_against_staging_test.sh 39/0.
-scripts/tests/probe_browser_stack_exclusive_test.sh # 2026-08-01 host-global probe counts sibling stack-holder fixtures under concurrency
+scripts/tests/integration_up_test.sh # Mutates mocked API startup environment evidence; concurrent siblings can contaminate exported env assertions.
+scripts/tests/local_source_providers_test.sh # drives profile-gated docker compose services and shared local stack ports
+scripts/tests/probe_browser_stack_exclusive_test.sh # Shares ps-visible subprocess specimens; concurrent sibling shells can change holder counts.
+scripts/tests/probe_organic_alert_dispatch_test.sh # Uses env -i PATH/aws/sleep shims; concurrent harness load can drop captured preflight details.
+scripts/tests/run_browser_lane_against_staging_test.sh # 2026-07-31 real concurrency-8 lane timed out its evidence-path fixture (exit 124)
+scripts/tests/seed_synthetic_traffic_test.sh # 2026-08-03 real concurrency-8 result 250/3; isolated result 253/0.
+scripts/tests/start_metering_test.sh # 2026-07-31 real concurrency-8 lane observed sibling writes in its shared command log

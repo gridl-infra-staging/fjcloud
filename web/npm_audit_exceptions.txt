@@ -1,0 +1,42 @@
+# npm audit high/critical advisory exceptions for the web-audit local-CI gate.
+#
+# One GHSA id per line, and nothing else: a non-comment value that is not
+# exactly one GHSA id fails the whole gate closed rather than being ignored, so
+# no unnamed advisory can ever be excepted. `#` starts a comment. Read by
+# scripts/lib/npm_audit_exceptions.py (invoked from gate_web_audit in
+# scripts/local-ci.sh) to let a NAMED high/critical advisory pass the full
+# dependency-tree audit. Mirrors infra/.cargo/audit.toml for the Rust side.
+#
+# This list NEVER applies to production dependencies: gate_web_audit runs a
+# separate `npm audit --omit=dev` reachability guard, against an empty policy,
+# BEFORE consulting this file. If any excepted advisory moves into a production
+# dependency, that guard fails the gate regardless of what is listed here.
+#
+# Each entry documents, like the infra/.cargo/audit.toml entries:
+#   what   — the advisory
+#   why    — why it is unreachable here
+#   move   — what would make it reachable
+#   remove — the condition under which this exception is deleted
+#
+# --- undici advisories, dev-only via wrangler -> miniflare -> undici ----------
+# what:   Five undici advisories surfaced by `npm audit` as `high` on the
+#         `undici` package (via[] carries all five GHSA urls).
+# why:    undici is a devDependency-only transitive of miniflare (Cloudflare
+#         Workers local dev), itself a transitive of wrangler. Measured
+#         2026-08-04: `npm audit --audit-level=high --package-lock-only
+#         --omit=dev --json` reports zero vulnerabilities — undici is not in the
+#         production dependency tree.
+# move:   The `wrangler -> miniflare -> undici` chain moving into `dependencies`
+#         (production) rather than `devDependencies`.
+# remove: A miniflare release that takes `undici > 7.28.0` (miniflare@latest
+#         still pins undici 7.28.0 as of 2026-08-04, `npm audit fix` reports no
+#         available fix). Delete these ids when that release lands.
+# guard:  Pinned by the production-reachability arm in
+#         scripts/tests/security_checks_test.sh
+#         (test_local_ci_web_audit_production_guard_blocks_high_advisory) — a
+#         production high/critical advisory fails the gate even while listed here.
+GHSA-8xcm-r25x-g524
+GHSA-4cwx-7wf7-3272
+GHSA-m8rv-5g2x-5cg5
+GHSA-jr45-8vmc-qm54
+GHSA-v3r7-h72x-cjcm

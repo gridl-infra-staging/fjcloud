@@ -1,0 +1,164 @@
+# Stage 2 named-test stall capture
+
+auth_admin named-test stall capture
+utc=20260805T091002Z
+host=ip-172-31-14-9
+postgres=16.14 (Debian 16.14-1.pgdg13+1)
+command=timeout 240 sudo systemd-run --scope -p AllowedCPUs=0-0 -p CPUQuota=30% ... cargo test -p api --test auth_admin -- --test-threads=32 --nocapture
+named_tests:
+admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins: test
+admin_vms_test::decommission_endpoint_wins_concurrent_reference_publication_after_inventory_lock: test
+run_exit=101
+wall_s=125
+over60_named=2
+over60_total=15
+max_sustained_advisory_wait_s=91
+deepest_convoy=8
+snapshot_count=95
+out=/home/ubuntu/auth_admin_named_stall_20260805T091002Z
+test_result=test result: FAILED. 345 passed; 1 failed; 59 ignored; 0 measured; 0 filtered out; finished in 124.80s
+
+## Exact named over-60 lines
+test admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins has been running for over 60 seconds
+test admin_vms_test::decommission_endpoint_wins_concurrent_reference_publication_after_inventory_lock has been running for over 60 seconds
+
+## Strongest named-schema snapshot
+captured_at=2026-08-05T09:11:37Z
+auth_admin_processes:
+   5308    5305 S         94 bash /home/ubuntu/capture_auth_admin_named_stall.sh
+   5328    5308 S         94 bash /home/ubuntu/capture_auth_admin_named_stall.sh
+   5331    5308 S         94 timeout 240 sudo systemd-run --scope --quiet -p AllowedCPUs=0-0 -p CPUQuota=30% --uid=ubuntu --gid=ubuntu --working-directory=/home/ubuntu/fjcloud_dev/infra -E HOME=/home/ubuntu -E PATH=/home/ubuntu/.cargo/bin:/usr/bin:/bin -E DATABASE_URL=postgres://griddle:griddle_local@127.0.0.1:5432/fjcloud_test -E RUST_TEST_THREADS=32 /home/ubuntu/.cargo/bin/cargo test -p api --test auth_admin -- --test-threads=32 --nocapture
+   5333    5331 S         94 sudo systemd-run --scope --quiet -p AllowedCPUs=0-0 -p CPUQuota=30% --uid=ubuntu --gid=ubuntu --working-directory=/home/ubuntu/fjcloud_dev/infra -E HOME=/home/ubuntu -E PATH=/home/ubuntu/.cargo/bin:/usr/bin:/bin -E DATABASE_URL=postgres://griddle:griddle_local@127.0.0.1:5432/fjcloud_test -E RUST_TEST_THREADS=32 /home/ubuntu/.cargo/bin/cargo test -p api --test auth_admin -- --test-threads=32 --nocapture
+   5334    5333 Sl        94 /home/ubuntu/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test -p api --test auth_admin -- --test-threads=32 --nocapture
+   5340    5334 Sl        93 /home/ubuntu/fjcloud_dev/infra/target/debug/deps/auth_admin-856e96dda8ebebbe --test-threads=32 --nocapture
+
+recent_over60_named_from_run_log:
+test admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins has been running for over 60 seconds
+test admin_vms_test::decommission_endpoint_wins_concurrent_reference_publication_after_inventory_lock has been running for over 60 seconds
+
+pg_stat_activity_block_graph:
+          captured_at          | pid  |        state        | wait_event_type | wait_event |     blocked_by     | wait_s |            query            
+-------------------------------+------+---------------------+-----------------+------------+--------------------+--------+-----------------------------
+ 2026-08-05 09:11:37.50262+00  |  718 | active              | Lock            | advisory   | {720,722}          |     84 | SELECT pg_advisory_lock($1)
+ 2026-08-05 09:11:37.502629+00 |  722 | active              | Lock            | advisory   | {720}              |     84 | SELECT pg_advisory_lock($1)
+ 2026-08-05 09:11:37.502631+00 | 1150 | active              | Lock            | advisory   | {720,722,718}      |      7 | SELECT pg_advisory_lock($1)
+ 2026-08-05 09:11:37.502632+00 | 1151 | active              | Lock            | advisory   | {720,722,718,1150} |      7 | SELECT pg_advisory_lock($1)
+ 2026-08-05 09:11:37.502633+00 |  720 | idle in transaction | Client          | ClientRead | {}                 |      0 | BEGIN
+(5 rows)
+
+
+pg_locks_for_blocked_and_blockers:
+ pid  | state  |   locktype    |         mode          | granted | database |                                              relation                                               |  classid  |   objid    | objsubid |                                                                              query                                                                               
+------+--------+---------------+-----------------------+---------+----------+-----------------------------------------------------------------------------------------------------+-----------+------------+----------+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  718 | active | advisory      | ExclusiveLock         | f       |    30423 |                                                                                                     | 937509025 | 1559973334 |        1 | SELECT pg_advisory_lock($1)
+  718 | active | virtualxid    | ExclusiveLock         | t       |          |                                                                                                     |           |            |          | SELECT pg_advisory_lock($1)
+  720 | active | advisory      | ExclusiveLock         | t       |    30423 |                                                                                                     | 937509025 | 1559973334 |        1 | -- VM inventory retirement reference guard. -- -- This migration owns both persisted-reference blocker enumeration and -- per-column reference eligibility. Writ
+  720 | active | relation      | AccessShareLock       | t       |    30423 | admin_vm_route_reference_wins_05b5044bff674ad9a05a53de676e99d3.algolia_import_jobs_cloud_job_id_key |           |            |          | -- VM inventory retirement reference guard. -- -- This migration owns both persisted-reference blocker enumeration and -- per-column reference eligibility. Writ
+  720 | active | relation      | AccessShareLock       | t       |    30423 | admin_vm_route_reference_wins_05b5044bff674ad9a05a53de676e99d3.algolia_import_jobs_pkey             |           |            |          | -- VM inventory retirement reference guard. -- -- This migration owns both persisted-reference blocker enumeration and -- per-column reference eligibility. Writ
+  720 | active | relation      | AccessShareLock       | t       |    30423 | admin_vm_route_reference_wins_05b5044bff674ad9a05a53de676e99d3.index_replicas                       |           |            |          | -- VM inventory retirement reference guard. -- -- This migration owns both persisted-reference blocker enumeration and -- per-column reference eligibility. Writ
+  720 | active | relation      | AccessShareLock       | t       |    30423 | admin_vm_route_reference_wins_05b5044bff674ad9a05a53de676e99d3.restore_jobs                         |           |            |          | -- VM inventory retirement reference guard. -- -- This migration owns both persisted-reference blocker enumeration and -- per-column reference eligibility. Writ
+  720 | active | relation      | AccessShareLock       | t       |    30423 | admin_vm_route_reference_wins_05b5044bff674ad9a05a53de676e99d3.cold_snapshots                       |           |            |          | -- VM inventory retirement reference guard. -- -- This migration owns both persisted-reference blocker enumeration and -- per-column reference eligibility. Writ
+  720 | active | relation      | AccessShareLock       | t       |    30423 | admin_vm_route_reference_wins_05b5044bff674ad9a05a53de676e99d3.index_migrations                     |           |            |          | -- VM inventory retirement reference guard. -- -- This migration owns both persisted-reference blocker enumeration and -- per-column reference eligibility. Writ
+  720 | active | relation      | AccessShareLock       | t       |    30423 | admin_vm_route_reference_wins_05b5044bff674ad9a05a53de676e99d3.customer_tenants                     |           |            |          | -- VM inventory retirement reference guard. -- -- This migration owns both persisted-reference blocker enumeration and -- per-column reference eligibility. Writ
+  720 | active | relation      | AccessShareLock       | t       |    30423 | pg_attribute_relid_attnum_index                                                                     |           |            |          | -- VM inventory retirement reference guard. -- -- This migration owns both persisted-reference blocker enumeration and -- per-column reference eligibility. Writ
+  720 | active | relation      | AccessShareLock       | t       |    30423 | pg_attribute                                                                                        |           |            |          | -- VM inventory retirement reference guard. -- -- This migration owns both persisted-reference blocker enumeration and -- per-column reference eligibility. Writ
+  720 | active | relation      | AccessShareLock       | t       |    30423 | admin_vm_route_reference_wins_05b5044bff674ad9a05a53de676e99d3.algolia_import_jobs                  |           |            |          | -- VM inventory retirement reference guard. -- -- This migration owns both persisted-reference blocker enumeration and -- per-column reference eligibility. Writ
+  720 | active | relation      | AccessShareLock       | t       |    30423 | admin_vm_route_reference_wins_05b5044bff674ad9a05a53de676e99d3.vm_inventory                         |           |            |          | -- VM inventory retirement reference guard. -- -- This migration owns both persisted-reference blocker enumeration and -- per-column reference eligibility. Writ
+  720 | active | relation      | RowShareLock          | t       |    30423 | admin_vm_route_reference_wins_05b5044bff674ad9a05a53de676e99d3.vm_inventory                         |           |            |          | -- VM inventory retirement reference guard. -- -- This migration owns both persisted-reference blocker enumeration and -- per-column reference eligibility. Writ
+  720 | active | relation      | ShareRowExclusiveLock | t       |    30423 | admin_vm_route_reference_wins_05b5044bff674ad9a05a53de676e99d3.algolia_import_jobs                  |           |            |          | -- VM inventory retirement reference guard. -- -- This migration owns both persisted-reference blocker enumeration and -- per-column reference eligibility. Writ
+  720 | active | relation      | ShareRowExclusiveLock | t       |    30423 | admin_vm_route_reference_wins_05b5044bff674ad9a05a53de676e99d3.vm_inventory                         |           |            |          | -- VM inventory retirement reference guard. -- -- This migration owns both persisted-reference blocker enumeration and -- per-column reference eligibility. Writ
+  720 | active | transactionid | ExclusiveLock         | t       |          |                                                                                                     |           |            |          | -- VM inventory retirement reference guard. -- -- This migration owns both persisted-reference blocker enumeration and -- per-column reference eligibility. Writ
+  720 | active | virtualxid    | ExclusiveLock         | t       |          |                                                                                                     |           |            |          | -- VM inventory retirement reference guard. -- -- This migration owns both persisted-reference blocker enumeration and -- per-column reference eligibility. Writ
+  722 | active | advisory      | ExclusiveLock         | f       |    30423 |                                                                                                     | 937509025 | 1559973334 |        1 | SELECT pg_advisory_lock($1)
+  722 | active | virtualxid    | ExclusiveLock         | t       |          |                                                                                                     |           |            |          | SELECT pg_advisory_lock($1)
+ 1150 | active | advisory      | ExclusiveLock         | f       |    30423 |                                                                                                     | 937509025 | 1559973334 |        1 | SELECT pg_advisory_lock($1)
+ 1150 | active | virtualxid    | ExclusiveLock         | t       |          |                                                                                                     |           |            |          | SELECT pg_advisory_lock($1)
+ 1151 | active | advisory      | ExclusiveLock         | f       |    30423 |                                                                                                     | 937509025 | 1559973334 |        1 | SELECT pg_advisory_lock($1)
+ 1151 | active | virtualxid    | ExclusiveLock         | t       |          |                                                                                                     |           |            |          | SELECT pg_advisory_lock($1)
+(25 rows)
+
+
+## Samples around sustained wait
+2026-08-05T09:10:41Z blocked=6 maxwait_s=29
+2026-08-05T09:10:42Z blocked=6 maxwait_s=30
+2026-08-05T09:10:43Z blocked=6 maxwait_s=31
+2026-08-05T09:10:45Z blocked=5 maxwait_s=32
+2026-08-05T09:10:46Z blocked=5 maxwait_s=33
+2026-08-05T09:10:47Z blocked=5 maxwait_s=34
+2026-08-05T09:10:48Z blocked=5 maxwait_s=35
+2026-08-05T09:10:49Z blocked=5 maxwait_s=36
+2026-08-05T09:10:50Z blocked=5 maxwait_s=37
+2026-08-05T09:10:51Z blocked=5 maxwait_s=39
+2026-08-05T09:10:52Z blocked=5 maxwait_s=40
+2026-08-05T09:10:53Z blocked=5 maxwait_s=41
+2026-08-05T09:10:55Z blocked=5 maxwait_s=42
+2026-08-05T09:10:56Z blocked=5 maxwait_s=43
+2026-08-05T09:10:57Z blocked=5 maxwait_s=44
+2026-08-05T09:10:58Z blocked=5 maxwait_s=45
+2026-08-05T09:10:59Z blocked=4 maxwait_s=46
+2026-08-05T09:11:00Z blocked=4 maxwait_s=47
+2026-08-05T09:11:01Z blocked=4 maxwait_s=48
+2026-08-05T09:11:02Z blocked=4 maxwait_s=50
+2026-08-05T09:11:03Z blocked=4 maxwait_s=51
+2026-08-05T09:11:05Z blocked=4 maxwait_s=52
+2026-08-05T09:11:06Z blocked=4 maxwait_s=53
+2026-08-05T09:11:07Z blocked=4 maxwait_s=54
+2026-08-05T09:11:08Z blocked=4 maxwait_s=55
+2026-08-05T09:11:09Z blocked=4 maxwait_s=56
+2026-08-05T09:11:10Z blocked=4 maxwait_s=57
+2026-08-05T09:11:11Z blocked=4 maxwait_s=59
+2026-08-05T09:11:12Z blocked=4 maxwait_s=60
+2026-08-05T09:11:14Z blocked=4 maxwait_s=61
+2026-08-05T09:11:15Z blocked=4 maxwait_s=62
+2026-08-05T09:11:16Z blocked=3 maxwait_s=63
+2026-08-05T09:11:17Z blocked=3 maxwait_s=64
+2026-08-05T09:11:18Z blocked=3 maxwait_s=65
+2026-08-05T09:11:19Z blocked=3 maxwait_s=66
+2026-08-05T09:11:20Z blocked=3 maxwait_s=67
+2026-08-05T09:11:21Z blocked=3 maxwait_s=69
+2026-08-05T09:11:22Z blocked=3 maxwait_s=70
+2026-08-05T09:11:24Z blocked=3 maxwait_s=71
+2026-08-05T09:11:25Z blocked=3 maxwait_s=72
+2026-08-05T09:11:26Z blocked=3 maxwait_s=73
+2026-08-05T09:11:27Z blocked=3 maxwait_s=74
+2026-08-05T09:11:28Z blocked=3 maxwait_s=75
+2026-08-05T09:11:29Z blocked=3 maxwait_s=76
+2026-08-05T09:11:30Z blocked=4 maxwait_s=77
+2026-08-05T09:11:31Z blocked=4 maxwait_s=79
+2026-08-05T09:11:32Z blocked=4 maxwait_s=80
+2026-08-05T09:11:34Z blocked=4 maxwait_s=81
+2026-08-05T09:11:35Z blocked=4 maxwait_s=82
+2026-08-05T09:11:36Z blocked=4 maxwait_s=83
+2026-08-05T09:11:37Z blocked=4 maxwait_s=84
+2026-08-05T09:11:38Z blocked=4 maxwait_s=85
+2026-08-05T09:11:39Z blocked=3 maxwait_s=86
+2026-08-05T09:11:40Z blocked=3 maxwait_s=87
+2026-08-05T09:11:41Z blocked=3 maxwait_s=88
+2026-08-05T09:11:42Z blocked=3 maxwait_s=90
+2026-08-05T09:11:44Z blocked=3 maxwait_s=91
+2026-08-05T09:11:45Z blocked=2 maxwait_s=15
+2026-08-05T09:11:46Z blocked=2 maxwait_s=16
+2026-08-05T09:11:47Z blocked=2 maxwait_s=17
+2026-08-05T09:11:48Z blocked=2 maxwait_s=18
+2026-08-05T09:11:49Z blocked=2 maxwait_s=19
+2026-08-05T09:11:50Z blocked=1 maxwait_s=20
+2026-08-05T09:11:51Z blocked=1 maxwait_s=22
+2026-08-05T09:11:53Z blocked=1 maxwait_s=23
+2026-08-05T09:11:54Z blocked=1 maxwait_s=24
+2026-08-05T09:11:55Z blocked=0 maxwait_s=0
+2026-08-05T09:11:56Z blocked=0 maxwait_s=0
+2026-08-05T09:11:57Z blocked=0 maxwait_s=0
+2026-08-05T09:11:58Z blocked=0 maxwait_s=0
+2026-08-05T09:11:59Z blocked=0 maxwait_s=0
+2026-08-05T09:12:00Z blocked=0 maxwait_s=0
+2026-08-05T09:12:01Z blocked=0 maxwait_s=0
+2026-08-05T09:12:02Z blocked=0 maxwait_s=0
+2026-08-05T09:12:03Z blocked=0 maxwait_s=0
+2026-08-05T09:12:04Z blocked=0 maxwait_s=0
+2026-08-05T09:12:05Z blocked=0 maxwait_s=0
+2026-08-05T09:12:06Z blocked=0 maxwait_s=0
+2026-08-05T09:12:07Z blocked=0 maxwait_s=0
+2026-08-05T09:12:08Z blocked=0 maxwait_s=0
+
+## Final result
+test result: FAILED. 345 passed; 1 failed; 59 ignored; 0 measured; 0 filtered out; finished in 124.80s

@@ -20,7 +20,7 @@ use crate::middleware::{RequestSpan, ResponseLogger, UuidRequestId};
 use crate::services::metrics::MetricsCollector;
 use crate::state::AppState;
 
-mod middleware;
+pub(crate) mod middleware;
 mod route_assembly;
 
 const LOCALHOST_CORS_ALLOWED_ORIGIN: &str = "http://localhost:5173";
@@ -51,9 +51,18 @@ fn internal_routes() -> Router<AppState> {
 /// Sliding-window rate limiter keyed by an arbitrary string (IP, tenant_id, etc.).
 #[derive(Clone)]
 pub struct RateLimiter {
-    rpm: u32,
+    limit: RateLimitMode,
     window: Duration,
+    clock: RateLimiterClock,
     state: Arc<Mutex<RateLimiterState>>,
+}
+
+type RateLimiterClock = Arc<dyn Fn() -> Instant + Send + Sync>;
+
+#[derive(Clone, Copy)]
+enum RateLimitMode {
+    Fixed(u32),
+    Dynamic,
 }
 
 struct RateLimiterState {
@@ -61,10 +70,15 @@ struct RateLimiterState {
     last_cleanup_at: Instant,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RateLimitError {
+    InvalidLimit,
+}
+
 impl RateLimiter {
     /// Creates a sliding-window rate limiter with the given requests-per-window limit.
     /// Clamps a zero `rpm` to 1 with a warning to prevent division-by-zero panics.
-    fn new(rpm: u32, window: Duration) -> Self {
+    pub fn new(rpm: u32, window: Duration) -> Self {
         let effective_rpm = if rpm == 0 {
             tracing::warn!(
                 configured_rpm = rpm,
@@ -76,24 +90,66 @@ impl RateLimiter {
             rpm
         };
 
-        Self {
-            rpm: effective_rpm,
+        Self::with_clock(
+            RateLimitMode::Fixed(effective_rpm),
             window,
+            Arc::new(Instant::now),
+        )
+    }
+
+    pub fn new_dynamic(window: Duration) -> Self {
+        Self::new_dynamic_with_clock(window, Instant::now)
+    }
+
+    pub fn new_dynamic_with_clock<F>(window: Duration, clock: F) -> Self
+    where
+        F: Fn() -> Instant + Send + Sync + 'static,
+    {
+        Self::with_clock(RateLimitMode::Dynamic, window, Arc::new(clock))
+    }
+
+    fn with_clock(limit: RateLimitMode, window: Duration, clock: RateLimiterClock) -> Self {
+        let now = clock();
+        Self {
+            limit,
+            window,
+            clock,
             state: Arc::new(Mutex::new(RateLimiterState {
                 requests_by_key: HashMap::new(),
-                last_cleanup_at: Instant::now(),
+                last_cleanup_at: now,
             })),
         }
     }
 
     /// Check if a request with the given key is allowed. Returns `None` if allowed
     /// (and records the request), or `Some(retry_after_seconds)` if rate-limited.
-    fn check(&self, key: &str) -> Option<u64> {
-        self.check_at(key, Instant::now())
+    pub(crate) fn check(&self, key: &str) -> Option<u64> {
+        self.check_at(key, (self.clock)())
+    }
+
+    pub fn check_with_limit(&self, key: &str, limit: u32) -> Result<Option<u64>, RateLimitError> {
+        self.check_limit_at(key, limit, (self.clock)())
     }
 
     fn check_at(&self, key: &str, now: Instant) -> Option<u64> {
-        let window_start = now - self.window;
+        let RateLimitMode::Fixed(limit) = self.limit else {
+            tracing::warn!("fixed rate-limit check called on dynamic limiter");
+            return Some(self.window.as_secs().max(1));
+        };
+        self.check_limit_at(key, limit, now)
+            .expect("fixed rate limiter constructor guarantees positive limit")
+    }
+
+    fn check_limit_at(
+        &self,
+        key: &str,
+        limit: u32,
+        now: Instant,
+    ) -> Result<Option<u64>, RateLimitError> {
+        if limit == 0 {
+            return Err(RateLimitError::InvalidLimit);
+        }
+
         let mut state = self.state.lock().unwrap_or_else(|poisoned| {
             tracing::warn!("rate limiter state mutex poisoned, recovering");
             poisoned.into_inner()
@@ -102,7 +158,7 @@ impl RateLimiter {
         if now.saturating_duration_since(state.last_cleanup_at) >= Duration::from_secs(30) {
             state.requests_by_key.retain(|_, requests| {
                 while let Some(oldest) = requests.front() {
-                    if *oldest <= window_start {
+                    if request_is_expired(now, *oldest, self.window) {
                         requests.pop_front();
                     } else {
                         break;
@@ -116,26 +172,30 @@ impl RateLimiter {
         let requests = state.requests_by_key.entry(key.to_string()).or_default();
 
         while let Some(oldest) = requests.front() {
-            if *oldest <= window_start {
+            if request_is_expired(now, *oldest, self.window) {
                 requests.pop_front();
             } else {
                 break;
             }
         }
 
-        if requests.len() >= self.rpm as usize {
+        if requests.len() >= limit as usize {
             let oldest = requests
                 .front()
                 .copied()
                 .expect("request queue should not be empty when at limit");
             let elapsed = now.saturating_duration_since(oldest);
             let retry_after = self.window.saturating_sub(elapsed).as_secs().max(1);
-            return Some(retry_after);
+            return Ok(Some(retry_after));
         }
 
         requests.push_back(now);
-        None
+        Ok(None)
     }
+}
+
+fn request_is_expired(now: Instant, requested_at: Instant, window: Duration) -> bool {
+    now.saturating_duration_since(requested_at) >= window
 }
 
 /// Configuration for all rate limiters in the router.
@@ -299,9 +359,19 @@ fn build_router_inner(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
 
     use super::{panic_error_message, RateLimiter};
+
+    fn controlled_clock() -> (
+        Arc<Mutex<Instant>>,
+        impl Fn() -> Instant + Send + Sync + 'static,
+    ) {
+        let now = Arc::new(Mutex::new(Instant::now()));
+        let clock_now = now.clone();
+        (now, move || *clock_now.lock().unwrap())
+    }
 
     #[test]
     fn rate_limiter_resets_exactly_at_window_boundary() {
@@ -320,6 +390,86 @@ mod tests {
         assert_eq!(
             limiter.check_at("203.0.113.20", window_started_at + window),
             None
+        );
+    }
+
+    #[test]
+    fn rate_limiter_dynamic_limit_allows_exactly_configured_requests() {
+        let (now, clock) = controlled_clock();
+        let limiter = RateLimiter::new_dynamic_with_clock(Duration::from_secs(3600), clock);
+
+        assert_eq!(
+            limiter.check_with_limit("api-key:203.0.113.20", 2),
+            Ok(None)
+        );
+        assert_eq!(
+            limiter.check_with_limit("api-key:203.0.113.20", 2),
+            Ok(None)
+        );
+        *now.lock().unwrap() += Duration::from_secs(120);
+
+        assert_eq!(
+            limiter.check_with_limit("api-key:203.0.113.20", 2),
+            Ok(Some(3480))
+        );
+    }
+
+    #[test]
+    fn rate_limiter_dynamic_limit_isolates_arbitrary_bucket_keys() {
+        let (_now, clock) = controlled_clock();
+        let limiter = RateLimiter::new_dynamic_with_clock(Duration::from_secs(3600), clock);
+
+        assert_eq!(limiter.check_with_limit("key-a:203.0.113.20", 1), Ok(None));
+        assert_eq!(
+            limiter.check_with_limit("key-a:203.0.113.20", 1),
+            Ok(Some(3600))
+        );
+        assert_eq!(limiter.check_with_limit("key-a:203.0.113.21", 1), Ok(None));
+        assert_eq!(limiter.check_with_limit("key-b:203.0.113.20", 1), Ok(None));
+    }
+
+    #[test]
+    fn rate_limiter_dynamic_limit_expires_oldest_request_at_window_boundary() {
+        let (now, clock) = controlled_clock();
+        let window = Duration::from_secs(3600);
+        let limiter = RateLimiter::new_dynamic_with_clock(window, clock);
+
+        assert_eq!(
+            limiter.check_with_limit("api-key:203.0.113.20", 1),
+            Ok(None)
+        );
+        *now.lock().unwrap() += window - Duration::from_nanos(1);
+        assert_eq!(
+            limiter.check_with_limit("api-key:203.0.113.20", 1),
+            Ok(Some(1))
+        );
+        *now.lock().unwrap() += Duration::from_nanos(1);
+        assert_eq!(
+            limiter.check_with_limit("api-key:203.0.113.20", 1),
+            Ok(None)
+        );
+    }
+
+    #[test]
+    fn rate_limiter_dynamic_limit_rejects_zero_limit() {
+        let (_now, clock) = controlled_clock();
+        let limiter = RateLimiter::new_dynamic_with_clock(Duration::from_secs(3600), clock);
+
+        assert!(limiter.check_with_limit("api-key:203.0.113.20", 0).is_err());
+    }
+
+    #[test]
+    fn rate_limiter_dynamic_limit_handles_window_larger_than_clock_age() {
+        let (_now, clock) = controlled_clock();
+        let limiter = RateLimiter::new_dynamic_with_clock(Duration::MAX, clock);
+
+        assert_eq!(
+            limiter.check_with_limit("api-key:203.0.113.20", 1),
+            Ok(None)
+        );
+        assert_eq!(
+            limiter.check_with_limit("api-key:203.0.113.20", 1),
+            Ok(Some(Duration::MAX.as_secs()))
         );
     }
 

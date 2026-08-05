@@ -6,4 +6,10 @@
 # No upstream fix available as of 2026-03. Used in provisioner/oci.rs for OCI request
 # signing — low practical risk (server-side, not exposed to timing oracle attacks).
 # Re-evaluate when rsa crate publishes a fix.
-ignore = ["RUSTSEC-2023-0071"]
+# RUSTSEC-2026-0235: rkyv archive validation can cause out-of-bounds reads.
+# cargo-audit sees rkyv package metadata through rust_decimal, but current
+# resolved workspace evidence is `cd infra && cargo tree | grep -c rkyv` => 0,
+# guarded by scripts/tests/rkyv_reachability_guard_test.sh. It becomes reachable
+# here if infra/Cargo.toml enables rust_decimal's optional rkyv feature. Remove
+# this exception when rust_decimal takes rkyv >= 0.8.17.
+ignore = ["RUSTSEC-2023-0071", "RUSTSEC-2026-0235"]

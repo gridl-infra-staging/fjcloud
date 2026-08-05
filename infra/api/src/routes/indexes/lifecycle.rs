@@ -546,19 +546,9 @@ fn map_delete_plan_error(error: RepoError, index_name: &str) -> ApiError {
     }
 }
 
-/// Returns an error response for cold/restoring indexes, or `None` for active ones.
-pub(crate) async fn check_cold_tier(
-    state: &AppState,
-    customer_id: Uuid,
-    index_name: &str,
-) -> Result<Option<Response>, ApiError> {
-    let tenant = state.tenant_repo.find_raw(customer_id, index_name).await?;
-    let Some(tenant) = tenant else {
-        return Ok(None);
-    };
-
-    match tenant.tier.as_str() {
-        "cold" => Ok(Some(
+pub(crate) fn cold_tier_response_for_tier(tier: &str, index_name: &str) -> Option<Response> {
+    match tier {
+        "cold" => Some(
             (
                 StatusCode::GONE,
                 Json(serde_json::json!({
@@ -571,7 +561,7 @@ pub(crate) async fn check_cold_tier(
                 })),
             )
                 .into_response(),
-        )),
+        ),
         "restoring" => {
             let mut response = (
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -585,9 +575,9 @@ pub(crate) async fn check_cold_tier(
             response
                 .headers_mut()
                 .insert(header::RETRY_AFTER, header::HeaderValue::from_static("30"));
-            Ok(Some(response))
+            Some(response)
         }
-        _ => Ok(None),
+        _ => None,
     }
 }
 

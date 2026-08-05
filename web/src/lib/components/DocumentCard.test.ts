@@ -97,6 +97,30 @@ describe('DocumentCard', () => {
 		expect(tags).toEqual(['Action', 'Sci-Fi']);
 	});
 
+	it('rejects plaintext HTTP document images that the enforced policy does not support', () => {
+		render(DocumentCard, {
+			hit: {
+				objectID: 'doc-http-image',
+				image: 'http://images.example.test/poster.jpg'
+			},
+			imageField: 'image'
+		});
+
+		expect(screen.queryByTestId('document-card-image')).toBeNull();
+	});
+
+	it('rejects protocol-relative document images that can resolve to plaintext HTTP locally', () => {
+		render(DocumentCard, {
+			hit: {
+				objectID: 'doc-protocol-relative-image',
+				image: '//images.example.test/poster.jpg'
+			},
+			imageField: 'image'
+		});
+
+		expect(screen.queryByTestId('document-card-image')).toBeNull();
+	});
+
 	it('prefers sanitized highlight HTML for configured title and subtitle slots when _highlightResult is present', () => {
 		render(DocumentCard, {
 			hit: {

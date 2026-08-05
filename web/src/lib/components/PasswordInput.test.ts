@@ -65,7 +65,7 @@ describe('PasswordInput', () => {
 			label: 'API Key',
 			required: true,
 			autocomplete: 'current-password',
-			minlength: 8,
+			minlength: 12,
 			placeholder: 'Your Algolia API Key',
 			'data-testid': 'api-key-input'
 		});
@@ -74,7 +74,7 @@ describe('PasswordInput', () => {
 		expect(apiKeyInput).toHaveAttribute('id', 'api-key');
 		expect(apiKeyInput).toHaveAttribute('name', 'apiKey');
 		expect(apiKeyInput).toHaveAttribute('autocomplete', 'current-password');
-		expect(apiKeyInput).toHaveAttribute('minlength', '8');
+		expect(apiKeyInput).toHaveAttribute('minlength', '12');
 		expect(apiKeyInput).toHaveAttribute('placeholder', 'Your Algolia API Key');
 		expect(apiKeyInput).toBeRequired();
 	});

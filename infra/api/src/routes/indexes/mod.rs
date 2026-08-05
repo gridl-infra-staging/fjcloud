@@ -382,6 +382,16 @@ pub(crate) async fn resolve_flapjack_target(
         None => return Ok(None), // Not yet placed on a shared VM (still provisioning)
     };
 
+    resolve_flapjack_target_from_parts(state, customer_id, index_name, deployment_id, vm_id).await
+}
+
+async fn resolve_flapjack_target_from_parts(
+    state: &AppState,
+    customer_id: Uuid,
+    index_name: &str,
+    deployment_id: Uuid,
+    vm_id: Uuid,
+) -> Result<Option<ResolvedFlapjackTarget>, ApiError> {
     let vm = match state.vm_inventory_repo.get(vm_id).await? {
         Some(vm) => vm,
         None => {
@@ -460,7 +470,7 @@ pub(crate) async fn resolve_ready_index_target(
     not_ready_behavior: IndexNotReadyBehavior,
 ) -> Result<(CustomerTenantSummary, ResolvedFlapjackTarget), ApiError> {
     let summary = find_active_index_summary(state, customer_id, index_name).await?;
-    let target = resolve_flapjack_target(state, customer_id, index_name, summary.deployment_id)
+    let target = search::resolve_flapjack_target_from_summary(state, &summary)
         .await?
         .ok_or_else(|| not_ready_behavior.into_error(index_name))?;
 
@@ -668,9 +678,12 @@ pub use rules::{delete_rule, get_rule, save_rule, search_rules, RulesSearchReque
 pub use search::test_search;
 pub use security_sources::{append_security_source, delete_security_source, get_security_sources};
 pub use settings::{get_settings, update_settings};
-pub use suggestions::{delete_qs_config, get_qs_config, get_qs_status, save_qs_config};
+pub use suggestions::{
+    build_qs_config, delete_qs_config, get_qs_config, get_qs_status, save_qs_config,
+};
 pub use synonyms::{
-    delete_synonym, get_synonym, save_synonym, search_synonyms, SynonymsSearchRequest,
+    clear_synonyms, delete_synonym, get_synonym, save_synonym, search_synonyms,
+    SynonymsSearchRequest,
 };
 
 #[cfg(test)]

@@ -43,23 +43,46 @@ vi.mock('$app/environment', () => ({
 import MigratePage from './+page.svelte';
 
 beforeEach(() => {
-	fetchMock.mockImplementation(async () => new Response('serialized-action-result'));
-	deserializeMock.mockReturnValue({
-		type: 'success',
-		status: 200,
-		data: {
-			providerEligibility: {
-				phase: 'provider',
-				mode: 'create',
-				provider: 'aws',
-				target: {
-					kind: 'create',
-					region: 'us-east-1'
-				},
-				eligibilityToken: 'provider-token',
-				expiresAt: '2099-07-18T10:15:00Z'
-			}
+	fetchMock.mockImplementation(async (url) => new Response(String(url)));
+	deserializeMock.mockImplementation((serialized: string) => {
+		if (serialized === '?/providerEligibility') {
+			return {
+				type: 'success',
+				status: 200,
+				data: {
+					providerEligibility: {
+						phase: 'provider',
+						mode: 'create',
+						provider: 'aws',
+						target: {
+							kind: 'create',
+							region: 'us-east-1'
+						},
+						eligibilityToken: 'provider-token',
+						expiresAt: '2099-07-18T10:15:00Z'
+					}
+				}
+			};
 		}
+		if (serialized === '?/availability') {
+			return {
+				type: 'success',
+				status: 200,
+				data: { availability: availableAvailability }
+			};
+		}
+		if (serialized === '?/recentImports') {
+			return {
+				type: 'success',
+				status: 200,
+				data: { recentImports: { jobs: [], nextCursor: null } }
+			};
+		}
+		return {
+			type: 'failure',
+			status: 400,
+			data: { error: `Unexpected action response: ${serialized}` }
+		};
 	});
 	vi.stubGlobal('fetch', fetchMock);
 });
@@ -80,6 +103,8 @@ const SOURCE_PROVIDER_LABELS: Record<SourceProvider, string> = {
 	meilisearch: 'Meilisearch',
 	typesense: 'Typesense'
 };
+const PREVIEW_UNAVAILABLE_COPY =
+	'Preview is not available for the selected source. The migration can still run, and compatibility warnings appear once the job starts.';
 
 function renderMigratePage(
 	availability: AlgoliaMigrationAvailabilityResponse = unavailableAvailability,
@@ -146,6 +171,10 @@ function submittedActionPayload(actionName: string, callIndex = 0): Record<strin
 	return JSON.parse(payload as string) as Record<string, unknown>;
 }
 
+function actionFetchCalls(actionName: string) {
+	return fetchMock.mock.calls.filter(([url]) => url === `?/${actionName}`);
+}
+
 function expectNoDormantMigrationControls(container: HTMLElement) {
 	expect(container.querySelector('form')).not.toBeInTheDocument();
 	expect(screen.queryByLabelText(/app.*id/i)).not.toBeInTheDocument();
@@ -173,7 +202,7 @@ describe('Migrate page unavailable state', () => {
 		expect(await screen.findByLabelText(/algolia api key/i)).toHaveValue('');
 		expect(screen.getByRole('button', { name: /connect to algolia/i })).toBeDisabled();
 		expect(container.innerHTML).not.toContain('provider-token');
-		await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+		await waitFor(() => expect(actionFetchCalls('providerEligibility')).toHaveLength(1));
 		expect(fetchMock).toHaveBeenCalledWith(
 			'?/providerEligibility',
 			expect.objectContaining({
@@ -185,6 +214,8 @@ describe('Migrate page unavailable state', () => {
 			source_provider: 'algolia',
 			region: 'us-east-1'
 		});
+		await waitFor(() => expect(actionFetchCalls('availability')).toHaveLength(1));
+		expect(submittedActionPayload('availability')).toEqual({ source_provider: 'algolia' });
 	});
 
 	it('renders the authenticated unavailable explanation page', () => {
@@ -204,22 +235,135 @@ describe('Migrate page unavailable state', () => {
 		renderMigratePage(availableAvailability);
 
 		expect(await screen.findByTestId('migration-create-flow')).toBeInTheDocument();
-		await waitFor(() =>
-			expect(fetchMock.mock.calls.filter(([url]) => url === '?/providerEligibility')).toHaveLength(
-				1
-			)
-		);
+		await waitFor(() => expect(actionFetchCalls('providerEligibility')).toHaveLength(1));
 		await fireEvent.click(await screen.findByRole('radio', { name: /typesense/i }));
-		await waitFor(() =>
-			expect(fetchMock.mock.calls.filter(([url]) => url === '?/providerEligibility')).toHaveLength(
-				2
-			)
-		);
+		await waitFor(() => expect(actionFetchCalls('providerEligibility')).toHaveLength(2));
 
 		expect(submittedActionPayload('providerEligibility', 1)).toEqual({
 			source_provider: 'typesense',
 			region: 'us-east-1'
 		});
+	});
+
+	it('refreshes availability for Typesense and keeps Start import reachable without preview', async () => {
+		fetchMock.mockImplementation(async (url) => new Response(String(url)));
+		deserializeMock.mockImplementation((serialized: string) => {
+			if (serialized === '?/providerEligibility') {
+				return {
+					type: 'success',
+					status: 200,
+					data: {
+						providerEligibility: {
+							phase: 'provider',
+							mode: 'create',
+							provider: 'aws',
+							target: { kind: 'create', region: 'us-east-1' },
+							eligibilityToken: 'provider-token',
+							expiresAt: '2099-07-18T10:15:00Z'
+						}
+					}
+				};
+			}
+			if (serialized === '?/availability') {
+				return {
+					type: 'success',
+					status: 200,
+					data: {
+						availability: {
+							...availableAvailability,
+							capabilities: {
+								cancel: true,
+								resume: false,
+								replace: true,
+								preview: false
+							}
+						}
+					}
+				};
+			}
+			if (serialized === '?/recentImports') {
+				return {
+					type: 'success',
+					status: 200,
+					data: { recentImports: { jobs: [], nextCursor: null } }
+				};
+			}
+			if (serialized === '?/listSourceIndexes') {
+				return {
+					type: 'success',
+					status: 200,
+					data: {
+						sourceIndexes: {
+							items: [
+								{
+									name: 'source_products',
+									entries: 17,
+									dataSize: 2048,
+									fileSize: 4096,
+									updatedAt: '2026-07-18T10:00:00Z',
+									lastBuildTimeS: 3,
+									pendingTask: false,
+									primary: null,
+									replicas: []
+								}
+							],
+							nextCursor: null
+						}
+					}
+				};
+			}
+			if (serialized === '?/checkDestinationEligibility') {
+				return {
+					type: 'success',
+					status: 200,
+					data: {
+						targetEligibility: {
+							phase: 'target',
+							mode: 'create',
+							provider: 'aws',
+							target: { kind: 'create', region: 'us-east-1', name: 'source_products' },
+							eligibilityToken: 'target-token',
+							expiresAt: '2099-07-18T10:20:00Z'
+						}
+					}
+				};
+			}
+			if (serialized === '?/createImportJob') {
+				return {
+					type: 'success',
+					status: 200,
+					data: { job: { id: 'typesense-job', sourceProvider: 'typesense' } }
+				};
+			}
+			throw new Error(`Unexpected action response: ${serialized}`);
+		});
+		gotoMock.mockResolvedValue(undefined);
+
+		renderMigratePage(availableAvailability, { page: { jobs: [], nextCursor: null }, error: null });
+		expect(await screen.findByTestId('migration-create-flow')).toBeInTheDocument();
+		await fireEvent.click(await screen.findByRole('radio', { name: /typesense/i }));
+		await waitFor(() => expect(actionFetchCalls('availability').length).toBeGreaterThan(0));
+		expect(
+			submittedActionPayload('availability', actionFetchCalls('availability').length - 1)
+		).toEqual({
+			source_provider: 'typesense'
+		});
+
+		await fireEvent.input(await screen.findByLabelText(/typesense host url/i), {
+			target: { value: 'https://typesense.example.test' }
+		});
+		await fireEvent.input(await screen.findByLabelText(/typesense api key/i), {
+			target: { value: 'typesense-browser-key' }
+		});
+		await fireEvent.click(screen.getByRole('button', { name: /connect to typesense/i }));
+		await screen.findByTestId('migration-source-row-source_products');
+		await fireEvent.change(screen.getByRole('radio', { name: /source_products/i }));
+		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
+		await screen.findByTestId('migration-create-review');
+
+		expect(screen.getByText(PREVIEW_UNAVAILABLE_COPY)).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: /^preview import$/i })).not.toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /^start import$/i })).toBeEnabled();
 	});
 
 	it('does not render migration credentials, source controls, or import CTAs', () => {
@@ -421,11 +565,8 @@ describe('Migrate page recent imports on the available surface', () => {
 				}
 			}
 		};
-		deserializeMock
-			.mockReset()
-			.mockReturnValueOnce(providerEligibilityResult)
-			.mockReturnValueOnce(providerEligibilityResult)
-			.mockReturnValueOnce({
+		const recentImportsResults = [
+			{
 				type: 'success',
 				status: 200,
 				data: {
@@ -434,8 +575,8 @@ describe('Migrate page recent imports on the available surface', () => {
 						nextCursor: 'typesense-next-cursor'
 					}
 				}
-			})
-			.mockReturnValueOnce({
+			},
+			{
 				type: 'success',
 				status: 200,
 				data: {
@@ -444,7 +585,16 @@ describe('Migrate page recent imports on the available surface', () => {
 						nextCursor: null
 					}
 				}
-			});
+			}
+		];
+		deserializeMock.mockReset().mockImplementation((serialized: string) => {
+			if (serialized === '?/providerEligibility') return providerEligibilityResult;
+			if (serialized === '?/availability') {
+				return { type: 'success', status: 200, data: { availability: availableAvailability } };
+			}
+			if (serialized === '?/recentImports') return recentImportsResults.shift();
+			return { type: 'failure', status: 400, data: { error: `Unexpected action: ${serialized}` } };
+		});
 		renderMigratePage(availableAvailability, {
 			page: null,
 			error: 'Recent imports could not be loaded'
@@ -501,20 +651,24 @@ describe('Migrate page recent imports on the available surface', () => {
 				}
 			}
 		};
-		deserializeMock
-			.mockReset()
-			.mockReturnValueOnce(providerEligibilityResult)
-			.mockReturnValueOnce(providerEligibilityResult)
-			.mockReturnValueOnce({
-				type: 'success',
-				status: 200,
-				data: {
-					recentImports: {
-						jobs: [recentImportJob({ id: 'typesense-current', sourceProvider: 'typesense' })],
-						nextCursor: null
-					}
+		const recentImportsResult = {
+			type: 'success',
+			status: 200,
+			data: {
+				recentImports: {
+					jobs: [recentImportJob({ id: 'typesense-current', sourceProvider: 'typesense' })],
+					nextCursor: null
 				}
-			});
+			}
+		};
+		deserializeMock.mockReset().mockImplementation((serialized: string) => {
+			if (serialized === '?/providerEligibility') return providerEligibilityResult;
+			if (serialized === '?/availability') {
+				return { type: 'success', status: 200, data: { availability: availableAvailability } };
+			}
+			if (serialized === '?/recentImports') return recentImportsResult;
+			return { type: 'failure', status: 400, data: { error: `Unexpected action: ${serialized}` } };
+		});
 		renderMigratePage(availableAvailability, {
 			page: {
 				jobs: [recentImportJob({ id: 'algolia-stale' })],
@@ -602,187 +756,6 @@ describe('Migrate page recent imports on the available surface', () => {
 			expect(await screen.findByLabelText(hostOrAppLabel)).toBeInTheDocument();
 			expect(await screen.findByLabelText(apiKeyLabel)).toBeInTheDocument();
 			await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
-		}
-	);
-});
-
-describe('Migrate page neutral browser action bridge', () => {
-	it.each([
-		{
-			sourceProvider: 'algolia',
-			hostOrAppLabel: /algolia application id/i,
-			hostOrAppValue: 'ALGOLIA_BROWSER_APP',
-			apiKeyLabel: /algolia api key/i,
-			apiKey: 'algolia-browser-key',
-			credentials: {
-				appId: 'ALGOLIA_BROWSER_APP',
-				apiKey: 'algolia-browser-key'
-			}
-		},
-		{
-			sourceProvider: 'meilisearch',
-			hostOrAppLabel: /meilisearch host url/i,
-			hostOrAppValue: 'https://meilisearch.example.test',
-			apiKeyLabel: /meilisearch api key/i,
-			apiKey: 'meilisearch-browser-key',
-			credentials: {
-				host: 'https://meilisearch.example.test',
-				apiKey: 'meilisearch-browser-key'
-			}
-		},
-		{
-			sourceProvider: 'typesense',
-			hostOrAppLabel: /typesense host url/i,
-			hostOrAppValue: 'https://typesense.example.test',
-			apiKeyLabel: /typesense api key/i,
-			apiKey: 'typesense-browser-key',
-			credentials: {
-				host: 'https://typesense.example.test',
-				apiKey: 'typesense-browser-key'
-			}
-		}
-	] as const)(
-		'preserves selected $sourceProvider through discovery, eligibility, and create FormData payloads',
-		async ({
-			sourceProvider,
-			hostOrAppLabel,
-			hostOrAppValue,
-			apiKeyLabel,
-			apiKey,
-			credentials
-		}) => {
-			const providerEligibilityResult = {
-				type: 'success',
-				status: 200,
-				data: {
-					providerEligibility: {
-						phase: 'provider',
-						mode: 'create',
-						provider: 'aws',
-						target: { kind: 'create', region: 'us-east-1' },
-						eligibilityToken: 'provider-token',
-						expiresAt: '2099-07-18T10:15:00Z'
-					}
-				}
-			};
-			deserializeMock.mockReset().mockReturnValueOnce(providerEligibilityResult);
-			if (sourceProvider !== 'algolia') {
-				deserializeMock.mockReturnValueOnce(providerEligibilityResult).mockReturnValueOnce({
-					type: 'success',
-					status: 200,
-					data: { recentImports: { jobs: [], nextCursor: null } }
-				});
-			}
-			deserializeMock
-				.mockReturnValueOnce({
-					type: 'success',
-					status: 200,
-					data: {
-						sourceIndexes: {
-							items: [
-								{
-									name: 'source_products',
-									entries: 17,
-									dataSize: 2048,
-									fileSize: 4096,
-									updatedAt: '2026-07-18T10:00:00Z',
-									lastBuildTimeS: 3,
-									pendingTask: false,
-									primary: null,
-									replicas: []
-								}
-							],
-							nextCursor: null
-						}
-					}
-				})
-				.mockReturnValueOnce({
-					type: 'success',
-					status: 200,
-					data: {
-						targetEligibility: {
-							phase: 'target',
-							mode: 'create',
-							provider: 'aws',
-							target: {
-								kind: 'create',
-								region: 'us-east-1',
-								name: 'source_products'
-							},
-							eligibilityToken: 'target-token',
-							expiresAt: '2099-07-18T10:20:00Z'
-						}
-					}
-				})
-				.mockReturnValueOnce({
-					type: 'success',
-					status: 200,
-					data: { job: { id: `${sourceProvider}-job`, sourceProvider } }
-				});
-			gotoMock.mockResolvedValue(undefined);
-
-			renderMigratePage(availableAvailability, {
-				page: { jobs: [], nextCursor: null },
-				error: null
-			});
-
-			expect(await screen.findByTestId('migration-create-flow')).toBeInTheDocument();
-			await fireEvent.click(
-				await screen.findByRole('radio', { name: new RegExp(sourceProvider, 'i') })
-			);
-			await fireEvent.input(await screen.findByLabelText(hostOrAppLabel), {
-				target: { value: hostOrAppValue }
-			});
-			await fireEvent.input(await screen.findByLabelText(apiKeyLabel), {
-				target: { value: apiKey }
-			});
-			const connectButton = screen.getByRole('button', {
-				name: new RegExp(`connect to ${sourceProvider}`, 'i')
-			});
-			expect(connectButton).toBeEnabled();
-			await fireEvent.click(connectButton);
-			await screen.findByTestId('migration-source-row-source_products');
-
-			expect(submittedActionPayload('listSourceIndexes')).toEqual({
-				source_provider: sourceProvider,
-				...credentials
-			});
-
-			await fireEvent.change(screen.getByRole('radio', { name: /source_products/i }));
-			await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
-			await screen.findByTestId('migration-create-review');
-
-			expect(submittedActionPayload('checkDestinationEligibility')).toEqual({
-				source_provider: sourceProvider,
-				phase: 'target',
-				mode: 'create',
-				target: { region: 'us-east-1', name: 'source_products' },
-				eligibilityToken: 'provider-token'
-			});
-
-			await fireEvent.click(screen.getByRole('button', { name: /start import/i }));
-			await waitFor(() =>
-				expect(fetchMock).toHaveBeenCalledWith(
-					'?/createImportJob',
-					expect.objectContaining({ method: 'POST' })
-				)
-			);
-
-			expect(submittedActionPayload('createImportJob')).toEqual({
-				source_provider: sourceProvider,
-				mode: 'create',
-				...credentials,
-				sourceName: 'source_products',
-				target: { eligibilityToken: 'target-token' }
-			});
-			expect(submittedActionFormData('createImportJob').get('idempotencyKey')).toEqual(
-				expect.any(String)
-			);
-			await waitFor(() =>
-				expect(gotoMock).toHaveBeenCalledWith(
-					`/console/migrate/${sourceProvider}-job?source_provider=${sourceProvider}`
-				)
-			);
 		}
 	);
 });

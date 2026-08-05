@@ -24,11 +24,18 @@ check_port_available() {
     local name="$2"
 
     if ! command -v lsof >/dev/null 2>&1; then
-        return 0
+        log "lsof is required to check port $port (needed for $name); port ownership is indeterminate"
+        return 1
     fi
 
-    if ! lsof -i :"$port" -sTCP:LISTEN -P >/dev/null 2>&1; then
+    local lsof_status=0
+    lsof -i :"$port" -sTCP:LISTEN -P >/dev/null 2>&1 || lsof_status=$?
+    if [ "$lsof_status" -eq 1 ]; then
         return 0
+    fi
+    if [ "$lsof_status" -ne 0 ]; then
+        log "lsof failed while checking port $port (needed for $name); port ownership is indeterminate"
+        return 1
     fi
 
     log "port $port is already in use (needed for $name)"

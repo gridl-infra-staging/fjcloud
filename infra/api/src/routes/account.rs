@@ -14,7 +14,9 @@ use crate::helpers::lock_account_lifecycle;
 use crate::models::{BillingPlan, Customer};
 use crate::password::{hash_password, verify_password};
 use crate::state::AppState;
-use crate::validation::{validate_length, validate_password, MAX_NAME_LEN, MAX_PASSWORD_LEN};
+use crate::validation::{
+    validate_length, validate_password, validate_password_max_bytes, MAX_NAME_LEN,
+};
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct CustomerProfileResponse {
@@ -232,7 +234,7 @@ pub async fn change_password(
     State(state): State<AppState>,
     Json(req): Json<ChangePasswordRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    validate_length("current password", &req.current_password, MAX_PASSWORD_LEN)?;
+    validate_password_max_bytes("current password", &req.current_password)?;
     validate_password(&req.new_password)?;
 
     let customer = find_customer(&state, tenant.customer_id).await?;
@@ -276,7 +278,7 @@ pub async fn delete_account(
     State(state): State<AppState>,
     Json(req): Json<DeleteAccountRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    validate_length("password", &req.password, MAX_PASSWORD_LEN)?;
+    validate_password_max_bytes("password", &req.password)?;
 
     let customer = find_customer(&state, tenant.customer_id).await?;
     let password_hash = password_hash(&customer)?;

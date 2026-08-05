@@ -5,7 +5,7 @@ import {
 	availableAvailability,
 	publicWarnings,
 	WARNING_GROUPS
-} from '../../../src/lib/components/migration/migration_test_fixtures';
+} from '../../../src/lib/components/migration/migration_fixtures_data';
 import type {
 	AlgoliaDestinationEligibilityRequest,
 	AlgoliaDestinationEligibilityResponse,
@@ -16,7 +16,8 @@ import type {
 	PublicAlgoliaImportError,
 	PublicAlgoliaImportJob,
 	PublicAlgoliaImportJobPage,
-	SourceProvider
+	SourceProvider,
+	VerifySourceMigrationResponse
 } from '../../../src/lib/api/types';
 
 const JOB_ID = 'job_123';
@@ -32,6 +33,24 @@ const SOURCE_PROVIDER_LABELS = {
 	meilisearch: 'Meilisearch',
 	typesense: 'Typesense'
 } satisfies Record<SourceProvider, string>;
+
+const MOCKED_ENGINE_PREVIEW_SUPPORT = {
+	algolia: true,
+	meilisearch: true,
+	typesense: false
+} satisfies Record<SourceProvider, boolean>;
+
+// Mirrors `engine_supports_source_verification` in
+// infra/api/src/routes/migration/capabilities.rs, which owns the Algolia-only rule and
+// keeps its match exhaustive so a new provider cannot silently inherit verification.
+// Publishing verify:true for every provider here would mock a state the API cannot
+// produce, and the console would render the Algolia credential form for a Meilisearch or
+// Typesense job. Move this together with the Rust owner if verification widens.
+const MOCKED_ENGINE_VERIFY_SUPPORT = {
+	algolia: true,
+	meilisearch: false,
+	typesense: false
+} satisfies Record<SourceProvider, boolean>;
 
 const SOURCE_PROVIDER_CREDENTIALS = {
 	algolia: {
@@ -51,11 +70,99 @@ const SOURCE_PROVIDER_CREDENTIALS = {
 type JobScenario =
 	| 'progression'
 	| 'cancel'
+	| 'cutover_completed'
 	| 'invalid_credentials'
 	| 'source_provider_unsupported'
 	| 'warning_detail';
 
+type CutoverVerificationScenario =
+	| 'idle'
+	| 'running'
+	| 'high_agreement'
+	| 'differences'
+	| 'invalid_credentials'
+	| 'missing_source_permission'
+	| 'source_not_found'
+	| 'backend_unavailable'
+	| 'internal';
+
 export const WARNING_DETAIL_GROUPS = WARNING_GROUPS;
+export const CUTOVER_VERIFICATION_INPUT = {
+	appId: SOURCE_PROVIDER_CREDENTIALS.algolia.appId,
+	apiKey: SOURCE_PROVIDER_CREDENTIALS.algolia.apiKey,
+	queries: ['running shoes', 'boots'],
+	resultLimit: 3
+} as const;
+
+export const CUTOVER_HIGH_AGREEMENT_REPORT = {
+	sourceIndex: SOURCE_NAME,
+	destinationIndex: SOURCE_NAME,
+	resultLimit: 3,
+	queries: [
+		{
+			query: 'running shoes',
+			overlapCount: 3,
+			sourceOnly: [],
+			destinationOnly: [],
+			hits: [
+				{ objectID: 's1', sourceRank: 1, destinationRank: 1, rankDelta: 0 },
+				{ objectID: 's2', sourceRank: 2, destinationRank: 2, rankDelta: 0 },
+				{ objectID: 's3', sourceRank: 3, destinationRank: 3, rankDelta: 0 }
+			]
+		}
+	]
+} satisfies VerifySourceMigrationResponse;
+
+export const CUTOVER_DIFFERENCES_REPORT = {
+	sourceIndex: SOURCE_NAME,
+	destinationIndex: SOURCE_NAME,
+	resultLimit: CUTOVER_VERIFICATION_INPUT.resultLimit,
+	queries: [
+		{
+			query: 'running shoes',
+			overlapCount: 2,
+			sourceOnly: ['s1'],
+			destinationOnly: ['z9'],
+			hits: [
+				{ objectID: 's2', sourceRank: 2, destinationRank: 1, rankDelta: -1 },
+				{ objectID: 's3', sourceRank: 3, destinationRank: 2, rankDelta: -1 }
+			]
+		},
+		{
+			query: 'boots',
+			overlapCount: 1,
+			sourceOnly: ['b2'],
+			destinationOnly: [],
+			hits: [{ objectID: 'b1', sourceRank: 1, destinationRank: 1, rankDelta: 0 }]
+		}
+	]
+} satisfies VerifySourceMigrationResponse;
+
+export const CUTOVER_VERIFICATION_ERRORS = {
+	invalid_credentials: {
+		code: 'invalid_credentials',
+		message: 'redacted invalid credentials fixture'
+	},
+	missing_source_permission: {
+		code: 'missing_source_permission',
+		message: 'redacted missing source permission fixture'
+	},
+	source_not_found: {
+		code: 'source_not_found',
+		message: 'redacted source not found fixture'
+	},
+	backend_unavailable: {
+		code: 'backend_unavailable',
+		message: 'redacted backend unavailable fixture'
+	},
+	internal: {
+		code: 'internal',
+		message: 'redacted internal engine failure fixture'
+	}
+} satisfies Record<
+	Exclude<CutoverVerificationScenario, 'idle' | 'running' | 'high_agreement' | 'differences'>,
+	{ code: PublicAlgoliaImportError['code']; message: string }
+>;
 
 export type MigrationConsoleFlowFixture = {
 	sourceProvider: SourceProvider;
@@ -67,10 +174,13 @@ export type MigrationConsoleFlowFixture = {
 	jobId: string;
 	sourceName: string;
 	counts: {
+		availability: number;
 		providerEligibility: number;
 		listSourceIndexes: number;
 		checkDestinationEligibility: number;
+		previewImport: number;
 		createImportJob: number;
+		verify: number;
 		cancel: number;
 		migrateDataRewrites: number;
 		documentRewrites: number;
@@ -81,18 +191,28 @@ export type MigrationConsoleFlowFixture = {
 	actionPayloads: Array<{ action: string; payload: unknown }>;
 	jobNavigationSearchParams: string[];
 	publicResponseBodies: string[];
+	completePendingVerification: () => void;
 };
 
 type FixtureOptions = {
 	sourceProvider?: SourceProvider;
 	jobScenario?: JobScenario;
+	cutoverVerificationScenario?: CutoverVerificationScenario;
+	publishedVerifyCapability?: boolean;
 };
 
-const runningCapabilities = {
-	cancel: true,
-	resume: false,
-	replace: true
-} satisfies AlgoliaMigrationCapabilities;
+function jobCapabilitiesFor(
+	sourceProvider: SourceProvider,
+	publishedVerifyCapability: boolean
+): AlgoliaMigrationCapabilities {
+	return {
+		cancel: true,
+		resume: false,
+		replace: true,
+		preview: MOCKED_ENGINE_PREVIEW_SUPPORT[sourceProvider],
+		verify: publishedVerifyCapability
+	};
+}
 
 const sourceIndex = {
 	name: SOURCE_NAME,
@@ -132,6 +252,16 @@ function targetEligibilityFor(
 	};
 }
 
+function availabilityFor(sourceProvider: SourceProvider) {
+	return {
+		...availableAvailability,
+		capabilities: {
+			...availableAvailability.capabilities,
+			preview: MOCKED_ENGINE_PREVIEW_SUPPORT[sourceProvider]
+		}
+	};
+}
+
 export async function installMigrationConsoleFlowFixture(
 	page: Page,
 	options: FixtureOptions = {}
@@ -148,10 +278,13 @@ export async function installMigrationConsoleFlowFixture(
 		jobId: JOB_ID,
 		sourceName: SOURCE_NAME,
 		counts: {
+			availability: 0,
 			providerEligibility: 0,
 			listSourceIndexes: 0,
 			checkDestinationEligibility: 0,
+			previewImport: 0,
 			createImportJob: 0,
+			verify: 0,
 			cancel: 0,
 			migrateDataRewrites: 0,
 			documentRewrites: 0,
@@ -161,9 +294,17 @@ export async function installMigrationConsoleFlowFixture(
 		credentialRequestBodies: [],
 		actionPayloads: [],
 		jobNavigationSearchParams: [],
-		publicResponseBodies: []
+		publicResponseBodies: [],
+		completePendingVerification: () => {
+			throw new Error('no cutover verification request is pending');
+		}
 	};
 	const scenario = options.jobScenario ?? 'progression';
+	const cutoverVerificationScenario = options.cutoverVerificationScenario ?? 'idle';
+	// Default to what the engine actually supports for this provider; an explicit option
+	// still lets a spec force the published capability to prove the fail-closed path.
+	const publishedVerifyCapability =
+		options.publishedVerifyCapability ?? MOCKED_ENGINE_VERIFY_SUPPORT[sourceProvider];
 	let progressionIndex = 0;
 	let cancelled = false;
 
@@ -190,19 +331,25 @@ export async function installMigrationConsoleFlowFixture(
 		}
 		state.jobNavigationSearchParams.push(new URL(route.request().url()).search);
 		const job =
-			scenario === 'invalid_credentials'
-				? importJob(state, { status: 'failed', error: { code: 'invalid_credentials' } })
-				: scenario === 'source_provider_unsupported'
-					? importJob(state, {
-							status: 'failed',
-							error: { code: 'source_provider_unsupported' }
-						})
-					: scenario === 'warning_detail'
-						? warningDetailJob(state)
-						: cancelled
-							? importJob(state, { status: 'cancelled', publicationDisposition: 'unchanged' })
-							: nextProgressionJob(state, progressionIndex++);
-		await fulfillJobData(route, state, job);
+			scenario === 'cutover_completed'
+				? importJob(state, {
+						status: 'completed',
+						terminalOutcomeObserved: true,
+						publicationDisposition: 'promoted'
+					})
+				: scenario === 'invalid_credentials'
+					? importJob(state, { status: 'failed', error: { code: 'invalid_credentials' } })
+					: scenario === 'source_provider_unsupported'
+						? importJob(state, {
+								status: 'failed',
+								error: { code: 'source_provider_unsupported' }
+							})
+						: scenario === 'warning_detail'
+							? warningDetailJob(state)
+							: cancelled
+								? importJob(state, { status: 'cancelled', publicationDisposition: 'unchanged' })
+								: nextProgressionJob(state, progressionIndex++);
+		await fulfillJobData(route, state, job, { publishedVerifyCapability });
 	});
 
 	await page.route('**/console/migrate**', async (route) => {
@@ -218,6 +365,14 @@ export async function installMigrationConsoleFlowFixture(
 			state.actionPayloads.push({ action: 'providerEligibility', payload });
 			expect(payload).toEqual({ source_provider: sourceProvider, region: REGION });
 			await fulfillAction(route, { providerEligibility: providerEligibilityFor(sourceProvider) });
+			return;
+		}
+		if (url.includes('?/availability')) {
+			state.counts.availability += 1;
+			const payload = actionPayload(request.postData() ?? '', 'availability');
+			state.actionPayloads.push({ action: 'availability', payload });
+			expect(payload).toEqual({ source_provider: sourceProvider });
+			await fulfillAction(route, { availability: availabilityFor(sourceProvider) });
 			return;
 		}
 		if (url.includes('?/listSourceIndexes')) {
@@ -254,6 +409,26 @@ export async function installMigrationConsoleFlowFixture(
 			await fulfillAction(route, { targetEligibility: targetEligibilityFor(sourceProvider) });
 			return;
 		}
+		if (url.includes('?/previewImport')) {
+			state.counts.previewImport += 1;
+			const rawBody = request.postData() ?? '';
+			state.credentialRequestBodies.push(rawBody);
+			const payload = actionPayload(rawBody, 'previewImport');
+			state.actionPayloads.push({ action: 'previewImport', payload });
+			expect(sourceProvider).not.toBe('typesense');
+			expect(payload).toEqual(expectedPreviewPayload(sourceProvider));
+			await fulfillAction(route, {
+				preview: {
+					sourceCounts: { indexes: 3, records: 42 },
+					report: {
+						summary: { totalEntries: 0, hardRejections: 0, warnings: 0, scopeGaps: 0 },
+						entries: [],
+						reportDigest: 'sha256:mocked-browser-preview'
+					}
+				}
+			});
+			return;
+		}
 		if (url.includes('?/createImportJob')) {
 			state.counts.createImportJob += 1;
 			const rawBody = request.postData() ?? '';
@@ -271,6 +446,40 @@ export async function installMigrationConsoleFlowFixture(
 			state.actionPayloads.push({ action: 'createImportJob', payload });
 			expect(payload).toEqual(expectedCreatePayload(sourceProvider));
 			await fulfillAction(route, { job: importJob(state, { status: 'queued' }) });
+			return;
+		}
+		if (url.includes('?/verify')) {
+			state.counts.verify += 1;
+			const rawBody = request.postData() ?? '';
+			state.credentialRequestBodies.push(rawBody);
+			const payload = verificationPayload(rawBody);
+			state.actionPayloads.push({ action: 'verify', payload });
+			expect(payload).toEqual(expectedVerificationPayload(sourceProvider));
+			if (cutoverVerificationScenario === 'running') {
+				await new Promise<void>((resolve) => {
+					state.completePendingVerification = resolve;
+				});
+			}
+			const verificationError =
+				cutoverVerificationScenario in CUTOVER_VERIFICATION_ERRORS
+					? CUTOVER_VERIFICATION_ERRORS[
+							cutoverVerificationScenario as keyof typeof CUTOVER_VERIFICATION_ERRORS
+						]
+					: null;
+			if (verificationError !== null) {
+				await fulfillActionFailure(route, state, verificationError);
+				return;
+			}
+			await fulfillAction(
+				route,
+				{
+					report:
+						cutoverVerificationScenario === 'differences'
+							? CUTOVER_DIFFERENCES_REPORT
+							: CUTOVER_HIGH_AGREEMENT_REPORT
+				},
+				state
+			);
 			return;
 		}
 		await route.fallback();
@@ -294,20 +503,28 @@ export async function installMigrationConsoleFlowFixture(
 
 export async function assertMigrationFixtureSatisfied(
 	state: MigrationConsoleFlowFixture,
-	options: { create?: boolean; cancel?: boolean; jobLoads?: boolean | number } = {}
+	options: {
+		checked?: boolean;
+		create?: boolean;
+		cancel?: boolean;
+		jobLoads?: boolean | number;
+		preview?: boolean;
+		verify?: boolean;
+	} = {}
 ): Promise<void> {
 	expect(state.counts.documentRewrites).toBe(1);
 	expect(state.counts.migrateDataRewrites).toBe(0);
+	expect(state.counts.availability).toBe(1);
+	expect(actionPayloads(state, 'availability')).toEqual([
+		{ source_provider: state.sourceProvider }
+	]);
 	expect(state.counts.providerEligibility).toBe(1);
 	expect(actionPayloads(state, 'providerEligibility')).toEqual([
 		{ source_provider: state.sourceProvider, region: REGION }
 	]);
-	if (options.create) {
+	if (options.checked || options.create) {
 		expect(state.counts.listSourceIndexes).toBe(1);
 		expect(state.counts.checkDestinationEligibility).toBe(1);
-		expect(state.counts.createImportJob).toBe(1);
-		expect(state.createIdempotencyKeys).toHaveLength(1);
-		expect(new Set(state.createIdempotencyKeys).size).toBe(1);
 		expect(actionPayloads(state, 'listSourceIndexes')).toEqual([
 			expectedSourceListPayload(state.sourceProvider)
 		]);
@@ -320,9 +537,36 @@ export async function assertMigrationFixtureSatisfied(
 				eligibilityToken: `${state.sourceProvider}-${PROVIDER_TOKEN}`
 			}
 		]);
+	} else {
+		expect(state.counts.listSourceIndexes).toBe(0);
+		expect(state.counts.checkDestinationEligibility).toBe(0);
+	}
+	if (options.create) {
+		expect(state.counts.createImportJob).toBe(1);
+		expect(state.createIdempotencyKeys).toHaveLength(1);
+		expect(new Set(state.createIdempotencyKeys).size).toBe(1);
 		expect(actionPayloads(state, 'createImportJob')).toEqual([
 			expectedCreatePayload(state.sourceProvider)
 		]);
+	} else {
+		expect(state.counts.createImportJob).toBe(0);
+		expect(state.createIdempotencyKeys).toHaveLength(0);
+	}
+	if (options.preview) {
+		expect(state.counts.previewImport).toBe(1);
+		expect(actionPayloads(state, 'previewImport')).toEqual([
+			expectedPreviewPayload(state.sourceProvider)
+		]);
+	} else {
+		expect(state.counts.previewImport).toBe(0);
+	}
+	if (options.verify) {
+		expect(state.counts.verify).toBe(1);
+		expect(actionPayloads(state, 'verify')).toEqual([
+			expectedVerificationPayload(state.sourceProvider)
+		]);
+	} else {
+		expect(state.counts.verify).toBe(0);
 	}
 	if (options.cancel) {
 		expect(state.counts.cancel).toBe(1);
@@ -418,6 +662,38 @@ function expectedCreatePayload(sourceProvider: SourceProvider): {
 			};
 }
 
+function expectedPreviewPayload(sourceProvider: SourceProvider): Record<string, unknown> {
+	const credentials = SOURCE_PROVIDER_CREDENTIALS[sourceProvider];
+	if (sourceProvider === 'algolia') {
+		return {
+			source_provider: sourceProvider,
+			appId: 'appId' in credentials ? credentials.appId : '',
+			apiKey: credentials.apiKey,
+			sourceIndex: SOURCE_NAME,
+			targetIndex: SOURCE_NAME,
+			overwrite: false
+		};
+	}
+	return {
+		source_provider: sourceProvider,
+		endpoint: 'host' in credentials ? credentials.host : '',
+		apiKey: credentials.apiKey,
+		sourceIndex: SOURCE_NAME,
+		targetIndex: SOURCE_NAME,
+		overwrite: false
+	};
+}
+
+function expectedVerificationPayload(sourceProvider: SourceProvider): Record<string, string> {
+	return {
+		source_provider: sourceProvider,
+		appId: CUTOVER_VERIFICATION_INPUT.appId,
+		apiKey: CUTOVER_VERIFICATION_INPUT.apiKey,
+		queries: CUTOVER_VERIFICATION_INPUT.queries.join('\n'),
+		resultLimit: String(CUTOVER_VERIFICATION_INPUT.resultLimit)
+	};
+}
+
 function recentImportsPage(
 	state: MigrationConsoleFlowFixture,
 	job: PublicAlgoliaImportJob = importJob(state)
@@ -485,7 +761,8 @@ async function fulfillMigrateData(
 async function fulfillJobData(
 	route: Route,
 	state: MigrationConsoleFlowFixture,
-	job: PublicAlgoliaImportJob
+	job: PublicAlgoliaImportJob,
+	options: { publishedVerifyCapability: boolean }
 ): Promise<void> {
 	const payload = {
 		type: 'data',
@@ -494,7 +771,15 @@ async function fulfillJobData(
 			null,
 			{
 				type: 'data',
-				data: JSON.parse(stringify({ job, capabilities: runningCapabilities })),
+				data: JSON.parse(
+					stringify({
+						job,
+						capabilities: jobCapabilitiesFor(
+							state.sourceProvider,
+							options.publishedVerifyCapability
+						)
+					})
+				),
 				uses: { params: ['jobId'] }
 			}
 		]
@@ -509,15 +794,41 @@ async function fulfillJobData(
 	});
 }
 
-async function fulfillAction(route: Route, data: Record<string, unknown>): Promise<void> {
+async function fulfillAction(
+	route: Route,
+	data: Record<string, unknown>,
+	state?: MigrationConsoleFlowFixture
+): Promise<void> {
+	const body = JSON.stringify({
+		type: 'success',
+		status: 200,
+		data: stringify(data)
+	});
+	if (state) {
+		state.publicResponseBodies.push(body);
+	}
 	await route.fulfill({
 		status: 200,
 		contentType: 'application/json',
-		body: JSON.stringify({
-			type: 'success',
-			status: 200,
-			data: stringify(data)
-		})
+		body
+	});
+}
+
+async function fulfillActionFailure(
+	route: Route,
+	state: MigrationConsoleFlowFixture,
+	data: Record<string, unknown>
+): Promise<void> {
+	const body = JSON.stringify({
+		type: 'failure',
+		status: 400,
+		data: stringify(data)
+	});
+	state.publicResponseBodies.push(body);
+	await route.fulfill({
+		status: 200,
+		contentType: 'application/json',
+		body
 	});
 }
 
@@ -537,6 +848,17 @@ function actionPayload(body: string, actionName: string): unknown {
 	const payload = parseMultipartForm(body).payload ?? '';
 	expect(payload, `${actionName} multipart payload`).not.toBe('');
 	return JSON.parse(payload) as unknown;
+}
+
+function verificationPayload(body: string): Record<string, string> {
+	const form = parseMultipartForm(body);
+	return {
+		source_provider: form.source_provider ?? '',
+		appId: form.appId ?? '',
+		apiKey: form.apiKey ?? '',
+		queries: form.queries ?? '',
+		resultLimit: form.resultLimit ?? ''
+	};
 }
 
 function nextProgressionJob(
@@ -566,6 +888,13 @@ function retainedListJob(
 	}
 	if (scenario === 'warning_detail') {
 		return warningDetailJob(state);
+	}
+	if (scenario === 'cutover_completed') {
+		return importJob(state, {
+			status: 'completed',
+			terminalOutcomeObserved: true,
+			publicationDisposition: 'promoted'
+		});
 	}
 	return importJob(state);
 }

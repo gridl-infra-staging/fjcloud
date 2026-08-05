@@ -1,5 +1,5 @@
 use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
@@ -22,6 +22,10 @@ use crate::state::AppState;
 
 type HmacSha256 = Hmac<Sha256>;
 
+/// Placeholder every redacting `Debug`/`Serialize` rendering of a migration
+/// request substitutes for a source credential or source-owned name.
+pub(super) const REDACTED_CREDENTIAL: &str = "[REDACTED]";
+
 pub const ALGOLIA_MIGRATION_UNAVAILABLE_REASON: &str = "temporarily_unavailable";
 pub const ALGOLIA_MIGRATION_UNAVAILABLE_MESSAGE: &str =
     "Algolia migration is temporarily unavailable while we replace the importer.";
@@ -35,15 +39,14 @@ const LIST_CURSOR_TTL_SECONDS: i64 = 900;
 mod capabilities;
 mod eligibility;
 mod jobs;
+mod preview;
 mod retained_jobs;
 mod source;
+mod verify;
 
 use source::map_algolia_source_error;
 
-// Re-export handlers, request DTOs, and `#[utoipa::path]`-generated path items
-// so existing route assembly and test-only OpenAPI generation resolve unchanged
-// after extracting the migration route surface.
-pub use capabilities::AlgoliaMigrationCapabilities;
+pub use capabilities::{engine_supported_migration_capabilities, AlgoliaMigrationCapabilities};
 pub use eligibility::{
     __path_check_destination_eligibility, check_destination_eligibility,
     AlgoliaDestinationEligibilityRequest, AlgoliaDestinationEligibilityResponse,
@@ -51,13 +54,32 @@ pub use eligibility::{
 pub use jobs::{
     __path_cancel_import_job, __path_create_import_job, __path_resume_import_job,
     cancel_import_job, create_import_job, resume_import_job, CancelAlgoliaImportJobRequest,
-    CreateAlgoliaImportJobRequest, ResumeAlgoliaImportJobRequest,
+    CreateAlgoliaImportJobRequest, CreateMeilisearchImportJobRequest, CreateSourceImportJobRequest,
+    CreateTypesenseImportJobRequest, ResumeAlgoliaImportJobRequest,
+};
+pub use preview::{
+    __path_preview_source_migration, preview_source_migration, AlgoliaMigrationPreviewRequest,
+    MeilisearchMigrationPreviewRequest, MigrationPreviewReport, MigrationPreviewReportCode,
+    MigrationPreviewReportEntry, MigrationPreviewReportResource, MigrationPreviewReportSeverity,
+    MigrationPreviewReportSummary, MigrationPreviewRequest, MigrationPreviewResponse,
+    MigrationPreviewSourceCounts,
 };
 pub use retained_jobs::{
     __path_get_import_job, __path_list_import_jobs, get_import_job, list_import_jobs,
     ListAlgoliaImportJobsQuery, PublicAlgoliaImportJob, PublicAlgoliaImportJobPage,
 };
-pub use source::{__path_list_source_indexes, list_source_indexes, ListAlgoliaIndexesRequest};
+pub use source::{
+    __path_list_source_indexes, list_source_indexes, ListAlgoliaIndexesRequest,
+    ListMeilisearchIndexesRequest, ListSourceIndexesRequest, ListSourceIndexesResponse,
+    ListSourceIndexesResponseBody, ListTypesenseIndexesRequest, SourceIndexCreatedAt,
+    SourceIndexSummary,
+};
+pub use verify::{
+    __path_verify_source_migration, verify_source_migration,
+    VerifySourceMigrationBadRequestResponse, VerifySourceMigrationHitComparison,
+    VerifySourceMigrationQueryReport, VerifySourceMigrationRequest, VerifySourceMigrationResponse,
+    VerifySourceMigrationRestoreStatusResponse, VerifySourceMigrationServiceUnavailableResponse,
+};
 
 pub use check_destination_eligibility as check_algolia_destination_eligibility;
 pub use list_source_indexes as list_algolia_indexes;
@@ -102,9 +124,17 @@ fn validate_source_provider(
         migration_error(StatusCode::BAD_REQUEST, error_code.as_str(), error_code)
     })?;
 
+    Ok(provider)
+}
+
+fn validate_adapter_source_provider(
+    source_provider: Option<&str>,
+) -> Result<SourceImportProvider, ApiError> {
+    let provider = validate_source_provider(source_provider)?;
+
     // The adapter refusal must stay ahead of credential handling, repository
     // access, and migration-engine calls for recognized but unimplemented
-    // source identities.
+    // source identities on stateful import routes.
     if !provider.has_adapter() {
         let error_code = AlgoliaImportErrorCode::SourceProviderUnsupported;
         return Err(migration_error(
@@ -185,16 +215,8 @@ impl AlgoliaMigrationAvailabilityResponse {
             reason: Some(AlgoliaMigrationAvailabilityReason::TemporarilyUnavailable),
             message: ALGOLIA_MIGRATION_UNAVAILABLE_MESSAGE.to_string(),
             capabilities: capabilities::migration_capabilities(
-                AlgoliaMigrationCapabilities {
-                    cancel: false,
-                    resume: false,
-                    replace: false,
-                },
-                AlgoliaMigrationCapabilities {
-                    cancel: false,
-                    resume: false,
-                    replace: false,
-                },
+                capabilities::fail_closed_migration_capabilities(),
+                capabilities::fail_closed_migration_capabilities(),
             ),
         }
     }
@@ -223,25 +245,87 @@ fn compute_availability(
 
 pub(super) fn current_migration_availability(
     state: &AppState,
+    source_provider: SourceImportProvider,
 ) -> AlgoliaMigrationAvailabilityResponse {
     compute_availability(
         state.algolia_migration_enabled,
         capabilities::route_mounted_migration_capabilities(),
-        capabilities::engine_supported_migration_capabilities(),
+        capabilities::engine_supported_migration_capabilities(source_provider),
     )
 }
 
-pub(super) fn migration_available(state: &AppState) -> bool {
-    current_migration_availability(state).available
+pub(super) fn migration_available(state: &AppState, source_provider: SourceImportProvider) -> bool {
+    current_migration_availability(state, source_provider).available
+}
+
+pub(super) fn require_json_content_type(headers: &HeaderMap) -> Result<(), ApiError> {
+    let mut content_types = headers.get_all(axum::http::header::CONTENT_TYPE).iter();
+    let is_json = content_types
+        .next()
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .and_then(|media_type| media_type.trim().split_once('/'))
+        .is_some_and(|(kind, subtype)| {
+            let subtype = subtype.to_ascii_lowercase();
+            kind.eq_ignore_ascii_case("application")
+                && (subtype == "json"
+                    || subtype.strip_suffix("+json").is_some_and(|prefix| {
+                        !prefix.is_empty()
+                            && prefix.bytes().all(|byte| {
+                                byte.is_ascii_alphanumeric()
+                                    || matches!(
+                                        byte,
+                                        b'!' | b'#'
+                                            | b'$'
+                                            | b'%'
+                                            | b'&'
+                                            | b'\''
+                                            | b'*'
+                                            | b'+'
+                                            | b'-'
+                                            | b'.'
+                                            | b'^'
+                                            | b'_'
+                                            | b'`'
+                                            | b'|'
+                                            | b'~'
+                                    )
+                            })
+                    }))
+        })
+        && content_types.next().is_none();
+    if is_json {
+        return Ok(());
+    }
+    Err(migration_error(
+        StatusCode::UNSUPPORTED_MEDIA_TYPE,
+        "content_type_must_be_application_json",
+        AlgoliaImportErrorCode::IncompatibleData,
+    ))
+}
+
+pub(super) fn serde_offending_field(error: &serde_json::Error) -> Option<String> {
+    let message = error.to_string();
+    ["unknown field `", "missing field `", "duplicate field `"]
+        .into_iter()
+        .find_map(|prefix| {
+            let (_, rest) = message.split_once(prefix)?;
+            let (field, _) = rest.split_once('`')?;
+            Some(field.to_string())
+        })
 }
 
 #[utoipa::path(
     get,
-    path = "/migration/algolia/availability",
+    path = "/migration/{source_provider}/availability",
     operation_id = "algolia_availability",
     tag = "Migration",
+    params(
+        ("source_provider" = SourceImportProvider, Path, description = "Source migration provider"),
+    ),
     responses(
         (status = 200, description = "Algolia migration availability", body = AlgoliaMigrationAvailabilityResponse),
+        (status = 400, description = "Unsupported source provider (source_provider_unsupported)", body = crate::errors::MigrationErrorResponse),
         (status = 401, description = "Authentication required", body = crate::errors::ErrorResponse),
     )
 )]
@@ -250,8 +334,11 @@ pub async fn migration_availability(
     State(state): State<AppState>,
     Path(path): Path<MigrationSourcePath>,
 ) -> Result<Json<AlgoliaMigrationAvailabilityResponse>, ApiError> {
-    validate_source_provider(path.source_provider.as_deref())?;
-    Ok(Json(current_migration_availability(&state)))
+    let source_provider = validate_adapter_source_provider(path.source_provider.as_deref())?;
+    Ok(Json(current_migration_availability(
+        &state,
+        source_provider,
+    )))
 }
 
 pub use __path_migration_availability as __path_algolia_availability;
@@ -333,15 +420,16 @@ fn verify_provider_envelope(
 fn verify_target_envelope(
     state: &AppState,
     auth: &AuthenticatedTenant,
-    request: &jobs::CreateAlgoliaImportJobRequest,
+    expected_mode: AlgoliaImportDestinationKind,
+    eligibility_token: &str,
 ) -> Result<AlgoliaImportTargetBinding, ApiError> {
-    let claims = open_signed_eligibility_claims(state, &request.target.eligibility_token)?;
+    let claims = open_signed_eligibility_claims(state, eligibility_token)?;
     validate_target_claims(
         &claims,
         Utc::now().timestamp(),
         &auth.customer_id.to_string(),
     )?;
-    if claims.mode != request.mode {
+    if claims.mode != expected_mode {
         return Err(migration_error(
             StatusCode::BAD_REQUEST,
             "eligibility_mode_mismatch",
@@ -584,14 +672,17 @@ fn invalid_list_cursor() -> ApiError {
     ApiError::BadRequest("invalid_list_cursor".into())
 }
 
+/// Builds a coded migration-family error. `message` is `Into<String>` so callers
+/// carrying a runtime diagnostic (such as the preview proxy's engine-owned body)
+/// use this same owner rather than constructing the variant themselves.
 fn migration_error(
     status: StatusCode,
-    message: &'static str,
+    message: impl Into<String>,
     code: AlgoliaImportErrorCode,
 ) -> ApiError {
     ApiError::Migration {
         status,
-        message: message.to_string(),
+        message: message.into(),
         code,
         retry_after_seconds: None,
     }

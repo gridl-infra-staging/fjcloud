@@ -21,6 +21,7 @@ use crate::services::provisioning::{
 };
 use crate::services::vm_health_rollup::{health_rollup_for_tenants, VmHealth};
 use crate::state::AppState;
+use crate::validation::is_loopback_url;
 
 const WARM_FLOOR_REGION: &str = "us-east-1";
 const WARM_FLOOR_PROVIDER: &str = "aws";
@@ -590,39 +591,14 @@ pub async fn kill_vm(
 // Helper functions for local process management
 // ---------------------------------------------------------------------------
 
-/// Returns true if the URL's host is a loopback address (127.0.0.1, localhost,
-/// or [::1]). Used as a safety guard to prevent accidentally killing remote
-/// processes. Uses exact host matching — NOT prefix matching — to prevent
-/// bypasses like "http://127.0.0.199" or "http://localhost.evil.com".
+/// Returns true if the URL is an HTTP(S) URL whose host is a loopback address.
+/// Used as a safety guard to prevent accidentally killing remote processes.
+/// `is_loopback_url` owns the host policy; the scheme restriction stays here
+/// because it is specific to the `flapjack_url` shape this endpoint kills.
 pub(crate) fn is_localhost_url(url: &str) -> bool {
-    let Some(authority) = url
-        .strip_prefix("http://")
-        .or_else(|| url.strip_prefix("https://"))
-    else {
-        return false;
-    };
-    // Strip path and query: "127.0.0.1:7700/health?foo" -> "127.0.0.1:7700"
-    let host_port = authority.split('/').next().unwrap_or("");
-    // Extract just the host part (strip port if present).
-    // Handle IPv6 bracket notation: "[::1]:7700" -> "[::1]"
-    let host = if host_port.starts_with('[') {
-        // IPv6: everything up to and including ']'
-        host_port.split(']').next().map(|s| format!("{s}]"))
-    } else {
-        // IPv4 or hostname: everything before the last ':'
-        // But "127.0.0.1:7700" → host="127.0.0.1", "localhost" → host="localhost"
-        Some(
-            host_port
-                .rsplit_once(':')
-                .map(|(h, _)| h)
-                .unwrap_or(host_port)
-                .to_string(),
-        )
-    };
-    matches!(
-        host.as_deref(),
-        Some("127.0.0.1") | Some("localhost") | Some("[::1]")
-    )
+    reqwest::Url::parse(url)
+        .map(|parsed| matches!(parsed.scheme(), "http" | "https") && is_loopback_url(&parsed))
+        .unwrap_or(false)
 }
 
 /// Extracts the port number from a URL like "http://127.0.0.1:7701".
@@ -729,6 +705,7 @@ mod tests {
     fn is_localhost_url_accepts_ipv4_loopback() {
         assert!(is_localhost_url("http://127.0.0.1:7700"));
         assert!(is_localhost_url("http://127.0.0.1:7701/health"));
+        assert!(is_localhost_url("http://127.0.0.199:7700"));
         assert!(is_localhost_url("https://127.0.0.1:8080"));
     }
 
@@ -751,12 +728,19 @@ mod tests {
 
     #[test]
     fn is_localhost_url_rejects_similar_prefixes() {
-        // 127.0.0.199 is NOT the same as 127.0.0.1
-        assert!(!is_localhost_url("http://127.0.0.199:7700"));
         // localhost.evil.com is NOT localhost
         assert!(!is_localhost_url("http://localhost.evil.com:7700"));
         // 127.0.0.1.attacker.com is NOT 127.0.0.1
         assert!(!is_localhost_url("http://127.0.0.1.attacker.com:7700"));
+    }
+
+    #[test]
+    fn is_localhost_url_rejects_non_http_schemes() {
+        // The kill guard is only meaningful for the HTTP(S) flapjack_url shape;
+        // a loopback host under any other scheme is not a Flapjack endpoint.
+        assert!(!is_localhost_url("ftp://127.0.0.1:7700"));
+        assert!(!is_localhost_url("ws://localhost:7700"));
+        assert!(!is_localhost_url("file://localhost/etc/passwd"));
     }
 
     #[test]

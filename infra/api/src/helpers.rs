@@ -82,6 +82,7 @@ mod tests {
         ResendPasswordResetOutcome, ResendPasswordResetReservation, ResendVerificationOutcome,
         ResendVerificationReservation,
     };
+    use crate::services::audit_log::AuditEntry;
     use async_trait::async_trait;
     use chrono::Utc;
     use rust_decimal::Decimal;
@@ -308,6 +309,7 @@ mod tests {
             &self,
             _id: Uuid,
             _kind: CustomerHardDeleteKind,
+            _audit_policy: crate::repos::CustomerHardDeleteAuditPolicy,
         ) -> Result<CustomerHardDeleteOutcome, RepoError> {
             panic!("not used in this test");
         }
@@ -487,7 +489,7 @@ mod tests {
             panic!("not used in this test");
         }
 
-        async fn suspend(&self, _id: Uuid) -> Result<bool, RepoError> {
+        async fn suspend(&self, _id: Uuid, _audit_entry: AuditEntry) -> Result<bool, RepoError> {
             panic!("not used in this test");
         }
 

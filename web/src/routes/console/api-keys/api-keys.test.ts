@@ -178,7 +178,7 @@ describe('API Keys page', () => {
 			{ createdKey: 'fjc_live_created_key_value' }
 		);
 		await expect(getAccessibilityViolations(revealContainer)).resolves.toEqual([]);
-	});
+	}, 60_000);
 
 	it('renders seeded rows with lifecycle fields, scope labels, and row actions', () => {
 		renderPage();

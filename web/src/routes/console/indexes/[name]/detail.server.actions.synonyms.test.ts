@@ -54,65 +54,70 @@ const deleteSecuritySourceMock = vi.fn();
 // vi.mock (top-level, as required by vitest)
 // ---------------------------------------------------------------------------
 
-vi.mock('$lib/server/api', () => ({
-	createApiClient: vi.fn(() => ({
-		getIndex: getIndexMock,
-		getIndexSettings: getIndexSettingsMock,
-		listReplicas: listReplicasMock,
-		getInternalRegions: getInternalRegionsMock,
-		addObjects: addObjectsMock,
-		browseObjects: browseObjectsMock,
-		deleteObject: deleteObjectMock,
-		searchRules: searchRulesMock,
-		searchSynonyms: searchSynonymsMock,
-		getPersonalizationStrategy: getPersonalizationStrategyMock,
-		savePersonalizationStrategy: vi.fn(),
-		deletePersonalizationStrategy: vi.fn(),
-		getPersonalizationProfile: vi.fn(),
-		deletePersonalizationProfile: vi.fn(),
-		recommend: vi.fn(),
-		chat: vi.fn(),
-		getQsConfig: getQsConfigMock,
-		getQsStatus: getQsStatusMock,
-		getAnalyticsTopSearches: getAnalyticsTopSearchesMock,
-		getAnalyticsSearchCount: getAnalyticsSearchCountMock,
-		getAnalyticsNoResults: getAnalyticsNoResultsMock,
-		getAnalyticsNoResultRate: getAnalyticsNoResultRateMock,
-		getAnalyticsStatus: getAnalyticsStatusMock,
-		getAnalyticsDevices: getAnalyticsDevicesMock,
-		getAnalyticsCountries: getAnalyticsCountriesMock,
-		getAnalyticsFilters: getAnalyticsFiltersMock,
-		getAnalyticsConversionRate: getAnalyticsConversionRateMock,
-		getDebugEvents: getDebugEventsMock,
-		listExperiments: listExperimentsMock,
-		createExperiment: createExperimentMock,
-		deleteExperiment: deleteExperimentMock,
-		startExperiment: startExperimentMock,
-		stopExperiment: stopExperimentMock,
-		concludeExperiment: concludeExperimentMock,
-		getExperimentResults: getExperimentResultsMock,
-		updateIndexSettings: updateIndexSettingsMock,
-		saveRule: saveRuleMock,
-		deleteRule: deleteRuleMock,
-		saveSynonym: saveSynonymMock,
-		deleteSynonym: deleteSynonymMock,
-		clearSynonyms: clearSynonymsMock,
-		saveQsConfig: saveQsConfigMock,
-		deleteQsConfig: deleteQsConfigMock,
-		getDictionaryLanguages: getDictionaryLanguagesMock,
-		searchDictionaryEntries: searchDictionaryEntriesMock,
-		batchDictionaryEntries: batchDictionaryEntriesMock,
-		getSecuritySources: getSecuritySourcesMock,
-		appendSecuritySource: appendSecuritySourceMock,
-		deleteSecuritySource: deleteSecuritySourceMock
-	}))
-}));
+vi.mock('$lib/server/api', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('$lib/server/api')>();
+	return {
+		...actual,
+		createApiClient: vi.fn(() => ({
+			getIndex: getIndexMock,
+			getIndexSettings: getIndexSettingsMock,
+			listReplicas: listReplicasMock,
+			getInternalRegions: getInternalRegionsMock,
+			addObjects: addObjectsMock,
+			browseObjects: browseObjectsMock,
+			deleteObject: deleteObjectMock,
+			searchRules: searchRulesMock,
+			searchSynonyms: searchSynonymsMock,
+			getPersonalizationStrategy: getPersonalizationStrategyMock,
+			savePersonalizationStrategy: vi.fn(),
+			deletePersonalizationStrategy: vi.fn(),
+			getPersonalizationProfile: vi.fn(),
+			deletePersonalizationProfile: vi.fn(),
+			recommend: vi.fn(),
+			chat: vi.fn(),
+			getQsConfig: getQsConfigMock,
+			getQsStatus: getQsStatusMock,
+			getAnalyticsTopSearches: getAnalyticsTopSearchesMock,
+			getAnalyticsSearchCount: getAnalyticsSearchCountMock,
+			getAnalyticsNoResults: getAnalyticsNoResultsMock,
+			getAnalyticsNoResultRate: getAnalyticsNoResultRateMock,
+			getAnalyticsStatus: getAnalyticsStatusMock,
+			getAnalyticsDevices: getAnalyticsDevicesMock,
+			getAnalyticsCountries: getAnalyticsCountriesMock,
+			getAnalyticsFilters: getAnalyticsFiltersMock,
+			getAnalyticsConversionRate: getAnalyticsConversionRateMock,
+			getDebugEvents: getDebugEventsMock,
+			listExperiments: listExperimentsMock,
+			createExperiment: createExperimentMock,
+			deleteExperiment: deleteExperimentMock,
+			startExperiment: startExperimentMock,
+			stopExperiment: stopExperimentMock,
+			concludeExperiment: concludeExperimentMock,
+			getExperimentResults: getExperimentResultsMock,
+			updateIndexSettings: updateIndexSettingsMock,
+			saveRule: saveRuleMock,
+			deleteRule: deleteRuleMock,
+			saveSynonym: saveSynonymMock,
+			deleteSynonym: deleteSynonymMock,
+			clearSynonyms: clearSynonymsMock,
+			saveQsConfig: saveQsConfigMock,
+			deleteQsConfig: deleteQsConfigMock,
+			getDictionaryLanguages: getDictionaryLanguagesMock,
+			searchDictionaryEntries: searchDictionaryEntriesMock,
+			batchDictionaryEntries: batchDictionaryEntriesMock,
+			getSecuritySources: getSecuritySourcesMock,
+			appendSecuritySource: appendSecuritySourceMock,
+			deleteSecuritySource: deleteSecuritySourceMock
+		}))
+	};
+});
 
 // ---------------------------------------------------------------------------
 // Module under test (imported AFTER vi.mock)
 // ---------------------------------------------------------------------------
 
 import { actions } from './+page.server';
+import { createApiClient, createApiClientForBaseUrl } from '$lib/server/api';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -204,6 +209,35 @@ describe('Index detail page server -- actions (synonyms-preview)', () => {
 		);
 
 		expect(clearSynonymsMock).toHaveBeenCalledWith('products');
+		expect(result).toEqual({ synonymsCleared: true });
+	});
+
+	it('clearSynonyms action sends the exact authenticated POST transport contract', async () => {
+		const fetchMock = vi.fn().mockResolvedValue(
+			new Response(JSON.stringify({ taskID: 17, status: 'enqueued' }), {
+				status: 200,
+				headers: { 'Content-Type': 'application/json' }
+			})
+		);
+		vi.mocked(createApiClient).mockImplementationOnce((token) =>
+			createApiClientForBaseUrl('http://fjcloud.test', token, fetchMock as typeof globalThis.fetch)
+		);
+
+		const result = await actions.clearSynonyms(
+			makeActionArgs('clearSynonyms', new FormData()) as never
+		);
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const [url, init] = fetchMock.mock.calls[0];
+		expect(url).toBe('http://fjcloud.test/indexes/products/synonyms/clear');
+		expect(init).toEqual({
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: 'Bearer jwt-token'
+			}
+		});
+		expect(init?.body).toBeUndefined();
 		expect(result).toEqual({ synonymsCleared: true });
 	});
 

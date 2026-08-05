@@ -13,6 +13,8 @@ This directory is the canonical home for fjcloud web-console target behavior. Sc
 - `Loading`, `Empty`, and `Error` may be marked `N/A` only for shipped static public documents whose route body is a single article card with shared legal footer/support behavior.
 - Keep browser-test rules in `web/tests/e2e-ui/eslint.config.mjs` and `~/.matt/scrai/globals/standards/browser_testing.md`; do not copy those guides here.
 - Use `coverage.md` as the route/spec/test map. This checklist tracks execution, while individual specs own target UI behavior.
+- Mark a claim with `Evidence:` when it asserts something checkable. The marker is not decoration: `scripts/probe_screen_spec_claim_freshness.sh` parses these lines under `local-ci --gate claim-freshness-contract`, resolves every repo-local path they cite, and fails the gate on a path that does not exist.
+- A claim about another repository — `flapjack_dev` and its siblings — must record a command that re-derives it, because nobody working here can check it otherwise. Without one the gate fails it as `unproven`. With one it is reported `unverifiable_here` and passes, for someone in that repo to run. Vocabulary owner is [`docs/security/README.md`](../security/README.md) ("Evidence discipline"); do not invent a second one.
 
 ## Coverage Mapping
 

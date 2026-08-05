@@ -218,7 +218,31 @@ export type {
 	AlgoliaImportSummary,
 	AlgoliaImportWarning,
 	PublicAlgoliaImportJob,
-	PublicAlgoliaImportJobPage
+	PublicAlgoliaImportJobPage,
+	AlgoliaMigrationPreviewRequest,
+	MeilisearchMigrationPreviewRequest,
+	MigrationPreviewRequest,
+	MigrationPreviewSourceProvider,
+	MigrationPreviewArguments,
+	MigrationPreviewReportSeverity,
+	MigrationPreviewReportResource,
+	MigrationPreviewReportCode,
+	MigrationPreviewReportEntry,
+	MigrationPreviewReportSummary,
+	MigrationPreviewReport,
+	MigrationPreviewSourceCounts,
+	MigrationPreviewResponse,
+	VerifySourceMigrationRequest,
+	VerifySourceMigrationHitComparison,
+	VerifySourceMigrationQueryReport,
+	VerifySourceMigrationResponse
 } from './types_algolia_migration';
 
-export { SOURCE_PROVIDERS, isSourceProvider } from './types_algolia_migration';
+export {
+	SOURCE_PROVIDERS,
+	isSourceProvider,
+	MIGRATION_PREVIEW_SOURCE_PROVIDERS,
+	MIGRATION_PREVIEW_REPORT_SEVERITIES,
+	MIGRATION_PREVIEW_REPORT_RESOURCES,
+	MIGRATION_PREVIEW_REPORT_CODES
+} from './types_algolia_migration';

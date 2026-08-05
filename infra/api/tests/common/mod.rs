@@ -9,6 +9,7 @@ pub mod admin_broadcast_test_support;
 pub mod admin_vm_retirement_test_support;
 pub mod algolia_import_job_test_support;
 pub mod algolia_import_reservation_lifetime;
+pub mod api_key_auth_support;
 pub mod builders;
 pub mod capacity_profiles;
 pub mod catalog_live_binding;
@@ -47,6 +48,7 @@ use api::openapi::ApiDoc;
 use api::repos::index_replica_repo::IndexReplicaRepo;
 use api::repos::{TenantRepo, VmInventoryRepo};
 use api::secrets::{mock::MockNodeSecretManager, NodeSecretManager};
+use api::services::audit_log::{AuditEntry, ACTION_CUSTOMER_SUSPENDED};
 use api::services::object_store::{InMemoryObjectStore, ObjectStore, ObjectStoreError};
 use api::services::replication::{ReplicationConfig, ReplicationOrchestrator};
 use async_trait::async_trait;
@@ -86,6 +88,15 @@ fn encode_jwt(customer_id: Uuid, exp: usize, iat: usize, secret: &str) -> String
         &EncodingKey::from_secret(secret.as_bytes()),
     )
     .expect("JWT encoding should not fail")
+}
+
+pub fn customer_suspended_audit_entry(customer_id: Uuid) -> AuditEntry {
+    AuditEntry {
+        actor_id: Uuid::nil(),
+        action: ACTION_CUSTOMER_SUSPENDED.to_owned(),
+        target_tenant_id: Some(customer_id),
+        metadata: serde_json::json!({}),
+    }
 }
 
 /// Generate a valid JWT signed with `TEST_JWT_SECRET`, expiring in 1 hour.

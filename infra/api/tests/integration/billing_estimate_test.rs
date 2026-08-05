@@ -537,7 +537,13 @@ async fn estimate_401_without_auth() {
 async fn estimate_403_suspended_customer() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Acme", "acme@example.com");
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     let rate_card_repo = mock_rate_card_repo();
     rate_card_repo.seed_active_card(test_rate_card());

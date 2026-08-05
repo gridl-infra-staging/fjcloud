@@ -19,7 +19,8 @@ async fn body_json(resp: axum::response::Response) -> serde_json::Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
-fn admin_deployment_pg_test_app(pool: sqlx::PgPool) -> axum::Router {
+async fn admin_deployment_pg_test_app(pool: sqlx::PgPool) -> axum::Router {
+    crate::common::seed_test_admin_operator(&pool).await;
     let mut state = TestStateBuilder::new().with_pool(pool.clone()).build();
     state.deployment_repo = Arc::new(PgDeploymentRepo::new(pool));
     build_router(state)
@@ -206,7 +207,7 @@ async fn fail_provisioning_postgres_clears_transient_fields() {
     .unwrap();
 
     let response = post_fail_provisioning(
-        admin_deployment_pg_test_app(db.pool.clone()),
+        admin_deployment_pg_test_app(db.pool.clone()).await,
         deployment.id,
         json!({"reason":"retired_dead_ami_fleet"}),
         Some(TEST_ADMIN_KEY),
@@ -261,8 +262,9 @@ async fn fail_provisioning_postgres_race_reports_conflict_without_mutation() {
         .await
         .unwrap();
 
+    let route_app = admin_deployment_pg_test_app(route_pool).await;
     let route_task = tokio::spawn(post_fail_provisioning(
-        admin_deployment_pg_test_app(route_pool),
+        route_app,
         deployment.id,
         json!({"reason":"retired_dead_ami_fleet"}),
         Some(TEST_ADMIN_KEY),

@@ -1,6 +1,6 @@
 # Migrating from Meilisearch
 
-This guide maps common Meilisearch index, document, search, settings, and synonym operations to fjcloud JWT control-plane routes. It also states the current automated-import boundary: Meilisearch is a recognized source identity in the console and API, but fjcloud does not yet have a Meilisearch source adapter.
+This guide maps common Meilisearch index, document, search, settings, and synonym operations to fjcloud JWT control-plane routes. Meilisearch is a supported hosted-search source for discovery and retained import-job creation, subject to the endpoint restrictions below.
 
 ## Before you start
 
@@ -37,29 +37,29 @@ fjcloud separates verified customer identity from source-search credentials. Use
 
 Index creation is explicit and region-bound. Create the destination before manual document writes, then translate the Meilisearch primary-key field to fjcloud `objectID` values. Settings, filters, ranking behavior, and synonyms need semantic review rather than direct payload forwarding.
 
-The runnable fjcloud curl patterns for create, batch, search, get, delete, synonym, and rule operations remain in [Migrating from Algolia](./migrating_from_algolia.md). Those examples target fjcloud routes and are reusable even when Meilisearch automated import is unavailable.
+The runnable fjcloud curl patterns for create, batch, search, get, delete, synonym, and rule operations remain in [Migrating from Algolia](./migrating_from_algolia.md). Those examples target fjcloud routes and remain useful for validating a Meilisearch migration.
 
 ## Data migration with the console
 
-[Open the migration console](/console/migrate) only to inspect the current availability and plan the shared workflow:
+[Open the migration console](/console/migrate) to inspect current availability and plan the shared workflow:
 
-1. The console first presents destination provider and region eligibility, then source-provider selection. Destination eligibility does not imply that a source adapter exists.
-2. Selecting Meilisearch mounts the shared hosted-search credential panel with **Meilisearch host URL** and **Meilisearch API key** fields. Its guidance calls for an HTTPS host and a temporary, source-restricted read key.
-3. Stop at that boundary today. The console recognizes the Meilisearch identity and credential shape, but it cannot discover or preview indexes, create an import report or job, import data, cancel, or resume without a source adapter.
+1. The console first presents destination provider and region eligibility, then source-provider selection. Availability still depends on the selected destination and migration mode.
+2. Meilisearch discovery and create requests use the exact wire fields `endpoint` and `apiKey`; `host` is not an accepted alias. Use a temporary, source-restricted read key.
+3. Discovery returns neutral index summaries before a retained import job is created. Follow the capability result shown for the selected destination rather than inferring every migration operation from source selection alone.
 
-The retained job-detail route shape is shared across supported providers and preserves `source_provider` in links such as `/console/migrate/[jobId]?source_provider=meilisearch`. It does not make a Meilisearch job available before an adapter can create one. Use the manual fjcloud operations above while planning and validating your translation.
+The retained job-detail route shape is shared across supported providers and preserves `source_provider` in links such as `/console/migrate/[jobId]?source_provider=meilisearch`. Use the manual fjcloud operations above to validate the translated destination behavior before cutover.
 
 ## Meilisearch import availability
 
-`SourceImportProvider` contains `meilisearch`, while `SourceImportProvider::has_adapter` returns `false` for it. `validate_source_provider` therefore refuses Meilisearch requests that reach the handler with `source_provider_unsupported` before credential handling, repository access, or adapter work.
+`SourceImportProvider::has_adapter` returns `true` for `meilisearch`. The discovery and create handlers select Meilisearch-specific request DTOs, so both operations require `endpoint` plus `apiKey` rather than an Algolia-shaped body or a generic `host` field.
 
-Do not automate against a specific discovery/create error envelope yet. Those POST handlers still deserialize Algolia-shaped request DTOs, so a real hosted-search `{host, apiKey}` body can fail JSON extraction before `validate_source_provider` runs. The customer contract is the adapter boundary: discovery, preview, report/job creation, import, cancel, and resume are not available for Meilisearch today.
+Production endpoints must be HTTPS Meilisearch Cloud hosts under `.meilisearch.io`. Self-hosted and loopback sources are refused outside the engine's debug-only local proof mode; fjcloud does not own an allowlist or bypass for that policy.
 
-`/console/migrate` itself is reachable, but the overall create flow also fails closed unless migration availability is enabled. Neither a visible source-provider option nor an eligible destination is evidence of end-to-end Meilisearch support.
+The overall create flow still fails closed unless migration availability and destination eligibility are enabled. A visible source-provider option alone is not evidence that every migration capability is enabled for the selected destination.
 
 ## Unsupported concepts
 
-Automated conversion is not available, so translate source behavior deliberately:
+Translate source behavior deliberately even when using the hosted import adapter:
 
 - Recreate filterable/searchable attributes, typo tolerance, ranking rules, and other search settings through fjcloud index settings. Test filters, sorting, typo behavior, and representative ranking queries before cutover.
 - Recreate Meilisearch synonyms with fjcloud synonym IDs through the synonyms API. Verify asymmetric or phrase behavior rather than assuming identical evaluation.
@@ -71,7 +71,7 @@ Automated conversion is not available, so translate source behavior deliberately
 - Meilisearch terminology: [Meilisearch indexes and settings](https://www.meilisearch.com/docs/resources/internals/indexes) and [add or replace documents](https://www.meilisearch.com/docs/reference/api/documents/add-or-replace-documents).
 - Account, pricing, and shared error owners: [Customer Quickstart](./customer-quickstart.md), [Pricing FAQ](./pricing-faq.md), and [Error Reference](./error-reference.md).
 - Shared fjcloud operation examples: [Migrating from Algolia](./migrating_from_algolia.md).
-- Source-provider and credential owners: `web/src/lib/api/types_algolia_migration.ts` (`SOURCE_PROVIDERS`), `web/src/lib/components/migration/MigrationSourceConnection.svelte`, and `web/src/lib/components/migration/MigrationHostedSearchConnection.svelte`.
-- Adapter boundary owners: `infra/api/src/models/algolia_import_job/provider.rs` (`SourceImportProvider::has_adapter`) and `infra/api/src/routes/migration.rs` (`validate_source_provider`).
-- Hosted-payload extraction owners: `infra/api/src/routes/migration/source.rs` (`ListAlgoliaIndexesRequest`, `list_source_indexes`) and `infra/api/src/routes/migration/jobs.rs` (`CreateAlgoliaImportJobRequest`, `create_import_job`).
+- Adapter boundary owner: `infra/api/src/models/algolia_import_job/provider.rs` (`SourceImportProvider::has_adapter`).
+- Hosted-payload owners: `infra/api/src/routes/migration/source.rs` (`ListMeilisearchIndexesRequest`, `list_source_indexes`) and `infra/api/src/routes/migration/jobs.rs` (`CreateMeilisearchImportJobRequest`, `create_import_job`).
+- Producer endpoint-policy evidence: `docs/audits/migration-discovery/20260803T212302Z_neutral_discovery_consumer/evidence.md`.
 - fjcloud route owners: `infra/api/src/router/route_assembly.rs` (`add_index_lifecycle_and_replica_routes`, `add_index_configuration_routes`), plus the corresponding handlers under `infra/api/src/routes/indexes/`.

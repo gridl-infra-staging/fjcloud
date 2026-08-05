@@ -265,6 +265,10 @@ fn add_index_configuration_routes(router: Router<AppState>) -> Router<AppState> 
             post(indexes::search_synonyms),
         )
         .route(
+            "/indexes/:name/synonyms/clear",
+            post(indexes::clear_synonyms),
+        )
+        .route(
             "/indexes/:name/synonyms/:object_id",
             get(indexes::get_synonym)
                 .put(indexes::save_synonym)
@@ -323,6 +327,10 @@ fn add_index_configuration_routes(router: Router<AppState>) -> Router<AppState> 
         .route(
             "/indexes/:name/suggestions/status",
             get(indexes::get_qs_status),
+        )
+        .route(
+            "/indexes/:name/suggestions/build",
+            post(indexes::build_qs_config),
         )
 }
 
@@ -423,6 +431,14 @@ fn add_migration_routes(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/migration/:source_provider/list-indexes",
             post(migration::list_source_indexes),
+        )
+        .route(
+            "/migration/:source_provider/preview",
+            post(migration::preview_source_migration),
+        )
+        .route(
+            "/migration/:source_provider/verify",
+            post(migration::verify_source_migration),
         )
         .route(
             "/migration/algolia/destination-eligibility",

@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::borrow::Cow;
+use std::time::Duration;
 
 use sqlx::migrate::{MigrateError, Migrator};
 use sqlx::postgres::PgPoolOptions;
@@ -19,15 +20,19 @@ pub struct DbHarness {
     backend_pid: i32,
 }
 
+const SCHEMA_CLEANUP_DROP_WAIT: Duration = Duration::from_millis(250);
+
 impl Drop for DbHarness {
     fn drop(&mut self) {
         let schema = self.schema.clone();
         let backend_pid = self.backend_pid;
         let database_url = std::env::var("DATABASE_URL").ok();
+        let (cleanup_done_tx, cleanup_done_rx) = std::sync::mpsc::channel();
         let cleanup_worker = std::thread::Builder::new()
             .name("pg_customer_repo_schema_cleanup".to_string())
             .spawn(move || {
                 let Some(url) = database_url else {
+                    let _ = cleanup_done_tx.send(());
                     return;
                 };
                 if let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
@@ -45,9 +50,12 @@ impl Drop for DbHarness {
                         }
                     });
                 }
+                let _ = cleanup_done_tx.send(());
             });
-        if let Ok(join_handle) = cleanup_worker {
-            let _ = join_handle.join();
+        if cleanup_worker.is_ok() {
+            // Timed-out tests can leave PostgreSQL locks that block DROP SCHEMA;
+            // DbHarness::drop must not hide the original bounded failure.
+            let _ = cleanup_done_rx.recv_timeout(SCHEMA_CLEANUP_DROP_WAIT);
         }
     }
 }
@@ -55,11 +63,21 @@ impl Drop for DbHarness {
 pub async fn connect_and_migrate(schema_prefix: &str) -> Option<DbHarness> {
     let harness = connect_without_migrations(schema_prefix).await?;
 
-    sqlx::migrate!("../migrations")
+    isolated_schema_migrator()
         .run(&harness.pool)
         .await
         .expect("run migrations");
     Some(harness)
+}
+
+pub async fn connect_and_migrate_required(schema_prefix: &str) -> DbHarness {
+    let harness = connect_without_migrations_required(schema_prefix).await;
+
+    isolated_schema_migrator()
+        .run(&harness.pool)
+        .await
+        .expect("run migrations");
+    harness
 }
 
 pub async fn connect_and_migrate_through(
@@ -79,7 +97,7 @@ pub async fn migrate_through_version(pool: &PgPool, max_version: i64) -> Result<
         all_migrations.version_exists(max_version),
         "migration version {max_version} must exist"
     );
-    let migrator = Migrator {
+    let mut migrator = Migrator {
         migrations: Cow::Owned(
             all_migrations
                 .iter()
@@ -89,7 +107,17 @@ pub async fn migrate_through_version(pool: &PgPool, max_version: i64) -> Result<
         ),
         ..Migrator::DEFAULT
     };
+    migrator.set_locking(false);
     migrator.run(pool).await
+}
+
+fn isolated_schema_migrator() -> Migrator {
+    let mut migrator = sqlx::migrate!("../migrations");
+    // Each test owns a fresh schema and `_sqlx_migrations` table via search_path;
+    // sqlx's database-wide advisory lock only creates the cross-test
+    // `connect_and_migrate` convoy captured in the admin_vms reference tests.
+    migrator.set_locking(false);
+    migrator
 }
 
 pub async fn connect_without_migrations(schema_prefix: &str) -> Option<DbHarness> {
@@ -101,10 +129,19 @@ pub async fn connect_without_migrations(schema_prefix: &str) -> Option<DbHarness
         }
     };
 
+    Some(connect_without_migrations_with_url(schema_prefix, &url).await)
+}
+
+pub async fn connect_without_migrations_required(schema_prefix: &str) -> DbHarness {
+    let url = require_database_url(std::env::var("DATABASE_URL"));
+    connect_without_migrations_with_url(schema_prefix, &url).await
+}
+
+async fn connect_without_migrations_with_url(schema_prefix: &str, url: &str) -> DbHarness {
     let schema = isolated_schema_name(schema_prefix);
     let quoted_schema = quote_pg_identifier(&schema);
 
-    let admin_pool = PgPool::connect(&url)
+    let admin_pool = PgPool::connect(url)
         .await
         .expect("connect to integration test DB");
     sqlx::query(&format!("CREATE SCHEMA {quoted_schema}"))
@@ -114,7 +151,7 @@ pub async fn connect_without_migrations(schema_prefix: &str) -> Option<DbHarness
 
     let pool = PgPoolOptions::new()
         .max_connections(1)
-        .connect(&url)
+        .connect(url)
         .await
         .expect("connect to integration test DB");
     sqlx::query(&format!("SET search_path TO {quoted_schema}"))
@@ -126,11 +163,11 @@ pub async fn connect_without_migrations(schema_prefix: &str) -> Option<DbHarness
         .await
         .expect("capture isolated test connection PID");
 
-    Some(DbHarness {
+    DbHarness {
         pool,
         schema,
         backend_pid,
-    })
+    }
 }
 
 pub async fn pool_in_schema(schema: &str, max_connections: u32) -> PgPool {

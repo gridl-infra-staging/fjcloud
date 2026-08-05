@@ -5,9 +5,10 @@ use axum::http::{Request, StatusCode};
 use chrono::{Duration, Utc};
 use http_body_util::BodyExt;
 use serde_json::json;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 use tower::ServiceExt;
 
+use crate::common::integration_helpers::{test_env_mutex, TestEnvVarGuard as EnvVarGuard};
 use crate::common::storage_s3_signed_router_harness::{
     setup_signed_s3_router, setup_signed_s3_router_with_rps,
 };
@@ -18,33 +19,10 @@ use api::router::{
 };
 
 fn security_env_lock() -> &'static Mutex<()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
-}
-
-struct EnvVarGuard {
-    key: &'static str,
-    previous: Option<String>,
+    test_env_mutex()
 }
 
 const TRUST_PROXY_HEADERS_FOR_RATE_LIMIT_ENV: &str = "TRUST_PROXY_HEADERS_FOR_RATE_LIMIT";
-
-impl EnvVarGuard {
-    fn set(key: &'static str, value: &str) -> Self {
-        let previous = std::env::var(key).ok();
-        std::env::set_var(key, value);
-        Self { key, previous }
-    }
-}
-
-impl Drop for EnvVarGuard {
-    fn drop(&mut self) {
-        match &self.previous {
-            Some(value) => std::env::set_var(self.key, value),
-            None => std::env::remove_var(self.key),
-        }
-    }
-}
 
 fn json_post(uri: &str, body: serde_json::Value, ip: &str) -> Request<Body> {
     Request::builder()

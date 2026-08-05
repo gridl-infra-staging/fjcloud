@@ -45,8 +45,10 @@ async fn algolia_availability_returns_typed_unavailable_payload() {
             "message": "Algolia migration is temporarily unavailable while we replace the importer.",
             "capabilities": {
                 "cancel": false,
+                "preview": false,
                 "resume": false,
-                "replace": false
+                "replace": false,
+                "verify": false
             }
         })
     );
@@ -79,8 +81,10 @@ async fn algolia_availability_flips_available_when_flag_enabled_and_engine_suppo
             "message": "Algolia migration is available.",
             "capabilities": {
                 "cancel": true,
+                "preview": true,
                 "resume": false,
-                "replace": true
+                "replace": true,
+                "verify": true
             }
         })
     );
@@ -93,6 +97,8 @@ async fn algolia_cloud_discovery_list_indexes_requires_auth() {
     let (app, _) = setup_algolia_cloud_discovery_app(service.clone()).await;
     let (status, _) = post_discovery(
         app,
+        None,
+        "algolia",
         None,
         json!({"appId": "TESTAPP123", "apiKey": "volatile-key"}),
     )
@@ -109,6 +115,8 @@ async fn list_indexes_is_gated_closed_when_migration_unavailable() {
     let (status, body) = post_discovery(
         app,
         Some(&jwt),
+        "algolia",
+        None,
         json!({"appId": "TESTAPP123", "apiKey": "volatile-key"}),
     )
     .await;
@@ -135,6 +143,8 @@ async fn algolia_cloud_discovery_allows_zero_index_customer_without_deployment_l
     let (first_status, first_body) = post_discovery(
         app.clone(),
         Some(&jwt),
+        "algolia",
+        None,
         json!({"appId": "TESTAPP123", "apiKey": "volatile-key"}),
     )
     .await;
@@ -144,6 +154,8 @@ async fn algolia_cloud_discovery_allows_zero_index_customer_without_deployment_l
     let (second_status, _) = post_discovery(
         app,
         Some(&jwt),
+        "algolia",
+        None,
         json!({
             "appId": "TESTAPP123",
             "apiKey": "volatile-key",
@@ -167,6 +179,8 @@ async fn algolia_cloud_discovery_forwards_probe_page_size_override() {
     let (status, _) = post_discovery(
         app,
         Some(&jwt),
+        "algolia",
+        None,
         json!({
             "appId": "TESTAPP123",
             "apiKey": "volatile-key",
@@ -190,6 +204,8 @@ async fn algolia_cloud_discovery_rejects_out_of_range_page_size_without_upstream
         let (status, body) = post_discovery(
             app,
             Some(&jwt),
+            "algolia",
+            None,
             json!({
                 "appId": "TESTAPP123",
                 "apiKey": "volatile-key",
@@ -223,15 +239,23 @@ async fn algolia_cloud_discovery_requires_volatile_api_key_on_every_cursor_reque
     );
     assert!(debug_request.contains("app_id: \"[REDACTED]\""));
     assert!(debug_request.contains("api_key: \"[REDACTED]\""));
+    assert!(debug_request.contains("[REDACTED]"));
     assert!(!debug_request.contains("TESTAPP123"));
     assert!(!debug_request.contains("do-not-log-this-key"));
+    assert!(!debug_request.contains("opaque-next"));
 
     let malformed_body = json!({"appId": "TESTAPP123", "cursor": "opaque-next"});
     let service = FakeAlgoliaSourceLister::new([Ok(discovery_response(None))]);
     let (app, jwt) = setup_algolia_cloud_discovery_app(service.clone()).await;
-    let (status, response) = post_discovery(app, Some(&jwt), malformed_body).await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-    assert!(response.get("code").is_none());
+    let (status, response) = post_discovery(app, Some(&jwt), "algolia", None, malformed_body).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        response,
+        json!({
+            "error": "invalid algolia discovery request: field `apiKey` is incompatible",
+            "code": AlgoliaImportErrorCode::IncompatibleData.as_str(),
+        })
+    );
     assert!(!response.to_string().contains("do-not-echo-this-key"));
     assert!(service.requests().is_empty());
 
@@ -240,6 +264,8 @@ async fn algolia_cloud_discovery_requires_volatile_api_key_on_every_cursor_reque
     let (status, response) = post_discovery(
         app,
         Some(&jwt),
+        "algolia",
+        None,
         json!({"appId": "TESTAPP123", "apiKey": "", "cursor": "opaque-next"}),
     )
     .await;
@@ -276,6 +302,8 @@ async fn algolia_cloud_discovery_empty_key_returns_typed_invalid_credentials() {
     let (status, body) = post_discovery(
         app,
         Some(&jwt),
+        "algolia",
+        None,
         json!({"appId": "TESTAPP123", "apiKey": ""}),
     )
     .await;
@@ -293,11 +321,18 @@ async fn algolia_cloud_discovery_empty_key_returns_typed_invalid_credentials() {
 #[tokio::test]
 async fn algolia_cloud_discovery_returns_display_only_metadata_semantics() {
     let service = FakeAlgoliaSourceLister::new([Ok(discovery_response(None))]);
-    let (app, jwt) = setup_algolia_cloud_discovery_app(service).await;
+    let (app, jwt) = setup_algolia_cloud_discovery_app(service.clone()).await;
     let (status, body) = post_discovery(
         app,
         Some(&jwt),
-        json!({"appId": "TESTAPP123", "apiKey": "volatile-key"}),
+        "algolia",
+        None,
+        json!({
+            "appId": "TESTAPP123",
+            "apiKey": "volatile-key",
+            "cursor": "opaque-compatibility-cursor",
+            "hitsPerPage": 37
+        }),
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -318,6 +353,15 @@ async fn algolia_cloud_discovery_returns_display_only_metadata_semantics() {
             "nextCursor": null
         })
     );
+    let requests = service.requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].app_id, "TESTAPP123");
+    assert_eq!(requests[0].api_key, "volatile-key");
+    assert_eq!(
+        requests[0].cursor.as_deref(),
+        Some("opaque-compatibility-cursor")
+    );
+    assert_eq!(requests[0].hits_per_page, Some(37));
 }
 
 #[tokio::test]
@@ -378,6 +422,8 @@ async fn algolia_cloud_discovery_maps_service_errors_without_echoing_api_key() {
         let (status, body) = post_discovery(
             app,
             Some(&jwt),
+            "algolia",
+            None,
             json!({"appId": "TESTAPP123", "apiKey": "do-not-echo-this-key"}),
         )
         .await;
@@ -394,6 +440,8 @@ async fn algolia_cloud_discovery_acl_error_explains_discovery_and_migration_perm
     let (status, body) = post_discovery(
         app,
         Some(&jwt),
+        "algolia",
+        None,
         json!({"appId": "TESTAPP123", "apiKey": "do-not-echo-this-key"}),
     )
     .await;
@@ -677,12 +725,15 @@ fn algolia_cloud_job_contract_is_served_with_schema_and_privacy_guards() {
         .expect("served ApiDoc must serialize");
 
     let served_ops = [
-        ("/migration/algolia/destination-eligibility", "post"),
-        ("/migration/algolia/jobs", "post"),
-        ("/migration/algolia/jobs", "get"),
-        ("/migration/algolia/jobs/{id}", "get"),
-        ("/migration/algolia/jobs/{id}/cancel", "post"),
-        ("/migration/algolia/jobs/{id}/resume", "post"),
+        (
+            "/migration/{source_provider}/destination-eligibility",
+            "post",
+        ),
+        ("/migration/{source_provider}/jobs", "post"),
+        ("/migration/{source_provider}/jobs", "get"),
+        ("/migration/{source_provider}/jobs/{id}", "get"),
+        ("/migration/{source_provider}/jobs/{id}/cancel", "post"),
+        ("/migration/{source_provider}/jobs/{id}/resume", "post"),
     ];
     assert_eq!(served_ops.len(), 6);
     for (path, method) in served_ops {
@@ -717,3 +768,6 @@ fn algolia_cloud_job_contract_is_served_with_schema_and_privacy_guards() {
     assert_schema_property_absent(&served, "PublicAlgoliaImportSource", "appId");
     assert_schema_property_absent(&served, "PublicAlgoliaImportError", "message");
 }
+
+#[path = "discovery_contract.rs"]
+mod neutral_contract;

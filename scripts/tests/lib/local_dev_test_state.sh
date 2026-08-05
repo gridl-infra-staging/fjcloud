@@ -1,6 +1,95 @@
 #!/usr/bin/env bash
 # Shared helpers for local-dev shell tests that temporarily replace repo-local state.
 
+# --- fake service process registry -------------------------------------------
+#
+# Teardown tests need a REAL process whose `ps comm=` name matches a service,
+# because the matcher in the code under test keys on that name. Spawning one is
+# easy; the historical bug was that nothing reaped it. The old fixture ran
+# `nohup <copy of sleep> 300 &` inside a subshell — making the process a child of
+# that subshell, so the test shell could never `wait` on it — and cleaned up with
+# `rm -rf "$tmp_dir"`, which removes the binary and leaves the process running.
+# Whenever the code under test failed to kill the sleeper, which is the exact case
+# those tests exist to detect, it outlived the test and re-parented to init.
+#
+# Measured on the development host 2026-08-04: 913 leaked processes (229 flapjack,
+# 228 each of npm, metering-agent, fjcloud-api), up to six days old, all wedged in
+# uninterruptible `UE` state where SIGKILL does not land and only a reboot clears
+# them. Cleanup must therefore be unconditional, not contingent on the assertion
+# passing.
+#
+# Two deliberate choices:
+#   1. Spawn as a DIRECT child of the calling shell (no subshell, no nohup) so the
+#      caller can `wait` and leave no zombie behind.
+#   2. Reap ONLY PIDs recorded here. A PID a test obtained some other way is never
+#      touched — scripts/tests/integration_down_test.sh deliberately keeps a live
+#      unrelated process to prove teardown skips it, and this host runs concurrent
+#      workers whose processes must never be reachable from a test's cleanup.
+FJCLOUD_TEST_SPAWNED_SERVICE_PIDS=()
+
+# Set by spawn_named_test_service. Callers read this instead of using command
+# substitution, which would run the helper in a subshell and discard both the
+# registry entry and the parent's claim on the child.
+FJCLOUD_TEST_LAST_SPAWNED_PID=""
+
+# Spawn a fake service process named "$service_name" inside "$bin_dir".
+# Reports the new PID in FJCLOUD_TEST_LAST_SPAWNED_PID.
+spawn_named_test_service() {
+    local bin_dir="$1"
+    local service_name="$2"
+    local lifetime_seconds="${3:-300}"
+
+    # A SYMLINK, never a copy. This is the whole defect. `cp`ing a signed macOS
+    # system binary strips its code signature, and on Apple Silicon the kernel
+    # refuses to run the unsigned result: the process never reaches main, lands in
+    # uninterruptible `UE` state with a 32 KB RSS, ignores SIGKILL, and survives
+    # until reboot. Every one of the 913 leaked processes measured on this host was
+    # such a corpse. The fixture still satisfied its assertions the whole time,
+    # because the code under test matches on a PID file plus `ps comm=` and a wedged
+    # process still has both — so nothing ever reported the breakage.
+    #
+    # A symlink keeps the target's signature intact, so the process actually runs
+    # and can actually be killed, while `ps -o comm=` still reports the link name
+    # the teardown matcher needs. scripts/tests/integration_down_test.sh has always
+    # used this form, and it leaked nothing.
+    ln -sf "$(command -v sleep)" "$bin_dir/$service_name"
+    "$bin_dir/$service_name" "$lifetime_seconds" >/dev/null 2>&1 &
+    FJCLOUD_TEST_LAST_SPAWNED_PID=$!
+    FJCLOUD_TEST_SPAWNED_SERVICE_PIDS+=("$FJCLOUD_TEST_LAST_SPAWNED_PID")
+    # Drop the job from the shell's job table so the expected SIGTERM during reaping
+    # does not print a "Terminated: 15" line into the middle of test output. The PID
+    # stays valid for `kill`/`kill -0`, which is all the reaper needs.
+    disown "$FJCLOUD_TEST_LAST_SPAWNED_PID" 2>/dev/null || true
+}
+
+# Terminate every process spawned by spawn_named_test_service, then clear the
+# registry. Idempotent, and safe when nothing was ever spawned.
+#
+# Callers must run this BEFORE removing the directory holding the fake binary:
+# deleting a running process's executable is what leaves these wedged rather than
+# merely orphaned.
+reap_named_test_services() {
+    local pid
+    # bash 3.2 errors on "${arr[@]}" for an empty array under `set -u`; the
+    # ${arr[@]+...} form expands to nothing instead.
+    for pid in ${FJCLOUD_TEST_SPAWNED_SERVICE_PIDS[@]+"${FJCLOUD_TEST_SPAWNED_SERVICE_PIDS[@]}"}; do
+        [ -n "$pid" ] || continue
+        kill "$pid" 2>/dev/null || true
+        # Poll with a hard bound instead of blocking on `wait`. A `wait` here would
+        # hang the whole suite forever the moment any child became unkillable, which
+        # is exactly the state this helper exists to prevent — a cleanup path must
+        # not be able to deadlock on the failure it is cleaning up. Leaving a brief
+        # zombie is strictly better than a hung test run; the shell reaps it on exit.
+        local waited=0
+        while [ "$waited" -lt 20 ] && kill -0 "$pid" 2>/dev/null; do
+            sleep 0.1
+            waited=$((waited + 1))
+        done
+    done
+    FJCLOUD_TEST_SPAWNED_SERVICE_PIDS=()
+    FJCLOUD_TEST_LAST_SPAWNED_PID=""
+}
+
 require_single_line_env_value() {
     local name="$1"
     local value="$2"

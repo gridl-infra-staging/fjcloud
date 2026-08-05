@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::models::{AlgoliaSealScrubWork, Customer, IngestQuotaWarningMetric};
 use crate::repos::error::RepoError;
+use crate::services::audit_log::{AuditEntry, CustomerHardDeleteAuditPolicy};
 
 pub const RESEND_VERIFICATION_COOLDOWN_SECONDS: i64 = 60;
 
@@ -116,6 +117,7 @@ pub trait CustomerRepo {
         &self,
         id: Uuid,
         kind: CustomerHardDeleteKind,
+        audit_policy: CustomerHardDeleteAuditPolicy,
     ) -> Result<CustomerHardDeleteOutcome, RepoError>;
     async fn list_deleted_before_cutoff(
         &self,
@@ -233,7 +235,7 @@ pub trait CustomerRepo {
     async fn set_billing_plan(&self, id: Uuid, plan: &str) -> Result<bool, RepoError>;
 
     // Suspension
-    async fn suspend(&self, id: Uuid) -> Result<bool, RepoError>;
+    async fn suspend(&self, id: Uuid, audit_entry: AuditEntry) -> Result<bool, RepoError>;
     async fn reactivate(&self, id: Uuid) -> Result<bool, RepoError>;
 
     // Object-storage egress carry-forward (sub-cent remainder persistence)

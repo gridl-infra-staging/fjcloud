@@ -292,6 +292,16 @@ describe('Index list page', () => {
 			duration: TOAST_DURATION_MS
 		});
 		expect(callOrder).toEqual(['toast', 'applyAction']);
+		// Redirect navigation is owned by SvelteKit's applyAction, which goes to
+		// result.location. Guard that the create handler forwards the redirect
+		// result — location intact — to that seam rather than swallowing or
+		// rewriting it; this is the regression the Stage 1 audit's create-index
+		// REAL-DEFECT would surface as (submit staying on /console/indexes).
+		expect(applyAction).toHaveBeenCalledWith({
+			type: 'redirect',
+			status: 303,
+			location: '/console/indexes/fresh-products'
+		});
 	});
 
 	it('emits a shared toast when enhanced delete succeeds in place', async () => {

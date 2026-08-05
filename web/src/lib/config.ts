@@ -42,3 +42,20 @@ export function deriveApiBaseUrl(hostname: string): string {
 export function getApiBaseUrl(): string {
 	return resolveFallbackApiBaseUrl();
 }
+
+/**
+ * Single owner for request-scoped API origin resolution. `hooks.server.ts`
+ * sets `locals.apiBaseUrl` from the request hostname; deriving from the URL is
+ * the fallback for load/action paths that run without it.
+ */
+export function resolveRequestApiBaseUrl(
+	locals: { apiBaseUrl?: string } | undefined,
+	url: URL | undefined
+): string {
+	const requestScopedApiBaseUrl = locals?.apiBaseUrl;
+	if (requestScopedApiBaseUrl) return requestScopedApiBaseUrl;
+	if (!url) {
+		throw new Error('cannot resolve the API base URL without locals.apiBaseUrl or a request URL');
+	}
+	return deriveApiBaseUrl(url.hostname);
+}

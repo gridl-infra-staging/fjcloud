@@ -3,12 +3,17 @@ import type {
 	AlgoliaDestinationEligibilityRequest,
 	CreateMigrationImportJobRequest,
 	ListMigrationSourceIndexesRequest,
+	MigrationPreviewArguments,
+	MigrationPreviewResponse,
 	SourceProvider
 } from '$lib/api/types';
 
 type NeutralMigrationCreateClient = Pick<
 	ApiClient,
-	'listMigrationSourceIndexes' | 'checkMigrationDestinationEligibility' | 'createMigrationImportJob'
+	| 'listMigrationSourceIndexes'
+	| 'checkMigrationDestinationEligibility'
+	| 'createMigrationImportJob'
+	| 'previewMigrationImport'
 >;
 type AlgoliaMigrationCreateClient = Pick<
 	ApiClient,
@@ -17,7 +22,9 @@ type AlgoliaMigrationCreateClient = Pick<
 
 export type MigrationCreateClient =
 	| (NeutralMigrationCreateClient & Partial<AlgoliaMigrationCreateClient>)
-	| (AlgoliaMigrationCreateClient & Partial<NeutralMigrationCreateClient>);
+	| (AlgoliaMigrationCreateClient &
+			Pick<ApiClient, 'previewMigrationImport'> &
+			Partial<NeutralMigrationCreateClient>);
 
 export async function sourceCredentialFingerprint(value: string): Promise<string> {
 	const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
@@ -81,4 +88,11 @@ export async function createMigrationJob(
 		return client.createAlgoliaImportJob(request, idempotencyKey);
 	}
 	throw new Error('A neutral migration client is required for this source provider.');
+}
+
+export async function previewMigration(
+	client: MigrationCreateClient,
+	...previewArguments: MigrationPreviewArguments
+): Promise<MigrationPreviewResponse> {
+	return client.previewMigrationImport(...previewArguments);
 }

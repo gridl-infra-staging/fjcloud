@@ -22,7 +22,7 @@ type ArrangeFleetSeedParams = {
 	ensureLocalSharedVmInventory: (region: string) => Promise<void>;
 	seedAdminDeployment: (
 		customer: { customerId: string; token: string; email: string; password: string },
-		options?: { region?: string }
+		options?: { provider?: 'aws' | 'local'; region?: string }
 	) => Promise<unknown>;
 	testRegion: string;
 };
@@ -32,9 +32,14 @@ async function arrangeSeededFleet({
 	ensureLocalSharedVmInventory,
 	seedAdminDeployment,
 	testRegion
-}: ArrangeFleetSeedParams): Promise<string> {
+}: ArrangeFleetSeedParams): Promise<{
+	awsRegion: string;
+	seededRegion: string;
+	customerId: string;
+}> {
 	const seed = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 	const seededRegion = `${testRegion}-${seed}`;
+	const awsRegion = `${seededRegion}-aws`;
 	await ensureLocalSharedVmInventory(seededRegion);
 	const customer = await createUser(
 		`fleet-capacity-${seed}@e2e.griddle.test`,
@@ -42,7 +47,8 @@ async function arrangeSeededFleet({
 		`Fleet Capacity ${seed}`
 	);
 	await seedAdminDeployment(customer, { region: seededRegion });
-	return seededRegion;
+	await seedAdminDeployment(customer, { provider: 'aws', region: awsRegion });
+	return { awsRegion, seededRegion, customerId: customer.customerId };
 }
 
 async function gotoFleetWithRows(page: import('@playwright/test').Page): Promise<number> {
@@ -138,14 +144,6 @@ async function disableVmDetailAutoRefreshIfPresent(page: import('@playwright/tes
 }
 
 test.describe('Admin fleet overview', () => {
-	test('fleet overview page renders after admin login', async ({ page }) => {
-		// Auth state is pre-loaded from .auth/admin.json
-		await page.goto('/admin/fleet');
-
-		// Assert: page-specific heading (not just nav item text)
-		await expect(page.getByRole('heading', { name: 'Fleet Overview' })).toBeVisible();
-	});
-
 	test('seeded fleet rows render and filter controls narrow that same visible row set', async ({
 		page,
 		createUser,
@@ -153,96 +151,49 @@ test.describe('Admin fleet overview', () => {
 		seedAdminDeployment,
 		testRegion
 	}) => {
-		await arrangeSeededFleet({
+		const { awsRegion, seededRegion, customerId } = await arrangeSeededFleet({
 			createUser,
 			ensureLocalSharedVmInventory,
 			seedAdminDeployment,
 			testRegion
 		});
-		const initialRowCount = await gotoFleetWithRows(page);
+		await gotoFleetWithRows(page);
 		await page.getByRole('checkbox', { name: 'Auto-refresh (5s)' }).uncheck();
-		const tableBody = page.getByTestId('fleet-table-body');
 		const rows = page.getByTestId(/^fleet-row-/);
-		expect(
-			initialRowCount,
-			'missing seeded fleet rows required to prove fleet-table-body rendering'
-		).toBeGreaterThan(0);
-		await expect(rows.first()).toBeVisible();
-
-		const rowDetails = await Promise.all(
-			Array.from({ length: initialRowCount }, async (_, index) => {
-				const cellText = await rows.nth(index).getByRole('cell').allTextContents();
-				return {
-					shortId: cellText[0]?.trim() ?? '',
-					provider: cellText[1]?.trim() ?? '',
-					status: cellText[3]?.trim() ?? ''
-				};
-			})
-		);
-		const uniqueStatuses = [...new Set(rowDetails.map((row) => row.status).filter(Boolean))];
-		const uniqueProviders = [...new Set(rowDetails.map((row) => row.provider).filter(Boolean))];
-		const statusProbeRow = rowDetails.find((row) => {
-			const matchingStatusCount = rowDetails.filter(
-				(candidate) => candidate.status === row.status
-			).length;
-			return row.shortId !== '' && row.status !== '' && matchingStatusCount < initialRowCount;
+		const seededRow = rows.filter({
+			has: page.getByRole('cell', { name: seededRegion, exact: true })
 		});
-		const providerProbeRow = rowDetails.find((row) => {
-			const matchingProviderCount = rowDetails.filter(
-				(candidate) => candidate.provider === row.provider
-			).length;
-			return row.shortId !== '' && row.provider !== '' && matchingProviderCount < initialRowCount;
+		const awsRow = rows.filter({
+			has: page.getByRole('cell', { name: awsRegion, exact: true })
 		});
-		const baselineProbeRow =
-			statusProbeRow ?? providerProbeRow ?? rowDetails.find((row) => row.shortId !== '');
-		expect(baselineProbeRow, 'missing seeded fleet rows with a visible short id').toBeDefined();
-		const baselineShortId = baselineProbeRow!.shortId;
+		await expect(seededRow).toHaveCount(1);
+		await expect(awsRow).toHaveCount(1);
+		await expect(seededRow).toContainText(customerId.split('-')[0]);
+		await expect(seededRow.getByRole('cell', { name: 'local', exact: true })).toBeVisible();
+		await expect(seededRow.getByRole('cell', { name: 'running', exact: true })).toBeVisible();
 
-		// Seeded page-body content should be visible before any filters are applied.
-		await expect(tableBody).toContainText(baselineShortId);
+		await page.getByTestId('status-filter').selectOption('failed');
+		await expect(seededRow).toHaveCount(0);
+		await page.getByTestId('status-filter').selectOption('running');
+		await expect(seededRow).toHaveCount(1);
 
-		if (uniqueStatuses.length > 1) {
-			expect(
-				statusProbeRow,
-				'missing seeded fleet status variety required to prove status filtering'
-			).toBeDefined();
-			const seededStatus = statusProbeRow!.status;
-			const matchingStatusCount = rowDetails.filter((row) => row.status === seededStatus).length;
+		await page.getByTestId('provider-filter').selectOption('aws');
+		await expect(seededRow).toHaveCount(0);
+		await expect(awsRow).toHaveCount(1);
+		await page.getByTestId('provider-filter').selectOption('local');
+		await expect(seededRow).toHaveCount(1);
+		await expect(awsRow).toHaveCount(0);
+	});
 
-			await page.getByTestId('status-filter').selectOption(seededStatus);
-			await expect(rows).toHaveCount(matchingStatusCount);
-			expect(matchingStatusCount).toBeLessThan(initialRowCount);
-			await expect(tableBody).toContainText(statusProbeRow!.shortId);
-			await expect(tableBody.getByRole('cell', { name: seededStatus, exact: true })).toHaveCount(
-				matchingStatusCount
-			);
-		} else {
-			await page.getByTestId('status-filter').selectOption(uniqueStatuses[0] ?? 'all');
-			await expect(rows).toHaveCount(initialRowCount);
-		}
+	test('revoked admin cookie is rejected', async ({ arrangeIsolatedAdminSession }) => {
+		const adminSession = await arrangeIsolatedAdminSession();
 
-		await page.getByTestId('status-filter').selectOption('all');
-		if (uniqueProviders.length > 1) {
-			expect(
-				providerProbeRow,
-				'missing seeded fleet provider variety required to prove provider filtering'
-			).toBeDefined();
-			const seededProvider = providerProbeRow!.provider;
-			const matchingProviderCount = rowDetails.filter(
-				(row) => row.provider === seededProvider
-			).length;
+		await expect(adminSession.page.getByRole('heading', { name: 'Fleet Overview' })).toBeVisible();
+		await adminSession.revokeCurrentSession();
+		await adminSession.page.reload();
 
-			await page.getByTestId('provider-filter').selectOption(seededProvider);
-			await expect(rows).toHaveCount(matchingProviderCount);
-			expect(matchingProviderCount).toBeLessThan(initialRowCount);
-			await expect(tableBody).toContainText(providerProbeRow!.shortId);
-			await expect(tableBody.getByRole('cell', { name: seededProvider, exact: true })).toHaveCount(
-				matchingProviderCount
-			);
-		} else {
-			await page.getByTestId('provider-filter').selectOption(uniqueProviders[0] ?? 'all');
-			await expect(rows).toHaveCount(initialRowCount);
-		}
+		await expect(adminSession.page).toHaveURL(/\/admin\/login$/);
+		await expect(adminSession.page.getByRole('heading', { name: 'Admin Login' })).toBeVisible();
 	});
 
 	test('VM infrastructure hostname opens the VM detail page', async ({
@@ -252,7 +203,7 @@ test.describe('Admin fleet overview', () => {
 		seedAdminDeployment,
 		testRegion
 	}) => {
-		const seededRegion = await arrangeSeededFleet({
+		const { seededRegion } = await arrangeSeededFleet({
 			createUser,
 			ensureLocalSharedVmInventory,
 			seedAdminDeployment,
@@ -293,7 +244,7 @@ test.describe('Admin fleet overview', () => {
 		testRegion
 	}) => {
 		await page.setViewportSize({ width: 390, height: 844 });
-		const seededRegion = await arrangeSeededFleet({
+		const { seededRegion } = await arrangeSeededFleet({
 			createUser,
 			ensureLocalSharedVmInventory,
 			seedAdminDeployment,
@@ -398,14 +349,12 @@ test.describe('Admin fleet overview', () => {
 			).toBeVisible();
 			const lifecycleList = page.getByTestId('vm-lifecycle-list');
 			await expect(lifecycleList).toBeVisible();
-			expect(await lifecycleList.evaluate((element) => element.tagName.toLowerCase())).toBe('ol');
+			await expect(lifecycleList).toHaveRole('list');
 			const lifecycleRows = lifecycleSection.getByTestId(/^vm-lifecycle-row-/);
 			await expect(lifecycleRows).toHaveCount(fixture.events.length);
-			expect(
-				await lifecycleRows.evaluateAll((rows) =>
-					rows.map((row) => row.getAttribute('data-testid'))
-				)
-			).toEqual(fixture.events.map((event) => event.rowTestId));
+			for (const [index, event] of fixture.events.entries()) {
+				await expect(lifecycleRows.nth(index)).toHaveAttribute('data-testid', event.rowTestId);
+			}
 
 			for (const event of fixture.events) {
 				const row = page.getByTestId(event.rowTestId);

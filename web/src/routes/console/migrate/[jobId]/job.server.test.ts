@@ -10,6 +10,7 @@ const cancelAlgoliaImportJobMock = vi.fn();
 const resumeAlgoliaImportJobMock = vi.fn();
 const cancelMigrationImportJobMock = vi.fn();
 const resumeMigrationImportJobMock = vi.fn();
+const verifySourceMigrationMock = vi.fn();
 
 vi.mock('$lib/server/api', () => ({
 	createApiClient: vi.fn(() => ({
@@ -20,7 +21,8 @@ vi.mock('$lib/server/api', () => ({
 		cancelAlgoliaImportJob: cancelAlgoliaImportJobMock,
 		resumeAlgoliaImportJob: resumeAlgoliaImportJobMock,
 		cancelMigrationImportJob: cancelMigrationImportJobMock,
-		resumeMigrationImportJob: resumeMigrationImportJobMock
+		resumeMigrationImportJob: resumeMigrationImportJobMock,
+		verifySourceMigration: verifySourceMigrationMock
 	}))
 }));
 
@@ -64,7 +66,13 @@ const JOB_FIXTURE: PublicJobWithSourceProvider = {
 	updatedAt: '2026-07-18T10:05:00Z'
 };
 
-const AVAILABLE_CAPABILITIES = { cancel: true, resume: false, replace: true };
+const AVAILABLE_CAPABILITIES = {
+	cancel: true,
+	resume: false,
+	replace: true,
+	preview: false,
+	verify: true
+};
 
 function availableResponse() {
 	return {
@@ -176,14 +184,26 @@ describe('[jobId] migration route server load', () => {
 			available: false,
 			reason: 'temporarily_unavailable',
 			message: 'unavailable',
-			capabilities: { cancel: false, resume: false, replace: false }
+			capabilities: {
+				cancel: false,
+				resume: false,
+				replace: false,
+				preview: false,
+				verify: false
+			}
 		});
 
 		const result = (await load(loadEvent())) as Record<string, unknown>;
 
 		expect(result).toEqual({
 			job: JOB_FIXTURE,
-			capabilities: { cancel: false, resume: false, replace: false }
+			capabilities: {
+				cancel: false,
+				resume: false,
+				replace: false,
+				preview: false,
+				verify: false
+			}
 		});
 	});
 
@@ -194,7 +214,13 @@ describe('[jobId] migration route server load', () => {
 
 		expect(result).toEqual({
 			job: JOB_FIXTURE,
-			capabilities: { cancel: false, resume: false, replace: false }
+			capabilities: {
+				cancel: false,
+				resume: false,
+				replace: false,
+				preview: false,
+				verify: false
+			}
 		});
 	});
 
@@ -260,10 +286,24 @@ describe('[jobId] migration route server actions', () => {
 		resumeAlgoliaImportJobMock.mockResolvedValue({ ...JOB_FIXTURE, status: 'resuming' });
 		cancelMigrationImportJobMock.mockResolvedValue({ ...JOB_FIXTURE, status: 'cancelling' });
 		resumeMigrationImportJobMock.mockResolvedValue({ ...JOB_FIXTURE, status: 'resuming' });
+		verifySourceMigrationMock.mockResolvedValue({
+			sourceIndex: 'source_products',
+			destinationIndex: 'products_migrated',
+			resultLimit: 4,
+			queries: [
+				{
+					query: 'running shoes',
+					overlapCount: 3,
+					sourceOnly: ['p2'],
+					destinationOnly: ['p5'],
+					hits: [{ objectID: 'p3', sourceRank: 3, destinationRank: 1, rankDelta: -2 }]
+				}
+			]
+		});
 	});
 
-	it('exports only the cancel and resume job actions', () => {
-		expect(Object.keys(actions).sort()).toEqual(['cancel', 'resume']);
+	it('exports only the cancel, resume, and verify job actions', () => {
+		expect(Object.keys(actions).sort()).toEqual(['cancel', 'resume', 'verify']);
 	});
 
 	it('cancel calls the neutral Algolia cancellation wrapper with the path job id and server token only', async () => {
@@ -522,5 +562,258 @@ describe('[jobId] migration route server actions', () => {
 		);
 		expect(JSON.stringify(result)).not.toContain('migration_provider_unsupported');
 		expect(JSON.stringify(result)).not.toContain('typesense-resume-secret-key-canary');
+	});
+
+	it.each(['completed', 'completed_with_warnings'] as const)(
+		'verify reloads a %s retained job, derives indexes from that job, and forwards only fresh inputs',
+		async (status) => {
+			getMigrationImportJobMock.mockResolvedValue({
+				...JOB_FIXTURE,
+				status,
+				sourceProvider: 'algolia',
+				source: { name: 'source_products' },
+				destination: { kind: 'create', target: 'products_migrated', region: 'us-east-1' }
+			});
+
+			const result = await actions.verify({
+				params: { jobId: 'job_123' },
+				request: actionRequest({
+					source_provider: 'algolia',
+					appId: 'algolia_app_id_canary',
+					apiKey: 'algolia_api_key_canary',
+					sourceIndex: 'tampered_source',
+					destinationIndex: 'tampered_destination',
+					queries: 'running shoes\n\nboots',
+					resultLimit: '4'
+				}),
+				locals: localsWithToken()
+			} as never);
+
+			expect(getMigrationImportJobMock).toHaveBeenCalledWith('algolia', 'job_123');
+			expect(verifySourceMigrationMock).toHaveBeenCalledOnce();
+			expect(verifySourceMigrationMock).toHaveBeenCalledWith('algolia', {
+				appId: 'algolia_app_id_canary',
+				apiKey: 'algolia_api_key_canary',
+				sourceIndex: 'source_products',
+				destinationIndex: 'products_migrated',
+				queries: ['running shoes', 'boots'],
+				resultLimit: 4
+			});
+			expect(result).toEqual(
+				expect.objectContaining({
+					report: expect.objectContaining({
+						sourceIndex: 'source_products',
+						destinationIndex: 'products_migrated',
+						resultLimit: 4
+					})
+				})
+			);
+			const serialized = JSON.stringify(result);
+			expect(serialized).not.toContain('algolia_app_id_canary');
+			expect(serialized).not.toContain('algolia_api_key_canary');
+			expect(serialized).not.toContain('jwt-secret-canary');
+			expect(serialized).not.toContain('tampered_source');
+			expect(serialized).not.toContain('tampered_destination');
+		}
+	);
+
+	it.each(['queued', 'copying_documents', 'failed', 'cancelled'] as const)(
+		'verify rejects a %s retained job before calling the verification endpoint',
+		async (status) => {
+			getMigrationImportJobMock.mockResolvedValue({ ...JOB_FIXTURE, status });
+
+			const result = await actions.verify({
+				params: { jobId: 'job_123' },
+				request: actionRequest({
+					source_provider: 'algolia',
+					appId: 'algolia_app_id_canary',
+					apiKey: 'algolia_api_key_canary',
+					queries: 'running shoes',
+					resultLimit: '4'
+				}),
+				locals: localsWithToken()
+			} as never);
+
+			expect(verifySourceMigrationMock).not.toHaveBeenCalled();
+			expect(result).toEqual(
+				expect.objectContaining({
+					status: 400,
+					data: expect.objectContaining({
+						code: 'verification_not_available'
+					})
+				})
+			);
+			expect(JSON.stringify(result)).not.toContain('algolia_api_key_canary');
+		}
+	);
+
+	it('verify preserves sanitized structured public error code and message data', async () => {
+		getMigrationImportJobMock.mockResolvedValue({
+			...JOB_FIXTURE,
+			status: 'completed',
+			source: { name: 'source_products' },
+			destination: { kind: 'create', target: 'products_migrated', region: 'us-east-1' }
+		});
+		verifySourceMigrationMock.mockRejectedValue(
+			new ApiRequestError(403, 'missing_source_permission', {
+				body: {
+					error: 'missing_source_permission',
+					message:
+						'The source key algolia_api_key_canary for algolia_app_id_canary cannot search this index.',
+					code: 'missing_source_permission',
+					apiKey: 'algolia_api_key_canary'
+				}
+			})
+		);
+
+		const result = await actions.verify({
+			params: { jobId: 'job_123' },
+			request: actionRequest({
+				source_provider: 'algolia',
+				appId: 'algolia_app_id_canary',
+				apiKey: 'algolia_api_key_canary',
+				queries: 'running shoes',
+				resultLimit: '4'
+			}),
+			locals: localsWithToken()
+		} as never);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 403,
+				data: {
+					error: 'missing_source_permission',
+					message: 'The source key [redacted] for [redacted] cannot search this index.',
+					code: 'missing_source_permission'
+				}
+			})
+		);
+		const serialized = JSON.stringify(result);
+		expect(serialized).not.toContain('algolia_app_id_canary');
+		expect(serialized).not.toContain('algolia_api_key_canary');
+		expect(serialized).not.toContain('jwt-secret-canary');
+	});
+
+	it.each(['retained job reload', 'verification endpoint'] as const)(
+		'maps a 401 from the %s through the dashboard auth contract',
+		async (failureSource) => {
+			getMigrationImportJobMock.mockResolvedValue({ ...JOB_FIXTURE, status: 'completed' });
+			const authError = new ApiRequestError(401, 'Unauthorized', {
+				body: { error: 'Unauthorized' }
+			});
+			if (failureSource === 'retained job reload') {
+				getMigrationImportJobMock.mockRejectedValue(authError);
+			} else {
+				verifySourceMigrationMock.mockRejectedValue(authError);
+			}
+
+			const result = await actions.verify({
+				params: { jobId: 'job_123' },
+				request: actionRequest({
+					source_provider: 'algolia',
+					appId: 'algolia_app_id_canary',
+					apiKey: 'algolia_api_key_canary',
+					queries: 'running shoes',
+					resultLimit: '4'
+				}),
+				locals: localsWithToken()
+			} as never);
+
+			expect(result).toEqual(
+				expect.objectContaining({
+					status: 401,
+					data: expect.objectContaining({ _authSessionExpired: true })
+				})
+			);
+			expect(JSON.stringify(result)).not.toContain('algolia_api_key_canary');
+		}
+	);
+
+	it('rejects a fractional verification result limit without calling the endpoint', async () => {
+		getMigrationImportJobMock.mockResolvedValue({ ...JOB_FIXTURE, status: 'completed' });
+
+		const result = await actions.verify({
+			params: { jobId: 'job_123' },
+			request: actionRequest({
+				source_provider: 'algolia',
+				appId: 'algolia_app_id_canary',
+				apiKey: 'algolia_api_key_canary',
+				queries: 'running shoes',
+				resultLimit: '1.5'
+			}),
+			locals: localsWithToken()
+		} as never);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: expect.objectContaining({ code: 'verification_request_invalid' })
+			})
+		);
+		expect(verifySourceMigrationMock).not.toHaveBeenCalled();
+	});
+
+	it('verify rejects a completed retained job when the published verify capability is absent', async () => {
+		getMigrationImportJobMock.mockResolvedValue({ ...JOB_FIXTURE, status: 'completed' });
+		getMigrationAvailabilityMock.mockResolvedValue({
+			available: true,
+			message: 'Algolia migration is available.',
+			capabilities: {
+				cancel: true,
+				resume: false,
+				replace: true,
+				preview: true,
+				verify: false
+			}
+		});
+
+		const result = await actions.verify({
+			params: { jobId: 'job_123' },
+			request: actionRequest({
+				source_provider: 'algolia',
+				appId: 'algolia_app_id_canary',
+				apiKey: 'algolia_api_key_canary',
+				queries: 'running shoes',
+				resultLimit: '4'
+			}),
+			locals: localsWithToken()
+		} as never);
+
+		expect(getMigrationAvailabilityMock).toHaveBeenCalledWith('algolia');
+		expect(verifySourceMigrationMock).not.toHaveBeenCalled();
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: { error: 'Cutover verification is not available for this retained job.' }
+			})
+		);
+		expect(JSON.stringify(result)).not.toContain('algolia_api_key_canary');
+	});
+
+	it('verify fails closed when the capability lookup errors before the verification endpoint is called', async () => {
+		getMigrationImportJobMock.mockResolvedValue({ ...JOB_FIXTURE, status: 'completed' });
+		getMigrationAvailabilityMock.mockRejectedValue(new ApiRequestError(500, 'boom'));
+
+		const result = await actions.verify({
+			params: { jobId: 'job_123' },
+			request: actionRequest({
+				source_provider: 'algolia',
+				appId: 'algolia_app_id_canary',
+				apiKey: 'algolia_api_key_canary',
+				queries: 'running shoes',
+				resultLimit: '4'
+			}),
+			locals: localsWithToken()
+		} as never);
+
+		expect(getMigrationAvailabilityMock).toHaveBeenCalledWith('algolia');
+		expect(verifySourceMigrationMock).not.toHaveBeenCalled();
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: { error: 'Cutover verification is not available for this retained job.' }
+			})
+		);
+		expect(JSON.stringify(result)).not.toContain('algolia_api_key_canary');
 	});
 });

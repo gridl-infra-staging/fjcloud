@@ -1,7 +1,10 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { createAdminClient } from '$lib/admin-client';
 import type { AdminBillingInvoiceRow, AdminBillingSummaryResponse } from '$lib/admin-client';
+import {
+	redirectIfAdminSessionAuthError,
+	requireDurableAdminSession
+} from '$lib/server/admin-session';
 
 export type BillingInvoice = AdminBillingInvoiceRow;
 type BillingStatusKey = 'paid' | 'draft' | 'finalized' | 'failed' | 'refunded';
@@ -204,33 +207,32 @@ function normalizeBillingSummary(value: unknown): AdminBillingSummaryResponse {
 	};
 }
 
-export const load: PageServerLoad = async ({ fetch, depends, platform }) => {
-	depends('admin:billing');
+export const load: PageServerLoad = async (event) => {
+	event.depends('admin:billing');
 
-	const client = createAdminClient(undefined, platform?.env);
-	client.setFetch(fetch);
+	const { adminClient: client } = await requireDurableAdminSession(event);
 
 	try {
 		const summary = normalizeBillingSummary(await client.getBillingSummary());
 		const invoices = [...summary.invoices].sort(compareBillingInvoices);
 		return { summary: { ...summary, invoices }, invoices };
-	} catch {
+	} catch (error) {
+		redirectIfAdminSessionAuthError(error);
 		const summary = emptyBillingSummary();
 		return { summary, invoices: summary.invoices };
 	}
 };
 
 export const actions = {
-	runBilling: async ({ request, fetch, platform }) => {
-		const formData = await request.formData();
+	runBilling: async (event) => {
+		const { adminClient: client } = await requireDurableAdminSession(event);
+
+		const formData = await event.request.formData();
 		const month = parseBillingMonth(formData.get('month'));
 
 		if (!month) {
 			return fail(400, { success: false, error: 'Month must use YYYY-MM format' });
 		}
-
-		const client = createAdminClient(undefined, platform?.env);
-		client.setFetch(fetch);
 
 		try {
 			const result = await client.runBatchBilling(month);
@@ -239,6 +241,7 @@ export const actions = {
 				message: `Billing complete: ${result.invoices_created} invoices created, ${result.invoices_skipped} skipped`
 			};
 		} catch (err) {
+			redirectIfAdminSessionAuthError(err);
 			return fail(500, {
 				success: false,
 				error: err instanceof Error ? err.message : 'Batch billing failed'
@@ -246,8 +249,10 @@ export const actions = {
 		}
 	},
 
-	bulkFinalize: async ({ request, fetch, platform }) => {
-		const formData = await request.formData();
+	bulkFinalize: async (event) => {
+		const { adminClient: client } = await requireDurableAdminSession(event);
+
+		const formData = await event.request.formData();
 		const invoiceIds = parseBillingInvoiceIds(formData);
 
 		if (invoiceIds?.length === 0) {
@@ -257,9 +262,6 @@ export const actions = {
 			return fail(400, { success: false, error: 'Invoice IDs must be valid UUIDs' });
 		}
 
-		const client = createAdminClient(undefined, platform?.env);
-		client.setFetch(fetch);
-
 		let finalized = 0;
 		const errors: string[] = [];
 
@@ -268,6 +270,7 @@ export const actions = {
 				await client.finalizeInvoice(id);
 				finalized++;
 			} catch (err) {
+				redirectIfAdminSessionAuthError(err);
 				errors.push(`${id}: ${err instanceof Error ? err.message : 'failed'}`);
 			}
 		}

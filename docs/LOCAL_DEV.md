@@ -46,6 +46,23 @@ flapjack binary path, helper-owned source receipt provenance when a selected
 checkout is built or reused, and whether a flapjack admin key is configured,
 without echoing the secret value into terminal output.
 
+For the manual stack, the per-worktree derivation assigns all seven
+Docker/service host ports from the canonical worktree path: Postgres,
+Flapjack, Meilisearch, Typesense, Mailpit UI, SMTP, and SeaweedFS S3. The Bash owner
+`scripts/lib/playwright_port_plan.sh` reads the constants from
+`web/playwright.config.contract.ts` on every run, so the shell does not carry a
+second copy of the arithmetic. Explicit port variables still win. A loopback
+`DATABASE_URL` using port `5432` is treated as the neutral template value and
+is rewritten to the derived Postgres port; any other explicit database port is
+preserved.
+
+Use the manual stack for persistent component and API debugging. Use the
+Playwright-managed stack for browser suites: Playwright owns its API, web, and
+Flapjack lifecycle and already derives its own worktree-specific ports. Do not
+pre-start the manual stack for a Playwright suite unless that suite explicitly
+documents an external-server contract. Direct `docker compose` invocations do
+not apply the wrapper derivation and retain the Compose fallback ports.
+
 Service liveness is not treated as service compatibility. The exact supported
 Flapjack release, selected-source receipt validation, and binary identity live
 in `scripts/lib/flapjack_binary.sh`; runtime `/health` identity checks live in
@@ -80,7 +97,8 @@ automatically; metering and aggregation are started manually after seeding.
 When `MAILPIT_API_URL` is set in `.env.local`, the API uses `MailpitEmailService`
 instead of `NoopEmailService`. Emails are sent via Mailpit's HTTP JSON API
 (`POST /api/v1/send`) using `reqwest` (already in workspace — no new deps).
-View caught emails at `http://localhost:8025`. Tags (`verification`,
+View caught emails at the Mailpit UI URL printed by `local-dev-up.sh` (the raw
+Compose fallback is `http://localhost:8025`). Tags (`verification`,
 `password-reset`, `invoice`, `quota-warning`) let you filter by email type.
 
 ### Billing (LocalStripeService)
@@ -94,9 +112,10 @@ between the API and the dispatcher (defaults to `whsec_local_dev_secret`).
 
 ### Cold Storage (SeaweedFS)
 
-SeaweedFS provides an S3-compatible API on port 8333. The API's `S3ObjectStore`
-connects to it when the strict local profile sets
-`COLD_STORAGE_ENDPOINT=http://localhost:8333` along with
+SeaweedFS provides an S3-compatible API on the port printed by
+`local-dev-up.sh` (the raw Compose fallback is `8333`). The API's
+`S3ObjectStore` connects to it when the strict local profile sets
+`COLD_STORAGE_ENDPOINT` to that printed endpoint along with
 `COLD_STORAGE_BUCKET`, `COLD_STORAGE_REGION`, `COLD_STORAGE_ACCESS_KEY`, and
 `COLD_STORAGE_SECRET_KEY`. These are deterministic local-only credentials from
 `ops/seaweedfs_s3_config.json`; do not replace them with real AWS credentials.
@@ -160,7 +179,15 @@ COMPOSE_PROFILES=source-providers \
 bash scripts/local-dev-down.sh
 ```
 
-Defaults: Meilisearch `7700`, Typesense `8108`. Health-check budget is
+Raw Compose fallbacks are Meilisearch `7710` and Typesense `8108`; normal
+`local-dev-up.sh` runs replace them with worktree-derived ports unless the
+operator supplies explicit overrides. Meilisearch deliberately does
+**not** default to its own upstream `7700`, because that is `FLAPJACK_PORT`'s
+default and a three-provider migration run binds flapjack (the destination) and
+Meilisearch (a source) at the same time. `local-dev-up.sh` now refuses to start
+when any two configured host ports are equal and names both variables, so this
+class of misconfiguration fails in one line instead of as a confusing late bind
+failure. Health-check budget is
 `SOURCE_PROVIDER_HEALTH_TIMEOUT_SECONDS` (default `60`); **failure is
 non-fatal** — the stack continues and only the source fixtures are unavailable,
 so a green `local-dev-up.sh` does not by itself prove the providers started.
@@ -252,14 +279,22 @@ Because `scripts/local-dev-up.sh` runs as a child process, its export does not
 persist in your parent shell. For status/troubleshooting commands in your shell,
 resolve the same project name directly via `scripts/lib/compose_project.sh`.
 
+The values below are raw service fallbacks. `scripts/local-dev-up.sh` normally
+replaces the seven manual-stack ports with a worktree-derived plan. An explicit
+environment value is preserved, so operators who set overrides remain
+responsible for avoiding collisions with sibling worktrees.
+
 | Env var | Default | Service |
 | --- | --- | --- |
 | `LOCAL_WEB_PORT` | `5173` | SvelteKit web dev server |
 | `PLAYWRIGHT_API_PORT` | `3001` | Local API HTTP endpoint |
-| `LOCAL_DB_PORT` | `5432` | Docker Postgres host bind |
-| `LOCAL_S3_PORT` | `8333` | SeaweedFS S3-compatible endpoint |
-| `LOCAL_MAILPIT_UI_PORT` | `8025` | Mailpit web UI |
-| `LOCAL_SMTP_PORT` | `1025` | Mailpit SMTP endpoint |
+| `LOCAL_DB_PORT` | worktree-derived (`5432` raw fallback) | Docker Postgres host bind |
+| `FLAPJACK_PORT` | worktree-derived (`7700` raw fallback) | Flapjack HTTP endpoint |
+| `LOCAL_MEILISEARCH_PORT` | worktree-derived (`7710` raw fallback) | Meilisearch HTTP endpoint |
+| `LOCAL_TYPESENSE_PORT` | worktree-derived (`8108` raw fallback) | Typesense HTTP endpoint |
+| `LOCAL_S3_PORT` | worktree-derived (`8333` raw fallback) | SeaweedFS S3-compatible endpoint |
+| `LOCAL_MAILPIT_UI_PORT` | worktree-derived (`8025` raw fallback) | Mailpit web UI |
+| `LOCAL_SMTP_PORT` | worktree-derived (`1025` raw fallback) | Mailpit SMTP endpoint |
 
 Use one of the two profiles below. Keep this section as the canonical source of
 truth and have other docs link here instead of copying env guidance.
@@ -507,6 +542,12 @@ running `scripts/local-dev-up.sh`.
 instead of launching Cargo directly. The wrapper uses `load_env_file` from
 `scripts/lib/env.sh` to parse `.env.local` safely (rejecting executable shell
 syntax) and export the variables before starting the Rust API.
+
+**A separately launched API cannot reach a derived local service** — the port
+exports made by `local-dev-up.sh` belong to that child process and do not
+persist in your shell. Copy the printed derived endpoints into the API launch
+environment, in particular `LOCAL_DEV_FLAPJACK_URL`, `MAILPIT_API_URL`, and
+`COLD_STORAGE_ENDPOINT`, before running `scripts/api-dev.sh`.
 
 **Flapjack binary not found** — set `FLAPJACK_DEV_DIR` to your local
 `flapjack_dev` checkout (repo root or `engine/` subdirectory) first. The shared

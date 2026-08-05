@@ -1201,7 +1201,7 @@ async fn algolia_cloud_job_create_rejects_unknown_request_field() {
         setup_algolia_cloud_job_create_app(db.pool.clone(), source_service.clone()).await;
     let target_token = target_create_eligibility_token(&app, &jwt).await;
 
-    let (status, _headers, _body) = post_create_job(
+    let (status, _headers, body) = post_create_job(
         app,
         &jwt,
         "idem-unknown-field",
@@ -1216,7 +1216,16 @@ async fn algolia_cloud_job_create_rejects_unknown_request_field() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        body["code"],
+        AlgoliaImportErrorCode::IncompatibleData.as_str()
+    );
+    assert!(
+        body["error"].as_str().unwrap().contains("resumeCheckpoint"),
+        "body should name the offending field without relying on Axum 422: {body}"
+    );
+    assert!(!body.to_string().contains("temporary-secret-key"));
     assert!(source_service.inspect_requests().is_empty());
     assert_eq!(count_algolia_import_jobs(&db.pool).await, 0);
 }

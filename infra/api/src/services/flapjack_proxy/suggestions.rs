@@ -104,6 +104,28 @@ impl FlapjackProxy {
         )
     }
 
+    /// POST /1/configs/{index_name}/build — trigger query suggestions build.
+    pub async fn build_qs_config(
+        &self,
+        flapjack_url: &str,
+        node_id: &str,
+        region: &str,
+        index_name: &str,
+    ) -> Result<serde_json::Value, ProxyError> {
+        let api_key = self.get_admin_key(node_id, region).await?;
+        let url = format!("{flapjack_url}/1/configs/{index_name}/build");
+
+        let resp = self
+            .send_authenticated_request(reqwest::Method::POST, url, api_key, None)
+            .await?;
+        Self::check_response_status(resp.status, &resp.body)?;
+
+        Self::parse_json_response(
+            &resp.body,
+            "failed to parse query suggestions build response",
+        )
+    }
+
     /// DELETE /1/configs/{index_name} — delete query suggestions config.
     pub async fn delete_qs_config(
         &self,

@@ -9,7 +9,13 @@
  * BROWSER_TESTING_STANDARDS_2.md.  They must never appear in *.spec.ts files.
  */
 
-import { test as base, expect, type Locator, type Page } from '@playwright/test';
+import {
+	test as base,
+	expect,
+	type BrowserContext,
+	type Locator,
+	type Page
+} from '@playwright/test';
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -21,6 +27,7 @@ import {
 	type SeedMetricsSearchableIndexFn,
 	type SeedSearchableIndexFn
 } from './searchable-index';
+import { createDashboardUsageSeedFactory, type SeedDashboardUsageFn } from './dashboard_usage';
 import { buildTenantScopedIndexUid } from '../../src/lib/flapjack-index';
 import {
 	findCustomerStatusViaStagingSsm,
@@ -39,7 +46,7 @@ import {
 	resolveFixtureEnv,
 	resolveRequiredFixtureUserCredentials
 } from '../../playwright.config.contract';
-import { AUTH_COOKIE } from '../../src/lib/server/auth-session-contracts';
+import { ADMIN_SESSION_COOKIE, AUTH_COOKIE } from '../../src/lib/auth-session-contracts';
 import { requireAdminApiKey, requireNonEmptyString } from './contract-guards';
 import {
 	attemptRemoteSignupFallback,
@@ -56,7 +63,9 @@ import type {
 	Rule,
 	RuleSearchResponse,
 	Synonym,
-	SynonymSearchResponse
+	SynonymSearchResponse,
+	QsBuildStatus,
+	QsConfig
 } from '../../src/lib/api/types';
 import { formatBytes, formatDateTime, formatNumber, statusLabel } from '../../src/lib/format';
 import type {
@@ -70,6 +79,7 @@ import {
 } from '../../src/lib/pricing';
 import { quoteSqlLiteral, runSqlWithPsqlFallback } from './postgres_psql_helper';
 import { formatFixtureSetupFailure, redactSensitiveDiagnostics } from './setup_failure_message';
+import { installCspAudit, type CspAudit } from './csp_audit';
 export { formatFixtureSetupFailure } from './setup_failure_message';
 
 // ---------------------------------------------------------------------------
@@ -199,6 +209,11 @@ type FixtureApiCall = (
 	body?: unknown,
 	tokenOverride?: string
 ) => Promise<Response>;
+type IsolatedAdminSession = {
+	page: Page;
+	revokeCurrentSession: () => Promise<void>;
+};
+type ArrangeIsolatedAdminSessionFn = () => Promise<IsolatedAdminSession>;
 type EnsureLocalSharedVmInventoryForRegionDeps = {
 	env?: Record<string, string | undefined>;
 	flapjackUrl?: string;
@@ -226,7 +241,12 @@ type RunTrackedCustomerCleanupDeps = {
 type AdminDeploymentFixture = {
 	id: string;
 	region: string;
+	provider: 'aws' | 'local';
 	status: string;
+};
+type AdminDeploymentSeedOptions = {
+	provider?: 'aws' | 'local';
+	region?: string;
 };
 type AdminVmLifecycleTimelineEventType =
 	| 'detected_dead'
@@ -1083,6 +1103,7 @@ type ArrangeFreshSignupToDashboardResult = {
 };
 
 type TrackCustomerForCleanupFn = (customerId: string) => void;
+type BeforeDocumentReplacementFn = () => Promise<void>;
 type ArrangeFreshSignupToDashboardDeps = {
 	resolveCleanupCustomerId?: typeof resolveFreshSignupCleanupCustomerId;
 	getSessionTokenFromPage?: (page: Page) => Promise<string | null>;
@@ -2056,6 +2077,97 @@ async function clearSynonymsWithFixtureApi(
 	throw new Error('clearSynonyms failed: retries exhausted');
 }
 
+async function saveQsConfigWithFixtureApi(
+	indexName: string,
+	config: QsConfig,
+	tokenOverride?: string
+): Promise<void> {
+	for (let attempt = 0; attempt < 3; attempt += 1) {
+		const response = await apiCall(
+			'PUT',
+			`/indexes/${encodeURIComponent(indexName)}/suggestions`,
+			config,
+			tokenOverride
+		);
+		if (response.ok) {
+			return;
+		}
+		const responseText = await response.text();
+		if (
+			attempt < 2 &&
+			response.status === 400 &&
+			responseText.toLowerCase().includes('invalid application-id or api key')
+		) {
+			await sleep(getTransientRetryDelayMs(attempt));
+			continue;
+		}
+		throw new Error(`saveQsConfig failed: ${response.status} ${responseText}`);
+	}
+	throw new Error('saveQsConfig failed: retries exhausted');
+}
+
+async function getQsConfigWithFixtureApi(
+	indexName: string,
+	tokenOverride?: string
+): Promise<QsConfig | null> {
+	for (let attempt = 0; attempt < 3; attempt += 1) {
+		const response = await apiCall(
+			'GET',
+			`/indexes/${encodeURIComponent(indexName)}/suggestions`,
+			undefined,
+			tokenOverride
+		);
+		if (response.status === 404) {
+			return null;
+		}
+		if (response.ok) {
+			return (await response.json()) as QsConfig;
+		}
+		const responseText = await response.text();
+		if (
+			attempt < 2 &&
+			response.status === 400 &&
+			responseText.toLowerCase().includes('invalid application-id or api key')
+		) {
+			await sleep(getTransientRetryDelayMs(attempt));
+			continue;
+		}
+		throw new Error(`getQsConfig failed: ${response.status} ${responseText}`);
+	}
+	throw new Error('getQsConfig failed: retries exhausted');
+}
+
+async function getQsStatusWithFixtureApi(
+	indexName: string,
+	tokenOverride?: string
+): Promise<QsBuildStatus | null> {
+	for (let attempt = 0; attempt < 3; attempt += 1) {
+		const response = await apiCall(
+			'GET',
+			`/indexes/${encodeURIComponent(indexName)}/suggestions/status`,
+			undefined,
+			tokenOverride
+		);
+		if (response.status === 404) {
+			return null;
+		}
+		if (response.ok) {
+			return (await response.json()) as QsBuildStatus;
+		}
+		const responseText = await response.text();
+		if (
+			attempt < 2 &&
+			response.status === 400 &&
+			responseText.toLowerCase().includes('invalid application-id or api key')
+		) {
+			await sleep(getTransientRetryDelayMs(attempt));
+			continue;
+		}
+		throw new Error(`getQsStatus failed: ${response.status} ${responseText}`);
+	}
+	throw new Error('getQsStatus failed: retries exhausted');
+}
+
 function normalizeProofObjectIDs(objectIDs: string[]): string[] {
 	const normalized = objectIDs.map((value) => value.trim()).filter((value) => value.length > 0);
 	return Array.from(new Set(normalized));
@@ -2131,6 +2243,41 @@ async function adminApiCall(method: string, path: string, body?: unknown): Promi
 	return lastResponse ?? new Response('adminApiCall exhausted without a response', { status: 500 });
 }
 
+async function readAdminSessionCookie(page: Page): Promise<string> {
+	const adminSessionCookie = (await page.context().cookies()).find(
+		(cookie) => cookie.name === ADMIN_SESSION_COOKIE
+	);
+	const sessionToken = adminSessionCookie?.value?.trim() ?? '';
+	return requireNonEmptyString(
+		sessionToken,
+		`isolated admin browser session missing ${ADMIN_SESSION_COOKIE} cookie`
+	);
+}
+
+async function revokeAdminSessionToken(sessionToken: string): Promise<void> {
+	const response = await callJsonApi(
+		fetch,
+		fixtureEnv.apiUrl,
+		'DELETE',
+		'/admin/sessions/current',
+		{ 'x-admin-session': sessionToken }
+	);
+	if (!response.ok) {
+		throw new Error(`admin session revocation failed: ${response.status} ${await response.text()}`);
+	}
+}
+
+async function loginIsolatedAdminPage(page: Page): Promise<void> {
+	await page.goto('/admin/login');
+	await expect(page.getByRole('heading', { name: 'Admin Login' })).toBeVisible();
+	await page.getByLabel('Admin Key').fill(requireAdminApiKey(fixtureEnv.adminKey));
+	await Promise.all([
+		page.waitForURL(/\/admin\/fleet$/),
+		page.getByRole('button', { name: 'Log In' }).click()
+	]);
+	await expect(page.getByRole('heading', { name: 'Fleet Overview' })).toBeVisible();
+}
+
 async function raiseRemoteSeededIndexWriteQuota(customerId: string): Promise<void> {
 	if (process.env[REMOTE_TARGET_OPT_IN_ENV] !== '1') {
 		return;
@@ -2166,9 +2313,10 @@ async function deleteTrackedCustomerForCleanup(customerId: string): Promise<void
 
 async function seedAdminDeploymentForCustomer(
 	customer: CreatedFixtureUser,
-	options?: { region?: string }
+	options?: AdminDeploymentSeedOptions
 ): Promise<AdminDeploymentFixture> {
 	const region = options?.region ?? fixtureEnv.testRegion;
+	const provider = options?.provider ?? 'local';
 	const seed = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 	const output = runFixtureSql(
 		`
@@ -2190,23 +2338,28 @@ VALUES (
     ${quoteSqlLiteral(`e2e-admin-deploy-${seed}`)},
     ${quoteSqlLiteral(region)},
     'e2e.small',
-    'local',
+    ${quoteSqlLiteral(provider)},
     '127.0.0.1',
     'running',
-    ${quoteSqlLiteral(`local:e2e-admin-deploy-${seed}`)},
+    ${quoteSqlLiteral(`${provider}:e2e-admin-deploy-${seed}`)},
     ${quoteSqlLiteral(`e2e-admin-deploy-${seed}`)},
     ${quoteSqlLiteral(fixtureEnv.flapjackUrl)},
     'healthy'
 			)
-RETURNING id::text || '|' || region || '|' || status;
+RETURNING id::text || '|' || region || '|' || vm_provider || '|' || status;
 	`,
 		`seed admin deployment for ${customer.customerId}`
 	);
-	const [id, returnedRegion, status] = output.split('|');
-	if (!id || !returnedRegion || !status) {
+	const [id, returnedRegion, returnedProvider, status] = output.split('|');
+	if (
+		!id ||
+		!returnedRegion ||
+		(returnedProvider !== 'aws' && returnedProvider !== 'local') ||
+		!status
+	) {
 		throw new Error(`seed admin deployment returned an unexpected row: ${output}`);
 	}
-	return { id, region: returnedRegion, status };
+	return { id, region: returnedRegion, provider: returnedProvider, status };
 }
 
 const ADMIN_VM_TIMELINE_DEAD_VM_ID = '00000000-0000-4000-8000-00000000d001';
@@ -2729,10 +2882,32 @@ function getStaleFixtureIndexCleanupState(): StaleFixtureIndexCleanupState {
 	};
 }
 
+function extractVisibleSvgTextBoxes(svgs: SVGSVGElement[]): SvgTextBox[] {
+	const textNodes = Array.from(
+		new Set(svgs.flatMap((svg) => Array.from(svg.querySelectorAll('text'))))
+	);
+	return textNodes
+		.map((node, index) => {
+			const rect = node.getBoundingClientRect();
+			return {
+				index,
+				text: (node.textContent ?? '').trim(),
+				left: rect.left,
+				top: rect.top,
+				right: rect.right,
+				bottom: rect.bottom,
+				width: rect.width,
+				height: rect.height
+			};
+		})
+		.filter((box) => box.text.length > 0 && box.width > 0 && box.height > 0);
+}
+
 export const __fixtureTestSeams = {
 	cleanupStaleFixtureIndexesOnce,
 	createSeededIndexViaCustomerToken,
 	ensureLocalSharedVmInventoryForRegion,
+	extractVisibleSvgTextBoxes,
 	getStaleFixtureIndexCleanupState,
 	loginConfirmsFreshSignupAlreadyVerified,
 	reconcileIndexPrimaryVmTelemetry,
@@ -3286,12 +3461,14 @@ export async function arrangeFreshSignupToDashboardWithFixtureFallback(
 		page,
 		signup,
 		createUser,
-		trackCustomerForCleanup
+		trackCustomerForCleanup,
+		beforeDocumentReplacement
 	}: {
 		page: Page;
 		signup: FreshSignupIdentity;
 		createUser: CreateUserFn;
 		trackCustomerForCleanup: TrackCustomerForCleanupFn;
+		beforeDocumentReplacement?: BeforeDocumentReplacementFn;
 	},
 	{
 		resolveCleanupCustomerId = resolveFreshSignupCleanupCustomerId,
@@ -3299,6 +3476,7 @@ export async function arrangeFreshSignupToDashboardWithFixtureFallback(
 		attemptRemoteFallback = attemptRemoteSignupFallback
 	}: ArrangeFreshSignupToDashboardDeps = {}
 ): Promise<ArrangeFreshSignupToDashboardResult> {
+	await beforeDocumentReplacement?.();
 	await page.goto('/signup');
 	await page.getByLabel('Name').fill(signup.name);
 	await page.getByLabel('Email').fill(signup.email);
@@ -3311,6 +3489,7 @@ export async function arrangeFreshSignupToDashboardWithFixtureFallback(
 			{ timeout: 20_000 }
 		)
 		.catch(() => null);
+	await beforeDocumentReplacement?.();
 	await page.getByRole('button', { name: 'Sign Up' }).click();
 
 	const signupAlert = page.getByRole('alert');
@@ -3320,6 +3499,7 @@ export async function arrangeFreshSignupToDashboardWithFixtureFallback(
 	]).catch(() => undefined);
 
 	if (/\/console/.test(page.url())) {
+		await page.waitForLoadState('load');
 		const signupResponse = await signupResponsePromise;
 		const customerId = await resolveCleanupCustomerId({
 			sessionToken: await getSessionTokenFromPage(page),
@@ -3343,6 +3523,7 @@ export async function arrangeFreshSignupToDashboardWithFixtureFallback(
 			password: signup.password,
 			name: signup.name,
 			createUser,
+			beforeDocumentReplacement,
 			remoteTargetOptInEnv: REMOTE_TARGET_OPT_IN_ENV
 		});
 	} catch (error) {
@@ -4455,8 +4636,10 @@ async function listInvoicesBestEffort(tokenOverride?: string): Promise<InvoiceLi
 	return (await res.json()) as InvoiceListApiItem[];
 }
 
-async function createDraftInvoice(month = '2025-01'): Promise<{ id: string }> {
-	const customerId = await getCustomerId();
+async function createDraftInvoiceForCustomer(
+	customerId: string,
+	month = '2025-01'
+): Promise<{ id: string }> {
 	const res = await adminApiCall(
 		'POST',
 		`/admin/tenants/${encodeURIComponent(customerId)}/invoices`,
@@ -4468,6 +4651,10 @@ async function createDraftInvoice(month = '2025-01'): Promise<{ id: string }> {
 		throw new Error(`seedInvoice failed: ${res.status} ${await res.text()}`);
 	}
 	return (await res.json()) as { id: string };
+}
+
+async function createDraftInvoice(month = '2025-01'): Promise<{ id: string }> {
+	return createDraftInvoiceForCustomer(await getCustomerId(), month);
 }
 
 async function getInvoiceDetailForFixture(invoiceId: string): Promise<InvoiceDetailApiItem | null> {
@@ -4536,10 +4723,24 @@ type SearchRulesFn = (
 	hitsPerPage?: number
 ) => Promise<RuleSearchResponse>;
 type ReadClipboardTextFn = (page: Page) => Promise<string>;
+export type SvgTextBox = {
+	index: number;
+	text: string;
+	left: number;
+	top: number;
+	right: number;
+	bottom: number;
+	width: number;
+	height: number;
+};
+type ReadVisibleSvgTextBoxesFn = (locator: Locator) => Promise<SvgTextBox[]>;
 type SeedSynonymFn = (indexName: string, synonym: Synonym) => Promise<void>;
 type GetSynonymFn = (indexName: string, objectID: string) => Promise<Synonym | null>;
 type SearchSynonymsFn = (indexName: string, query?: string) => Promise<SynonymSearchResponse>;
 type ClearSynonymsFn = (indexName: string) => Promise<void>;
+type SeedQsConfigFn = (indexName: string, config: QsConfig) => Promise<void>;
+type GetQsConfigFn = (indexName: string) => Promise<QsConfig | null>;
+type GetQsStatusFn = (indexName: string) => Promise<QsBuildStatus | null>;
 type AssertIndexNeverReadableFn = (indexName: string) => Promise<void>;
 type WriteSynonymsProofManifestFn = (input: WriteSynonymsProofManifestInput) => Promise<void>;
 type ListApiKeysFn = () => Promise<ApiKeyListItem[]>;
@@ -4581,6 +4782,10 @@ type GetDebugEventsFn = (
 ) => Promise<{ events: DebugEvent[]; count: number }>;
 type SeedInvoiceFn = () => Promise<{ id: string }>;
 type SeedInvoiceWithPdfUrlFn = () => Promise<{ id: string }>;
+type SeedAdminDraftInvoiceFn = (
+	customer: CreatedFixtureUser,
+	month?: string
+) => Promise<{ id: string }>;
 type CreateUserFn = (email: string, password: string, name?: string) => Promise<CreatedFixtureUser>;
 export type LoginAsFn = (email: string, password: string) => Promise<string>;
 type ArrangeTrackedCustomerSessionOptions = {
@@ -4610,11 +4815,12 @@ type SeedMultiUserScenarioFn = () => Promise<{
 	primaryUser: CreatedFixtureUser;
 	secondaryUser: CreatedFixtureUser;
 }>;
+type AdminDeleteCustomerFn = (customerId: string) => Promise<void>;
 type AdminReactivateCustomerFn = (customerId: string) => Promise<void>;
 type AdminSuspendCustomerFn = (customerId: string) => Promise<void>;
 type SeedAdminDeploymentFn = (
 	customer: CreatedFixtureUser,
-	options?: { region?: string }
+	options?: AdminDeploymentSeedOptions
 ) => Promise<AdminDeploymentFixture>;
 type SeedAdminVmLifecycleTimelineFn = () => Promise<AdminVmLifecycleTimelineFixture>;
 type ReadAdminVmHostMetricsEvidenceParams = {
@@ -4668,7 +4874,8 @@ type ArrangePaidInvoiceForFreshSignupFn = (
 ) => Promise<ArrangePaidInvoiceForFreshSignupResult>;
 type ArrangeFreshSignupToDashboardFn = (
 	page: Page,
-	signup: FreshSignupIdentity
+	signup: FreshSignupIdentity,
+	beforeDocumentReplacement?: BeforeDocumentReplacementFn
 ) => Promise<ArrangeFreshSignupToDashboardResult>;
 type IsFreshSignupArrangePrerequisiteFailureFn = (alertText: string) => boolean;
 type ThrowFreshSignupArrangeFailureFn = (input: {
@@ -4679,6 +4886,8 @@ type ThrowFreshSignupArrangeFailureFn = (input: {
 }) => never;
 
 type E2eFixtures = {
+	/** Capture CSP violations across document replacements and count audited route responses. */
+	cspAudit: CspAudit;
 	/** Resolved API origin from resolveFixtureEnv (single env-contract owner). */
 	apiUrl: string;
 	/** Seed an index via the admin API and auto-delete after the test. */
@@ -4695,6 +4904,12 @@ type E2eFixtures = {
 	searchSynonyms: SearchSynonymsFn;
 	/** Clear all synonyms through fixture-owned bearer-token API access. */
 	clearSynonyms: ClearSynonymsFn;
+	/** Seed query suggestions config through fixture-owned bearer-token API access. */
+	seedQsConfig: SeedQsConfigFn;
+	/** Read query suggestions config through fixture-owned bearer-token API access. */
+	getQsConfig: GetQsConfigFn;
+	/** Read query suggestions build status through fixture-owned bearer-token API access. */
+	getQsStatus: GetQsStatusFn;
 	/** Prove an index stays unreadable across the seeded-index readiness window. */
 	assertIndexNeverReadable: AssertIndexNeverReadableFn;
 	/** Emit shell-readable Stage 5 synonyms proof metadata and cleanup contract. */
@@ -4717,6 +4932,8 @@ type E2eFixtures = {
 	searchRules: SearchRulesFn;
 	/** Read clipboard text through fixture-owned browser permission seam. */
 	readClipboardText: ReadClipboardTextFn;
+	/** Read positive-area SVG text boxes through fixture-owned DOM inspection. */
+	readVisibleSvgTextBoxes: ReadVisibleSvgTextBoxesFn;
 	/** Read API-key rows for the authenticated customer through fixture-owned API access. */
 	listApiKeys: ListApiKeysFn;
 	/** Read the anonymous public infrastructure response without browser auth state. */
@@ -4737,6 +4954,8 @@ type E2eFixtures = {
 	seedSearchableIndex: SeedSearchableIndexFn;
 	/** Seed an index backed by Flapjack with deterministic Metrics-ready document counts. */
 	seedMetricsSearchableIndex: SeedMetricsSearchableIndexFn;
+	/** Seed isolated current-month rows consumed by the dashboard usage APIs. */
+	seedDashboardUsage: SeedDashboardUsageFn;
 	/** Ensure an invoice exists for the test user and return its ID. */
 	seedInvoice: SeedInvoiceFn;
 	/** Ensure a finalized invoice with `pdf_url` exists and return its ID. */
@@ -4753,16 +4972,22 @@ type E2eFixtures = {
 	getEstimatedBill: GetEstimatedBillFn;
 	/** Seed two unique users for multi-user workflows. */
 	seedMultiUserScenario: SeedMultiUserScenarioFn;
+	/** Soft-delete an active customer through the existing admin route. */
+	adminDeleteCustomer: AdminDeleteCustomerFn;
 	/** Reactivate a suspended customer through the existing admin route. */
 	adminReactivateCustomer: AdminReactivateCustomerFn;
 	/** Suspend an active customer through the existing admin route. */
 	adminSuspendCustomer: AdminSuspendCustomerFn;
 	/** Seed a real admin-visible deployment row for a disposable customer. */
 	seedAdminDeployment: SeedAdminDeploymentFn;
+	/** Seed a draft invoice owned by a disposable customer for the admin billing table. */
+	seedAdminDraftInvoice: SeedAdminDraftInvoiceFn;
 	/** Seed the local admin VM autorepair lifecycle browser specimen. */
 	seedAdminVmLifecycleTimeline: SeedAdminVmLifecycleTimelineFn;
 	/** Read raw admin VM host-metrics evidence without formatting browser expectations. */
 	readAdminVmHostMetricsEvidence: ReadAdminVmHostMetricsEvidenceFn;
+	/** Create an isolated admin browser session and expose fixture-owned durable revocation. */
+	arrangeIsolatedAdminSession: ArrangeIsolatedAdminSessionFn;
 	/** Measure horizontal overflow through fixture-owned DOM inspection. */
 	elementHasHorizontalOverflow: ElementHasHorizontalOverflowFn;
 	/** Create a disposable tenant and return a normalized snapshot of /admin/tenants/{id}/rate-card. */
@@ -4843,12 +5068,40 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures, E2eWorkerFixt
 		await use(page);
 	},
 
+	cspAudit: async ({ page }, use) => {
+		await use(await installCspAudit(page));
+	},
+
 	testRegion: async ({}, use) => {
 		await use(fixtureEnv.testRegion);
 	},
 
 	apiUrl: async ({}, use) => {
 		await use(fixtureEnv.apiUrl);
+	},
+
+	arrangeIsolatedAdminSession: async ({ browser, baseURL }, use) => {
+		const contexts: BrowserContext[] = [];
+
+		await use(async () => {
+			const context = await browser.newContext({
+				baseURL,
+				storageState: { cookies: [], origins: [] }
+			});
+			contexts.push(context);
+			const page = await context.newPage();
+			await loginIsolatedAdminPage(page);
+			return {
+				page,
+				revokeCurrentSession: async () => {
+					await revokeAdminSessionToken(await readAdminSessionCookie(page));
+				}
+			};
+		});
+
+		for (const context of contexts.reverse()) {
+			await context.close().catch(() => undefined);
+		}
 	},
 
 	_trackIndexForCleanup: async ({}, use) => {
@@ -5009,12 +5262,13 @@ DELETE FROM vm_inventory WHERE id = ${quoteSqlLiteral(entry.replicaVmId)}::uuid;
 	},
 
 	arrangeFreshSignupToDashboard: async ({ createUser, _trackCustomerForCleanup }, use) => {
-		await use((page, signup) =>
+		await use((page, signup, beforeDocumentReplacement) =>
 			arrangeFreshSignupToDashboardWithFixtureFallback({
 				page,
 				signup,
 				createUser,
-				trackCustomerForCleanup: _trackCustomerForCleanup
+				trackCustomerForCleanup: _trackCustomerForCleanup,
+				beforeDocumentReplacement
 			})
 		);
 	},
@@ -5137,6 +5391,18 @@ DELETE FROM vm_inventory WHERE id = ${quoteSqlLiteral(entry.replicaVmId)}::uuid;
 		await use(() => seedMultiUserScenarioWithCreateUser({ createUser }));
 	},
 
+	adminDeleteCustomer: async ({}, use) => {
+		await use(async (customerId) => {
+			const response = await adminApiCall(
+				'DELETE',
+				`/admin/tenants/${encodeURIComponent(customerId)}`
+			);
+			if (!response.ok) {
+				throw new Error(`adminDeleteCustomer failed: ${response.status} ${await response.text()}`);
+			}
+		});
+	},
+
 	adminReactivateCustomer: async ({}, use) => {
 		await use((customerId) =>
 			adminReactivateCustomerById({
@@ -5159,6 +5425,12 @@ DELETE FROM vm_inventory WHERE id = ${quoteSqlLiteral(entry.replicaVmId)}::uuid;
 
 	seedAdminDeployment: async ({}, use) => {
 		await use((customer, options) => seedAdminDeploymentForCustomer(customer, options));
+	},
+
+	seedAdminDraftInvoice: async ({}, use) => {
+		await use((customer, month = '2025-01') =>
+			createDraftInvoiceForCustomer(customer.customerId, month)
+		);
 	},
 
 	seedAdminVmLifecycleTimeline: async ({}, use) => {
@@ -5199,6 +5471,20 @@ DELETE FROM vm_inventory WHERE id = ${quoteSqlLiteral(entry.replicaVmId)}::uuid;
 
 	clearSynonyms: async ({}, use) => {
 		await use((indexName: string) => clearSynonymsWithFixtureApi(indexName));
+	},
+
+	seedQsConfig: async ({}, use) => {
+		await use((indexName: string, config: QsConfig) =>
+			saveQsConfigWithFixtureApi(indexName, config)
+		);
+	},
+
+	getQsConfig: async ({}, use) => {
+		await use((indexName: string) => getQsConfigWithFixtureApi(indexName));
+	},
+
+	getQsStatus: async ({}, use) => {
+		await use((indexName: string) => getQsStatusWithFixtureApi(indexName));
 	},
 
 	assertIndexNeverReadable: async ({}, use) => {
@@ -5530,6 +5816,12 @@ DELETE FROM vm_inventory WHERE id = ${quoteSqlLiteral(entry.replicaVmId)}::uuid;
 		await use(fixture);
 	},
 
+	readVisibleSvgTextBoxes: async ({}, use) => {
+		const fixture: ReadVisibleSvgTextBoxesFn = async (locator) =>
+			locator.evaluateAll(extractVisibleSvgTextBoxes as (svgs: SVGSVGElement[]) => SvgTextBox[]);
+		await use(fixture);
+	},
+
 	listApiKeys: async ({}, use) => {
 		await use(async () => {
 			const res = await apiCall('GET', '/api-keys');
@@ -5754,6 +6046,51 @@ DELETE FROM vm_inventory WHERE id = ${quoteSqlLiteral(entry.replicaVmId)}::uuid;
 		};
 
 		await use(factory);
+	},
+
+	seedDashboardUsage: async ({ page, arrangeTrackedCustomerSession }, use) => {
+		const cleanupTasks: Array<() => Promise<void>> = [];
+		let bodyFailure: unknown;
+		try {
+			await use(
+				createDashboardUsageSeedFactory({
+					adminApiCall,
+					apiCall,
+					arrangeCustomerSession: (seedId) =>
+						arrangeTrackedCustomerSession(page, {
+							emailPrefix: 'dashboard-usage',
+							name: `E2E Dashboard Usage ${seedId}`
+						}),
+					currentBillingMonth: currentUtcBillingMonth,
+					registerCleanup: (cleanup) => {
+						cleanupTasks.push(cleanup);
+					}
+				})
+			);
+		} catch (error) {
+			bodyFailure = error;
+		}
+
+		const cleanupFailures: unknown[] = [];
+		for (const cleanup of cleanupTasks.reverse()) {
+			try {
+				await cleanup();
+			} catch (error) {
+				cleanupFailures.push(error);
+			}
+		}
+		if (bodyFailure && cleanupFailures.length > 0) {
+			throw new AggregateError(
+				[bodyFailure, ...cleanupFailures],
+				'seedDashboardUsage cleanup failed after fixture body failure'
+			);
+		}
+		if (bodyFailure) {
+			throw bodyFailure;
+		}
+		if (cleanupFailures.length > 0) {
+			throw new AggregateError(cleanupFailures, 'seedDashboardUsage cleanup failed');
+		}
 	},
 
 	seedInvoice: async ({}, use) => {

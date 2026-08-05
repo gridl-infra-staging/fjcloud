@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { adminSessionRouteEvent } from '../../admin_session_durable_test_support';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/svelte';
 import { formatDateTime } from '$lib/format';
 import type { VmLifecycleEvent } from '$lib/admin-client';
@@ -554,11 +555,13 @@ describe('VM detail page server load', () => {
 		const depends = vi.fn();
 		const { fetch, requestedPaths } = mockVmDetailAndLifecycleFetch(LIFECYCLE_EVENTS_FIXTURE);
 
-		const result = (await load({
-			fetch,
-			params: { id: VM_ID },
-			depends
-		} as never)) as typeof VM_DETAIL_FIXTURE & {
+		const result = (await load(
+			adminSessionRouteEvent({
+				fetch,
+				params: { id: VM_ID },
+				depends
+			}) as never
+		)) as typeof VM_DETAIL_FIXTURE & {
 			lifecycleEvents: typeof LIFECYCLE_EVENTS_FIXTURE;
 			hostMetrics: null;
 		};
@@ -599,11 +602,13 @@ describe('VM detail page server load', () => {
 			return new Response(JSON.stringify({ error: `unexpected path ${path}` }), { status: 500 });
 		};
 
-		const result = await load({
-			fetch,
-			params: { id: selectedVmId },
-			depends: vi.fn()
-		} as never);
+		const result = await load(
+			adminSessionRouteEvent({
+				fetch,
+				params: { id: selectedVmId },
+				depends: vi.fn()
+			}) as never
+		);
 
 		expect(requestedPaths).toEqual([
 			`/admin/vms/${selectedVmId}`,
@@ -641,11 +646,13 @@ describe('VM detail page server load', () => {
 			return new Response(JSON.stringify({ error: `unexpected path ${path}` }), { status: 500 });
 		};
 
-		const result = await load({
-			fetch,
-			params: { id: selectedVmId },
-			depends: vi.fn()
-		} as never);
+		const result = await load(
+			adminSessionRouteEvent({
+				fetch,
+				params: { id: selectedVmId },
+				depends: vi.fn()
+			}) as never
+		);
 
 		expect(requestedPaths).toEqual([
 			`/admin/vms/${selectedVmId}`,
@@ -664,11 +671,13 @@ describe('VM detail page server load', () => {
 		const { load } = await import('./+page.server');
 		const { fetch } = mockVmDetailAndLifecycleFetch(EMPTY_LIFECYCLE_RESPONSE);
 
-		const result = (await load({
-			fetch,
-			params: { id: VM_ID },
-			depends: vi.fn()
-		} as never)) as typeof VM_DETAIL_FIXTURE & { lifecycleEvents: [] | null };
+		const result = (await load(
+			adminSessionRouteEvent({
+				fetch,
+				params: { id: VM_ID },
+				depends: vi.fn()
+			}) as never
+		)) as typeof VM_DETAIL_FIXTURE & { lifecycleEvents: [] | null };
 
 		expect(result.vm.hostname).toBe('vm-abc.flapjack.foo');
 		expect(result.tenants).toEqual(VM_DETAIL_FIXTURE.tenants);
@@ -679,11 +688,13 @@ describe('VM detail page server load', () => {
 		const { load } = await import('./+page.server');
 		const { fetch } = mockVmDetailAndLifecycleFetch({ error: 'lifecycle unavailable' }, 500);
 
-		const result = (await load({
-			fetch,
-			params: { id: VM_ID },
-			depends: vi.fn()
-		} as never)) as typeof VM_DETAIL_FIXTURE & { lifecycleEvents: [] | null };
+		const result = (await load(
+			adminSessionRouteEvent({
+				fetch,
+				params: { id: VM_ID },
+				depends: vi.fn()
+			}) as never
+		)) as typeof VM_DETAIL_FIXTURE & { lifecycleEvents: [] | null };
 
 		expect(result.vm.hostname).toBe('vm-abc.flapjack.foo');
 		expect(result.tenants).toEqual(VM_DETAIL_FIXTURE.tenants);
@@ -701,11 +712,13 @@ describe('VM detail page server load', () => {
 		};
 
 		await expect(
-			load({
-				fetch: mockFetch,
-				params: { id: VM_ID },
-				depends: vi.fn()
-			} as never)
+			load(
+				adminSessionRouteEvent({
+					fetch: mockFetch,
+					params: { id: VM_ID },
+					depends: vi.fn()
+				}) as never
+			)
 		).rejects.toMatchObject({ status: 404 });
 
 		expect(requestedPaths).toEqual([`/admin/vms/${VM_ID}`]);
@@ -731,11 +744,13 @@ describe('VM detail page server load', () => {
 			return new Response(JSON.stringify({ error: `unexpected path ${path}` }), { status: 500 });
 		};
 
-		await load({
-			fetch: mockFetch,
-			params: { id: '../customers' },
-			depends: vi.fn()
-		} as never);
+		await load(
+			adminSessionRouteEvent({
+				fetch: mockFetch,
+				params: { id: '../customers' },
+				depends: vi.fn()
+			}) as never
+		);
 
 		expect(requestedPaths).toEqual([
 			`/admin/vms/${encodedVmId}`,
@@ -755,11 +770,13 @@ describe('VM detail page server load', () => {
 		};
 
 		await expect(
-			load({
-				fetch: mockFetch,
-				params: { id: VM_ID },
-				depends: vi.fn()
-			} as never)
+			load(
+				adminSessionRouteEvent({
+					fetch: mockFetch,
+					params: { id: VM_ID },
+					depends: vi.fn()
+				}) as never
+			)
 		).rejects.toMatchObject({ name: 'AdminClientError', status: 503 });
 
 		expect(requestedPaths).toEqual([`/admin/vms/${VM_ID}`]);

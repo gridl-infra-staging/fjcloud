@@ -129,6 +129,10 @@ mod migration_062_algolia_erased_vm_retirement_blocker_test;
 mod migration_066_algolia_terminal_outcome_presence_test;
 #[path = "integration/migration_068_provider_neutral_algolia_import_jobs_test.rs"]
 mod migration_068_provider_neutral_algolia_import_jobs_test;
+#[path = "integration/migration_capabilities_route_test.rs"]
+mod migration_capabilities_route_test;
+#[path = "integration/migration_preview_media_type_test.rs"]
+mod migration_preview_media_type_test;
 #[path = "integration/migration_routes_test.rs"]
 mod migration_routes_test;
 #[path = "integration/migration_test.rs"]

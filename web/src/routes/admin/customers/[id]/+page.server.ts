@@ -2,16 +2,14 @@
  */
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { AdminClientError, createAdminClient } from '$lib/admin-client';
+import { AdminClientError, type AdminClient } from '$lib/admin-client';
 import { AUTH_COOKIE, IMPERSONATION_COOKIE, IMPERSONATION_MAX_AGE } from '$lib/config';
 import { retryTransientAdminApiRequest } from '$lib/server/transient-api-retry';
 import {
-	ADMIN_SESSION_COOKIE,
-	getAdminSession,
-	purgeExpiredAdminSessions
+	redirectIfAdminSessionAuthError,
+	requireDurableAdminSession
 } from '$lib/server/admin-session';
 import { authCookieOptions } from '$lib/server/auth-cookies';
-import { privateEnvValue, type RuntimeEnv } from '$lib/server/runtime-env';
 import type {
 	AdminAuditRow,
 	AdminFleetDeployment,
@@ -39,37 +37,26 @@ type CustomerDetailData = {
 	audit: AdminAuditRow[] | null;
 };
 
-type AdminCookieReader = { get(name: string): string | undefined };
-type AdminActionContext = {
-	fetch: typeof globalThis.fetch;
-	cookies: AdminCookieReader;
-	runtimeEnv?: RuntimeEnv;
-};
-
-function adminClient(f: typeof globalThis.fetch, runtimeEnv?: RuntimeEnv) {
-	const client = createAdminClient(undefined, runtimeEnv);
-	client.setFetch(f);
-	return client;
-}
-
 function actionError(err: unknown, fallback: string) {
+	redirectIfAdminSessionAuthError(err);
 	return fail(400, {
 		success: false,
 		error: err instanceof Error ? err.message : fallback
 	});
 }
 
-function authenticatedAdminClient(
-	fetch: typeof globalThis.fetch,
-	cookies: AdminCookieReader,
-	runtimeEnv?: RuntimeEnv
-) {
-	requireAdminSession(cookies, runtimeEnv);
-	return adminClient(fetch, runtimeEnv);
+/** Every privileged call on this page runs behind the durable session guard. */
+async function authenticatedAdminClient(
+	event: Parameters<typeof requireDurableAdminSession>[0]
+): Promise<AdminClient> {
+	return (await requireDurableAdminSession(event)).adminClient;
 }
 
 function loadOptional<T>(operation: () => Promise<T>): Promise<T | null> {
-	return operation().catch(() => null);
+	return operation().catch((error) => {
+		redirectIfAdminSessionAuthError(error);
+		return null;
+	});
 }
 
 function toCustomerDetailIndex(index: Index) {
@@ -83,12 +70,12 @@ function toCustomerDetailIndex(index: Index) {
 }
 
 async function runAdminAction(
-	context: AdminActionContext,
+	event: Parameters<typeof requireDurableAdminSession>[0],
 	successMessage: string,
 	fallbackMessage: string,
-	operation: (client: ReturnType<typeof adminClient>) => Promise<unknown>
+	operation: (client: AdminClient) => Promise<unknown>
 ) {
-	const client = authenticatedAdminClient(context.fetch, context.cookies, context.runtimeEnv);
+	const client = await authenticatedAdminClient(event);
 
 	try {
 		await retryTransientAdminApiRequest(() => operation(client));
@@ -101,15 +88,17 @@ async function runAdminAction(
 	}
 }
 
-export const load: PageServerLoad = async ({ fetch, params, depends, cookies, platform }) => {
-	depends(`admin:customers:detail:${params.id}`);
+export const load: PageServerLoad = async (event) => {
+	const { params } = event;
+	event.depends(`admin:customers:detail:${params.id}`);
 
-	const client = authenticatedAdminClient(fetch, cookies, platform?.env);
+	const client = await authenticatedAdminClient(event);
 
 	let tenant: AdminTenantDetail;
 	try {
 		tenant = await retryTransientAdminApiRequest(() => client.getTenant(params.id));
 	} catch (err) {
+		redirectIfAdminSessionAuthError(err);
 		if (err instanceof AdminClientError && err.status === 404) {
 			error(404, 'Customer not found');
 		}
@@ -139,10 +128,11 @@ export const load: PageServerLoad = async ({ fetch, params, depends, cookies, pl
 };
 
 export const actions = {
-	updateQuotas: async ({ request, params, fetch, cookies, platform }) => {
-		const client = authenticatedAdminClient(fetch, cookies, platform?.env);
+	updateQuotas: async (event) => {
+		const { params } = event;
+		const client = await authenticatedAdminClient(event);
 
-		const formData = await request.formData();
+		const formData = await event.request.formData();
 		const maxQueryRps = _parseOptionalU32(formData.get('max_query_rps'));
 		const maxWriteRps = _parseOptionalU32(formData.get('max_write_rps'));
 		const maxStorageBytes = _parseOptionalU32(formData.get('max_storage_bytes'));
@@ -179,35 +169,30 @@ export const actions = {
 		}
 	},
 
-	reactivate: async ({ params, fetch, cookies, platform }) => {
+	reactivate: async (event) => {
 		return runAdminAction(
-			{ fetch, cookies, runtimeEnv: platform?.env },
+			event,
 			'Customer reactivated',
 			'Failed to reactivate customer',
-			(client) => client.reactivateCustomer(params.id)
+			(client) => client.reactivateCustomer(event.params.id)
 		);
 	},
 
-	suspend: async ({ params, fetch, cookies, platform }) => {
-		return runAdminAction(
-			{ fetch, cookies, runtimeEnv: platform?.env },
-			'Customer suspended',
-			'Failed to suspend customer',
-			(client) => client.suspendCustomer(params.id)
+	suspend: async (event) => {
+		return runAdminAction(event, 'Customer suspended', 'Failed to suspend customer', (client) =>
+			client.suspendCustomer(event.params.id)
 		);
 	},
 
-	syncStripe: async ({ params, fetch, cookies, platform }) => {
-		return runAdminAction(
-			{ fetch, cookies, runtimeEnv: platform?.env },
-			'Stripe sync complete',
-			'Failed to sync Stripe',
-			(client) => client.syncStripeCustomer(params.id)
+	syncStripe: async (event) => {
+		return runAdminAction(event, 'Stripe sync complete', 'Failed to sync Stripe', (client) =>
+			client.syncStripeCustomer(event.params.id)
 		);
 	},
 
-	softDelete: async ({ params, fetch, cookies, platform }) => {
-		const client = authenticatedAdminClient(fetch, cookies, platform?.env);
+	softDelete: async (event) => {
+		const { params } = event;
+		const client = await authenticatedAdminClient(event);
 
 		try {
 			await client.deleteTenant(params.id);
@@ -218,8 +203,9 @@ export const actions = {
 		redirect(303, '/admin/customers');
 	},
 
-	impersonate: async ({ params, fetch, url, cookies, platform }) => {
-		const client = authenticatedAdminClient(fetch, cookies, platform?.env);
+	impersonate: async (event) => {
+		const { params, url, cookies } = event;
+		const client = await authenticatedAdminClient(event);
 
 		try {
 			// Pass purpose='impersonation' so the API writes an audit_log row.
@@ -237,10 +223,10 @@ export const actions = {
 		redirect(303, '/console');
 	},
 
-	terminateDeployment: async ({ request, fetch, cookies, platform }) => {
-		const client = authenticatedAdminClient(fetch, cookies, platform?.env);
+	terminateDeployment: async (event) => {
+		const client = await authenticatedAdminClient(event);
 
-		const formData = await request.formData();
+		const formData = await event.request.formData();
 		const deploymentId = formData.get('deployment_id');
 		if (typeof deploymentId !== 'string' || deploymentId.trim().length === 0) {
 			return fail(400, {
@@ -260,10 +246,11 @@ export const actions = {
 		}
 	},
 
-	viewInvoice: async ({ request, params, fetch, cookies, platform }) => {
-		const client = authenticatedAdminClient(fetch, cookies, platform?.env);
+	viewInvoice: async (event) => {
+		const { params } = event;
+		const client = await authenticatedAdminClient(event);
 
-		const formData = await request.formData();
+		const formData = await event.request.formData();
 		const invoiceId = formData.get('invoice_id');
 		if (typeof invoiceId !== 'string' || invoiceId.trim().length === 0) {
 			return fail(400, {
@@ -308,16 +295,3 @@ export function _parseOptionalU32(value: FormDataEntryValue | null): number | un
 }
 
 export const _parseOptionalU64 = _parseOptionalU32;
-
-function requireAdminSession(cookies: AdminCookieReader, runtimeEnv?: RuntimeEnv): void {
-	purgeExpiredAdminSessions();
-
-	if (
-		!getAdminSession(
-			cookies.get(ADMIN_SESSION_COOKIE),
-			privateEnvValue('ADMIN_KEY', { env: runtimeEnv })
-		)
-	) {
-		redirect(303, '/admin/login');
-	}
-}

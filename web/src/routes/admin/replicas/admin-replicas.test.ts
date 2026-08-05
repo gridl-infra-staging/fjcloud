@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { adminSessionRouteEvent } from '../admin_session_durable_test_support';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
 import { getAccessibilityViolations } from '../../../tests/a11y';
@@ -231,10 +232,12 @@ describe('Admin replicas server load', () => {
 			return new Response(JSON.stringify(REPLICA_FIXTURES), { status: 200 });
 		};
 
-		const result = await load({
-			fetch: mockFetch,
-			depends: () => {}
-		} as never);
+		const result = await load(
+			adminSessionRouteEvent({
+				fetch: mockFetch,
+				depends: () => {}
+			}) as never
+		);
 
 		expect(capturedPath).toContain('/admin/replicas');
 		expect(result!.replicas).toHaveLength(3);
@@ -248,10 +251,12 @@ describe('Admin replicas server load', () => {
 			return new Response('Internal Server Error', { status: 500 });
 		};
 
-		const result = await load({
-			fetch: mockFetch,
-			depends: () => {}
-		} as never);
+		const result = await load(
+			adminSessionRouteEvent({
+				fetch: mockFetch,
+				depends: () => {}
+			}) as never
+		);
 
 		expect(result!.replicas).toEqual([]);
 	});

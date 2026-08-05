@@ -1,14 +1,27 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import type { ComponentProps } from 'svelte';
 
 import type {
 	AlgoliaDestinationEligibilityResponse,
-	AlgoliaIndexMetadata,
-	AlgoliaSourceListResponse,
+	MigrationPreviewResponse,
 	PublicAlgoliaImportJob
 } from '$lib/api/types';
 import MigrationCreateFlow from './MigrationCreateFlow.svelte';
+import {
+	API_KEY_CANARY,
+	APP_ID_CANARY,
+	availableAvailability,
+	ELIGIBLE_AWS_PROVIDER,
+	ELIGIBLE_AWS_REPLACE_PROVIDER,
+	importJob,
+	listResponse,
+	previewResponse,
+	REPLACE_CAPABILITY,
+	REPLACE_TARGET_ELIGIBILITY,
+	sourceIndex,
+	TARGET_ELIGIBILITY
+} from './migration_test_fixtures';
 import {
 	INDEX_NAME_MAX_LENGTH,
 	proposeDestinationIndexName,
@@ -21,97 +34,14 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-const APP_ID_CANARY = 'CANARYAPPID0001';
-const API_KEY_CANARY = 'canary-secret-key-0002';
-const ELIGIBLE_AWS_PROVIDER = {
-	phase: 'provider',
-	mode: 'create',
-	provider: 'aws',
-	target: {
-		kind: 'create',
-		region: 'us-east-1',
-		name: 'products_migration'
-	},
-	eligibilityToken: 'provider-eligibility-token',
-	expiresAt: '2099-07-18T10:15:00Z'
-} as const;
-const TARGET_ELIGIBILITY = {
-	phase: 'target',
-	mode: 'create',
-	provider: 'aws',
-	target: {
-		kind: 'create',
-		region: 'us-east-1',
-		name: 'source_products'
-	},
-	eligibilityToken: 'target-eligibility-token',
-	expiresAt: '2099-07-18T10:20:00Z'
-} as const;
-
 type MigrationFlowClient = ComponentProps<typeof MigrationCreateFlow>['client'];
-
-function sourceIndex(overrides: Partial<AlgoliaIndexMetadata> = {}): AlgoliaIndexMetadata {
-	return {
-		name: 'source_products',
-		entries: 1234,
-		dataSize: 2048,
-		fileSize: 4096,
-		updatedAt: '2026-07-18T10:00:00Z',
-		lastBuildTimeS: 17,
-		pendingTask: false,
-		primary: null,
-		replicas: [],
-		...overrides
-	};
-}
-
-function listResponse(
-	items: AlgoliaIndexMetadata[],
-	nextCursor: string | null = null
-): AlgoliaSourceListResponse {
-	return { items, nextCursor };
-}
-
-function importJob(overrides: Partial<PublicAlgoliaImportJob> = {}): PublicAlgoliaImportJob {
-	return {
-		id: 'job_123',
-		status: 'queued',
-		mode: 'create',
-		sourceProvider: 'algolia',
-		destination: { kind: 'create', target: 'source_products', region: 'us-east-1' },
-		source: { name: 'source_products' },
-		summary: {
-			documentsExpected: 0,
-			documentsImported: 0,
-			documentsRejected: 0,
-			settingsApplied: 0,
-			settingsUnsupported: 0,
-			synonymsExpected: 0,
-			synonymsImported: 0,
-			synonymsRejected: 0,
-			rulesExpected: 0,
-			rulesImported: 0,
-			rulesRejected: 0
-		},
-		error: null,
-		cancelRequestedAt: null,
-		resumeProvenance: null,
-		resumeDeadline: null,
-		resumable: false,
-		resumeCount: 0,
-		publicationDisposition: 'not_started',
-		terminalOutcomeObserved: false,
-		warnings: [],
-		createdAt: '2026-07-18T10:00:00Z',
-		updatedAt: '2026-07-18T10:00:00Z',
-		...overrides
-	};
-}
+const REPLACE_PREVIEW_CAPABILITY = { ...REPLACE_CAPABILITY, preview: true };
 
 function migrationClient(overrides: Partial<MigrationFlowClient> = {}): MigrationFlowClient {
 	return {
 		listAlgoliaSourceIndexes: vi.fn(),
 		checkAlgoliaDestinationEligibility: vi.fn(),
+		previewMigrationImport: vi.fn().mockResolvedValue(previewResponse()),
 		createAlgoliaImportJob: vi.fn(),
 		...overrides
 	};
@@ -126,6 +56,7 @@ function renderFlow(
 	const result = render(MigrationCreateFlow, {
 		client,
 		providerEligibility: ELIGIBLE_AWS_PROVIDER,
+		capabilities: availableAvailability.capabilities,
 		...props
 	});
 	return { ...result, client, listAlgoliaSourceIndexes };
@@ -163,6 +94,47 @@ async function connectAndSelectSource(
 	return result;
 }
 
+async function previewImport() {
+	await fireEvent.click(screen.getByRole('button', { name: /^preview import$/i }));
+	await screen.findByTestId('migration-preview-counts');
+}
+
+async function checkDestinationEligibility() {
+	await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
+	return screen.findByTestId('migration-create-review');
+}
+
+async function checkDestinationEligibilityAndPreview() {
+	await checkDestinationEligibility();
+	await previewImport();
+}
+function expectSecretRedacted(text: string, secrets: readonly string[]) {
+	expect(text).toContain('[redacted]');
+	for (const secret of secrets) expect(text).not.toContain(secret);
+}
+
+function expectEligibilityRequest(checkEligibility: Mock, expectedRequest: unknown) {
+	expect(checkEligibility).toHaveBeenCalledOnce();
+	expect(checkEligibility).toHaveBeenCalledWith(expectedRequest);
+	const serializedCalls = JSON.stringify(checkEligibility.mock.calls);
+	expect(serializedCalls).not.toContain(APP_ID_CANARY);
+	expect(serializedCalls).not.toContain(API_KEY_CANARY);
+}
+
+function expectCompatibilityWarning(resource: string, expectedText: readonly string[]) {
+	const warningList = screen.getByRole('list', { name: `${resource} compatibility warnings` });
+	for (const text of expectedText) expect(warningList).toHaveTextContent(text);
+}
+
+function cleanPreviewResponse(): MigrationPreviewResponse {
+	return previewResponse({
+		report: {
+			summary: { totalEntries: 0, hardRejections: 0, warnings: 0, scopeGaps: 0 },
+			entries: [],
+			reportDigest: 'sha256:clean-preview'
+		}
+	});
+}
 describe('MigrationCreateFlow - destination name proposal', () => {
 	it('offers no destination field until a source is selected', async () => {
 		const listAlgoliaSourceIndexes = vi
@@ -327,22 +299,62 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 	it('checks final target eligibility without Algolia credential bytes and renders the review step', async () => {
 		const checkAlgoliaDestinationEligibility = vi.fn().mockResolvedValue(TARGET_ELIGIBILITY);
 		await connectAndSelectSource('source_products', { checkAlgoliaDestinationEligibility });
-
 		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
+		await waitFor(() =>
+			expectEligibilityRequest(checkAlgoliaDestinationEligibility, {
+				phase: 'target',
+				mode: 'create',
+				target: { region: 'us-east-1', name: 'source_products' },
+				eligibilityToken: 'provider-eligibility-token'
+			})
+		);
 
-		await waitFor(() => expect(checkAlgoliaDestinationEligibility).toHaveBeenCalledOnce());
-		expect(checkAlgoliaDestinationEligibility).toHaveBeenCalledWith({
-			phase: 'target',
-			mode: 'create',
-			target: { region: 'us-east-1', name: 'source_products' },
-			eligibilityToken: 'provider-eligibility-token'
+		const preview = screen.getByTestId('migration-create-preview');
+		expect(preview).toHaveTextContent('Preview import');
+		expect(screen.getByTestId('migration-create-review')).toHaveTextContent('Review import');
+		expect(screen.queryByRole('button', { name: /^start import$/i })).not.toBeInTheDocument();
+	});
+
+	it('previews exact counts and shared warning fields before enabling import creation', async () => {
+		const checkAlgoliaDestinationEligibility = vi.fn().mockResolvedValue(TARGET_ELIGIBILITY);
+		const previewMigrationImport = vi.fn().mockResolvedValue(previewResponse());
+		const createAlgoliaImportJob = vi.fn().mockResolvedValue(importJob());
+		await connectAndSelectSource('source_products', {
+			checkAlgoliaDestinationEligibility,
+			previewMigrationImport,
+			createAlgoliaImportJob
 		});
-		expect(JSON.stringify(checkAlgoliaDestinationEligibility.mock.calls)).not.toContain(
-			APP_ID_CANARY
+
+		await checkDestinationEligibility();
+		expect(screen.queryByRole('button', { name: /^start import$/i })).not.toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole('button', { name: /^preview import$/i }));
+
+		await waitFor(() => expect(previewMigrationImport).toHaveBeenCalledOnce());
+		expect(previewMigrationImport).toHaveBeenCalledWith('algolia', {
+			appId: APP_ID_CANARY,
+			apiKey: API_KEY_CANARY,
+			sourceIndex: 'source_products',
+			targetIndex: 'source_products',
+			overwrite: false
+		});
+		expect(createAlgoliaImportJob).not.toHaveBeenCalled();
+		expect(await screen.findByTestId('migration-preview-counts')).toHaveTextContent(
+			'3 source indexes · 42 records'
 		);
-		expect(JSON.stringify(checkAlgoliaDestinationEligibility.mock.calls)).not.toContain(
-			API_KEY_CANARY
+		expect(screen.getByTestId('migration-job-warning-summary')).toHaveTextContent(
+			'Preview found 2 compatibility findings: 1 hard rejection and 1 warning.'
 		);
+		expectCompatibilityWarning('Settings', [
+			'Compatibility warning',
+			'Warning',
+			'UnsupportedSourceField',
+			'item 0, path $.settings.attributesForFaceting[0]'
+		]);
+		expectCompatibilityWarning('Document', [
+			'MalformedDocumentPayload',
+			'page 1, item 7, path $.hits[7]'
+		]);
 
 		const review = await screen.findByTestId('migration-create-review');
 		expect(review).toHaveTextContent('source_products');
@@ -354,6 +366,88 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 		expect(review).not.toHaveTextContent('replica indices are not copied');
 		expect(review).toHaveTextContent('Imports available');
 		expect(review.textContent).not.toMatch(/\d+%/);
+
+		// The report carries a hard rejection, so the advisory label must warn that
+		// the import may fail or omit data while still allowing an explicit start.
+		expect(screen.queryByRole('button', { name: /^start import$/i })).not.toBeInTheDocument();
+		await fireEvent.click(screen.getByRole('button', { name: /^start import anyway$/i }));
+		await waitFor(() => expect(createAlgoliaImportJob).toHaveBeenCalledOnce());
+	});
+
+	it('renders the exact clean preview copy when the preview has no compatibility entries', async () => {
+		const previewMigrationImport = vi.fn().mockResolvedValue(cleanPreviewResponse());
+		await connectAndSelectSource('source_products', {
+			checkAlgoliaDestinationEligibility: vi.fn().mockResolvedValue(TARGET_ELIGIBILITY),
+			previewMigrationImport
+		});
+
+		await checkDestinationEligibility();
+		await fireEvent.click(screen.getByRole('button', { name: /^preview import$/i }));
+
+		expect(await screen.findByTestId('migration-preview-clean')).toHaveTextContent(
+			'No compatibility issues found'
+		);
+		// Nothing was rejected, so the plain label stays — the advisory wording is
+		// reserved for reports that actually warn the import may fail.
+		expect(screen.getByRole('button', { name: /^start import$/i })).toBeInTheDocument();
+		expect(
+			screen.queryByRole('button', { name: /^start import anyway$/i })
+		).not.toBeInTheDocument();
+	});
+
+	it('treats sanitized preview request errors as advisory before explicit start', async () => {
+		const previewMigrationImport = vi
+			.fn()
+			.mockRejectedValue(new Error(`preview_failed ${APP_ID_CANARY} ${API_KEY_CANARY} retryable`));
+		const createAlgoliaImportJob = vi.fn().mockResolvedValue(importJob());
+		await connectAndSelectSource('source_products', {
+			checkAlgoliaDestinationEligibility: vi.fn().mockResolvedValue(TARGET_ELIGIBILITY),
+			previewMigrationImport,
+			createAlgoliaImportJob
+		});
+
+		await checkDestinationEligibility();
+		expect(screen.queryByRole('button', { name: /start import/i })).not.toBeInTheDocument();
+		await fireEvent.click(screen.getByRole('button', { name: /^preview import$/i }));
+
+		const error = await screen.findByTestId('migration-preview-error');
+		expectSecretRedacted(error.textContent ?? '', [APP_ID_CANARY, API_KEY_CANARY]);
+		expect(error).toHaveTextContent('retryable');
+		expect(createAlgoliaImportJob).not.toHaveBeenCalled();
+
+		await fireEvent.click(screen.getByRole('button', { name: /start import anyway/i }));
+
+		await waitFor(() => expect(createAlgoliaImportJob).toHaveBeenCalledOnce());
+	});
+
+	it('states no preview completed and no job was created, and offers Retry preview', async () => {
+		const previewMigrationImport = vi
+			.fn()
+			.mockRejectedValueOnce(new Error('invalid_credentials'))
+			.mockResolvedValueOnce(cleanPreviewResponse());
+		await connectAndSelectSource('source_products', {
+			checkAlgoliaDestinationEligibility: vi.fn().mockResolvedValue(TARGET_ELIGIBILITY),
+			previewMigrationImport,
+			createAlgoliaImportJob: vi.fn().mockResolvedValue(importJob())
+		});
+
+		await checkDestinationEligibility();
+		await fireEvent.click(screen.getByRole('button', { name: /^preview import$/i }));
+
+		const error = await screen.findByTestId('migration-preview-error');
+		expect(error).toHaveTextContent(
+			'Algolia credentials were rejected. Reconnect with a valid key. No preview was completed and no import job was created.'
+		);
+		expect(screen.queryByRole('button', { name: /^preview import$/i })).not.toBeInTheDocument();
+
+		// Retrying stays inside the same step: credentials and selections survive.
+		await fireEvent.click(screen.getByRole('button', { name: /^retry preview$/i }));
+
+		expect(await screen.findByTestId('migration-preview-clean')).toHaveTextContent(
+			'No compatibility issues found'
+		);
+		expect(screen.queryByTestId('migration-preview-error')).not.toBeInTheDocument();
+		expect(previewMigrationImport).toHaveBeenCalledTimes(2);
 	});
 
 	it('expires the final review and blocks start as soon as the target token expires', async () => {
@@ -370,8 +464,7 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 			createAlgoliaImportJob
 		});
 
-		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
-		await screen.findByTestId('migration-create-review');
+		await checkDestinationEligibility();
 
 		await vi.advanceTimersByTimeAsync(60_001);
 
@@ -400,8 +493,7 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 			createAlgoliaImportJob
 		});
 
-		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
-		await screen.findByTestId('migration-create-review');
+		await checkDestinationEligibility();
 		await fireEvent.input(screen.getByLabelText(/destination index name/i), {
 			target: { value: 'edited_destination' }
 		});
@@ -409,8 +501,7 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 		expect(screen.queryByTestId('migration-create-review')).not.toBeInTheDocument();
 		expect(screen.getByRole('button', { name: /start import/i })).toBeDisabled();
 
-		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
-		await screen.findByTestId('migration-create-review');
+		await checkDestinationEligibilityAndPreview();
 		await fireEvent.click(screen.getByRole('button', { name: /start import/i }));
 
 		await waitFor(() => expect(createAlgoliaImportJob).toHaveBeenCalledOnce());
@@ -439,8 +530,7 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 			checkAlgoliaDestinationEligibility,
 			createAlgoliaImportJob
 		});
-		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
-		await screen.findByTestId('migration-create-review');
+		await checkDestinationEligibility();
 
 		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
 		await waitFor(() => expect(checkAlgoliaDestinationEligibility).toHaveBeenCalledTimes(2));
@@ -453,6 +543,7 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 
 		resolveRefresh(refreshedTarget);
 		await screen.findByTestId('migration-create-review');
+		await previewImport();
 		expect(screen.getByRole('button', { name: /start import/i })).toBeEnabled();
 	});
 
@@ -473,8 +564,7 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 			{ checkAlgoliaDestinationEligibility, createAlgoliaImportJob },
 			{ onImportCreated }
 		);
-		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
-		await screen.findByTestId('migration-create-review');
+		await checkDestinationEligibilityAndPreview();
 
 		const startButton = screen.getByRole('button', { name: /start import/i });
 		await fireEvent.click(startButton);
@@ -524,8 +614,7 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 			checkAlgoliaDestinationEligibility,
 			createAlgoliaImportJob
 		});
-		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
-		await screen.findByTestId('migration-create-review');
+		await checkDestinationEligibilityAndPreview();
 
 		await fireEvent.click(screen.getByRole('button', { name: /start import/i }));
 		await screen.findByTestId('migration-start-error');
@@ -537,8 +626,7 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 		await fireEvent.input(screen.getByLabelText(/destination index name/i), {
 			target: { value: 'second_destination' }
 		});
-		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
-		await screen.findByTestId('migration-create-review');
+		await checkDestinationEligibilityAndPreview();
 		await fireEvent.click(screen.getByRole('button', { name: /start import/i }));
 		await waitFor(() => expect(createAlgoliaImportJob).toHaveBeenCalledTimes(3));
 
@@ -548,7 +636,7 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 		});
 	});
 
-	it('refreshes an expired target token before submit without resending or clearing the Algolia key', async () => {
+	it('requires another preview after refreshing an expired target token before submit', async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date('2026-07-18T10:00:00Z'));
 		const expiredTarget = {
@@ -570,18 +658,25 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 			checkAlgoliaDestinationEligibility,
 			createAlgoliaImportJob
 		});
-		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
-		await screen.findByTestId('migration-create-review');
+		await checkDestinationEligibilityAndPreview();
 
 		vi.setSystemTime(new Date('2026-07-18T10:02:00Z'));
 		await fireEvent.click(screen.getByRole('button', { name: /start import/i }));
 
-		await waitFor(() => expect(createAlgoliaImportJob).toHaveBeenCalledOnce());
+		await waitFor(() => expect(checkAlgoliaDestinationEligibility).toHaveBeenCalledTimes(2));
 		expect(checkAlgoliaDestinationEligibility).toHaveBeenCalledTimes(2);
 		expect(JSON.stringify(checkAlgoliaDestinationEligibility.mock.calls[1])).not.toContain(
 			API_KEY_CANARY
 		);
 		expect(screen.getByLabelText(/algolia api key/i)).toHaveValue(API_KEY_CANARY);
+		expect(createAlgoliaImportJob).not.toHaveBeenCalled();
+		expect(screen.queryByRole('button', { name: /start import/i })).not.toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /^preview import$/i })).toBeEnabled();
+
+		await previewImport();
+		await fireEvent.click(screen.getByRole('button', { name: /start import/i }));
+
+		await waitFor(() => expect(createAlgoliaImportJob).toHaveBeenCalledOnce());
 		expect(createAlgoliaImportJob.mock.calls[0]?.[0]).toMatchObject({
 			target: { eligibilityToken: 'refreshed-target-token' }
 		});
@@ -610,8 +705,7 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 			checkAlgoliaDestinationEligibility,
 			createAlgoliaImportJob
 		});
-		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
-		await screen.findByTestId('migration-create-review');
+		await checkDestinationEligibilityAndPreview();
 
 		vi.setSystemTime(new Date('2026-07-18T10:02:00Z'));
 		await fireEvent.click(screen.getByRole('button', { name: /start import/i }));
@@ -639,32 +733,6 @@ describe('MigrationCreateFlow - target eligibility and start', () => {
 	});
 });
 
-const ELIGIBLE_AWS_REPLACE_PROVIDER = {
-	phase: 'provider',
-	mode: 'replace',
-	provider: 'aws',
-	target: {
-		kind: 'replace',
-		region: 'us-west-2',
-		name: 'existing_products'
-	},
-	eligibilityToken: 'replace-provider-eligibility-token',
-	expiresAt: '2099-07-18T10:15:00Z'
-} as const;
-const REPLACE_TARGET_ELIGIBILITY = {
-	phase: 'target',
-	mode: 'replace',
-	provider: 'aws',
-	target: {
-		kind: 'replace',
-		region: 'us-west-2',
-		name: 'existing_products'
-	},
-	eligibilityToken: 'replace-target-eligibility-token',
-	expiresAt: '2099-07-18T10:20:00Z'
-} as const;
-const REPLACE_CAPABILITY = { cancel: false, resume: false, replace: true } as const;
-
 async function connectAndSelectReplaceSource(
 	name = 'source_products',
 	overrides: Partial<MigrationFlowClient> = {},
@@ -677,7 +745,7 @@ async function connectAndSelectReplaceSource(
 		);
 	const result = renderFlow(listAlgoliaSourceIndexes, overrides, {
 		providerEligibility: ELIGIBLE_AWS_REPLACE_PROVIDER,
-		capabilities: REPLACE_CAPABILITY
+		capabilities: REPLACE_PREVIEW_CAPABILITY
 	});
 	await connect();
 	await screen.findByTestId('migration-source-list');
@@ -686,29 +754,21 @@ async function connectAndSelectReplaceSource(
 }
 
 describe('MigrationCreateFlow - replace target eligibility and start', () => {
-	it('checks replace target eligibility for the fixed existing identity without credential bytes', async () => {
+	it('renders the fixed replace target review without credentials and warns about cutover writes', async () => {
 		const checkAlgoliaDestinationEligibility = vi
 			.fn()
 			.mockResolvedValue(REPLACE_TARGET_ELIGIBILITY);
 		await connectAndSelectReplaceSource('source_products', { checkAlgoliaDestinationEligibility });
-
-		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
-
-		await waitFor(() => expect(checkAlgoliaDestinationEligibility).toHaveBeenCalledOnce());
-		expect(checkAlgoliaDestinationEligibility).toHaveBeenCalledWith({
-			phase: 'target',
-			mode: 'replace',
-			target: { region: 'us-west-2', name: 'existing_products' },
-			eligibilityToken: 'replace-provider-eligibility-token'
-		});
-		expect(JSON.stringify(checkAlgoliaDestinationEligibility.mock.calls)).not.toContain(
-			APP_ID_CANARY
-		);
-		expect(JSON.stringify(checkAlgoliaDestinationEligibility.mock.calls)).not.toContain(
-			API_KEY_CANARY
+		const review = await checkDestinationEligibility();
+		await waitFor(() =>
+			expectEligibilityRequest(checkAlgoliaDestinationEligibility, {
+				phase: 'target',
+				mode: 'replace',
+				target: { region: 'us-west-2', name: 'existing_products' },
+				eligibilityToken: 'replace-provider-eligibility-token'
+			})
 		);
 
-		const review = await screen.findByTestId('migration-create-review');
 		expect(review).toHaveTextContent('existing_products');
 		expect(review).toHaveTextContent('us-west-2');
 		expect(review).toHaveTextContent(/replace/i);
@@ -716,22 +776,9 @@ describe('MigrationCreateFlow - replace target eligibility and start', () => {
 			'Replace the existing destination index. Primary index records, settings, synonyms, and rules are imported. Algolia replicas are reconstructed as Flapjack virtual replicas. If one cannot be reconstructed, the imported primary remains in place.'
 		);
 		expect(review).not.toHaveTextContent('replica indices are not copied');
-		// The editable create-destination slug must never appear in replace mode;
-		// only the exact-typing confirmation field is shown.
-		expect(screen.queryByLabelText(/^destination index name$/i)).not.toBeInTheDocument();
-	});
-
-	it('warns that source and destination writes must be paused for the cutover', async () => {
-		const checkAlgoliaDestinationEligibility = vi
-			.fn()
-			.mockResolvedValue(REPLACE_TARGET_ELIGIBILITY);
-		await connectAndSelectReplaceSource('source_products', { checkAlgoliaDestinationEligibility });
-
-		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
-		const review = await screen.findByTestId('migration-create-review');
-
 		expect(review).toHaveTextContent(/pause writes/i);
 		expect(review).toHaveTextContent(/cutover/i);
+		expect(screen.queryByLabelText(/^destination index name$/i)).not.toBeInTheDocument();
 	});
 
 	it('requires exact destination-name typing before Start and submits one mode:replace request', async () => {
@@ -747,17 +794,20 @@ describe('MigrationCreateFlow - replace target eligibility and start', () => {
 		result.rerender({
 			client: result.client,
 			providerEligibility: ELIGIBLE_AWS_REPLACE_PROVIDER,
-			capabilities: REPLACE_CAPABILITY,
+			capabilities: REPLACE_PREVIEW_CAPABILITY,
 			onImportCreated
 		});
 
-		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
-		await screen.findByTestId('migration-create-review');
+		await checkDestinationEligibilityAndPreview();
 
 		const startButton = screen.getByRole('button', { name: /start import/i });
 		expect(startButton).toBeDisabled();
 
 		const confirmation = screen.getByLabelText(/type the destination index name/i);
+		await fireEvent.input(confirmation, { target: { value: 'EXISTING_PRODUCTS' } });
+		expect(startButton).toBeDisabled();
+		expect(createAlgoliaImportJob).not.toHaveBeenCalled();
+
 		await fireEvent.input(confirmation, { target: { value: 'existing_produc' } });
 		expect(startButton).toBeDisabled();
 
@@ -777,28 +827,6 @@ describe('MigrationCreateFlow - replace target eligibility and start', () => {
 		});
 	});
 
-	it('blocks the replace start when the confirmation does not match exactly', async () => {
-		const checkAlgoliaDestinationEligibility = vi
-			.fn()
-			.mockResolvedValue(REPLACE_TARGET_ELIGIBILITY);
-		const createAlgoliaImportJob = vi.fn().mockResolvedValue(importJob({ mode: 'replace' }));
-		await connectAndSelectReplaceSource('source_products', {
-			checkAlgoliaDestinationEligibility,
-			createAlgoliaImportJob
-		});
-
-		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
-		await screen.findByTestId('migration-create-review');
-
-		await fireEvent.input(screen.getByLabelText(/type the destination index name/i), {
-			target: { value: 'EXISTING_PRODUCTS' }
-		});
-		const startButton = screen.getByRole('button', { name: /start import/i });
-		expect(startButton).toBeDisabled();
-		await fireEvent.click(startButton);
-		expect(createAlgoliaImportJob).not.toHaveBeenCalled();
-	});
-
 	it('invalidates replace eligibility and confirmation when the source changes', async () => {
 		const checkAlgoliaDestinationEligibility = vi
 			.fn()
@@ -808,8 +836,7 @@ describe('MigrationCreateFlow - replace target eligibility and start', () => {
 			'other_source'
 		]);
 
-		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
-		await screen.findByTestId('migration-create-review');
+		await checkDestinationEligibility();
 		await fireEvent.input(screen.getByLabelText(/type the destination index name/i), {
 			target: { value: 'existing_products' }
 		});

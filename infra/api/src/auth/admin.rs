@@ -105,6 +105,36 @@ pub async fn bootstrap_admin_user_if_empty(
 pub struct AdminAuth {
     pub operator_id: Uuid,
     pub identifier: String,
+    pub session_id: Option<Uuid>,
+}
+
+pub async fn resolve_admin_key(state: &AppState, provided: &str) -> Result<AdminAuth, AuthError> {
+    let credential_prefix = credential_prefix(provided).ok_or(AuthError::InvalidAdminKey)?;
+
+    // Admin credentials are machine-generated high-entropy keys, so this
+    // matches the API-key SHA-256 scheme; password.rs Argon2 is reserved
+    // for low-entropy user-chosen passwords.
+    let provided_hash = credential_sha256_hex(provided);
+    let candidates = state
+        .admin_user_repo
+        .active_candidates_by_prefix(credential_prefix)
+        .await
+        .map_err(|_| AuthError::Internal)?;
+    let candidate = candidates
+        .into_iter()
+        .find(|candidate| {
+            provided_hash
+                .as_bytes()
+                .ct_eq(candidate.credential_sha256.as_bytes())
+                .into()
+        })
+        .ok_or(AuthError::InvalidAdminKey)?;
+
+    Ok(AdminAuth {
+        operator_id: candidate.operator_id,
+        identifier: candidate.identifier,
+        session_id: None,
+    })
 }
 
 #[async_trait]
@@ -116,38 +146,31 @@ impl FromRequestParts<AppState> for AdminAuth {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let provided = parts
-            .headers
-            .get("x-admin-key")
-            .and_then(|v| v.to_str().ok())
-            .ok_or(AuthError::MissingAdminKey)?;
-
-        let credential_prefix = credential_prefix(provided).ok_or(AuthError::InvalidAdminKey)?;
-
-        // Admin credentials are machine-generated high-entropy keys, so this
-        // matches the API-key SHA-256 scheme; password.rs Argon2 is reserved
-        // for low-entropy user-chosen passwords.
-        let provided_hash = credential_sha256_hex(provided);
-
-        let candidates = state
-            .admin_user_repo
-            .active_candidates_by_prefix(credential_prefix)
-            .await
-            .map_err(|_| AuthError::Internal)?;
-
-        let candidate = candidates
-            .into_iter()
-            .find(|candidate| {
-                provided_hash
-                    .as_bytes()
-                    .ct_eq(candidate.credential_sha256.as_bytes())
-                    .into()
-            })
-            .ok_or(AuthError::InvalidAdminKey)?;
-
-        Ok(AdminAuth {
-            operator_id: candidate.operator_id,
-            identifier: candidate.identifier,
-        })
+        let admin_key = parts.headers.get("x-admin-key");
+        let admin_session = parts.headers.get("x-admin-session");
+        match (admin_key, admin_session) {
+            (Some(_), Some(_)) => Err(AuthError::InvalidAdminKey),
+            (Some(admin_key), None) => {
+                let provided = admin_key.to_str().map_err(|_| AuthError::InvalidAdminKey)?;
+                resolve_admin_key(state, provided).await
+            }
+            (None, Some(admin_session)) => {
+                let token = admin_session
+                    .to_str()
+                    .map_err(|_| AuthError::InvalidAdminKey)?;
+                let session = state
+                    .admin_session_repo
+                    .validate_and_touch(token)
+                    .await
+                    .map_err(|_| AuthError::Internal)?
+                    .ok_or(AuthError::InvalidAdminKey)?;
+                Ok(AdminAuth {
+                    operator_id: session.operator_id,
+                    identifier: session.identifier,
+                    session_id: Some(session.session_id),
+                })
+            }
+            (None, None) => Err(AuthError::MissingAdminKey),
+        }
     }
 }

@@ -352,6 +352,77 @@ echo "cargo-finish cwd=$(pwd) args=$*" >> "'"$call_log"'"
     assert_concurrent_provenance "$receipt_path" "$first_provenance" "$second_provenance"
 }
 
+test_source_resolution_recovers_lock_owned_by_dead_process() {
+    local tmp_dir lock_path output exit_code=0
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+    lock_path="$tmp_dir/flapjack.receipt.lock"
+    mkdir -p "$lock_path"
+    printf '99999999\n' > "$lock_path/pid"
+
+    output=$(
+        FLAPJACK_SOURCE_LOCK_TIMEOUT_SECONDS=1 \
+            bash -c 'set -e; REPO_ROOT="'"$REPO_ROOT"'"; source "$REPO_ROOT/scripts/lib/flapjack_binary.sh"; acquire_flapjack_source_lock "'"$lock_path"'"; cat "'"$lock_path"'/pid"; release_flapjack_source_lock "'"$lock_path"'"' 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "0" \
+        "source resolution should replace a lock whose recorded owner process is dead"
+    assert_ne "$output" "99999999" \
+        "recovered source lock should record the new resolver process"
+    [ ! -d "$lock_path" ] || fail "recovered source lock should be releasable by the new resolver"
+}
+
+test_source_resolution_recovers_lock_without_pid_file() {
+    local tmp_dir lock_path output exit_code=0
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+    lock_path="$tmp_dir/flapjack.receipt.lock"
+    mkdir -p "$lock_path"
+
+    output=$(
+        FLAPJACK_SOURCE_LOCK_TIMEOUT_SECONDS=1 \
+            bash -c 'set -e; REPO_ROOT="'"$REPO_ROOT"'"; source "$REPO_ROOT/scripts/lib/flapjack_binary.sh"; acquire_flapjack_source_lock "'"$lock_path"'"; cat "'"$lock_path"'/pid"; release_flapjack_source_lock "'"$lock_path"'"' 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "0" \
+        "source resolution should replace a lock directory that exists without an owner pid"
+    assert_ne "$output" "" \
+        "recovered pidless lock should record the new resolver process"
+    [ ! -d "$lock_path" ] || fail "recovered pidless lock should be releasable by the new resolver"
+}
+
+test_source_resolution_does_not_reclaim_pidless_lock_during_owner_publication() {
+    local tmp_dir lock_path output exit_code=0 owner_pid publisher_pid
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+    lock_path="$tmp_dir/flapjack.receipt.lock"
+    mkdir -p "$lock_path"
+
+    ( sleep 5 ) &
+    owner_pid="$!"
+    (
+        sleep 0.05
+        printf '%s\n' "$owner_pid" > "$lock_path/pid"
+    ) &
+    publisher_pid="$!"
+
+    output=$(
+        FLAPJACK_SOURCE_LOCK_TIMEOUT_SECONDS=1 \
+            bash -c 'set -e; REPO_ROOT="'"$REPO_ROOT"'"; source "$REPO_ROOT/scripts/lib/flapjack_binary.sh"; acquire_flapjack_source_lock "'"$lock_path"'"' 2>&1
+    ) || exit_code=$?
+
+    wait "$publisher_pid" 2>/dev/null || true
+    kill "$owner_pid" 2>/dev/null || true
+    wait "$owner_pid" 2>/dev/null || true
+
+    assert_eq "$exit_code" "1" \
+        "source resolution should wait for a pidless lock that is still publishing its live owner"
+    assert_contains "$output" "Timed out waiting for Flapjack source build lock" \
+        "live owner publication should keep the lock on the normal bounded-wait path"
+    assert_eq "$(cat "$lock_path/pid" 2>/dev/null || true)" "$owner_pid" \
+        "live owner publication should not be reclaimed as a stale pidless lock"
+}
+
 test_unmanifested_release_artifacts_are_rejected_except_exact_pinned_checksum() {
     local tmp_dir bad_flapjack bad_http good_bin output exit_code=0
     tmp_dir="$(mktemp -d)"
@@ -491,6 +562,9 @@ main() {
     test_source_resolution_invokes_contract_correct_package
     test_partial_receipt_rebuilds_instead_of_accepting_stale_binary
     test_concurrent_source_resolution_shares_one_build_and_complete_receipt
+    test_source_resolution_recovers_lock_owned_by_dead_process
+    test_source_resolution_recovers_lock_without_pid_file
+    test_source_resolution_does_not_reclaim_pidless_lock_during_owner_publication
     test_unmanifested_release_artifacts_are_rejected_except_exact_pinned_checksum
     test_explicit_source_build_failure_does_not_fall_back_to_path
     test_source_rebuild_probe_verifies_running_behavior

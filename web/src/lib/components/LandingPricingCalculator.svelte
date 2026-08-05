@@ -242,7 +242,7 @@
 						<th class="px-4 py-3 text-left text-sm font-semibold text-flapjack-ink">Provider</th>
 						<th class="px-4 py-3 text-left text-sm font-semibold text-flapjack-ink">Plan</th>
 						<th class="px-4 py-3 text-left text-sm font-semibold text-flapjack-ink"
-							>Pricing verified</th
+							>Pricing status</th
 						>
 						<th class="px-4 py-3 text-right text-sm font-semibold text-flapjack-ink"
 							>Monthly estimate</th

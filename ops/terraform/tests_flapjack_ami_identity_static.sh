@@ -95,6 +95,52 @@ run_validator_expect_success() {
   fi
 }
 
+run_validator_with_docker_fallback_expect_success() {
+  local description="$1"
+  local fixture_dir="$2"
+  local build_json="$3"
+  local output_file="$fixture_dir/out/flapjack"
+  local mock_bin="$fixture_dir/mock-bin"
+  mkdir -p "$fixture_dir/out" "$mock_bin"
+  cat >"$mock_bin/docker" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+expected_arguments=(
+  run
+  --rm
+  --interactive
+  --platform
+  linux/arm64
+  public.ecr.aws/amazonlinux/amazonlinux:2023
+  sh
+  -c
+  'cat > /tmp/flapjack && chmod 0755 /tmp/flapjack && /tmp/flapjack build-info --json'
+)
+[[ "$#" -eq "${#expected_arguments[@]}" ]]
+for argument_index in "${!expected_arguments[@]}"; do
+  argument_position=$((argument_index + 1))
+  [[ "${!argument_position}" == "${expected_arguments[$argument_index]}" ]]
+done
+
+stdin_sha256="$(shasum -a 256 | awk '{print $1}')"
+[[ "$stdin_sha256" == "$EXPECTED_DOCKER_STDIN_SHA256" ]]
+printf '%s\n' "$EXPECTED_DOCKER_BUILD_JSON"
+EOF
+  chmod 0755 "$mock_bin/docker"
+
+  if EXPECTED_DOCKER_STDIN_SHA256="$(sha256_file "$fixture_dir/archive-root/flapjack")" \
+    EXPECTED_DOCKER_BUILD_JSON="$build_json" \
+    PATH="$mock_bin:$PATH" "$validator" \
+    --manifest "$fixture_dir/flapjack-aarch64-unknown-linux-musl.manifest.json" \
+    --archive "$fixture_dir/flapjack-aarch64-unknown-linux-musl.tar.gz" \
+    --out "$output_file" >/dev/null 2>&1 && [[ -x "$output_file" ]]; then
+    pass "$description"
+  else
+    fail "$description"
+  fi
+}
+
 run_validator_expect_failure() {
   local description="$1"
   local fixture_dir="$2"
@@ -156,11 +202,29 @@ assert_file_executable "$validator" "validate_flapjack_ami_input.sh"
 assert_file_contains "$validator" 'EXPECTED_SCHEMA_VERSION=1' "validator checks canonical E3 schema version"
 assert_file_contains "$validator" 'aarch64-unknown-linux-musl' "validator checks E3 target"
 assert_file_contains "$validator" 'build-info --json' "validator checks binary build-info"
+assert_file_contains "$validator" 'BUILD_INFO_IMAGE="public\.ecr\.aws/amazonlinux/amazonlinux:2023"' "validator pins the cross-platform build-info image"
+assert_file_contains "$validator" 'Cross-platform fallback requires Docker image' "validator documents the cross-platform Docker prerequisite"
 assert_file_contains "$validator" 'jq -S -c .*\.build' "validator canonicalizes manifest build object"
 assert_file_contains "$validator" 'tar -tzf' "validator lists archive members before extraction"
 
 good_fixture="$(with_fixture good "$tmp_root")"
 run_validator_expect_success "validator accepts exact E3 manifest/archive pair" "$good_fixture"
+
+cross_platform_fixture="$(with_fixture cross-platform "$tmp_root")"
+cross_platform_build_json="$(jq -c '.build' "$cross_platform_fixture/flapjack-aarch64-unknown-linux-musl.manifest.json")"
+cat >"$cross_platform_fixture/archive-root/flapjack" <<'EOF'
+#!/usr/bin/env bash
+exit 126
+EOF
+chmod 0755 "$cross_platform_fixture/archive-root/flapjack"
+(cd "$cross_platform_fixture/archive-root" && tar -czf "../flapjack-aarch64-unknown-linux-musl.tar.gz" .)
+mutate_manifest \
+  "$cross_platform_fixture" \
+  ".artifact.sha256 = \"$(sha256_file "$cross_platform_fixture/flapjack-aarch64-unknown-linux-musl.tar.gz")\""
+run_validator_with_docker_fallback_expect_success \
+  "validator uses a Linux ARM64 container when the host cannot execute the artifact" \
+  "$cross_platform_fixture" \
+  "$cross_platform_build_json"
 
 missing_manifest_fixture="$(with_fixture missing-manifest "$tmp_root")"
 rm -f "$missing_manifest_fixture/flapjack-aarch64-unknown-linux-musl.manifest.json"

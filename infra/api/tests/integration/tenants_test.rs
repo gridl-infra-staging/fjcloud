@@ -1,10 +1,18 @@
 use api::repos::{CustomerRepo, TenantRepo};
+use api::services::audit_log::ACTION_CUSTOMER_SUSPENDED;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use chrono::{DateTime, Duration, NaiveDate, Utc};
 use http_body_util::BodyExt;
 use tower::ServiceExt;
 use uuid::Uuid;
+
+use crate::common::admin_audit_test_support::{
+    app_with_pg_customer_repo, audit_row_count_for_action_and_nullable_target,
+    audit_rows_for_action_and_nullable_target, connect_isolated_and_migrate,
+    create_active_customer, customer_status, install_scoped_audit_failure_trigger,
+    register_operator, response_json,
+};
 
 async fn body_json(resp: axum::response::Response) -> serde_json::Value {
     let bytes = resp.into_body().collect().await.unwrap().to_bytes();
@@ -626,6 +634,119 @@ async fn update_tenant_empty_body_returns_400() {
 
     let json = body_json(resp).await;
     assert_eq!(json["error"], "no fields to update");
+}
+
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn suspend_customer_audit_transactional_failure_returns_500_and_keeps_customer_active() {
+    let db = connect_isolated_and_migrate("tenant_suspend_audit_transactional_failure").await;
+    let (operator_id, admin_credential) = register_operator(
+        &db.pool,
+        &format!(
+            "tenant-suspend-transactional-failure-{}@example.com",
+            Uuid::new_v4()
+        ),
+    )
+    .await;
+    let customer_id = create_active_customer(&db.pool, "Suspend Audit Transactional Failure").await;
+    install_scoped_audit_failure_trigger(
+        &db.pool,
+        ACTION_CUSTOMER_SUSPENDED,
+        operator_id,
+        Some(customer_id),
+    )
+    .await;
+    let app = app_with_pg_customer_repo(db.pool.clone());
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/admin/customers/{customer_id}/suspend"))
+                .header("x-admin-key", admin_credential)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let (status, body) = response_json(resp).await;
+
+    // Capture the response AND every post-request PostgreSQL observation
+    // before asserting, then compare them together in one aggregate
+    // assertion. Asserting the status first would short-circuit on today's
+    // buggy 200 and hide the committed state; the aggregate form makes the
+    // RED failure report that the suspension actually committed after the
+    // scoped audit INSERT failed, not merely that the status was unexpected.
+    let observed_customer_status = customer_status(&db.pool, customer_id).await;
+    let observed_audit_rows = audit_row_count_for_action_and_nullable_target(
+        &db.pool,
+        ACTION_CUSTOMER_SUSPENDED,
+        Some(customer_id),
+    )
+    .await;
+
+    assert_eq!(
+        (
+            status,
+            body.clone(),
+            observed_customer_status.as_deref(),
+            observed_audit_rows,
+        ),
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            serde_json::json!({"error": "internal server error"}),
+            Some("active"),
+            0,
+        ),
+        "audit INSERT failure must roll back suspension; \
+         observed status={status}, body={body}, \
+         customer_status={observed_customer_status:?}, audit_rows={observed_audit_rows}"
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn suspend_customer_audit_transactional_success_commits_status_and_attributed_audit_row() {
+    let db = connect_isolated_and_migrate("tenant_suspend_audit_transactional_success").await;
+    let (operator_id, admin_credential) = register_operator(
+        &db.pool,
+        &format!(
+            "tenant-suspend-transactional-success-{}@example.com",
+            Uuid::new_v4()
+        ),
+    )
+    .await;
+    let customer_id = create_active_customer(&db.pool, "Suspend Audit Transactional Success").await;
+    let app = app_with_pg_customer_repo(db.pool.clone());
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/admin/customers/{customer_id}/suspend"))
+                .header("x-admin-key", admin_credential)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let (status, body) = response_json(resp).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body, serde_json::json!({"message": "customer suspended"}));
+    assert_eq!(
+        customer_status(&db.pool, customer_id).await.as_deref(),
+        Some("suspended")
+    );
+    let rows = audit_rows_for_action_and_nullable_target(
+        &db.pool,
+        ACTION_CUSTOMER_SUSPENDED,
+        Some(customer_id),
+    )
+    .await;
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].actor_id, operator_id);
+    assert_eq!(rows[0].target_tenant_id, Some(customer_id));
 }
 
 // ===========================================================================

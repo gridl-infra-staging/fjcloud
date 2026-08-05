@@ -1,0 +1,2 @@
+git cat-file -e "origin/main:scripts/probe_mirror_ci_currency.sh": exit 0
+git grep -q 'workflow_dispatch' origin/main -- .github/workflows/ci.yml: exit 0

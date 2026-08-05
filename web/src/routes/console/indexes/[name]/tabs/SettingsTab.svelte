@@ -39,6 +39,13 @@
 	type SettingsSubtab = {
 		id: SettingsSubtabId;
 		label: string;
+		/**
+		 * Only set when the visible label collides with another tab rendered on the same
+		 * page; otherwise the accessible name comes from the visible label itself, so the
+		 * two can never silently diverge. Any override must still contain the visible
+		 * label (WCAG 2.5.3, label in name).
+		 */
+		accessibleName?: string;
 		panelId: string;
 	};
 
@@ -52,7 +59,14 @@
 	let lastSettingsSavedToastState = $state(false);
 
 	const SETTINGS_SUBTABS: SettingsSubtab[] = [
-		{ id: 'search', label: 'Search', panelId: 'settings-panel-search' },
+		// The nested name retains its visible label while avoiding a collision with
+		// the journey-level Search tab rendered on the same index-detail page.
+		{
+			id: 'search',
+			label: 'Search',
+			accessibleName: 'Search settings',
+			panelId: 'settings-panel-search'
+		},
 		{ id: 'ranking', label: 'Ranking', panelId: 'settings-panel-ranking' },
 		{ id: 'language-text', label: 'Language & Text', panelId: 'settings-panel-language-text' },
 		{
@@ -201,6 +215,7 @@
 						id="settings-tab-{tab.id}"
 						type="button"
 						role="tab"
+						aria-label={tab.accessibleName}
 						aria-selected={activeSettingsTab === tab.id}
 						aria-controls={tab.panelId}
 						tabindex={activeSettingsTab === tab.id ? 0 : -1}
@@ -225,7 +240,6 @@
 				id="settings-panel-search"
 				role="tabpanel"
 				aria-labelledby="settings-tab-search"
-				aria-label="Search"
 				hidden={activeSettingsTab !== 'search'}
 				class="rounded-md border border-flapjack-ink/20 p-4"
 			>
@@ -236,7 +250,6 @@
 				id="settings-panel-ranking"
 				role="tabpanel"
 				aria-labelledby="settings-tab-ranking"
-				aria-label="Ranking"
 				hidden={activeSettingsTab !== 'ranking'}
 				class="rounded-md border border-flapjack-ink/20 p-4"
 			>
@@ -247,7 +260,6 @@
 				id="settings-panel-language-text"
 				role="tabpanel"
 				aria-labelledby="settings-tab-language-text"
-				aria-label="Language & Text"
 				hidden={activeSettingsTab !== 'language-text'}
 				class="rounded-md border border-flapjack-ink/20 p-4"
 			>
@@ -258,7 +270,6 @@
 				id="settings-panel-facets-filters"
 				role="tabpanel"
 				aria-labelledby="settings-tab-facets-filters"
-				aria-label="Facets & Filters"
 				hidden={activeSettingsTab !== 'facets-filters'}
 				class="rounded-md border border-flapjack-ink/20 p-4"
 			>
@@ -269,7 +280,6 @@
 				id="settings-panel-display"
 				role="tabpanel"
 				aria-labelledby="settings-tab-display"
-				aria-label="Display"
 				hidden={activeSettingsTab !== 'display'}
 				class="rounded-md border border-flapjack-ink/20 p-4"
 			>
@@ -280,7 +290,6 @@
 				id="settings-panel-advanced-json"
 				role="tabpanel"
 				aria-labelledby="settings-tab-advanced-json"
-				aria-label="Advanced JSON"
 				hidden={activeSettingsTab !== 'advanced-json'}
 				class="rounded-md border border-flapjack-ink/20 p-4"
 			>

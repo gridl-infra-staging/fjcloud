@@ -1,5 +1,9 @@
 import type { PageServerLoad } from './$types';
-import { createAdminClient, type AdminAlertRecord, type AlertSeverity } from '$lib/admin-client';
+import type { AdminAlertRecord, AlertSeverity } from '$lib/admin-client';
+import {
+	redirectIfAdminSessionAuthError,
+	requireDurableAdminSession
+} from '$lib/server/admin-session';
 
 type SeverityFilter = 'all' | AlertSeverity;
 
@@ -10,12 +14,11 @@ function parseSeverityFilter(value: string | null): SeverityFilter {
 	return 'all';
 }
 
-export const load: PageServerLoad = async ({ fetch, depends, url, platform }) => {
-	depends('admin:alerts');
+export const load: PageServerLoad = async (event) => {
+	event.depends('admin:alerts');
 
-	const selectedSeverity = parseSeverityFilter(url.searchParams.get('severity'));
-	const client = createAdminClient(undefined, platform?.env);
-	client.setFetch(fetch);
+	const selectedSeverity = parseSeverityFilter(event.url.searchParams.get('severity'));
+	const { adminClient: client } = await requireDurableAdminSession(event);
 
 	try {
 		const alerts = await client.getAlerts(
@@ -26,7 +29,8 @@ export const load: PageServerLoad = async ({ fetch, depends, url, platform }) =>
 			alerts,
 			selectedSeverity
 		};
-	} catch {
+	} catch (error) {
+		redirectIfAdminSessionAuthError(error);
 		return {
 			alerts: [] as AdminAlertRecord[],
 			selectedSeverity

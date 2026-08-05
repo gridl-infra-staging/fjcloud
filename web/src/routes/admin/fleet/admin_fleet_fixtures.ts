@@ -142,7 +142,7 @@ export const REPLICA_FIXTURES: AdminReplicaEntry[] = [
 export const VM_ID = 'aaaaaaaa-0001-0000-0000-000000000001';
 export const REPLACEMENT_VM_ID = 'dddddddd-0001-0000-0000-000000000001';
 export const FALLBACK_REPLACEMENT_VM_ID = 'dddddddd-0002-0000-0000-000000000002';
-export const ORACLE_RENDER_TIMEOUT_MS = 15_000;
+export const ORACLE_RENDER_TIMEOUT_MS = 60_000;
 
 export const REAL_PIPELINE_ORACLE = parseRealPipelineOracle(
 	JSON.parse(

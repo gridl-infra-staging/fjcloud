@@ -57,7 +57,9 @@ export function normalizeAlgoliaMigrationAvailability(
 	const capabilities: AlgoliaMigrationCapabilities = {
 		cancel: payload.capabilities?.cancel === true,
 		resume: payload.capabilities?.resume === true,
-		replace: payload.capabilities?.replace === true
+		replace: payload.capabilities?.replace === true,
+		preview: payload.capabilities?.preview === true,
+		verify: payload.capabilities?.verify === true
 	};
 
 	const response = {

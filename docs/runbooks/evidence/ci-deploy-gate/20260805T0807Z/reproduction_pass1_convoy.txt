@@ -1,0 +1,60 @@
+=== PASS 1: auth_admin binary, 64 test-threads, systemd scope AllowedCPUs=0-1 CPUQuota=60% ===
+sampler=212197 start=08:01:53Z bin=/home/ubuntu/fjcloud_dev/infra/target/debug/deps/auth_admin-856e96dda8ebebbe
+run_exit=101 end=08:02:55Z
+over60_named=0
+over60_total=0
+max_sustained_advisory_wait_s=38
+deepest_convoy=8
+test result: FAILED. 345 passed; 1 failed; 59 ignored; 0 measured; 0 filtered out; finished in 61.60s
+DONE
+
+=== PEAK live pg_stat_activity (sustained advisory-lock convoy, head idle-in-transaction) ===
+          captured_at          |  pid  |        state        | wait_event_type | wait_event |     blocked_by      | wait_s |                                                                         query                                                                          
+-------------------------------+-------+---------------------+-----------------+------------+---------------------+--------+--------------------------------------------------------------------------------------------------------------------------------------------------------
+ 2026-08-05 08:02:36.045112+00 | 32386 | active              | Lock            | advisory   | {32385}             |     38 | SELECT pg_advisory_lock($1)
+ 2026-08-05 08:02:36.04512+00  | 32600 | active              | Lock            | advisory   | {32385,32386}       |     23 | SELECT pg_advisory_lock($1)
+ 2026-08-05 08:02:36.045122+00 | 32602 | active              | Lock            | advisory   | {32385,32386,32600} |     22 | SELECT pg_advisory_lock($1)
+ 2026-08-05 08:02:36.045123+00 | 32385 | idle in transaction | Client          | ClientRead | {}                  |      0 | -- VM inventory retirement reference guard. -- -- This migration owns both persisted-reference blocker enumeration and -- per-column reference eligibi
+(4 rows)
+
+
+=== blocked-count / max-sustained-wait timeseries (nonzero rows) ===
+2026-08-05T08:01:54Z blocked=1 maxwait_s=0
+2026-08-05T08:01:55Z blocked=6 maxwait_s=1
+2026-08-05T08:01:57Z blocked=6 maxwait_s=3
+2026-08-05T08:01:58Z blocked=8 maxwait_s=4
+2026-08-05T08:01:59Z blocked=7 maxwait_s=5
+2026-08-05T08:02:00Z blocked=7 maxwait_s=6
+2026-08-05T08:02:02Z blocked=7 maxwait_s=7
+2026-08-05T08:02:03Z blocked=7 maxwait_s=8
+2026-08-05T08:02:04Z blocked=7 maxwait_s=10
+2026-08-05T08:02:05Z blocked=7 maxwait_s=11
+2026-08-05T08:02:07Z blocked=6 maxwait_s=12
+2026-08-05T08:02:08Z blocked=6 maxwait_s=13
+2026-08-05T08:02:09Z blocked=6 maxwait_s=15
+2026-08-05T08:02:10Z blocked=6 maxwait_s=16
+2026-08-05T08:02:12Z blocked=5 maxwait_s=17
+2026-08-05T08:02:13Z blocked=5 maxwait_s=18
+2026-08-05T08:02:14Z blocked=7 maxwait_s=19
+2026-08-05T08:02:15Z blocked=7 maxwait_s=21
+2026-08-05T08:02:17Z blocked=7 maxwait_s=22
+2026-08-05T08:02:18Z blocked=6 maxwait_s=23
+2026-08-05T08:02:19Z blocked=6 maxwait_s=24
+2026-08-05T08:02:20Z blocked=6 maxwait_s=26
+2026-08-05T08:02:22Z blocked=6 maxwait_s=27
+2026-08-05T08:02:23Z blocked=5 maxwait_s=28
+2026-08-05T08:02:24Z blocked=5 maxwait_s=29
+2026-08-05T08:02:25Z blocked=5 maxwait_s=31
+2026-08-05T08:02:27Z blocked=5 maxwait_s=32
+2026-08-05T08:02:28Z blocked=4 maxwait_s=30
+2026-08-05T08:02:29Z blocked=4 maxwait_s=32
+2026-08-05T08:02:30Z blocked=4 maxwait_s=33
+2026-08-05T08:02:32Z blocked=4 maxwait_s=34
+2026-08-05T08:02:33Z blocked=3 maxwait_s=35
+2026-08-05T08:02:34Z blocked=3 maxwait_s=37
+2026-08-05T08:02:35Z blocked=3 maxwait_s=38
+2026-08-05T08:02:37Z blocked=2 maxwait_s=24
+2026-08-05T08:02:38Z blocked=2 maxwait_s=25
+2026-08-05T08:02:39Z blocked=2 maxwait_s=26
+2026-08-05T08:02:40Z blocked=1 maxwait_s=27
+2026-08-05T08:02:42Z blocked=1 maxwait_s=29

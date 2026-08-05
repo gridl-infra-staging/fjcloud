@@ -279,7 +279,7 @@ impl TenantRepo for PgTenantRepo {
         customer_id: Uuid,
     ) -> Result<Vec<CustomerTenantSummary>, RepoError> {
         sqlx::query_as::<_, CustomerTenantSummary>(
-            "SELECT ct.customer_id, ct.tenant_id, ct.deployment_id, ct.created_at, \
+            "SELECT ct.customer_id, ct.tenant_id, ct.deployment_id, ct.vm_id, ct.created_at, \
                     cd.region, cd.flapjack_url, cd.health_status, \
                     ct.tier, ct.last_accessed_at, ct.cold_snapshot_id, ct.service_type \
              FROM customer_tenants ct \
@@ -301,7 +301,7 @@ impl TenantRepo for PgTenantRepo {
         tenant_id: &str,
     ) -> Result<Option<CustomerTenantSummary>, RepoError> {
         sqlx::query_as::<_, CustomerTenantSummary>(
-            "SELECT ct.customer_id, ct.tenant_id, ct.deployment_id, ct.created_at, \
+            "SELECT ct.customer_id, ct.tenant_id, ct.deployment_id, ct.vm_id, ct.created_at, \
                     cd.region, cd.flapjack_url, cd.health_status, \
                     ct.tier, ct.last_accessed_at, ct.cold_snapshot_id, ct.service_type \
              FROM customer_tenants ct \
@@ -504,7 +504,7 @@ impl TenantRepo for PgTenantRepo {
         tenant_id: &str,
     ) -> Result<Option<CustomerTenantSummary>, RepoError> {
         sqlx::query_as::<_, CustomerTenantSummary>(
-            "SELECT ct.customer_id, ct.tenant_id, ct.deployment_id, ct.created_at, \
+            "SELECT ct.customer_id, ct.tenant_id, ct.deployment_id, ct.vm_id, ct.created_at, \
                     cd.region, cd.flapjack_url, cd.health_status, \
                     ct.tier, ct.last_accessed_at, ct.cold_snapshot_id, ct.service_type \
              FROM customer_tenants ct \

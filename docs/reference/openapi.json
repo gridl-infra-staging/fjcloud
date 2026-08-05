@@ -257,6 +257,56 @@
         }
       }
     },
+    "/account/upgrade-status": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "get_upgrade_status",
+        "responses": {
+          "200": {
+            "description": "Upgrade readiness status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpgradeStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Customer not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Billing service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api-keys": {
       "get": {
         "tags": [
@@ -1173,6 +1223,109 @@
             }
           }
         }
+      }
+    },
+    "/billing/upgrade": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "operationId": "upgrade_to_shared",
+        "responses": {
+          "200": {
+            "description": "Upgrade completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingUpgradeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stripe customer/default payment method missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Card declined or customer action required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpgradePaymentRequiredResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Customer not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Customer is no longer eligible for free-to-shared upgrade",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Billing service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Service is live",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
       }
     },
     "/indexes": {
@@ -6048,6 +6201,77 @@
         }
       }
     },
+    "/indexes/{name}/suggestions/build": {
+      "post": {
+        "tags": [
+          "Suggestions"
+        ],
+        "summary": "`POST /indexes/{name}/suggestions/build` — trigger query suggestions build.",
+        "description": "**Auth:** JWT (`AuthenticatedTenant`).\nRejects cold/restoring indexes (503). Starts a query suggestions build\nin flapjack for this index.",
+        "operationId": "build_qs_config",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Index name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Query suggestions build started",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Index not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Index is in cold storage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Index is restoring or endpoint not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/indexes/{name}/suggestions/status": {
       "get": {
         "tags": [
@@ -6073,6 +6297,87 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Index not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Index is in cold storage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Index is restoring or endpoint not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/indexes/{name}/synonyms/clear": {
+      "post": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "`POST /indexes/{name}/synonyms/clear` — clear all synonyms.",
+        "description": "**Auth:** JWT (`AuthenticatedTenant`).\nRejects cold/restoring indexes (503), then clears all synonyms from\nflapjack using the tenant-scoped UID.",
+        "operationId": "clear_synonyms",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Index name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Synonyms cleared",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -6581,12 +6886,23 @@
         }
       }
     },
-    "/migration/algolia/availability": {
+    "/migration/{source_provider}/availability": {
       "get": {
         "tags": [
           "Migration"
         ],
         "operationId": "algolia_availability",
+        "parameters": [
+          {
+            "name": "source_provider",
+            "in": "path",
+            "description": "Source migration provider",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceImportProvider"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Algolia migration availability",
@@ -6594,6 +6910,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AlgoliaMigrationAvailabilityResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unsupported source provider (source_provider_unsupported)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
                 }
               }
             }
@@ -6611,12 +6937,23 @@
         }
       }
     },
-    "/migration/algolia/destination-eligibility": {
+    "/migration/{source_provider}/destination-eligibility": {
       "post": {
         "tags": [
           "Migration"
         ],
         "operationId": "check_algolia_destination_eligibility",
+        "parameters": [
+          {
+            "name": "source_provider",
+            "in": "path",
+            "description": "Source migration provider",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceImportProvider"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6681,7 +7018,7 @@
         }
       }
     },
-    "/migration/algolia/jobs": {
+    "/migration/{source_provider}/jobs": {
       "get": {
         "tags": [
           "Migration"
@@ -6689,6 +7026,15 @@
         "summary": "Tenant-scoped retained list. Reads are never gated by the migration\nexposure flag or backpressure - only admission is.",
         "operationId": "list_algolia_import_jobs",
         "parameters": [
+          {
+            "name": "source_provider",
+            "in": "path",
+            "description": "Source migration provider",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceImportProvider"
+            }
+          },
           {
             "name": "limit",
             "in": "query",
@@ -6721,11 +7067,11 @@
             }
           },
           "400": {
-            "description": "Tampered, expired, or cross-customer list cursor",
+            "description": "Unsupported source provider (source_provider_unsupported), or tampered, expired, or cross-customer list cursor",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/RetainedListErrorResponse"
                 }
               }
             }
@@ -6748,11 +7094,22 @@
         ],
         "summary": "Creates a retained import job for the validated migration provider.",
         "operationId": "create_algolia_import_job",
+        "parameters": [
+          {
+            "name": "source_provider",
+            "in": "path",
+            "description": "Source migration provider",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceImportProvider"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateAlgoliaImportJobRequest"
+                "$ref": "#/components/schemas/CreateSourceImportJobRequest"
               }
             }
           },
@@ -6809,6 +7166,16 @@
               }
             }
           },
+          "415": {
+            "description": "Request body must use a JSON media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          },
           "503": {
             "description": "Migration admission disabled or repository backpressured",
             "content": {
@@ -6822,7 +7189,7 @@
         }
       }
     },
-    "/migration/algolia/jobs/{id}": {
+    "/migration/{source_provider}/jobs/{id}": {
       "get": {
         "tags": [
           "Migration"
@@ -6830,6 +7197,15 @@
         "summary": "Tenant-scoped retained get. Returns an identical `404` for both a missing id\nand one owned by another customer, so ownership is not observable.",
         "operationId": "get_algolia_import_job",
         "parameters": [
+          {
+            "name": "source_provider",
+            "in": "path",
+            "description": "Source migration provider",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceImportProvider"
+            }
+          },
           {
             "name": "id",
             "in": "path",
@@ -6848,6 +7224,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PublicAlgoliaImportJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unsupported source provider (source_provider_unsupported)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
                 }
               }
             }
@@ -6875,7 +7261,7 @@
         }
       }
     },
-    "/migration/algolia/jobs/{id}/cancel": {
+    "/migration/{source_provider}/jobs/{id}/cancel": {
       "post": {
         "tags": [
           "Migration"
@@ -6883,6 +7269,15 @@
         "summary": "Cancels a retained import job for the validated migration provider.",
         "operationId": "cancel_algolia_import_job",
         "parameters": [
+          {
+            "name": "source_provider",
+            "in": "path",
+            "description": "Source migration provider",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceImportProvider"
+            }
+          },
           {
             "name": "id",
             "in": "path",
@@ -6925,6 +7320,16 @@
               }
             }
           },
+          "400": {
+            "description": "Unsupported source provider (source_provider_unsupported)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Authentication required",
             "content": {
@@ -6958,7 +7363,7 @@
         }
       }
     },
-    "/migration/algolia/jobs/{id}/resume": {
+    "/migration/{source_provider}/jobs/{id}/resume": {
       "post": {
         "tags": [
           "Migration"
@@ -6966,6 +7371,15 @@
         "summary": "Resumes a retained import job for the validated migration provider.",
         "operationId": "resume_algolia_import_job",
         "parameters": [
+          {
+            "name": "source_provider",
+            "in": "path",
+            "description": "Source migration provider",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceImportProvider"
+            }
+          },
           {
             "name": "id",
             "in": "path",
@@ -7071,18 +7485,51 @@
         }
       }
     },
-    "/migration/algolia/list-indexes": {
+    "/migration/{source_provider}/list-indexes": {
       "post": {
         "tags": [
           "Migration"
         ],
         "summary": "Lists source indexes for the validated migration provider.",
         "operationId": "list_algolia_indexes",
+        "parameters": [
+          {
+            "name": "source_provider",
+            "in": "path",
+            "description": "Source migration provider",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceImportProvider"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Hosted source discovery page offset",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Hosted source discovery page size",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ListAlgoliaIndexesRequest"
+                "$ref": "#/components/schemas/ListSourceIndexesRequest"
               }
             }
           },
@@ -7090,17 +7537,17 @@
         },
         "responses": {
           "200": {
-            "description": "One page of Algolia source-index picker metadata",
+            "description": "One page of source-index picker metadata",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AlgoliaSourceListResponse"
+                  "$ref": "#/components/schemas/ListSourceIndexesResponseBody"
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid Algolia credentials, application ID, cursor, or bounded catalog",
+            "description": "Invalid credentials, request body, cursor, or bounded catalog",
             "content": {
               "application/json": {
                 "schema": {
@@ -7129,12 +7576,234 @@
               }
             }
           },
+          "415": {
+            "description": "Request body must use a JSON media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Backend target, engine response, or secret lookup failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          },
           "503": {
             "description": "Algolia discovery unavailable or timed out",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/migration/{source_provider}/preview": {
+      "post": {
+        "tags": [
+          "Migration"
+        ],
+        "summary": "Report-only migration preview. This forwards source credentials to the\nengine preview path, but unlike create/import it never transitions a job and\nnever writes `algolia_import_jobs`.",
+        "operationId": "preview_source_migration",
+        "parameters": [
+          {
+            "name": "source_provider",
+            "in": "path",
+            "description": "Migration source provider",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceImportProvider"
+            },
+            "example": "algolia"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MigrationPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Stateless migration source counts and translation report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationPreviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unsupported provider, invalid request, or source rejected by the migration engine",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must use a JSON media type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Migration preview failed internally",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Migration preview unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/migration/{source_provider}/verify": {
+      "post": {
+        "tags": [
+          "Migration"
+        ],
+        "operationId": "verify_source_migration",
+        "parameters": [
+          {
+            "name": "source_provider",
+            "in": "path",
+            "description": "Source migration provider",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceImportProvider"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifySourceMigrationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Read-only source/destination search parity report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifySourceMigrationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unsupported provider, validation failure, destination not ready, duplicate IDs, or invalid source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifySourceMigrationBadRequestResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Source key lacks search permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Destination index not owned or not found (shared search-admission body)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Destination index is cold (shared search-admission restore body)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifySourceMigrationRestoreStatusResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit or quota exceeded",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "503": {
+            "description": "Source/destination backend unavailable, or destination restoring (shared search-admission restore body)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifySourceMigrationServiceUnavailableResponse"
                 }
               }
             }
@@ -7830,11 +8499,16 @@
         "type": "object",
         "required": [
           "cancel",
+          "preview",
           "resume",
-          "replace"
+          "replace",
+          "verify"
         ],
         "properties": {
           "cancel": {
+            "type": "boolean"
+          },
+          "preview": {
             "type": "boolean"
           },
           "replace": {
@@ -7842,6 +8516,37 @@
           },
           "resume": {
             "type": "boolean"
+          },
+          "verify": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AlgoliaMigrationPreviewRequest": {
+        "type": "object",
+        "required": [
+          "appId",
+          "apiKey",
+          "sourceIndex"
+        ],
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          },
+          "appId": {
+            "type": "string"
+          },
+          "overwrite": {
+            "type": "boolean"
+          },
+          "sourceIndex": {
+            "type": "string"
+          },
+          "targetIndex": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -8021,6 +8726,31 @@
         "properties": {
           "portal_url": {
             "type": "string"
+          }
+        }
+      },
+      "BillingUpgradeResponse": {
+        "type": "object",
+        "required": [
+          "billing_plan",
+          "subscription_cycle_anchor_at",
+          "stripe_invoice_id",
+          "activation_amount_cents"
+        ],
+        "properties": {
+          "activation_amount_cents": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "billing_plan": {
+            "$ref": "#/components/schemas/BillingPlan"
+          },
+          "stripe_invoice_id": {
+            "type": "string"
+          },
+          "subscription_cycle_anchor_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -8313,6 +9043,34 @@
           }
         }
       },
+      "CreateMeilisearchImportJobRequest": {
+        "type": "object",
+        "required": [
+          "mode",
+          "endpoint",
+          "apiKey",
+          "sourceIndex",
+          "target"
+        ],
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AlgoliaImportDestinationKind"
+          },
+          "sourceIndex": {
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/components/schemas/CreateAlgoliaImportJobTargetRequest"
+          }
+        },
+        "additionalProperties": false
+      },
       "CreateReplicaRequest": {
         "type": "object",
         "required": [
@@ -8323,6 +9081,48 @@
             "type": "string"
           }
         }
+      },
+      "CreateSourceImportJobRequest": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/CreateAlgoliaImportJobRequest"
+          },
+          {
+            "$ref": "#/components/schemas/CreateMeilisearchImportJobRequest"
+          },
+          {
+            "$ref": "#/components/schemas/CreateTypesenseImportJobRequest"
+          }
+        ],
+        "description": "Documentation-only union; runtime deserialization remains provider-selected in the handler."
+      },
+      "CreateTypesenseImportJobRequest": {
+        "type": "object",
+        "required": [
+          "mode",
+          "node",
+          "apiKey",
+          "sourceIndex",
+          "target"
+        ],
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AlgoliaImportDestinationKind"
+          },
+          "node": {
+            "type": "string"
+          },
+          "sourceIndex": {
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/components/schemas/CreateAlgoliaImportJobTargetRequest"
+          }
+        },
+        "additionalProperties": false
       },
       "CredentialsResponse": {
         "type": "object",
@@ -8634,6 +9434,19 @@
           "busy",
           "approaching_limits"
         ]
+      },
+      "HealthResponse": {
+        "type": "object",
+        "description": "Liveness response for the public `GET /health` probe.",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Always `\"ok\"` while the API process is serving requests."
+          }
+        }
       },
       "IndexInfrastructureResponse": {
         "type": "object",
@@ -9025,7 +9838,102 @@
             "maximum": 100,
             "minimum": 1
           }
-        }
+        },
+        "additionalProperties": false
+      },
+      "ListMeilisearchIndexesRequest": {
+        "type": "object",
+        "required": [
+          "endpoint",
+          "apiKey"
+        ],
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ListSourceIndexesRequest": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ListAlgoliaIndexesRequest"
+          },
+          {
+            "$ref": "#/components/schemas/ListMeilisearchIndexesRequest"
+          },
+          {
+            "$ref": "#/components/schemas/ListTypesenseIndexesRequest"
+          }
+        ]
+      },
+      "ListSourceIndexesResponse": {
+        "type": "object",
+        "required": [
+          "indexes"
+        ],
+        "properties": {
+          "indexes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceIndexSummary"
+            }
+          },
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "ListSourceIndexesResponseBody": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/AlgoliaSourceListResponse"
+          },
+          {
+            "$ref": "#/components/schemas/ListSourceIndexesResponse"
+          }
+        ]
+      },
+      "ListTypesenseIndexesRequest": {
+        "type": "object",
+        "required": [
+          "node",
+          "apiKey"
+        ],
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          },
+          "node": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       },
       "LoginRequest": {
         "type": "object",
@@ -9039,6 +9947,34 @@
           },
           "password": {
             "type": "string"
+          }
+        }
+      },
+      "MeilisearchMigrationPreviewRequest": {
+        "type": "object",
+        "required": [
+          "endpoint",
+          "apiKey",
+          "sourceIndex"
+        ],
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "overwrite": {
+            "type": "boolean"
+          },
+          "sourceIndex": {
+            "type": "string"
+          },
+          "targetIndex": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -9068,6 +10004,186 @@
           "error": {
             "type": "string",
             "description": "Human-readable error description."
+          }
+        }
+      },
+      "MigrationPreviewReport": {
+        "type": "object",
+        "required": [
+          "entries",
+          "summary"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationPreviewReportEntry"
+            }
+          },
+          "reportDigest": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "$ref": "#/components/schemas/MigrationPreviewReportSummary"
+          }
+        }
+      },
+      "MigrationPreviewReportCode": {
+        "type": "string",
+        "enum": [
+          "ProductNotMigrated",
+          "PersistedNoBehaviorSetting",
+          "ReadOnlySourceField",
+          "ReplicaTopologyNotMigrated",
+          "UnsupportedSourceField",
+          "UnsupportedRuleSchema",
+          "UnsupportedSynonymSchema",
+          "InvalidObjectId",
+          "DuplicateObjectId",
+          "MalformedSettingsPayload",
+          "MalformedDocumentPayload",
+          "MalformedRulePayload",
+          "MalformedSynonymPayload",
+          "ReplicaUnknownRankingToken",
+          "ReplicaExhaustiveSortApproximated",
+          "ReplicaPrimaryRelevancyStrictnessDropped",
+          "ReplicaRelevancyStrictnessSemanticMismatch",
+          "ReplicaMatchingCriticalFieldDiverges",
+          "MeilisearchDocumentOrderNotContractual",
+          "MeilisearchSearchPaginationNotExportBound",
+          "MeilisearchSettingNotMigrated",
+          "MeilisearchSettingValueNormalized",
+          "TypesenseSettingNotMigrated"
+        ]
+      },
+      "MigrationPreviewReportEntry": {
+        "type": "object",
+        "required": [
+          "severity",
+          "code",
+          "resource",
+          "jsonPath"
+        ],
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/MigrationPreviewReportCode"
+          },
+          "itemIndex": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "jsonPath": {
+            "type": "string"
+          },
+          "pageIndex": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "resource": {
+            "$ref": "#/components/schemas/MigrationPreviewReportResource"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/MigrationPreviewReportSeverity"
+          }
+        }
+      },
+      "MigrationPreviewReportResource": {
+        "type": "string",
+        "enum": [
+          "Analytics",
+          "ApiKeys",
+          "Document",
+          "Events",
+          "Experiments",
+          "Recommend",
+          "Rule",
+          "Settings",
+          "Synonym"
+        ]
+      },
+      "MigrationPreviewReportSeverity": {
+        "type": "string",
+        "enum": [
+          "ScopeGap",
+          "Warning",
+          "HardRejection"
+        ]
+      },
+      "MigrationPreviewReportSummary": {
+        "type": "object",
+        "required": [
+          "totalEntries",
+          "hardRejections",
+          "warnings",
+          "scopeGaps"
+        ],
+        "properties": {
+          "hardRejections": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "scopeGaps": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalEntries": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "warnings": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "MigrationPreviewRequest": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/AlgoliaMigrationPreviewRequest"
+          },
+          {
+            "$ref": "#/components/schemas/MeilisearchMigrationPreviewRequest"
+          }
+        ]
+      },
+      "MigrationPreviewResponse": {
+        "type": "object",
+        "required": [
+          "report",
+          "sourceCounts"
+        ],
+        "properties": {
+          "report": {
+            "$ref": "#/components/schemas/MigrationPreviewReport"
+          },
+          "sourceCounts": {
+            "$ref": "#/components/schemas/MigrationPreviewSourceCounts"
+          }
+        }
+      },
+      "MigrationPreviewSourceCounts": {
+        "type": "object",
+        "required": [
+          "indexes",
+          "records"
+        ],
+        "properties": {
+          "indexes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "records": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },
@@ -9545,6 +10661,17 @@
         },
         "additionalProperties": false
       },
+      "RetainedListErrorResponse": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          {
+            "$ref": "#/components/schemas/MigrationErrorResponse"
+          }
+        ],
+        "description": "Retained job listing can reject either the source-provider path parameter\nwith a coded migration error or the signed page cursor with the shared\nlegacy error envelope."
+      },
       "RulesSearchRequest": {
         "type": "object",
         "properties": {
@@ -9601,6 +10728,80 @@
           "typesense"
         ]
       },
+      "SourceIndexCreatedAt": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        ]
+      },
+      "SourceIndexSummary": {
+        "type": "object",
+        "required": [
+          "name",
+          "primaryKey",
+          "entries",
+          "documentCount",
+          "createdAt",
+          "updatedAt",
+          "defaultSortingField"
+        ],
+        "properties": {
+          "createdAt": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SourceIndexCreatedAt"
+              }
+            ]
+          },
+          "defaultSortingField": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "documentCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "entries": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          },
+          "primaryKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "SynonymsSearchRequest": {
         "type": "object",
         "properties": {
@@ -9631,6 +10832,54 @@
         "properties": {
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "UpgradePaymentRequiredResponse": {
+        "type": "object",
+        "required": [
+          "error",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "decline_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UpgradeStatusResponse": {
+        "type": "object",
+        "required": [
+          "has_default_payment_method",
+          "upgrade_ready"
+        ],
+        "properties": {
+          "has_default_payment_method": {
+            "type": "boolean"
+          },
+          "stripe_customer_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "upgrade_ready": {
+            "type": "boolean"
           }
         }
       },
@@ -9690,6 +10939,195 @@
             "type": "string"
           }
         }
+      },
+      "VerifySourceMigrationBadRequestResponse": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "code": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AlgoliaImportErrorCode"
+              }
+            ]
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "VerifySourceMigrationHitComparison": {
+        "type": "object",
+        "required": [
+          "objectID",
+          "sourceRank",
+          "destinationRank",
+          "rankDelta"
+        ],
+        "properties": {
+          "destinationRank": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "objectID": {
+            "type": "string"
+          },
+          "rankDelta": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sourceRank": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "VerifySourceMigrationQueryReport": {
+        "type": "object",
+        "required": [
+          "query",
+          "overlapCount",
+          "sourceOnly",
+          "destinationOnly",
+          "hits"
+        ],
+        "properties": {
+          "destinationOnly": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "hits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VerifySourceMigrationHitComparison"
+            }
+          },
+          "overlapCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "query": {
+            "type": "string"
+          },
+          "sourceOnly": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "VerifySourceMigrationRequest": {
+        "type": "object",
+        "required": [
+          "appId",
+          "apiKey",
+          "sourceIndex",
+          "destinationIndex",
+          "queries",
+          "resultLimit"
+        ],
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          },
+          "appId": {
+            "type": "string"
+          },
+          "destinationIndex": {
+            "type": "string"
+          },
+          "queries": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "maxItems": 20,
+            "minItems": 1
+          },
+          "resultLimit": {
+            "type": "integer",
+            "format": "int32",
+            "maximum": 100,
+            "minimum": 1
+          },
+          "sourceIndex": {
+            "type": "string"
+          }
+        }
+      },
+      "VerifySourceMigrationResponse": {
+        "type": "object",
+        "required": [
+          "sourceIndex",
+          "destinationIndex",
+          "resultLimit",
+          "queries"
+        ],
+        "properties": {
+          "destinationIndex": {
+            "type": "string"
+          },
+          "queries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VerifySourceMigrationQueryReport"
+            }
+          },
+          "resultLimit": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "sourceIndex": {
+            "type": "string"
+          }
+        }
+      },
+      "VerifySourceMigrationRestoreStatusResponse": {
+        "type": "object",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "poll_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "restore_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "VerifySourceMigrationServiceUnavailableResponse": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/MigrationErrorResponse"
+          },
+          {
+            "$ref": "#/components/schemas/VerifySourceMigrationRestoreStatusResponse"
+          }
+        ]
       }
     },
     "securitySchemes": {

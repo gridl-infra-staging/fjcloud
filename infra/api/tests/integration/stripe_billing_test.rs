@@ -66,6 +66,7 @@ fn config_without_live_stripe() -> Config {
         github_oauth_client_secret: None,
         dunning_emails_disabled: false,
         algolia_migration_enabled: false,
+        algolia_source_base_url: None,
         vm_autorepair_enabled: false,
     }
 }
@@ -145,7 +146,13 @@ async fn suspend_sets_status_to_suspended() {
     let repo = mock_repo();
     let customer = repo.seed("Test Co", "test@example.com");
 
-    let updated = repo.suspend(customer.id).await.unwrap();
+    let updated = repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
     assert!(updated);
 
     let found = repo.find_by_id(customer.id).await.unwrap().unwrap();
@@ -155,7 +162,14 @@ async fn suspend_sets_status_to_suspended() {
 #[tokio::test]
 async fn suspend_nonexistent_returns_false() {
     let repo = mock_repo();
-    let result = repo.suspend(uuid::Uuid::new_v4()).await.unwrap();
+    let customer_id = uuid::Uuid::new_v4();
+    let result = repo
+        .suspend(
+            customer_id,
+            crate::common::customer_suspended_audit_entry(customer_id),
+        )
+        .await
+        .unwrap();
     assert!(!result);
 }
 
@@ -163,10 +177,21 @@ async fn suspend_nonexistent_returns_false() {
 async fn suspend_already_suspended_returns_false() {
     let repo = mock_repo();
     let customer = repo.seed("Test Co", "test@example.com");
-    repo.suspend(customer.id).await.unwrap();
+    repo.suspend(
+        customer.id,
+        crate::common::customer_suspended_audit_entry(customer.id),
+    )
+    .await
+    .unwrap();
 
     // Second suspend should return false — already suspended
-    let result = repo.suspend(customer.id).await.unwrap();
+    let result = repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
     assert!(!result);
 }
 
@@ -174,7 +199,12 @@ async fn suspend_already_suspended_returns_false() {
 async fn reactivate_suspended_customer() {
     let repo = mock_repo();
     let customer = repo.seed("Test Co", "test@example.com");
-    repo.suspend(customer.id).await.unwrap();
+    repo.suspend(
+        customer.id,
+        crate::common::customer_suspended_audit_entry(customer.id),
+    )
+    .await
+    .unwrap();
 
     let updated = repo.reactivate(customer.id).await.unwrap();
     assert!(updated);

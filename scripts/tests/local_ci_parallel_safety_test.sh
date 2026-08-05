@@ -226,13 +226,11 @@ test_reachability_serial_registry_matches_isolation_state() {
 
   for test_path in \
     "scripts/tests/api_dev_test.sh" \
-    "scripts/tests/integration_up_test.sh" \
     "scripts/tests/local_demo_test.sh" \
     "scripts/tests/local_dev_migrate_test.sh" \
     "scripts/tests/local_dev_up_test.sh" \
     "scripts/tests/run_aggregation_job_test.sh" \
     "scripts/tests/seed_local_test.sh" \
-    "scripts/tests/seed_synthetic_traffic_test.sh" \
     "scripts/tests/web_dev_test.sh"
   do
     if printf '%s\n' "$serial_text" | grep -Fxq "$test_path"; then
@@ -241,6 +239,12 @@ test_reachability_serial_registry_matches_isolation_state() {
       pass "$test_path is promoted out of the serial tail after duplicate-green isolation"
     fi
   done
+
+  if printf '%s\n' "$serial_text" | grep -Fxq "scripts/tests/seed_synthetic_traffic_test.sh"; then
+    pass "scripts/tests/seed_synthetic_traffic_test.sh remains serial after the measured full-manifest failure"
+  else
+    fail "scripts/tests/seed_synthetic_traffic_test.sh must remain serial after concurrency-8 250/3 versus isolated 253/0"
+  fi
 }
 
 test_reachability_suite_runner_records_receipt_timing_row() {

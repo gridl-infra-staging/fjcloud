@@ -114,7 +114,7 @@ Configure and operate a query-suggestions index that learns from the source inde
   2. **Rust route addition** — new handler in the existing QS route module exposing the trigger to the frontend (~15 lines).
   3. **TS client addition in `web/src/lib/api/client.ts`** — new `triggerQsBuild(indexName)` method (~5 lines).
   4. **Server action + frontend wiring** — `?/rebuildQsConfig` action + button in SuggestionsTab.
-  Evidence: `web/src/lib/api/client.ts:600-665` (no rebuild method); upstream `flapjack_dev/engine/dashboard/src/hooks/useQuerySuggestions.ts:110-115` (`useTriggerQsBuild` posts to `/1/configs/${indexName}/build`).
+  Evidence: `web/src/lib/api/client.ts:600-665` (no rebuild method); upstream `flapjack_dev/engine/dashboard/src/hooks/useQuerySuggestions.ts:110-116` — `useTriggerQsBuild` posts to `/1/configs/${indexName}/build`. Re-derive in `flapjack_dev`: `git show origin/main:engine/dashboard/src/hooks/useQuerySuggestions.ts | grep -nE 'useTriggerQsBuild|/1/configs/'` — hook at `:110`, POST at `:116`, measured 2026-08-01 @ `9596369c3`.
 
 - Current: no build-log display.
   Target: Build log card per Layout #5; new flapjack-proxy method `getQsBuildLog(indexName)` reading the engine's build log.

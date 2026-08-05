@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import type { AccountExportResponse, CustomerProfileResponse } from '$lib/api/types';
+	import { PASSWORD_MIN_LENGTH, passwordMinimumLengthError } from '$lib/auth/password-policy';
 	import PasswordInput from '$lib/components/PasswordInput.svelte';
 	import { LEGAL_SUPPORT_MAILTO, SUPPORT_EMAIL } from '$lib/format';
 	import { toast } from '$lib/toast';
@@ -11,6 +12,7 @@
 
 	let profile: CustomerProfileResponse | null = $derived(data.profile);
 	let errorMessage = $derived((formResult?.error as string) ?? '');
+	let serverNewPasswordError = $derived((formResult?.newPasswordError as string) ?? '');
 	let accountExport = $derived(
 		(formResult?.accountExport as AccountExportResponse | null | undefined) ?? null
 	);
@@ -28,6 +30,15 @@
 	let deleteAccountPassword = $state('');
 	let deleteAccountConfirmed = $state(false);
 	let canSubmitDeleteAccount = $derived(deleteAccountPassword.length > 0 && deleteAccountConfirmed);
+
+	// Client affordance for the code-point minimum. Native `minlength` counts
+	// UTF-16 units and would accept short supplementary-plane values (e.g. eight
+	// emoji); count code points instead and block submission until the new
+	// password clears the minimum. Rust validate_password stays the boundary.
+	let newPassword = $state('');
+	const newPasswordError = $derived(
+		newPassword.length > 0 ? passwordMinimumLengthError(newPassword, 'New password') : null
+	);
 
 	function exportFilename(payload: AccountExportResponse): string {
 		const safeCreatedAt = payload.profile.created_at.replace(/[^0-9A-Za-z]/g, '-');
@@ -180,8 +191,10 @@
 						id="new-password"
 						name="new_password"
 						label="New password"
+						bind:value={newPassword}
 						required
-						minlength="8"
+						minlength={PASSWORD_MIN_LENGTH}
+						error={newPasswordError || serverNewPasswordError}
 						inputClass="text-sm focus:outline-none"
 					/>
 				</div>
@@ -193,14 +206,15 @@
 						name="confirm_password"
 						label="Confirm new password"
 						required
-						minlength="8"
+						minlength={PASSWORD_MIN_LENGTH}
 						inputClass="text-sm focus:outline-none"
 					/>
 				</div>
 			</div>
 			<button
 				type="submit"
-				class="rounded bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
+				disabled={!!newPasswordError}
+				class="rounded bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum disabled:cursor-not-allowed disabled:opacity-50"
 			>
 				Change password
 			</button>

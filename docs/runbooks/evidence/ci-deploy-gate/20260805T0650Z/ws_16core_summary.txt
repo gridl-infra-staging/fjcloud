@@ -1,0 +1,16 @@
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+test result: ok. 939 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.14s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins ... ok
+test admin_vms_test::decommission_endpoint_wins_concurrent_reference_publication_after_inventory_lock ... ok
+test result: ok. 346 passed; 0 failed; 59 ignored; 0 measured; 0 filtered out; finished in 10.36s
+test result: ok. 375 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 3.28s
+test result: ok. 353 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 22.01s
+test migration_routes_test::verify::verify_seeded_local_source_red_proof ... FAILED
+---- migration_routes_test::verify::verify_seeded_local_source_red_proof stdout ----
+thread 'migration_routes_test::verify::verify_seeded_local_source_red_proof' (31567) panicked at api/tests/integration/migration_routes_test/verify_support.rs:240:10:
+    migration_routes_test::verify::verify_seeded_local_source_red_proof
+test result: FAILED. 1677 passed; 1 failed; 14 ignored; 0 measured; 0 filtered out; finished in 458.44s
+error: test failed, to rerun pass `-p api --test platform`
+EXIT=101

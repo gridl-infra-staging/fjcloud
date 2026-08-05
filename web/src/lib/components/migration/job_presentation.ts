@@ -2,8 +2,10 @@ import type {
 	AlgoliaImportWarning,
 	AlgoliaImportJobStatus,
 	AlgoliaMigrationCapabilities,
+	MigrationPreviewResponse,
 	PublicAlgoliaImportError,
-	PublicAlgoliaImportJob
+	PublicAlgoliaImportJob,
+	SourceProvider
 } from '$lib/api/types';
 import { migrationSourceProviderLabel } from './create_success_intent';
 
@@ -67,6 +69,7 @@ export type AlgoliaImportActionPresentation = {
 export type AlgoliaImportCompatibilityWarningEntry = {
 	code: string;
 	message: string;
+	severity?: string;
 	locator: string | null;
 };
 
@@ -222,20 +225,103 @@ export function describeAlgoliaImportStatus(
 	return STATUS_PRESENTATION[status];
 }
 
+const PROVIDER_LABELLED_ERROR_COPY: Record<
+	'invalid_credentials' | 'missing_source_permission' | 'source_catalog_too_large',
+	(sourceProviderLabel: string) => string
+> = {
+	invalid_credentials: (label) => `${label} credentials were rejected. Reconnect with a valid key.`,
+	missing_source_permission: (label) =>
+		`The ${label} key does not have permission to read the source index.`,
+	source_catalog_too_large: (label) => `The ${label} source catalog is too large to import.`
+};
+
+function describeMigrationErrorCode(
+	code: PublicAlgoliaImportError['code'],
+	sourceProvider: SourceProvider
+): string {
+	const providerLabelled = PROVIDER_LABELLED_ERROR_COPY[
+		code as keyof typeof PROVIDER_LABELLED_ERROR_COPY
+	] as ((sourceProviderLabel: string) => string) | undefined;
+	return providerLabelled === undefined
+		? STATIC_ERROR_COPY[code as keyof typeof STATIC_ERROR_COPY]
+		: providerLabelled(migrationSourceProviderLabel(sourceProvider));
+}
+
+function isMigrationErrorCode(value: string): value is PublicAlgoliaImportError['code'] {
+	return (
+		Object.hasOwn(STATIC_ERROR_COPY, value) || Object.hasOwn(PROVIDER_LABELLED_ERROR_COPY, value)
+	);
+}
+
 export function describeAlgoliaImportError(job: PublicAlgoliaImportJob): string | null {
-	if (job.error === null) {
-		return null;
+	return job.error === null ? null : describeMigrationErrorCode(job.error.code, job.sourceProvider);
+}
+
+// Preview is report-only, so its failures must always say so: the customer needs
+// to know the flow did not silently create an import. Detail resolves through the
+// same code copy the retained job detail renders, so pre- and post-import failures
+// for one code never diverge.
+export const MIGRATION_PREVIEW_NO_JOB_STATEMENT =
+	'No preview was completed and no import job was created.';
+
+export interface MigrationPreviewFailurePresentation {
+	detail: string | null;
+	statement: string;
+}
+
+export interface MigrationVerificationFailurePresentation {
+	message: string;
+	code: string | null;
+}
+
+export function describeMigrationPreviewFailure(
+	sourceProvider: SourceProvider,
+	sanitizedError: string
+): MigrationPreviewFailurePresentation {
+	const sanitized = sanitizedError.trim();
+	const detail = isMigrationErrorCode(sanitized)
+		? describeMigrationErrorCode(sanitized, sourceProvider)
+		: sanitized;
+	return { detail: detail === '' ? null : detail, statement: MIGRATION_PREVIEW_NO_JOB_STATEMENT };
+}
+
+const VERIFICATION_ERROR_COPY: Partial<
+	Record<PublicAlgoliaImportError['code'] | 'verification_not_available', string>
+> = {
+	invalid_credentials:
+		'Algolia credentials were rejected. Enter a valid key and run verification again.',
+	missing_source_permission: 'The Algolia key does not have permission to search the source index.',
+	source_not_found: STATIC_ERROR_COPY.source_not_found,
+	backend_unavailable: 'The comparison service is temporarily unavailable.',
+	incompatible_data: 'The verification request or destination response could not be compared.',
+	source_provider_unsupported: STATIC_ERROR_COPY.source_provider_unsupported,
+	migration_provider_unsupported: STATIC_ERROR_COPY.migration_provider_unsupported,
+	destination_conflict: STATIC_ERROR_COPY.destination_conflict,
+	quota_exceeded: STATIC_ERROR_COPY.quota_exceeded,
+	engine_upgrade_required: STATIC_ERROR_COPY.engine_upgrade_required,
+	internal: STATIC_ERROR_COPY.internal,
+	verification_not_available: 'Cutover verification is available only after the import completes.'
+};
+
+export function describeMigrationVerificationFailure(
+	sourceProvider: SourceProvider,
+	error: { code?: string | null; message?: string | null } | null
+): MigrationVerificationFailurePresentation | null {
+	if (error === null) return null;
+	const code =
+		typeof error.code === 'string' && error.code.trim() !== '' ? error.code.trim() : null;
+	if (code !== null && Object.hasOwn(VERIFICATION_ERROR_COPY, code)) {
+		return {
+			code,
+			message: VERIFICATION_ERROR_COPY[code as keyof typeof VERIFICATION_ERROR_COPY] as string
+		};
 	}
-	switch (job.error.code) {
-		case 'invalid_credentials':
-			return `${migrationSourceProviderLabel(job.sourceProvider)} credentials were rejected. Reconnect with a valid key.`;
-		case 'missing_source_permission':
-			return `The ${migrationSourceProviderLabel(job.sourceProvider)} key does not have permission to read the source index.`;
-		case 'source_catalog_too_large':
-			return `The ${migrationSourceProviderLabel(job.sourceProvider)} source catalog is too large to import.`;
-		default:
-			return STATIC_ERROR_COPY[job.error.code];
+	const message = typeof error.message === 'string' ? error.message.trim() : '';
+	if (message !== '') return { code, message };
+	if (code !== null && isMigrationErrorCode(code)) {
+		return { code, message: describeMigrationErrorCode(code, sourceProvider) };
 	}
+	return { code, message: 'Cutover verification could not be completed.' };
 }
 
 export function algoliaImportSummaryRows(job: PublicAlgoliaImportJob): AlgoliaImportSummaryRow[] {
@@ -437,6 +523,28 @@ export function algoliaImportCompatibilityWarningPresentation(
 	};
 }
 
+export function migrationPreviewCompatibilityWarningPresentation(
+	preview: MigrationPreviewResponse
+): AlgoliaImportCompatibilityWarningPresentation | null {
+	if (preview.report.entries.length === 0) {
+		return null;
+	}
+	return {
+		summary: previewCompatibilitySummary(preview),
+		groups: groupedCompatibilityWarnings(
+			preview.report.entries.map((entry) => ({
+				resource: entry.resource,
+				code: entry.code,
+				message: '',
+				severity: previewSeverityLabel(entry.severity),
+				pageIndex: entry.pageIndex,
+				itemIndex: entry.itemIndex,
+				jsonPath: entry.jsonPath
+			}))
+		)
+	};
+}
+
 export function algoliaImportIndexHref(target: string): `/console/indexes/${string}` {
 	return `/console/indexes/${encodeURIComponent(String(target))}`;
 }
@@ -460,8 +568,52 @@ function compatibilityWarningSummary(job: PublicAlgoliaImportJob): string {
 	)}.`;
 }
 
+function previewCompatibilitySummary(preview: MigrationPreviewResponse): string {
+	const { totalEntries, hardRejections, warnings, scopeGaps } = preview.report.summary;
+	return `Preview found ${totalEntries} compatibility ${pluralize(
+		'finding',
+		totalEntries
+	)}: ${joinPreviewSummaryParts([
+		[hardRejections, 'hard rejection'],
+		[warnings, 'warning'],
+		[scopeGaps, 'scope gap']
+	])}.`;
+}
+
+function joinPreviewSummaryParts(parts: Array<[number, string]>): string {
+	const visible = parts
+		.filter(([count]) => count > 0)
+		.map(([count, label]) => `${count} ${pluralize(label, count)}`);
+	if (visible.length <= 1) {
+		return visible[0] ?? '0 findings';
+	}
+	if (visible.length === 2) {
+		return `${visible[0]} and ${visible[1]}`;
+	}
+	return `${visible.slice(0, -1).join(', ')}, and ${visible[visible.length - 1]}`;
+}
+
+function previewSeverityLabel(
+	severity: MigrationPreviewResponse['report']['entries'][number]['severity']
+): string {
+	switch (severity) {
+		case 'HardRejection':
+			return 'Hard rejection';
+		case 'ScopeGap':
+			return 'Scope gap';
+		case 'Warning':
+			return 'Warning';
+	}
+}
+
+type CompatibilityWarning = Omit<AlgoliaImportWarning, 'pageIndex' | 'itemIndex'> & {
+	pageIndex?: number | null;
+	itemIndex?: number | null;
+	severity?: string;
+};
+
 function groupedCompatibilityWarnings(
-	warnings: AlgoliaImportWarning[]
+	warnings: CompatibilityWarning[]
 ): AlgoliaImportCompatibilityWarningGroup[] {
 	const groups = new Map<string, AlgoliaImportCompatibilityWarningGroup>();
 	for (const warning of warnings) {
@@ -477,18 +629,19 @@ function groupedCompatibilityWarnings(
 		group.warnings.push({
 			code: boundedWarningField(warning.code, 'compatibility warning'),
 			message: boundedWarningField(warning.message, 'Compatibility warning'),
+			...(warning.severity === undefined ? {} : { severity: warning.severity }),
 			locator: compatibilityWarningLocator(warning)
 		});
 	}
 	return Array.from(groups.values());
 }
 
-function compatibilityWarningLocator(warning: AlgoliaImportWarning): string | null {
+function compatibilityWarningLocator(warning: CompatibilityWarning): string | null {
 	const locations: string[] = [];
-	if (warning.pageIndex !== null) {
+	if (warning.pageIndex != null) {
 		locations.push(`page ${warning.pageIndex}`);
 	}
-	if (warning.itemIndex !== null) {
+	if (warning.itemIndex != null) {
 		locations.push(`item ${warning.itemIndex}`);
 	}
 	if (warning.jsonPath !== '') {

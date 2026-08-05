@@ -1,14 +1,80 @@
 use async_trait::async_trait;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
+use axum::http::{Extensions, HeaderMap};
+use chrono::Utc;
+use ipnet::IpNet;
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use uuid::Uuid;
 
 use crate::auth::error::AuthError;
 use crate::errors::ApiError;
+use crate::models::api_key::ApiKeyRow;
 use crate::models::customer::{customer_auth_state, CustomerAuthState};
+use crate::router::middleware::extract_client_ip_from_parts;
 use crate::state::AppState;
+
+/// Returns `true` iff the request's client IP satisfies the key's
+/// `restrict_sources` allowlist. Fails closed: only a transport-verified socket
+/// peer can satisfy the allowlist, and any single unparseable stored CIDR makes
+/// the whole allowlist untrustworthy and denies the request. Callers must only
+/// invoke this when `restrict_sources` is non-empty.
+fn source_ip_allowed(
+    headers: &HeaderMap,
+    extensions: &Extensions,
+    restrict_sources: &[String],
+) -> bool {
+    let Some(client_ip) = extract_client_ip_from_parts(headers, extensions).trusted_socket_ip()
+    else {
+        return false;
+    };
+
+    let mut matched = false;
+    for source in restrict_sources {
+        match source.parse::<IpNet>() {
+            Ok(net) => {
+                if net.contains(&client_ip) {
+                    matched = true;
+                }
+            }
+            // A malformed CIDR means the stored allowlist is corrupt; deny
+            // rather than partially honor an untrustworthy configuration.
+            Err(_) => return false,
+        }
+    }
+    matched
+}
+
+fn api_key_rate_limit_bucket(headers: &HeaderMap, extensions: &Extensions, key_id: Uuid) -> String {
+    let ip_key = extract_client_ip_from_parts(headers, extensions).rate_limit_key();
+    format!("api_key:{key_id}:ip:{ip_key}")
+}
+
+fn enforce_api_key_hourly_limit(
+    parts: &Parts,
+    state: &AppState,
+    key_row: &ApiKeyRow,
+) -> Result<(), AuthError> {
+    let Some(raw_limit) = key_row.max_queries_per_ip_per_hour else {
+        return Ok(());
+    };
+    if raw_limit <= 0 {
+        // Corrupt persisted managed-key limits fail closed with the same shape
+        // as unknown keys rather than becoming unlimited or a one-request budget.
+        return Err(AuthError::InvalidToken);
+    }
+    let limit = raw_limit as u32;
+
+    let bucket = api_key_rate_limit_bucket(&parts.headers, &parts.extensions, key_row.id);
+    match state.api_key_rate_limiter.check_with_limit(&bucket, limit) {
+        Ok(None) => Ok(()),
+        Ok(Some(retry_after_seconds)) => Err(AuthError::RateLimited {
+            retry_after_seconds,
+        }),
+        Err(_) => Err(AuthError::InvalidToken),
+    }
+}
 
 const STAGE1_API_KEY_COMPAT_DECISION_TOKEN: &str = "HARD_CUT";
 
@@ -37,6 +103,7 @@ pub struct ApiKeyAuth {
     pub customer_id: Uuid,
     pub key_id: Uuid,
     pub scopes: Vec<String>,
+    indexes: Vec<String>,
 }
 
 impl ApiKeyAuth {
@@ -95,6 +162,28 @@ impl ApiKeyAuth {
 
         let key_row = matched_key.ok_or(AuthError::InvalidToken)?;
 
+        if key_row
+            .expires_at
+            .is_some_and(|expires_at| expires_at <= Utc::now())
+        {
+            // Expired keys match unknown keys so auth responses do not reveal credential existence.
+            return Err(AuthError::InvalidToken);
+        }
+
+        // Enforce `restrict_sources`: when the key pins an allowlist of source
+        // CIDRs, the request's client IP must fall inside one of them. The IP is
+        // resolved through the single middleware owner so there is exactly one
+        // trust policy. Only a transport-verified socket peer may satisfy the
+        // allowlist — header-derived or unresolved IPs, and any malformed stored
+        // CIDR, fail closed. We return the same `InvalidToken` shape used for
+        // unknown and expired keys so a source-disallowed key stays
+        // indistinguishable from one that never existed.
+        if !key_row.restrict_sources.is_empty()
+            && !source_ip_allowed(&parts.headers, &parts.extensions, &key_row.restrict_sources)
+        {
+            return Err(AuthError::InvalidToken);
+        }
+
         let customer = state
             .customer_repo
             .find_by_id(key_row.customer_id)
@@ -107,6 +196,13 @@ impl ApiKeyAuth {
             CustomerAuthState::Active => {}
         }
 
+        // Managed-key query caps reuse the shared sliding-window limiter. This
+        // is stricter near wall-clock boundaries than fixed UTC-hour buckets.
+        // The counter is intentionally in-process: restarts reset it and each
+        // API instance grants its own budget. That is the accepted local posture
+        // here, not distributed production enforcement.
+        enforce_api_key_hourly_limit(parts, state, &key_row)?;
+
         let repo = state.api_key_repo.clone();
         let key_id = key_row.id;
         tokio::spawn(async move {
@@ -117,6 +213,7 @@ impl ApiKeyAuth {
             customer_id: key_row.customer_id,
             key_id: key_row.id,
             scopes: key_row.scopes,
+            indexes: key_row.indexes,
         })
     }
 
@@ -125,6 +222,16 @@ impl ApiKeyAuth {
             Ok(())
         } else {
             Err(ApiError::Forbidden("insufficient scope".into()))
+        }
+    }
+
+    /// An empty allowlist is unrestricted. Every future index-bearing route
+    /// authenticated by `ApiKeyAuth` must call this method before index access.
+    pub fn require_index(&self, index: &str) -> Result<(), ApiError> {
+        if self.indexes.is_empty() || self.indexes.iter().any(|allowed| allowed == index) {
+            Ok(())
+        } else {
+            Err(ApiError::NotFound("index not found".into()))
         }
     }
 }
@@ -138,8 +245,8 @@ impl FromRequestParts<AppState> for ApiKeyAuth {
     /// compatibility decision is `KEEP_LEGACY_ACCEPT`. Performs a prefix-based
     /// DB lookup (first 16 chars),
     /// then SHA-256 hash comparison using constant-time equality. Checks customer
-    /// status (Suspended → 403, missing → 401) and fires a non-blocking `last_used`
-    /// timestamp update via `tokio::spawn`.
+    /// status (Suspended → 403, missing → 401) and key expiry, then fires a
+    /// non-blocking `last_used` timestamp update via `tokio::spawn`.
     async fn from_request_parts(
         parts: &mut Parts,
         state: &AppState,

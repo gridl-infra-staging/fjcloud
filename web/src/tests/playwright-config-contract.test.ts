@@ -124,6 +124,10 @@ async function withIsolatedProcessEnv<T>(
 }
 
 describe('playwright config contract', () => {
+	it('allows stack bootstrap work before the full API readiness budget', () => {
+		expect(PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS).toBe(600_000);
+	});
+
 	it('parseDotenvValue handles quoted, escaped, and commented values', () => {
 		expect(parseDotenvValue('"line1\\nline2"')).toBe('line1\nline2');
 		expect(parseDotenvValue("'single quoted value'")).toBe('single quoted value');
@@ -425,6 +429,7 @@ describe('playwright config contract', () => {
 		expect(runtime.baseURL).toBe('http://127.0.0.1:4174');
 		expect(runtime.webServer).toBeUndefined();
 		expect(runtime.webServerEnv.ADMIN_KEY).toBe('e2e-key');
+		expect(runtime.webServerEnv.FJCLOUD_ALLOW_LOOPBACK_SOURCE_ORIGINS).toBeUndefined();
 	});
 
 	it('resolvePlaywrightRuntime starts a web-only server for local BASE_URL no-deps reruns', () => {
@@ -453,6 +458,7 @@ describe('playwright config contract', () => {
 			reuseExistingServer: false,
 			timeout: PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS
 		});
+		expect(runtime.webServerEnv.FJCLOUD_ALLOW_LOOPBACK_SOURCE_ORIGINS).toBe('1');
 	});
 
 	it('resolvePlaywrightRuntime rejects non-loopback BASE_URL overrides', () => {
@@ -544,6 +550,7 @@ describe('playwright config contract', () => {
 		expect(runtime.webServerEnv[PLAYWRIGHT_API_PORT_ENV]).toBe(String(expectedApiPort));
 		expect(runtime.webServerEnv.JWT_SECRET).toBe('fallback-jwt');
 		expect(runtime.webServerEnv.ENVIRONMENT).toBe('local');
+		expect(runtime.webServerEnv.FJCLOUD_ALLOW_LOOPBACK_SOURCE_ORIGINS).toBe('1');
 		expect(runtime.webServerEnv.SKIP_EMAIL_VERIFICATION).toBe('1');
 		expect(runtime.webServerEnv.API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION).toBe('1');
 	});
@@ -748,6 +755,22 @@ describe('playwright config contract', () => {
 		expect(resolveDefaultPlaywrightFlapjackPort('')).toBe(7700);
 		expect(resolveDefaultPlaywrightFlapjackPort('   ')).toBe(7700);
 	});
+
+	it.each([
+		['/tmp/fjcloud-worktree-browser-port-2263', 6001],
+		['/tmp/fjcloud-worktree-browser-port-2526', 6567],
+		['/tmp/fjcloud-worktree-browser-port-501', 6670],
+		['/tmp/fjcloud-worktree-browser-port-926', 6670],
+		['/tmp/fjcloud-worktree-browser-port-2316', 6670],
+		['/tmp/fjcloud-worktree-browser-port-5037', 6670],
+		['/tmp/fjcloud-worktree-browser-port-448', 6670],
+		['/tmp/fjcloud-worktree-browser-port-710', 6698]
+	])(
+		'resolveDefaultPlaywrightWebPort skips Chromium-blocked port for %s',
+		(workspacePath, safePort) => {
+			expect(resolveDefaultPlaywrightWebPort(workspacePath)).toBe(safePort);
+		}
+	);
 
 	it('resolvePlaywrightRuntime derives a per-workspace flapjack URL instead of hardcoded :7700', () => {
 		const workspacePath = '/tmp/fjcloud-worktree-flapjack-runtime';
@@ -1026,6 +1049,11 @@ describe('playwright config contract', () => {
 		expect(projectContractsByName['chromium:signup']?.dependencies).toBeUndefined();
 		expect(projectContractsByName['chromium:signup']?.use?.desktopBrowser).toBe('chromium');
 		expect(projectContractsByName['chromium:signup']?.use?.storageState).toBeUndefined();
+		expect(projectContractsByName['chromium:security-headers']?.dependencies).toBeUndefined();
+		expect(projectContractsByName['chromium:security-headers']?.use?.desktopBrowser).toBe(
+			'chromium'
+		);
+		expect(projectContractsByName['chromium:security-headers']?.use?.storageState).toBeUndefined();
 		expect(projectContractsByName[EMAIL_VERIFICATION_PROJECT_NAME]?.testMatch).toEqual(
 			/e2e-ui\/full\/auth-end-effects\.spec\.ts/
 		);
@@ -1474,6 +1502,18 @@ describe('playwright config contract', () => {
 			expect(projectContractsByName['chromium:signup']?.use?.storageState).toBeUndefined();
 		});
 
+		it('security_headers.spec.ts matches the self-authenticated security-headers project only', () => {
+			const specPath = 'tests/e2e-ui/full/security_headers.spec.ts';
+			expect(projectContractsByName['chromium:security-headers']?.testMatch.test(specPath)).toBe(
+				true
+			);
+			expect(projectContractsByName.chromium?.testMatch.test(specPath)).toBe(false);
+			expect(projectContractsByName['chromium:security-headers']?.dependencies).toBeUndefined();
+			expect(
+				projectContractsByName['chromium:security-headers']?.use?.storageState
+			).toBeUndefined();
+		});
+
 		it('console_upgrade_to_shared.spec.ts matches chromium:mocked only', () => {
 			const specPath = 'tests/e2e-ui/mocked/console_upgrade_to_shared.spec.ts';
 			expect(projectContractsByName['chromium:mocked']?.testMatch.test(specPath)).toBe(true);
@@ -1614,6 +1654,7 @@ describe('playwright config contract', () => {
 						expect.objectContaining({
 							API_URL: 'http://127.0.0.1:33183',
 							API_BASE_URL: 'http://127.0.0.1:33183',
+							FJCLOUD_ALLOW_LOOPBACK_SOURCE_ORIGINS: '1',
 							LISTEN_ADDR: '127.0.0.1:33183',
 							S3_LISTEN_ADDR: '127.0.0.1:33184'
 						})
@@ -1832,6 +1873,7 @@ describe('playwright config contract', () => {
 				expect(runtime.baseURL).toBe('https://cloud.flapjack.foo');
 				// When BASE_URL is set we already skip spawning the local web server.
 				expect(runtime.webServer).toBeUndefined();
+				expect(runtime.webServerEnv.FJCLOUD_ALLOW_LOOPBACK_SOURCE_ORIGINS).toBeUndefined();
 			});
 
 			it('marks portal auth cookies Secure when BASE_URL is https', () => {

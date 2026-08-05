@@ -17,6 +17,8 @@ export interface AlgoliaMigrationCapabilities {
 	cancel: boolean;
 	resume: boolean;
 	replace: boolean;
+	preview: boolean;
+	verify: boolean;
 }
 
 export interface AlgoliaMigrationAvailabilityResponse {
@@ -241,4 +243,172 @@ export interface PublicAlgoliaImportJob {
 export interface PublicAlgoliaImportJobPage {
 	jobs: PublicAlgoliaImportJob[];
 	nextCursor: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Report-only migration preview.
+//
+// Preview is advisory: it reports what an import would do and creates nothing.
+// No import job, no create idempotency key, no durable state.
+//
+// Every type below mirrors `docs/reference/openapi.json` exactly. The closed
+// value sets are exported as `as const` arrays so `src/tests/openapi-drift.test.ts`
+// can pin both directions — a producer-side addition fails there rather than
+// silently widening the console's vocabulary.
+// ---------------------------------------------------------------------------
+
+export interface AlgoliaMigrationPreviewRequest {
+	appId: string;
+	apiKey: string;
+	sourceIndex: string;
+	targetIndex?: string | null;
+	overwrite?: boolean;
+}
+
+export interface MeilisearchMigrationPreviewRequest {
+	endpoint: string;
+	apiKey: string;
+	sourceIndex: string;
+	targetIndex?: string | null;
+	overwrite?: boolean;
+}
+
+/**
+ * `MigrationPreviewRequest` publishes only these two arms today because the
+ * request body differs by provider. This union is only a request-body-shape
+ * guard; runtime preview support is owned by `capabilities.preview` from the
+ * provider-scoped availability response.
+ */
+export type MigrationPreviewRequest =
+	| AlgoliaMigrationPreviewRequest
+	| MeilisearchMigrationPreviewRequest;
+
+export const MIGRATION_PREVIEW_SOURCE_PROVIDERS = ['algolia', 'meilisearch'] as const;
+export type MigrationPreviewSourceProvider = (typeof MIGRATION_PREVIEW_SOURCE_PROVIDERS)[number];
+export type MigrationPreviewArguments =
+	| [sourceProvider: 'algolia', request: AlgoliaMigrationPreviewRequest]
+	| [sourceProvider: 'meilisearch', request: MeilisearchMigrationPreviewRequest];
+
+export const MIGRATION_PREVIEW_REPORT_SEVERITIES = [
+	'ScopeGap',
+	'Warning',
+	'HardRejection'
+] as const;
+export type MigrationPreviewReportSeverity = (typeof MIGRATION_PREVIEW_REPORT_SEVERITIES)[number];
+
+export const MIGRATION_PREVIEW_REPORT_RESOURCES = [
+	'Analytics',
+	'ApiKeys',
+	'Document',
+	'Events',
+	'Experiments',
+	'Recommend',
+	'Rule',
+	'Settings',
+	'Synonym'
+] as const;
+export type MigrationPreviewReportResource = (typeof MIGRATION_PREVIEW_REPORT_RESOURCES)[number];
+
+export const MIGRATION_PREVIEW_REPORT_CODES = [
+	'ProductNotMigrated',
+	'PersistedNoBehaviorSetting',
+	'ReadOnlySourceField',
+	'ReplicaTopologyNotMigrated',
+	'UnsupportedSourceField',
+	'UnsupportedRuleSchema',
+	'UnsupportedSynonymSchema',
+	'InvalidObjectId',
+	'DuplicateObjectId',
+	'MalformedSettingsPayload',
+	'MalformedDocumentPayload',
+	'MalformedRulePayload',
+	'MalformedSynonymPayload',
+	'ReplicaUnknownRankingToken',
+	'ReplicaExhaustiveSortApproximated',
+	'ReplicaPrimaryRelevancyStrictnessDropped',
+	'ReplicaRelevancyStrictnessSemanticMismatch',
+	'ReplicaMatchingCriticalFieldDiverges',
+	'MeilisearchDocumentOrderNotContractual',
+	'MeilisearchSearchPaginationNotExportBound',
+	'MeilisearchSettingNotMigrated',
+	'MeilisearchSettingValueNormalized',
+	'TypesenseSettingNotMigrated'
+] as const;
+export type MigrationPreviewReportCode = (typeof MIGRATION_PREVIEW_REPORT_CODES)[number];
+
+/**
+ * A single translation finding. Unlike `AlgoliaImportWarning`, this carries a
+ * `severity` and carries no customer-facing `message` — the engine publishes
+ * neither a message here nor a severity there. Any presentation shared with the
+ * retained-job warning model has to reconcile both differences in one owner
+ * (`job_presentation.ts`), not by forking the renderer.
+ */
+export interface MigrationPreviewReportEntry {
+	severity: MigrationPreviewReportSeverity;
+	code: MigrationPreviewReportCode;
+	resource: MigrationPreviewReportResource;
+	pageIndex?: number | null;
+	itemIndex?: number | null;
+	jsonPath: string;
+}
+
+export interface MigrationPreviewReportSummary {
+	totalEntries: number;
+	hardRejections: number;
+	warnings: number;
+	scopeGaps: number;
+}
+
+export interface MigrationPreviewReport {
+	entries: MigrationPreviewReportEntry[];
+	summary: MigrationPreviewReportSummary;
+	reportDigest?: string | null;
+}
+
+export interface MigrationPreviewSourceCounts {
+	indexes: number;
+	records: number;
+}
+
+export interface MigrationPreviewResponse {
+	report: MigrationPreviewReport;
+	sourceCounts: MigrationPreviewSourceCounts;
+}
+
+// ---------------------------------------------------------------------------
+// Report-only source/destination cutover verification.
+//
+// This mirrors FS-7 exactly. It compares source and destination top-N objectID
+// sets and ranks; it is not a verdict, score, threshold, or migration approval.
+// ---------------------------------------------------------------------------
+
+export interface VerifySourceMigrationRequest {
+	appId: string;
+	apiKey: string;
+	sourceIndex: string;
+	destinationIndex: string;
+	queries: string[];
+	resultLimit: number;
+}
+
+export interface VerifySourceMigrationHitComparison {
+	objectID: string;
+	sourceRank: number;
+	destinationRank: number;
+	rankDelta: number;
+}
+
+export interface VerifySourceMigrationQueryReport {
+	query: string;
+	overlapCount: number;
+	sourceOnly: string[];
+	destinationOnly: string[];
+	hits: VerifySourceMigrationHitComparison[];
+}
+
+export interface VerifySourceMigrationResponse {
+	sourceIndex: string;
+	destinationIndex: string;
+	resultLimit: number;
+	queries: VerifySourceMigrationQueryReport[];
 }

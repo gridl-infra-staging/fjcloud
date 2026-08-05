@@ -6,6 +6,7 @@ import type { SourceProvider } from '$lib/api/types';
 import {
 	API_KEY_CANARY,
 	APP_ID_CANARY,
+	availableAvailability,
 	ELIGIBLE_AWS_PROVIDER,
 	connect,
 	importJob,
@@ -125,9 +126,11 @@ describe('MigrationCreateFlow - error and retry', () => {
 			client: {
 				listAlgoliaSourceIndexes: list,
 				checkAlgoliaDestinationEligibility,
-				createAlgoliaImportJob: vi.fn()
+				createAlgoliaImportJob: vi.fn(),
+				previewMigrationImport: vi.fn()
 			},
-			providerEligibility: ELIGIBLE_AWS_PROVIDER
+			providerEligibility: ELIGIBLE_AWS_PROVIDER,
+			capabilities: availableAvailability.capabilities
 		});
 
 		await connect(list);
@@ -158,15 +161,19 @@ describe('MigrationCreateFlow - error and retry', () => {
 			client: {
 				listAlgoliaSourceIndexes,
 				checkAlgoliaDestinationEligibility,
+				previewMigrationImport: vi.fn().mockRejectedValue(new Error('preview_failed retryable')),
 				createAlgoliaImportJob
 			},
-			providerEligibility: ELIGIBLE_AWS_PROVIDER
+			providerEligibility: ELIGIBLE_AWS_PROVIDER,
+			capabilities: availableAvailability.capabilities
 		});
 
 		await connect(listAlgoliaSourceIndexes);
 		await fireEvent.change(screen.getByRole('radio', { name: /source_products/i }));
 		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
 		await screen.findByTestId('migration-create-review');
+		await fireEvent.click(screen.getByRole('button', { name: /^preview import$/i }));
+		await screen.findByRole('button', { name: /start import/i });
 		await fireEvent.click(screen.getByRole('button', { name: /start import/i }));
 
 		const error = await screen.findByTestId('migration-start-error');
@@ -262,9 +269,18 @@ describe('MigrationCreateFlow - neutral source provider invalidation', () => {
 			expiresAt: '2099-07-18T10:20:00Z'
 		});
 		const createMigrationImportJob = vi.fn().mockResolvedValue(importJob());
+		const previewMigrationImport = vi.fn().mockResolvedValue({
+			sourceCounts: { indexes: 1, records: 2 },
+			report: {
+				summary: { totalEntries: 0, hardRejections: 0, warnings: 0, scopeGaps: 0 },
+				entries: [],
+				reportDigest: 'sha256:neutral-preview'
+			}
+		});
 		const client = {
 			listMigrationSourceIndexes,
 			checkMigrationDestinationEligibility,
+			previewMigrationImport,
 			createMigrationImportJob,
 			listAlgoliaSourceIndexes: vi.fn(),
 			checkAlgoliaDestinationEligibility: vi.fn(),
@@ -277,10 +293,12 @@ describe('MigrationCreateFlow - neutral source provider invalidation', () => {
 			client.checkMigrationDestinationEligibility ?? checkMigrationDestinationEligibility;
 		const resolvedCreateMigrationImportJob =
 			client.createMigrationImportJob ?? createMigrationImportJob;
+		const resolvedPreviewMigrationImport = client.previewMigrationImport ?? previewMigrationImport;
 		return {
 			client: client as unknown as MigrationFlowClient,
 			listMigrationSourceIndexes: resolvedListMigrationSourceIndexes,
 			checkMigrationDestinationEligibility: resolvedCheckMigrationDestinationEligibility,
+			previewMigrationImport: resolvedPreviewMigrationImport,
 			createMigrationImportJob: resolvedCreateMigrationImportJob
 		};
 	}
@@ -321,12 +339,22 @@ describe('MigrationCreateFlow - neutral source provider invalidation', () => {
 		await fireEvent.change(screen.getByRole('radio', { name: /source_products/i }));
 		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
 		await screen.findByTestId('migration-create-review');
+		await fireEvent.click(screen.getByRole('button', { name: /^preview import$/i }));
+		await screen.findByRole('button', { name: /start import/i });
 		await fireEvent.click(screen.getByRole('button', { name: /start import/i }));
 		await waitFor(() => expect(client.createMigrationImportJob).toHaveBeenCalledOnce());
 		const [, , idempotencyKey] = client.createMigrationImportJob.mock.calls[0] ?? [];
 		expect(idempotencyKey).toEqual(expect.any(String));
 		expect(idempotencyKey).not.toBe('');
 		return idempotencyKey as string;
+	}
+
+	async function completeNeutralPreviewAttempt() {
+		await fireEvent.change(screen.getByRole('radio', { name: /source_products/i }));
+		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
+		await screen.findByTestId('migration-create-review');
+		await fireEvent.click(screen.getByRole('button', { name: /^preview import$/i }));
+		await screen.findByRole('button', { name: /start import/i });
 	}
 
 	function expectNeutralDownstreamStateCleared(client: ReturnType<typeof neutralClient>) {
@@ -392,7 +420,8 @@ describe('MigrationCreateFlow - neutral source provider invalidation', () => {
 			});
 			render(MigrationCreateFlow, {
 				client: client.client,
-				providerEligibility: ELIGIBLE_AWS_PROVIDER
+				providerEligibility: ELIGIBLE_AWS_PROVIDER,
+				capabilities: availableAvailability.capabilities
 			});
 
 			await establishNeutralSubmitIntent('typesense', client);
@@ -417,6 +446,7 @@ describe('MigrationCreateFlow - neutral source provider invalidation', () => {
 		render(MigrationCreateFlow, {
 			client: client.client,
 			providerEligibility: ELIGIBLE_AWS_PROVIDER,
+			capabilities: availableAvailability.capabilities,
 			onImportCreated
 		});
 
@@ -427,9 +457,7 @@ describe('MigrationCreateFlow - neutral source provider invalidation', () => {
 			apiKey: publicStateCanary
 		});
 
-		await fireEvent.change(screen.getByRole('radio', { name: /source_products/i }));
-		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
-		await screen.findByTestId('migration-create-review');
+		await completeNeutralPreviewAttempt();
 		await fireEvent.click(screen.getByRole('button', { name: /start import/i }));
 		await waitFor(() => expect(client.createMigrationImportJob).toHaveBeenCalledOnce());
 		expect(client.createMigrationImportJob).toHaveBeenCalledWith(
@@ -468,13 +496,12 @@ describe('MigrationCreateFlow - neutral source provider invalidation', () => {
 		render(MigrationCreateFlow, {
 			client: client.client,
 			providerEligibility: ELIGIBLE_AWS_PROVIDER,
+			capabilities: availableAvailability.capabilities,
 			onImportCreated
 		});
 
 		await connectNeutralSource('typesense', client, publicStateCanary);
-		await fireEvent.change(screen.getByRole('radio', { name: /source_products/i }));
-		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
-		await screen.findByTestId('migration-create-review');
+		await completeNeutralPreviewAttempt();
 		await fireEvent.click(screen.getByRole('button', { name: /start import/i }));
 
 		await waitFor(() => expect(client.createMigrationImportJob).toHaveBeenCalledOnce());
@@ -486,13 +513,12 @@ describe('MigrationCreateFlow - neutral source provider invalidation', () => {
 		const client = neutralClient();
 		render(MigrationCreateFlow, {
 			client: client.client,
-			providerEligibility: ELIGIBLE_AWS_PROVIDER
+			providerEligibility: ELIGIBLE_AWS_PROVIDER,
+			capabilities: availableAvailability.capabilities
 		});
 
 		await connectNeutralSource('typesense', client, publicStateCanary);
-		await fireEvent.change(screen.getByRole('radio', { name: /source_products/i }));
-		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
-		await screen.findByTestId('migration-create-review');
+		await completeNeutralPreviewAttempt();
 		await fireEvent.click(screen.getByRole('button', { name: /start import/i }));
 
 		await waitFor(() => expect(client.createMigrationImportJob).toHaveBeenCalledOnce());

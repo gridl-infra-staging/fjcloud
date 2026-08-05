@@ -123,8 +123,8 @@
 		if (typeof value !== 'string' || value.length === 0) {
 			return null;
 		}
-		// Only allow http(s) and protocol-relative URLs as image sources.
-		if (!/^(https?:)?\/\//.test(value)) {
+		// Match the enforced global image policy without relying on the document's transport scheme.
+		if (!/^https:\/\//.test(value)) {
 			return null;
 		}
 		return value;

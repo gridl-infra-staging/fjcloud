@@ -7,6 +7,7 @@ use axum::http::{Request, StatusCode};
 use serde_json::json;
 use serde_json::Value;
 use std::sync::Arc;
+use tokio::time::{timeout, Duration};
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -666,6 +667,7 @@ async fn retirement_blockers_endpoint_reports_postgres_reference_owners() {
     insert_terminal_reference_modes(&db.pool, vm_id, other_vm_id, "admin_terminal").await;
 
     let response = admin_vm_pg_test_app(db.pool.clone())
+        .await
         .oneshot(
             Request::builder()
                 .method("GET")
@@ -701,7 +703,7 @@ async fn retirement_blockers_endpoint_maps_postgres_conflicts() {
     let unknown_vm_id = Uuid::new_v4();
     let mismatch_vm_id = insert_vm(&db.pool, "admin-mismatch-vm", "active").await;
     let draining_vm_id = insert_vm(&db.pool, "admin-draining-vm", "draining").await;
-    let app = admin_vm_pg_test_app(db.pool.clone());
+    let app = admin_vm_pg_test_app(db.pool.clone()).await;
 
     let unknown = app
         .clone()
@@ -769,7 +771,7 @@ async fn decommission_endpoint_handles_postgres_success_and_idempotency() {
         return;
     };
     let vm_id = insert_vm(&db.pool, "admin-retire-once", "active").await;
-    let mocks = admin_vm_pg_test_app_with_state_mocks(db.pool.clone());
+    let mocks = admin_vm_pg_test_app_with_state_mocks(db.pool.clone()).await;
     seed_retirement_resources(&mocks, "admin-retire-once", "mock-admin-retire-once").await;
     seed_fleet_provider_id(&mocks, "admin-retire-once", "mock-admin-retire-once").await;
 
@@ -832,7 +834,7 @@ async fn decommission_endpoint_reports_indeterminate_provider_lookup_and_preserv
     };
     let hostname = "admin-retire-provider-lookup";
     let vm_id = insert_vm(&db.pool, hostname, "active").await;
-    let mocks = admin_vm_pg_test_app_with_state_mocks(db.pool.clone());
+    let mocks = admin_vm_pg_test_app_with_state_mocks(db.pool.clone()).await;
     seed_retirement_resources(&mocks, hostname, "mock-provider-lookup").await;
     mocks.vm_provisioner.set_should_fail(true);
 
@@ -889,7 +891,7 @@ async fn decommission_endpoint_rejects_blocked_and_mismatched_postgres_rows() {
     .await
     .expect("insert blocking tenant");
     let decommissioned_vm_id = insert_vm(&db.pool, "admin-retired-mismatch", "active").await;
-    let mocks = admin_vm_pg_test_app_with_state_mocks(db.pool.clone());
+    let mocks = admin_vm_pg_test_app_with_state_mocks(db.pool.clone()).await;
     seed_retirement_resources(&mocks, "admin-blocked-retire", "mock-blocked-retire").await;
 
     let blocked = post_decommission(mocks.app.clone(), blocked_vm_id, "admin-blocked-retire").await;
@@ -950,18 +952,27 @@ async fn decommission_endpoint_rejects_blocked_and_mismatched_postgres_rows() {
 
 #[tokio::test]
 async fn decommission_endpoint_wins_concurrent_reference_publication_after_inventory_lock() {
-    let Some(db) = connect_and_migrate("admin_vm_route_inventory_wins").await else {
-        return;
-    };
+    timeout(Duration::from_secs(30), async {
+        let Some(db) = connect_and_migrate("admin_vm_route_inventory_wins").await else {
+            return;
+        };
 
-    assert_admin_route_inventory_lock_wins_publication(&db.schema, &db.pool, TEST_ADMIN_KEY).await;
+        assert_admin_route_inventory_lock_wins_publication(&db.schema, &db.pool, TEST_ADMIN_KEY)
+            .await;
+    })
+    .await
+    .expect("admin VM inventory-first reference-publication test must finish inside 30s");
 }
 
 #[tokio::test]
 async fn decommission_endpoint_reports_blockers_when_reference_publication_wins() {
-    let Some(db) = connect_and_migrate("admin_vm_route_reference_wins").await else {
-        return;
-    };
+    timeout(Duration::from_secs(30), async {
+        let Some(db) = connect_and_migrate("admin_vm_route_reference_wins").await else {
+            return;
+        };
 
-    assert_admin_route_reference_publication_wins(&db.schema, &db.pool, TEST_ADMIN_KEY).await;
+        assert_admin_route_reference_publication_wins(&db.schema, &db.pool, TEST_ADMIN_KEY).await;
+    })
+    .await
+    .expect("admin VM reference-first publication test must finish inside 30s");
 }

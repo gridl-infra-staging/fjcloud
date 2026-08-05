@@ -396,7 +396,11 @@ async fn erase_single_job_customer(
         "erased customer must start active"
     );
     let CustomerHardDeleteOutcome::Erased { seal_scrub_work } = PgCustomerRepo::new(pool.clone())
-        .hard_delete(customer_id, CustomerHardDeleteKind::PrivacyErasure)
+        .hard_delete(
+            customer_id,
+            CustomerHardDeleteKind::PrivacyErasure,
+            api::repos::CustomerHardDeleteAuditPolicy::NoAudit,
+        )
         .await
         .expect("hard-delete erased customer")
     else {

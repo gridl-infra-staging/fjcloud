@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +9,13 @@ vi.mock('$lib/server/api', async () => {
 	const { createMigrationApiClientMock } = await import('./migrate_server_test_fixtures');
 	return { createApiClient: vi.fn(createMigrationApiClientMock) };
 });
+
+// Lazy Proxy, not a snapshot object literal: a literal is evaluated once at
+// module load, so per-test `process.env` mutation would never be observed and a
+// flag-gated test would pass without the flag ever reaching the server module.
+vi.mock('$env/dynamic/private', () => ({
+	env: new Proxy({}, { get: (_target, prop) => process.env[prop as string] })
+}));
 
 import { actions, load } from './+page.server';
 import {
@@ -30,9 +37,55 @@ import {
 	listMigrationImportJobsMock,
 	listMigrationSourceIndexesMock,
 	payloadRequest,
+	previewMigrationImportMock,
+	previewPayload,
 	resetMigrateServerMocks,
 	sourceListPayload
 } from './migrate_server_test_fixtures';
+
+const ALLOW_LOOPBACK_SOURCE_ORIGINS_FLAG = 'FJCLOUD_ALLOW_LOOPBACK_SOURCE_ORIGINS';
+
+// The payload fixtures return a union across every closed provider, and a bare
+// `{ ...fixture, host }` spread widens `source_provider` back to `string` while
+// keeping the Algolia arm's `appId`, so the result matches neither union arm and
+// can no longer be handed to forwardedSourceCredentials/forwardedCreateBody.
+// Overriding `host` never changes which arm the value really is, so restoring
+// the fixture's own return type here is sound — and keeps the fixtures the
+// single owner of the default payload shape.
+function withSourceHost<T extends object>(payload: T, host: string): T {
+	return { ...payload, host } as T;
+}
+
+function invokeAction<T>(
+	action: (event: never) => T,
+	request: unknown,
+	token = 'jwt-secret-canary'
+): T {
+	return action({ request, locals: { user: { token } } } as never);
+}
+
+async function expectSourceHostRejected(host: string) {
+	const payload = withSourceHost(sourceListPayload('typesense'), host);
+
+	const result = await invokeAction(actions.listSourceIndexes, payloadRequest(payload));
+
+	expect(result).toEqual(
+		expect.objectContaining({
+			status: 400,
+			data: { error: 'Host URL must be a public https origin' }
+		})
+	);
+	expect(listMigrationSourceIndexesMock).not.toHaveBeenCalled();
+	expect(listAlgoliaSourceIndexesMock).not.toHaveBeenCalled();
+}
+
+// File-scoped on purpose. The pre-existing unsafe-host rejection tables assert
+// that loopback hosts are refused, which only holds while the opt-in flag is
+// absent, so leaking it out of a loopback case would silently break tests this
+// lane does not own.
+afterEach(() => {
+	delete process.env[ALLOW_LOOPBACK_SOURCE_ORIGINS_FLAG];
+});
 
 describe('Migrate page server actions and serialization', () => {
 	beforeEach(resetMigrateServerMocks);
@@ -51,17 +104,17 @@ describe('Migrate page server actions and serialization', () => {
 			target: { eligibilityToken: 'target-token-canary' }
 		} satisfies CreateAlgoliaImportJobRequest;
 
-		const listResult = await actions.listSourceIndexes({
-			request: payloadRequest({ source_provider: 'algolia', ...listPayload }),
-			locals: { user: { token: 'jwt-secret-canary' } }
-		} as never);
-		const createResult = await actions.createImportJob({
-			request: payloadRequest(
+		const listResult = await invokeAction(
+			actions.listSourceIndexes,
+			payloadRequest({ source_provider: 'algolia', ...listPayload })
+		);
+		const createResult = await invokeAction(
+			actions.createImportJob,
+			payloadRequest(
 				{ source_provider: 'algolia', ...createPayload },
 				{ idempotencyKey: 'idem-key-canary' }
-			),
-			locals: { user: { token: 'jwt-secret-canary' } }
-		} as never);
+			)
+		);
 
 		expect(listMigrationSourceIndexesMock).toHaveBeenCalledWith('algolia', listPayload);
 		expect(createMigrationImportJobMock).toHaveBeenCalledWith(
@@ -89,10 +142,10 @@ describe('Migrate page server actions and serialization', () => {
 				sourceProvider
 			});
 
-			const result = await actions.createImportJob({
-				request: payloadRequest(payload, { idempotencyKey }),
-				locals: { user: { token: 'jwt-secret-canary' } }
-			} as never);
+			const result = await invokeAction(
+				actions.createImportJob,
+				payloadRequest(payload, { idempotencyKey })
+			);
 			const serializedRouteData = stringify(result);
 
 			expect(result).toEqual({
@@ -121,10 +174,7 @@ describe('Migrate page server actions and serialization', () => {
 		async (sourceProvider) => {
 			const payload = sourceListPayload(sourceProvider);
 
-			const result = await actions.listSourceIndexes({
-				request: payloadRequest(payload),
-				locals: { user: { token: 'jwt-secret-canary' } }
-			} as never);
+			const result = await invokeAction(actions.listSourceIndexes, payloadRequest(payload));
 
 			expect(listMigrationSourceIndexesMock).toHaveBeenCalledOnce();
 			expect(listMigrationSourceIndexesMock).toHaveBeenCalledWith(
@@ -145,10 +195,7 @@ describe('Migrate page server actions and serialization', () => {
 				source_provider: sourceProvider
 			};
 
-			const result = await actions.listSourceIndexes({
-				request: payloadRequest(payload),
-				locals: { user: { token: 'jwt-secret-canary' } }
-			} as never);
+			const result = await invokeAction(actions.listSourceIndexes, payloadRequest(payload));
 
 			expect(result).toEqual(
 				expect.objectContaining({
@@ -170,27 +217,66 @@ describe('Migrate page server actions and serialization', () => {
 		'https://127.0.0.1',
 		'https://typesense.example.test:8443',
 		'https://typesense.example.test/admin',
-		'https://user:pass@typesense.example.test'
+		'https://user:pass@typesense.example.test',
+		'http://127.0.0.1:8108',
+		'http://localhost:8108',
+		'http://[::1]:8108'
 	])(
 		'listSourceIndexes rejects unsafe hosted source host %s before invoking the client',
 		async (host) => {
-			const payload = {
-				...sourceListPayload('typesense'),
-				host
-			};
+			await expectSourceHostRejected(host);
+		}
+	);
 
-			const result = await actions.listSourceIndexes({
-				request: payloadRequest(payload),
-				locals: { user: { token: 'jwt-secret-canary' } }
-			} as never);
+	it.each([
+		'http://10.0.0.5:8108',
+		'http://192.168.1.10:8108',
+		'http://169.254.169.254/',
+		'http://meili.example.test:8108',
+		'https://user:pass@127.0.0.1:8108',
+		'http://127.0.0.1:8108/admin',
+		'http://127.0.0.1:8108/?x=1',
+		'http://127.0.0.1:8108/#f',
+		'http://127.0.0.1.evil.test:8108',
+		'http://localhost.evil.test:8108'
+	])(
+		'listSourceIndexes still rejects unsafe hosted source host %s when loopback opt-in is set',
+		async (host) => {
+			process.env[ALLOW_LOOPBACK_SOURCE_ORIGINS_FLAG] = '1';
+			await expectSourceHostRejected(host);
+		}
+	);
 
-			expect(result).toEqual(
-				expect.objectContaining({
-					status: 400,
-					data: { error: 'Host URL must be a public https origin' }
-				})
+	it.each(['', '0', 'false', 'true', 'yes'])(
+		'listSourceIndexes rejects loopback source hosts when opt-in flag value is %s',
+		async (flagValue) => {
+			process.env[ALLOW_LOOPBACK_SOURCE_ORIGINS_FLAG] = flagValue;
+			await expectSourceHostRejected('http://127.0.0.1:8108');
+		}
+	);
+
+	// All three loopback literals, not just 127.0.0.1: each one takes a different
+	// branch of the rejection condition (IP-literal regex, the `localhost` name
+	// check, and IPv6 — whose `URL.hostname` is the bracketed `[::1]`), so a
+	// single-host case would let two of the three stay silently refused.
+	it.each(['http://127.0.0.1:8108', 'http://localhost:8108', 'http://[::1]:8108'])(
+		'listSourceIndexes forwards loopback source host %s unchanged when the loopback opt-in is set',
+		async (host) => {
+			process.env[ALLOW_LOOPBACK_SOURCE_ORIGINS_FLAG] = '1';
+			const payload = withSourceHost(sourceListPayload('typesense'), host);
+
+			const result = await invokeAction(actions.listSourceIndexes, payloadRequest(payload));
+
+			// Asserted first so a still-rejecting server prints the customer-visible
+			// 400 / 'Host URL must be a public https origin' payload as the failure,
+			// rather than a bare never-called-spy message that hides the real cause.
+			expect(result).toEqual({ sourceIndexes: { items: [], nextCursor: null } });
+			// Each loopback input is already exactly its own URL origin, so the
+			// forwarded host must come back byte-identical with port 8108 intact.
+			expect(listMigrationSourceIndexesMock).toHaveBeenCalledWith(
+				'typesense',
+				forwardedSourceCredentials(payload)
 			);
-			expect(listMigrationSourceIndexesMock).not.toHaveBeenCalled();
 			expect(listAlgoliaSourceIndexesMock).not.toHaveBeenCalled();
 		}
 	);
@@ -206,10 +292,7 @@ describe('Migrate page server actions and serialization', () => {
 				eligibilityToken: `${sourceProvider}-provider-token`
 			};
 
-			await actions.checkDestinationEligibility({
-				request: payloadRequest(payload),
-				locals: { user: { token: 'jwt-secret-canary' } }
-			} as never);
+			await invokeAction(actions.checkDestinationEligibility, payloadRequest(payload));
 
 			expect(checkMigrationDestinationEligibilityMock).toHaveBeenCalledOnce();
 			expect(checkMigrationDestinationEligibilityMock).toHaveBeenCalledWith(sourceProvider, {
@@ -233,10 +316,10 @@ describe('Migrate page server actions and serialization', () => {
 				eligibilityToken: 'invalid-provider-token'
 			};
 
-			const result = await actions.checkDestinationEligibility({
-				request: payloadRequest(payload),
-				locals: { user: { token: 'jwt-secret-canary' } }
-			} as never);
+			const result = await invokeAction(
+				actions.checkDestinationEligibility,
+				payloadRequest(payload)
+			);
 
 			expect(result).toEqual(
 				expect.objectContaining({
@@ -257,10 +340,10 @@ describe('Migrate page server actions and serialization', () => {
 		async (sourceProvider) => {
 			const payload = createJobPayload(sourceProvider);
 
-			await actions.createImportJob({
-				request: payloadRequest(payload, { idempotencyKey: `${sourceProvider}-idem-key` }),
-				locals: { user: { token: 'jwt-secret-canary' } }
-			} as never);
+			await invokeAction(
+				actions.createImportJob,
+				payloadRequest(payload, { idempotencyKey: `${sourceProvider}-idem-key` })
+			);
 
 			expect(createMigrationImportJobMock).toHaveBeenCalledOnce();
 			expect(createMigrationImportJobMock).toHaveBeenCalledWith(
@@ -306,10 +389,10 @@ describe('Migrate page server actions and serialization', () => {
 				source_provider: sourceProvider
 			};
 
-			const result = await actions.createImportJob({
-				request: payloadRequest(payload, { idempotencyKey: 'invalid-provider-idem-key' }),
-				locals: { user: { token: 'jwt-secret-canary' } }
-			} as never);
+			const result = await invokeAction(
+				actions.createImportJob,
+				payloadRequest(payload, { idempotencyKey: 'invalid-provider-idem-key' })
+			);
 
 			expect(result).toEqual(
 				expect.objectContaining({
@@ -333,10 +416,10 @@ describe('Migrate page server actions and serialization', () => {
 				host: 'https://127.0.0.1'
 			};
 
-			const result = await actions.createImportJob({
-				request: payloadRequest(payload, { idempotencyKey: `${sourceProvider}-idem-key` }),
-				locals: { user: { token: 'jwt-secret-canary' } }
-			} as never);
+			const result = await invokeAction(
+				actions.createImportJob,
+				payloadRequest(payload, { idempotencyKey: `${sourceProvider}-idem-key` })
+			);
 
 			expect(result).toEqual(
 				expect.objectContaining({
@@ -349,14 +432,139 @@ describe('Migrate page server actions and serialization', () => {
 		}
 	);
 
+	it('createImportJob forwards a loopback source host unchanged when the loopback opt-in is set', async () => {
+		process.env[ALLOW_LOOPBACK_SOURCE_ORIGINS_FLAG] = '1';
+		const payload = withSourceHost(createJobPayload('typesense'), 'http://127.0.0.1:8108');
+
+		const result = await invokeAction(
+			actions.createImportJob,
+			payloadRequest(payload, { idempotencyKey: 'typesense-idem-key' })
+		);
+
+		// Result first, for the same red-evidence reason as the listSourceIndexes case.
+		expect(result).toEqual({ job: { id: 'job_123' } });
+		expect(createMigrationImportJobMock).toHaveBeenCalledWith(
+			'typesense',
+			forwardedCreateBody(payload),
+			'typesense-idem-key'
+		);
+		expect(createAlgoliaImportJobMock).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		{
+			sourceProvider: 'meilisearch' as const,
+			expectedBody: {
+				endpoint: 'https://meilisearch.example.test',
+				apiKey: 'meilisearch_api_key_canary',
+				sourceIndex: 'configured_pk',
+				targetIndex: 'configured_pk',
+				overwrite: false
+			}
+		},
+		{
+			sourceProvider: 'algolia' as const,
+			expectedBody: {
+				appId: 'algolia_app_id_canary',
+				apiKey: 'algolia_api_key_canary',
+				sourceIndex: 'algolia_products',
+				targetIndex: 'algolia_target',
+				overwrite: false
+			}
+		}
+	])(
+		'previewImport forwards the exact published $sourceProvider preview body without allocating a job',
+		async ({ sourceProvider, expectedBody }) => {
+			const result = await invokeAction(
+				actions.previewImport,
+				payloadRequest(previewPayload(sourceProvider))
+			);
+
+			expect(result).toEqual({
+				preview: {
+					sourceCounts: { indexes: 1, records: 4 },
+					report: {
+						summary: { totalEntries: 0, hardRejections: 0, warnings: 0, scopeGaps: 0 },
+						entries: [],
+						reportDigest: 'sha256:test-preview'
+					}
+				}
+			});
+			expect(previewMigrationImportMock).toHaveBeenCalledWith(sourceProvider, expectedBody);
+			expect(createMigrationImportJobMock).not.toHaveBeenCalled();
+		}
+	);
+
+	it('previewImport rejects Typesense because it is not a supported preview provider', async () => {
+		const result = await invokeAction(
+			actions.previewImport,
+			payloadRequest({
+				source_provider: 'typesense',
+				endpoint: 'https://typesense.example.test',
+				apiKey: 'typesense_api_key_canary',
+				sourceIndex: 'products',
+				targetIndex: 'products',
+				overwrite: false
+			})
+		);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: {
+					error: 'source_provider_unsupported',
+					code: 'source_provider_unsupported'
+				}
+			})
+		);
+		expect(previewMigrationImportMock).not.toHaveBeenCalled();
+		expect(createMigrationImportJobMock).not.toHaveBeenCalled();
+	});
+
+	it('previewImport rejects loopback Meilisearch endpoints when the loopback opt-in is unset', async () => {
+		const result = await invokeAction(
+			actions.previewImport,
+			payloadRequest({
+				...previewPayload('meilisearch'),
+				endpoint: 'http://127.0.0.1:17700'
+			})
+		);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: { error: 'Host URL must be a public https origin' }
+			})
+		);
+		expect(previewMigrationImportMock).not.toHaveBeenCalled();
+	});
+
+	it('previewImport allows loopback Meilisearch endpoints when the loopback opt-in is set', async () => {
+		process.env[ALLOW_LOOPBACK_SOURCE_ORIGINS_FLAG] = '1';
+
+		await invokeAction(
+			actions.previewImport,
+			payloadRequest({
+				...previewPayload('meilisearch'),
+				endpoint: 'http://127.0.0.1:17700'
+			})
+		);
+
+		expect(previewMigrationImportMock).toHaveBeenCalledWith('meilisearch', {
+			endpoint: 'http://127.0.0.1:17700',
+			apiKey: 'meilisearch_api_key_canary',
+			sourceIndex: 'configured_pk',
+			targetIndex: 'configured_pk',
+			overwrite: false
+		});
+		expect(createMigrationImportJobMock).not.toHaveBeenCalled();
+	});
+
 	it.each([
 		{
 			actionName: 'providerEligibility',
 			invoke: () =>
-				actions.providerEligibility({
-					request: payloadRequest({ region: 'us-east-1' }),
-					locals: { user: { token: 'jwt-secret-canary' } }
-				} as never),
+				invokeAction(actions.providerEligibility, payloadRequest({ region: 'us-east-1' })),
 			clientMocks: [
 				checkMigrationDestinationEligibilityMock,
 				checkAlgoliaDestinationEligibilityMock
@@ -365,37 +573,34 @@ describe('Migrate page server actions and serialization', () => {
 		{
 			actionName: 'recentImports',
 			invoke: () =>
-				actions.recentImports({
-					request: actionRequest({ cursor: 'cursor_2', limit: '10' }),
-					locals: { user: { token: 'jwt-secret-canary' } }
-				} as never),
+				invokeAction(actions.recentImports, actionRequest({ cursor: 'cursor_2', limit: '10' })),
 			clientMocks: [listMigrationImportJobsMock, listAlgoliaImportJobsMock]
 		},
 		{
 			actionName: 'listSourceIndexes',
 			invoke: () =>
-				actions.listSourceIndexes({
-					request: payloadRequest({
+				invokeAction(
+					actions.listSourceIndexes,
+					payloadRequest({
 						appId: 'algolia_app_id_canary',
 						apiKey: 'algolia_api_key_canary',
 						cursor: 'cursor_2'
-					}),
-					locals: { user: { token: 'jwt-secret-canary' } }
-				} as never),
+					})
+				),
 			clientMocks: [listMigrationSourceIndexesMock, listAlgoliaSourceIndexesMock]
 		},
 		{
 			actionName: 'checkDestinationEligibility',
 			invoke: () =>
-				actions.checkDestinationEligibility({
-					request: payloadRequest({
+				invokeAction(
+					actions.checkDestinationEligibility,
+					payloadRequest({
 						phase: 'target',
 						mode: 'create',
 						target: { region: 'us-east-1', name: 'products' },
 						eligibilityToken: 'provider-token'
-					}),
-					locals: { user: { token: 'jwt-secret-canary' } }
-				} as never),
+					})
+				),
 			clientMocks: [
 				checkMigrationDestinationEligibilityMock,
 				checkAlgoliaDestinationEligibilityMock
@@ -404,8 +609,9 @@ describe('Migrate page server actions and serialization', () => {
 		{
 			actionName: 'createImportJob',
 			invoke: () =>
-				actions.createImportJob({
-					request: payloadRequest(
+				invokeAction(
+					actions.createImportJob,
+					payloadRequest(
 						{
 							mode: 'create',
 							appId: 'algolia_app_id_canary',
@@ -414,9 +620,8 @@ describe('Migrate page server actions and serialization', () => {
 							target: { eligibilityToken: 'target-token' }
 						},
 						{ idempotencyKey: 'missing-provider-idem-key' }
-					),
-					locals: { user: { token: 'jwt-secret-canary' } }
-				} as never),
+					)
+				),
 			clientMocks: [createMigrationImportJobMock, createAlgoliaImportJobMock]
 		}
 	])(
@@ -449,14 +654,14 @@ describe('Migrate page server actions and serialization', () => {
 			})
 		);
 
-		const result = await actions.listSourceIndexes({
-			request: payloadRequest({
+		const result = await invokeAction(
+			actions.listSourceIndexes,
+			payloadRequest({
 				source_provider: 'typesense',
 				host: 'https://typesense.example.test',
 				apiKey: 'typesense_api_key_canary'
-			}),
-			locals: { user: { token: 'jwt-secret-canary' } }
-		} as never);
+			})
+		);
 
 		expect(result).toEqual(
 			expect.objectContaining({
@@ -471,13 +676,14 @@ describe('Migrate page server actions and serialization', () => {
 	});
 
 	it('createImportJob action rejects malformed JSON payloads before calling the API client', async () => {
-		const result = await actions.createImportJob({
-			request: actionRequest({
+		const result = await invokeAction(
+			actions.createImportJob,
+			actionRequest({
 				payload: '{"mode":"create"',
 				idempotencyKey: 'idem-key-canary'
 			}),
-			locals: { user: { token: 'jwt' } }
-		} as never);
+			'jwt'
+		);
 
 		expect(result).toEqual(
 			expect.objectContaining({
@@ -491,8 +697,9 @@ describe('Migrate page server actions and serialization', () => {
 	it.each(['', ' idem-key', 'idem key', 'idem\r\nx-test: injected', 'a'.repeat(129)])(
 		'createImportJob rejects malformed idempotency key %j before calling the API client',
 		async (idempotencyKey) => {
-			const result = await actions.createImportJob({
-				request: payloadRequest(
+			const result = await invokeAction(
+				actions.createImportJob,
+				payloadRequest(
 					{
 						source_provider: 'algolia',
 						mode: 'create',
@@ -503,8 +710,8 @@ describe('Migrate page server actions and serialization', () => {
 					},
 					{ idempotencyKey }
 				),
-				locals: { user: { token: 'jwt' } }
-			} as never);
+				'jwt'
+			);
 
 			expect(result).toEqual(
 				expect.objectContaining({
@@ -539,7 +746,7 @@ describe('Migrate page server actions and serialization', () => {
 			available: false,
 			reason: 'temporarily_unavailable',
 			message: 'Algolia migration is temporarily unavailable while we replace the importer.',
-			capabilities: { cancel: false, resume: false, replace: false }
+			capabilities: { cancel: false, resume: false, replace: false, preview: false }
 		});
 
 		const result = (await load({
@@ -552,7 +759,7 @@ describe('Migrate page server actions and serialization', () => {
 				available: false,
 				reason: 'temporarily_unavailable',
 				message: 'Algolia migration is temporarily unavailable while we replace the importer.',
-				capabilities: { cancel: false, resume: false, replace: false }
+				capabilities: { cancel: false, resume: false, replace: false, preview: false }
 			},
 			recentImports: { page: null, error: null }
 		});

@@ -3,7 +3,7 @@
 
 mod server;
 pub mod unconfigured_stripe;
-pub use server::{serve, BackgroundHandles};
+pub use server::{serve, serve_api_router, BackgroundHandles};
 use unconfigured_stripe::UnconfiguredStripeService;
 
 use crate::config::Config;

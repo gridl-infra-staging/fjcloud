@@ -1,3 +1,4 @@
+use reqwest::Url;
 use thiserror::Error;
 
 #[derive(Debug, Clone)]
@@ -20,6 +21,7 @@ pub struct Config {
     pub github_oauth_client_secret: Option<String>,
     pub dunning_emails_disabled: bool,
     pub algolia_migration_enabled: bool,
+    pub algolia_source_base_url: Option<Url>,
     pub vm_autorepair_enabled: bool,
 }
 
@@ -101,6 +103,10 @@ impl Config {
             "FJCLOUD_ALGOLIA_MIGRATION_ENABLED",
             false,
         )?;
+        let algolia_source_base_url = parse_optional_loopback_base_url(
+            read("FJCLOUD_ALGOLIA_SOURCE_BASE_URL"),
+            "FJCLOUD_ALGOLIA_SOURCE_BASE_URL",
+        )?;
         let vm_autorepair_enabled = parse_bool_with_default(
             read("FJCLOUD_VM_AUTOREPAIR_ENABLED"),
             "FJCLOUD_VM_AUTOREPAIR_ENABLED",
@@ -126,9 +132,50 @@ impl Config {
             github_oauth_client_secret,
             dunning_emails_disabled,
             algolia_migration_enabled,
+            algolia_source_base_url,
             vm_autorepair_enabled,
         })
     }
+}
+
+fn parse_optional_loopback_base_url(
+    value: Option<String>,
+    key: &str,
+) -> Result<Option<Url>, ConfigError> {
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(ConfigError::Invalid(key.to_string()));
+    }
+    let url = Url::parse(trimmed).map_err(|_| ConfigError::Invalid(key.to_string()))?;
+    // Reject raw path/dot-segment syntax before `Url::parse` normalization can
+    // erase it: `/%2e`, `/.`, `/foo/../` all collapse to `path() == "/"`, so the
+    // normalized-path check below cannot see them. Inspect only the raw suffix
+    // after the authority so equivalent URL spellings (an explicit default port
+    // or expanded IPv6 loopback) remain valid.
+    let authority_and_suffix = trimmed
+        .split_once("://")
+        .map(|(_, suffix)| suffix)
+        .ok_or_else(|| ConfigError::Invalid(key.to_string()))?;
+    let suffix_start = authority_and_suffix
+        .find(['/', '\\', '?', '#'])
+        .unwrap_or(authority_and_suffix.len());
+    if !matches!(&authority_and_suffix[suffix_start..], "" | "/") {
+        return Err(ConfigError::Invalid(key.to_string()));
+    }
+    if !matches!(url.scheme(), "http" | "https")
+        || !crate::validation::is_loopback_url(&url)
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.path() != "/"
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(ConfigError::Invalid(key.to_string()));
+    }
+    Ok(Some(url))
 }
 
 fn parse_optional_oauth_pair<F>(
@@ -240,6 +287,7 @@ mod tests {
         assert!(cfg.github_oauth_client_secret.is_none());
         assert!(!cfg.dunning_emails_disabled);
         assert!(!cfg.algolia_migration_enabled);
+        assert!(cfg.algolia_source_base_url.is_none());
         assert!(!cfg.vm_autorepair_enabled);
     }
 
@@ -509,6 +557,106 @@ mod tests {
     fn algolia_migration_enabled_defaults_to_false() {
         let cfg = Config::from_reader(valid_env()).expect("should parse valid config");
         assert!(!cfg.algolia_migration_enabled);
+    }
+
+    #[test]
+    fn algolia_source_base_url_unset_defaults_to_none() {
+        let cfg = Config::from_reader(valid_env()).expect("should parse valid config");
+        assert!(cfg.algolia_source_base_url.is_none());
+    }
+
+    #[test]
+    fn algolia_source_base_url_blank_value_is_rejected() {
+        let err = Config::from_reader(reader(HashMap::from([
+            ("DATABASE_URL", "postgres://localhost/fjcloud"),
+            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
+            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
+            ("FJCLOUD_ALGOLIA_SOURCE_BASE_URL", "   "),
+        ])))
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            ConfigError::Invalid(ref key) if key == "FJCLOUD_ALGOLIA_SOURCE_BASE_URL"
+        ));
+    }
+
+    #[test]
+    fn algolia_source_base_url_accepts_loopback_only() {
+        for (source_base_url, expected) in [
+            ("http://localhost:43123", "http://localhost:43123/"),
+            ("HTTP://LOCALHOST:43123", "http://localhost:43123/"),
+            ("http://localhost:80", "http://localhost/"),
+            ("https://localhost:443", "https://localhost/"),
+            ("http://127.0.0.1:43123", "http://127.0.0.1:43123/"),
+            ("http://127.12.34.56:43123", "http://127.12.34.56:43123/"),
+            ("http://[::1]:43123", "http://[::1]:43123/"),
+            ("http://[0:0:0:0:0:0:0:1]:43123", "http://[::1]:43123/"),
+        ] {
+            let cfg = Config::from_reader(reader(HashMap::from([
+                ("DATABASE_URL", "postgres://localhost/fjcloud"),
+                ("JWT_SECRET", "super-secret-key-for-testing-1234"),
+                ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
+                ("FJCLOUD_ALGOLIA_SOURCE_BASE_URL", source_base_url),
+            ])))
+            .expect("loopback override should parse");
+
+            assert_eq!(cfg.algolia_source_base_url.unwrap().as_str(), expected);
+        }
+    }
+
+    #[test]
+    fn algolia_source_base_url_rejects_non_loopback_and_url_components() {
+        for source_base_url in [
+            "https://example.com",
+            "http://localhost.evil.com",
+            "http://127.0.0.1.attacker.com",
+            "http://user:password@127.0.0.1:43123",
+            "http://127.0.0.1:43123/prefix",
+            "http://127.0.0.1:43123?debug=1",
+            "http://127.0.0.1:43123#fragment",
+        ] {
+            let err = Config::from_reader(reader(HashMap::from([
+                ("DATABASE_URL", "postgres://localhost/fjcloud"),
+                ("JWT_SECRET", "super-secret-key-for-testing-1234"),
+                ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
+                ("FJCLOUD_ALGOLIA_SOURCE_BASE_URL", source_base_url),
+            ])))
+            .unwrap_err();
+
+            assert!(
+                matches!(err, ConfigError::Invalid(ref key) if key == "FJCLOUD_ALGOLIA_SOURCE_BASE_URL"),
+                "{source_base_url:?} must fail closed"
+            );
+        }
+    }
+
+    #[test]
+    fn algolia_source_base_url_rejects_normalized_dot_segment_paths() {
+        // Dot-segment paths that `Url::parse` collapses to `/` must still fail
+        // closed — the raw input carries a path, so it is not a bare loopback base.
+        for source_base_url in [
+            "http://127.0.0.1:43123/%2e",
+            "http://127.0.0.1:43123/%2e%2e",
+            "http://127.0.0.1:43123/.",
+            "http://127.0.0.1:43123/..",
+            "http://127.0.0.1:43123/foo/../",
+            r"http://127.0.0.1:43123\",
+            r"http://127.0.0.1:43123\foo\..",
+        ] {
+            let err = Config::from_reader(reader(HashMap::from([
+                ("DATABASE_URL", "postgres://localhost/fjcloud"),
+                ("JWT_SECRET", "super-secret-key-for-testing-1234"),
+                ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
+                ("FJCLOUD_ALGOLIA_SOURCE_BASE_URL", source_base_url),
+            ])))
+            .unwrap_err();
+
+            assert!(
+                matches!(err, ConfigError::Invalid(ref key) if key == "FJCLOUD_ALGOLIA_SOURCE_BASE_URL"),
+                "{source_base_url:?} must fail closed"
+            );
+        }
     }
 
     #[test]

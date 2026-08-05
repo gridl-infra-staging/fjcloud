@@ -290,7 +290,11 @@ async fn hard_erase_customer(
 ) -> Vec<crate::models::AlgoliaSealScrubWork> {
     soft_delete_customer(pool, customer_id).await;
     match PgCustomerRepo::new(pool.clone())
-        .hard_delete(customer_id, CustomerHardDeleteKind::PrivacyErasure)
+        .hard_delete(
+            customer_id,
+            CustomerHardDeleteKind::PrivacyErasure,
+            crate::repos::CustomerHardDeleteAuditPolicy::NoAudit,
+        )
         .await
         .expect("hard-erase customer")
     {

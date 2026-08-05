@@ -1,5 +1,6 @@
 import type { PageServerLoad, Actions } from './$types';
 import { ApiRequestError } from '$lib/api/client';
+import { passwordApiValidationError, passwordMinimumLengthError } from '$lib/auth/password-policy';
 import type { AuthUser } from '$lib/auth/guard';
 import { createApiClient } from '$lib/server/api';
 import { fail, redirect } from '@sveltejs/kit';
@@ -9,21 +10,16 @@ import {
 	customerFacingErrorMessage,
 	mapDashboardSessionFailure
 } from '$lib/server/auth-action-errors';
+import { formDataString } from '$lib/server/form-data';
 
 const DELETE_ACCOUNT_FAILED_MESSAGE =
 	'Unable to delete account. Please check your password and try again.';
 const CHANGE_PASSWORD_FAILED_MESSAGE = 'Failed to change password';
 const EXPORT_ACCOUNT_FAILED_MESSAGE = 'Failed to export account data';
 const EXPORT_ACCOUNT_SUCCESS_MESSAGE = 'Account export ready';
-const MIN_PASSWORD_LENGTH = 8;
 
 function apiForLocals(locals: { user: AuthUser | null }) {
 	return createApiClient(locals.user?.token);
-}
-
-function stringField(data: FormData, name: string): string {
-	const value = data.get(name);
-	return typeof value === 'string' ? value : '';
 }
 
 function actionError(error: string) {
@@ -63,7 +59,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 export const actions: Actions = {
 	updateProfile: async ({ request, locals }) => {
 		const data = await request.formData();
-		const name = stringField(data, 'name').trim();
+		const name = formDataString(data, 'name').trim();
 		if (!name) return actionError('Name must not be empty');
 
 		const api = apiForLocals(locals);
@@ -78,16 +74,17 @@ export const actions: Actions = {
 	},
 	changePassword: async ({ request, locals }) => {
 		const data = await request.formData();
-		const currentPassword = stringField(data, 'current_password');
-		const newPassword = stringField(data, 'new_password');
-		const confirmPassword = stringField(data, 'confirm_password');
+		const currentPassword = formDataString(data, 'current_password');
+		const newPassword = formDataString(data, 'new_password');
+		const confirmPassword = formDataString(data, 'confirm_password');
 
 		if (!currentPassword || !newPassword) {
 			return actionError('All password fields are required');
 		}
 
-		if (newPassword.length < MIN_PASSWORD_LENGTH) {
-			return actionError('New password must be at least 8 characters');
+		const newPasswordLengthError = passwordMinimumLengthError(newPassword, 'New password');
+		if (newPasswordLengthError) {
+			return actionError(newPasswordLengthError);
 		}
 
 		if (newPassword !== confirmPassword) {
@@ -104,6 +101,12 @@ export const actions: Actions = {
 		} catch (error) {
 			const sessionFailure = mapDashboardSessionFailure(error);
 			if (sessionFailure) return sessionFailure;
+			if (error instanceof ApiRequestError) {
+				const newPasswordError = passwordApiValidationError(error.message, 'New password');
+				if (newPasswordError) {
+					return fail(400, { newPasswordError });
+				}
+			}
 			if (error instanceof ApiRequestError && error.status === 400) {
 				return actionError(customerFacingApiErrorMessage(error, 'Current password is incorrect'));
 			}
@@ -112,11 +115,11 @@ export const actions: Actions = {
 	},
 	deleteAccount: async ({ request, locals, cookies }) => {
 		const data = await request.formData();
-		const password = stringField(data, 'password');
+		const password = formDataString(data, 'password');
 		if (!password) {
 			return deleteAccountError('Password is required to delete your account');
 		}
-		if (stringField(data, 'confirm_delete') !== 'on') {
+		if (formDataString(data, 'confirm_delete') !== 'on') {
 			return deleteAccountError(
 				'Please confirm that you understand account deletion deactivates your account and does not cancel billing'
 			);

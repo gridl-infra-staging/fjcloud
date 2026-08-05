@@ -4,9 +4,11 @@ import { ApiRequestError } from '$lib/api/client';
 import type {
 	AlgoliaMigrationCapabilities,
 	PublicAlgoliaImportJob,
-	SourceProvider
+	SourceProvider,
+	VerifySourceMigrationRequest
 } from '$lib/api/types';
 import { isSourceProvider } from '$lib/api/types';
+import { toErrorMessage } from '$lib/components/migration/migration_error_redaction';
 import { createApiClient } from '$lib/server/api';
 import {
 	customerFacingErrorMessage,
@@ -16,10 +18,13 @@ import {
 
 const JOB_ACTION_FAILED = 'Migration request failed';
 const SOURCE_PROVIDER_UNSUPPORTED = 'source_provider_unsupported';
+const VERIFICATION_NOT_AVAILABLE = 'verification_not_available';
 const FAIL_CLOSED_CAPABILITIES: AlgoliaMigrationCapabilities = {
 	cancel: false,
 	resume: false,
-	replace: false
+	replace: false,
+	preview: false,
+	verify: false
 };
 // eslint-disable-next-line no-control-regex -- The validator must reject ASCII control characters.
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
@@ -68,6 +73,10 @@ function isSessionFailure(value: unknown): value is SessionFailure {
 		typeof (value as { data?: unknown }).data === 'object' &&
 		(value as { data: Record<string, unknown> }).data?._authSessionExpired === true
 	);
+}
+
+function completedJobCanBeVerified(job: PublicAlgoliaImportJob): boolean {
+	return job.status === 'completed' || job.status === 'completed_with_warnings';
 }
 
 // The job is the route's single source of truth. Auth failures fold into the
@@ -138,6 +147,71 @@ async function runJobAction(
 	}
 }
 
+function publicMigrationFailure(
+	err: unknown,
+	fallback: string,
+	redactions: readonly string[] = []
+) {
+	if (err instanceof ApiRequestError) {
+		if (typeof err.body === 'object' && err.body !== null) {
+			const body = err.body as Record<string, unknown>;
+			const data: { error: string; message?: string; code?: string } = {
+				error:
+					typeof body.error === 'string'
+						? toErrorMessage(body.error, redactions)
+						: toErrorMessage(customerFacingErrorMessage(err, fallback), redactions)
+			};
+			if (typeof body.message === 'string') {
+				data.message = toErrorMessage(body.message, redactions);
+			}
+			if (typeof body.code === 'string') data.code = body.code;
+			return fail(err.status, data);
+		}
+		return fail(err.status, {
+			error: toErrorMessage(customerFacingErrorMessage(err, fallback), redactions)
+		});
+	}
+	return fail(400, { error: fallback });
+}
+
+function parsedVerificationRequest(
+	data: FormData,
+	job: PublicAlgoliaImportJob
+): VerifySourceMigrationRequest | ActionFailure<{ error: string; code?: string }> {
+	const appId = stringField(data, 'appId').trim();
+	const apiKey = stringField(data, 'apiKey').trim();
+	const queries = stringField(data, 'queries')
+		.split(/\r?\n/)
+		.map((query) => query.trim())
+		.filter((query) => query !== '');
+	const resultLimit = Number(stringField(data, 'resultLimit'));
+	if (
+		appId === '' ||
+		apiKey === '' ||
+		queries.length === 0 ||
+		!Number.isFinite(resultLimit) ||
+		!Number.isInteger(resultLimit)
+	) {
+		return fail(400, {
+			error: 'Cutover verification requires credentials, at least one query, and a result limit.',
+			code: 'verification_request_invalid'
+		});
+	}
+	return {
+		appId,
+		apiKey,
+		sourceIndex: job.source.name,
+		destinationIndex: job.destination.target,
+		queries,
+		resultLimit
+	};
+}
+
+function stringField(data: FormData, name: string): string {
+	const value = data.get(name);
+	return typeof value === 'string' ? value : '';
+}
+
 export const actions: Actions = {
 	cancel: async ({ params, request, locals }) => {
 		const jobId = validatedJobId(params.jobId);
@@ -158,5 +232,48 @@ export const actions: Actions = {
 		return runJobAction(locals, (api) =>
 			api.resumeMigrationImportJob(sourceProvider, jobId, { apiKey })
 		);
+	},
+	verify: async ({ params, request, locals }) => {
+		const jobId = validatedJobId(params.jobId);
+		const data = await request.formData();
+		const sourceProvider = parsedSourceProvider(data.get('source_provider'));
+		if (sourceProvider === null) return sourceProviderFailure();
+		const credentialRedactions = [stringField(data, 'appId'), stringField(data, 'apiKey')];
+		const api = createApiClient(locals.user?.token);
+		try {
+			const job = await api.getMigrationImportJob(sourceProvider, jobId);
+			if (!completedJobCanBeVerified(job)) {
+				return fail(400, {
+					error: 'Cutover verification is available only after the import completes.',
+					code: VERIFICATION_NOT_AVAILABLE
+				});
+			}
+			// Match the detail-page gate: do not accept a handcrafted verification
+			// POST when the single published capability source fails closed.
+			const capabilities = await loadCapabilities(api, job.sourceProvider);
+			if (isSessionFailure(capabilities)) return capabilities;
+			if (capabilities.verify !== true) {
+				return fail(400, {
+					error: 'Cutover verification is not available for this retained job.'
+				});
+			}
+			const verificationRequest = parsedVerificationRequest(data, job);
+			if (!('appId' in verificationRequest)) return verificationRequest;
+			const report = await api.verifySourceMigration(job.sourceProvider, verificationRequest);
+			return { report };
+		} catch (err) {
+			if (err instanceof ApiRequestError && err.status === 401) {
+				const sessionFailure = mapDashboardSessionFailure(err);
+				if (sessionFailure) return sessionFailure;
+			}
+			const providerFailure = upstreamSourceProviderFailure(err);
+			if (providerFailure) return providerFailure;
+			if (err instanceof ApiRequestError && err.body && typeof err.body === 'object') {
+				return publicMigrationFailure(err, JOB_ACTION_FAILED, credentialRedactions);
+			}
+			const sessionFailure = mapDashboardSessionFailure(err);
+			if (sessionFailure) return sessionFailure;
+			return publicMigrationFailure(err, JOB_ACTION_FAILED, credentialRedactions);
+		}
 	}
 };

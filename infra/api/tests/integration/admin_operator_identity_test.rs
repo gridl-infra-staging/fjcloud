@@ -31,6 +31,9 @@ async fn extract_admin_auth(pool: &PgPool, credential: &str) -> Result<AdminAuth
     AdminAuth::from_request_parts(&mut parts, &state).await
 }
 
+#[path = "durable_admin_session_contract.rs"]
+mod durable_admin_session_contract;
+
 #[tokio::test]
 #[ignore = "requires DATABASE_URL"]
 async fn admin_users_schema_contract() {

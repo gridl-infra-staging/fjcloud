@@ -383,6 +383,14 @@ test_script_is_executable_and_direct_invocation_works() {
   assert_contains "$RUN_OUTPUT" "Dry-run: validation passed" "direct executable invocation uses the script entrypoint"
 }
 
+test_reconcile_waits_for_local_version_after_restart() {
+  local script_body
+  script_body="$(cat "$TARGET_SCRIPT")"
+  assert_contains "$script_body" "wait_for_local_version_json()" "reconcile proof defines a local /version readiness wait"
+  assert_contains "$script_body" 'version_json="$(wait_for_local_version_json)"' "inspection uses readiness wait instead of one immediate curl"
+  assert_contains "$script_body" "VERSION_WAIT_ATTEMPTS" "readiness wait is bounded by an explicit attempt count"
+}
+
 test_dry_run_is_environment_scoped_and_write_free
 test_dry_run_current_value_reports_no_change_without_writes
 test_equal_execute_and_rollback_args_are_rejected
@@ -402,5 +410,6 @@ test_mixed_instance_state_fails_before_write
 test_rollback_invalid_restore_target_fails_before_write_or_host_command
 test_wrong_architecture_fails_before_write
 test_script_is_executable_and_direct_invocation_works
+test_reconcile_waits_for_local_version_after_restart
 
 run_test_summary

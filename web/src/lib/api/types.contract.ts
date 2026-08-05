@@ -111,13 +111,13 @@ const migration = {
 	available: false,
 	reason: 'temporarily_unavailable',
 	message: 'Algolia migration is temporarily unavailable while we replace the importer.',
-	capabilities: { cancel: false, resume: false, replace: false }
+	capabilities: { cancel: false, resume: false, replace: false, preview: false, verify: false }
 } satisfies AlgoliaMigrationAvailabilityResponse;
 
 const migrationAvailableWithoutReason = {
 	available: true,
 	message: 'Algolia migration is available.',
-	capabilities: { cancel: true, resume: false, replace: true }
+	capabilities: { cancel: true, resume: false, replace: true, preview: true, verify: true }
 } satisfies AlgoliaMigrationAvailabilityResponse;
 
 const dictionary = {

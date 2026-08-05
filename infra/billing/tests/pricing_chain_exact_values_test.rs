@@ -195,7 +195,10 @@ fn cold_storage_context_is_billed_once_across_regions() {
     assert_eq!(eu_summary.cold_storage_gb_months, dec!(4));
     assert_eq!(us_summary.cold_storage_gb_months, dec!(0));
     assert_eq!(line_item_amount(eu_summary, &rate, "cold_gb_months"), 8);
-    assert_eq!(total_line_item_amount(&[us_summary.clone()], &rate), 0);
+    assert_eq!(
+        total_line_item_amount(std::slice::from_ref(us_summary), &rate),
+        0
+    );
     assert_eq!(total_line_item_amount(&summaries, &rate), 8);
 }
 

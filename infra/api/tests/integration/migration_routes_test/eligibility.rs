@@ -1,5 +1,7 @@
 use super::*;
 
+const OUT_OF_UNION_SOURCE_PROVIDER: &str = "unsupported";
+
 fn create_create_target_request(phase: &str, region: &str, name: &str) -> serde_json::Value {
     json!({
         "phase": phase,
@@ -34,6 +36,22 @@ fn assert_retry_after_30(headers: &http::HeaderMap) {
             .and_then(|value| value.to_str().ok()),
         Some("30")
     );
+}
+
+fn source_destination_eligibility_request(
+    jwt: &str,
+    source_provider: &str,
+    body: serde_json::Value,
+) -> Request<Body> {
+    Request::builder()
+        .method(http::Method::POST)
+        .uri(format!(
+            "/migration/{source_provider}/destination-eligibility"
+        ))
+        .header("authorization", format!("Bearer {jwt}"))
+        .header("content-type", "application/json")
+        .body(Body::from(body.to_string()))
+        .expect("build source-provider eligibility request")
 }
 
 #[tokio::test]
@@ -93,45 +111,31 @@ async fn source_provider_rejection_never_uses_migration_provider_unsupported() {
     let (app, jwt) =
         setup_algolia_cloud_discovery_app_with_flag(source_service.clone(), true).await;
 
-    for source_provider in ["meilisearch", "typesense", "unsupported"] {
-        let response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method(http::Method::POST)
-                    .uri(format!(
-                        "/migration/{source_provider}/destination-eligibility"
-                    ))
-                    .header("authorization", format!("Bearer {jwt}"))
-                    .header("content-type", "application/json")
-                    .body(Body::from(
-                        json!({
-                            "phase": "provider",
-                            "mode": "create",
-                            "target": { "region": "us-east-1", "name": "products" }
-                        })
-                        .to_string(),
-                    ))
-                    .expect("build unsupported source-provider request"),
-            )
-            .await
-            .expect("unsupported source-provider response");
-        let (status, body) = response_json(response).await;
+    let source_provider = OUT_OF_UNION_SOURCE_PROVIDER;
+    let response = app
+        .clone()
+        .oneshot(source_destination_eligibility_request(
+            &jwt,
+            source_provider,
+            create_create_target_request("provider", "us-east-1", "products"),
+        ))
+        .await
+        .expect("unsupported source-provider response");
+    let (status, body) = response_json(response).await;
 
-        assert_eq!(
-            status,
-            StatusCode::BAD_REQUEST,
-            "unsupported source provider {source_provider} must be rejected before admission"
-        );
-        assert_eq!(
-            body,
-            json!({
-                "error": "source_provider_unsupported",
-                "code": "source_provider_unsupported",
-            }),
-            "source identity errors must remain distinct from destination placement errors"
-        );
-    }
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "unsupported source provider {source_provider} must be rejected before admission"
+    );
+    assert_eq!(
+        body,
+        json!({
+            "error": "source_provider_unsupported",
+            "code": "source_provider_unsupported",
+        }),
+        "source identity errors must remain distinct from destination placement errors"
+    );
 
     assert!(
         source_service.requests().is_empty(),
@@ -148,23 +152,77 @@ async fn source_provider_rejection_never_uses_migration_provider_unsupported() {
     );
 }
 
+/// Activated Meilisearch and Typesense source adapters must be *admitted* at the
+/// destination-eligibility route, not rejected as unsupported source providers.
+/// This pins the post-activation policy: it is green against the current
+/// `has_adapter()` (which reports an adapter for both merged sources) and turns
+/// red the moment either adapter is reverted, because the route would then
+/// answer `400 source_provider_unsupported` instead of minting a provider
+/// envelope. Uses only the existing discovery-app setup and eligibility helpers
+/// so provider policy stays owned by `validate_source_provider`/`has_adapter`.
+#[tokio::test]
+async fn activated_source_provider_admits_destination_eligibility() {
+    let source_service = FakeAlgoliaSourceLister::with_inspect([]);
+    let (app, jwt) =
+        setup_algolia_cloud_discovery_app_with_flag(source_service.clone(), true).await;
+
+    for source_provider in ["meilisearch", "typesense"] {
+        let response = app
+            .clone()
+            .oneshot(source_destination_eligibility_request(
+                &jwt,
+                source_provider,
+                create_create_target_request("provider", "us-east-1", "products"),
+            ))
+            .await
+            .expect("activated source-provider response");
+        let (status, body) = response_json(response).await;
+
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "activated adapter {source_provider} must be admitted at destination-eligibility"
+        );
+        assert_ne!(
+            body,
+            json!({
+                "error": "source_provider_unsupported",
+                "code": "source_provider_unsupported",
+            }),
+            "activated adapter {source_provider} must not be rejected as an unsupported source provider"
+        );
+        assert_create_eligibility_response(&body, "provider", "us-east-1", "products");
+    }
+
+    // Provider-phase admission is locally decidable; it must not reach source
+    // discovery or inspection for an activated adapter.
+    assert!(
+        source_service.requests().is_empty(),
+        "activated-adapter provider-phase admission must not perform source discovery"
+    );
+    assert!(
+        source_service.inspect_requests().is_empty(),
+        "activated-adapter provider-phase admission must not perform source inspection"
+    );
+}
+
 fn unsupported_provider_route_requests(
     job_id: Uuid,
 ) -> [(http::Method, String, serde_json::Value); 8] {
     [
         (
             http::Method::GET,
-            "/migration/typesense/availability".to_string(),
+            format!("/migration/{OUT_OF_UNION_SOURCE_PROVIDER}/availability"),
             json!(null),
         ),
         (
             http::Method::POST,
-            "/migration/typesense/list-indexes".to_string(),
+            format!("/migration/{OUT_OF_UNION_SOURCE_PROVIDER}/list-indexes"),
             json!({"appId": "CANARYAPP", "apiKey": "source-key-canary"}),
         ),
         (
             http::Method::POST,
-            "/migration/typesense/destination-eligibility".to_string(),
+            format!("/migration/{OUT_OF_UNION_SOURCE_PROVIDER}/destination-eligibility"),
             json!({
                 "phase": "provider",
                 "mode": "create",
@@ -173,7 +231,7 @@ fn unsupported_provider_route_requests(
         ),
         (
             http::Method::POST,
-            "/migration/typesense/jobs".to_string(),
+            format!("/migration/{OUT_OF_UNION_SOURCE_PROVIDER}/jobs"),
             json!({
                 "mode": "create",
                 "appId": "CANARYAPP",
@@ -184,22 +242,22 @@ fn unsupported_provider_route_requests(
         ),
         (
             http::Method::GET,
-            "/migration/typesense/jobs".to_string(),
+            format!("/migration/{OUT_OF_UNION_SOURCE_PROVIDER}/jobs"),
             json!(null),
         ),
         (
             http::Method::GET,
-            format!("/migration/typesense/jobs/{job_id}"),
+            format!("/migration/{OUT_OF_UNION_SOURCE_PROVIDER}/jobs/{job_id}"),
             json!(null),
         ),
         (
             http::Method::POST,
-            format!("/migration/typesense/jobs/{job_id}/cancel"),
+            format!("/migration/{OUT_OF_UNION_SOURCE_PROVIDER}/jobs/{job_id}/cancel"),
             json!({}),
         ),
         (
             http::Method::POST,
-            format!("/migration/typesense/jobs/{job_id}/resume"),
+            format!("/migration/{OUT_OF_UNION_SOURCE_PROVIDER}/jobs/{job_id}/resume"),
             json!({"apiKey": "resume-key-canary"}),
         ),
     ]
@@ -222,7 +280,7 @@ async fn unsupported_source_provider_short_circuits_every_route_collaborator() {
             .uri(&uri)
             .header("authorization", format!("Bearer {jwt}"))
             .header("content-type", "application/json");
-        if uri == "/migration/typesense/jobs" {
+        if uri == format!("/migration/{OUT_OF_UNION_SOURCE_PROVIDER}/jobs") {
             request = request.header("idempotency-key", "unsupported-provider");
         }
         let response = app

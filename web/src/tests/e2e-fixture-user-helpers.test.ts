@@ -803,6 +803,7 @@ describe('e2e fixture user helpers', () => {
 		const mockPage = {
 			goto: vi.fn().mockResolvedValue(undefined),
 			waitForURL: vi.fn().mockResolvedValue(undefined),
+			waitForLoadState: vi.fn().mockResolvedValue(undefined),
 			waitForResponse: vi.fn().mockResolvedValue({
 				status: () => 303,
 				url: () => 'http://127.0.0.1:5173/signup'
@@ -826,6 +827,7 @@ describe('e2e fixture user helpers', () => {
 		const trackedCustomerIds: string[] = [];
 		const resolveCleanupCustomerId = vi.fn().mockResolvedValue('cust-cleanup-123');
 		const getSessionTokenFromPage = vi.fn().mockResolvedValue('session-token-123');
+		const beforeDocumentReplacement = vi.fn().mockResolvedValue(undefined);
 
 		const result = await arrangeFreshSignupToDashboardWithFixtureFallback(
 			{
@@ -836,7 +838,8 @@ describe('e2e fixture user helpers', () => {
 					password: 'TestPassword123!'
 				},
 				createUser: vi.fn() as never,
-				trackCustomerForCleanup: (customerId) => trackedCustomerIds.push(customerId)
+				trackCustomerForCleanup: (customerId) => trackedCustomerIds.push(customerId),
+				beforeDocumentReplacement
 			},
 			{
 				resolveCleanupCustomerId,
@@ -845,6 +848,14 @@ describe('e2e fixture user helpers', () => {
 		);
 
 		expect(result).toEqual({ prerequisiteFailureMessage: null });
+		expect(beforeDocumentReplacement).toHaveBeenCalledTimes(2);
+		expect(beforeDocumentReplacement.mock.invocationCallOrder[0]).toBeLessThan(
+			mockPage.goto.mock.invocationCallOrder[0]
+		);
+		expect(beforeDocumentReplacement.mock.invocationCallOrder[1]).toBeLessThan(
+			click.mock.invocationCallOrder[0]
+		);
+		expect(mockPage.waitForLoadState).toHaveBeenCalledWith('load');
 		expect(resolveCleanupCustomerId).toHaveBeenCalledWith({
 			sessionToken: 'session-token-123',
 			currentPath: pageUrl,
@@ -863,6 +874,7 @@ describe('e2e fixture user helpers', () => {
 		const mockPage = {
 			goto: vi.fn().mockResolvedValue(undefined),
 			waitForURL: vi.fn().mockResolvedValue(undefined),
+			waitForLoadState: vi.fn().mockResolvedValue(undefined),
 			waitForResponse: vi.fn().mockResolvedValue({
 				status: () => 303,
 				url: () => 'http://127.0.0.1:5173/signup',
@@ -916,6 +928,7 @@ describe('e2e fixture user helpers', () => {
 
 		await vi.runAllTimersAsync();
 		await expect(promise).resolves.toEqual({ prerequisiteFailureMessage: null });
+		expect(mockPage.waitForLoadState).toHaveBeenCalledWith('load');
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(trackedCustomerIds).toEqual(['cust-cleanup-from-default-owner']);
 	});

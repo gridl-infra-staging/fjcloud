@@ -2,9 +2,8 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import {
 	ADMIN_SESSION_COOKIE,
-	adminKeysMatch,
 	checkAdminLoginRateLimit,
-	createAdminSession,
+	createDurableAdminSession,
 	resetAdminLoginAttempts,
 	resolveAdminSessionMaxAgeSeconds
 } from '$lib/server/admin-session';
@@ -25,7 +24,7 @@ export function _extractClientIp(getClientAddress: (() => string) | undefined): 
 }
 
 export const actions = {
-	default: async ({ request, cookies, url, getClientAddress, platform }) => {
+	default: async ({ request, cookies, url, getClientAddress, platform, fetch, locals }) => {
 		const clientIp = _extractClientIp(getClientAddress);
 		const rateCheck = checkAdminLoginRateLimit(clientIp);
 		type LoginErrors = { errors: { form?: string; admin_key?: string } };
@@ -46,28 +45,34 @@ export const actions = {
 			});
 		}
 
-		const expectedKey = privateEnvValue('ADMIN_KEY', platform);
-		if (!expectedKey) {
-			return fail<LoginErrors>(500, {
-				errors: { form: 'Admin authentication is not configured' }
-			});
-		}
-
-		if (!adminKeysMatch(expectedKey, providedKey)) {
-			return fail<LoginErrors>(401, {
-				errors: { form: 'Invalid admin key' }
-			});
-		}
-
-		// Successful auth — reset rate limit counter so legitimate re-logins aren't blocked
-		resetAdminLoginAttempts(clientIp);
-
-		const maxAge = resolveAdminSessionMaxAgeSeconds(
+		// The API owns credential validation: the submitted key is exchanged for
+		// a durable session rather than compared against a web-local ADMIN_KEY,
+		// so every admin action is attributable to a registered operator.
+		const requestedMaxAge = resolveAdminSessionMaxAgeSeconds(
 			privateEnvValue('ADMIN_SESSION_MAX_AGE_SECONDS', platform)
 		);
-		const session = createAdminSession(maxAge, expectedKey);
+		const session = await createDurableAdminSession(
+			{ fetch, cookies, locals, url },
+			providedKey,
+			requestedMaxAge
+		);
 
-		cookies.set(ADMIN_SESSION_COOKIE, session.id, authCookieOptions(url, maxAge, '/admin'));
+		if (!session.ok) {
+			return session.reason === 'invalid_credential'
+				? fail<LoginErrors>(401, { errors: { form: 'Invalid admin key' } })
+				: fail<LoginErrors>(502, {
+						errors: { form: 'Admin authentication is temporarily unavailable' }
+					});
+		}
+
+		// Only a credential the API accepted clears the per-IP throttle.
+		resetAdminLoginAttempts(clientIp);
+
+		cookies.set(
+			ADMIN_SESSION_COOKIE,
+			session.sessionToken,
+			authCookieOptions(url, requestedMaxAge, '/admin')
+		);
 
 		redirect(303, '/admin/fleet');
 	}

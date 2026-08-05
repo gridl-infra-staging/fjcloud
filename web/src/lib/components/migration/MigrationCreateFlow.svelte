@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { INDEX_NAME_MAX_LENGTH, proposeDestinationIndexName } from '$lib/index-name';
+	import { proposeDestinationIndexName } from '$lib/index-name';
 	import type {
 		AlgoliaDestinationEligibilityResponse,
 		AlgoliaIndexMetadata,
@@ -11,30 +11,37 @@
 	import {
 		describeAlgoliaImportAdmission,
 		defaultAlgoliaImportAdmission,
-		type AlgoliaImportAdmission
+		describeMigrationPreviewFailure,
+		migrationPreviewCompatibilityWarningPresentation
 	} from './job_presentation';
-	import {
-		migrationCreateSuccessIntent,
-		type MigrationCreateSuccessIntent
-	} from './create_success_intent';
+	import type { AlgoliaImportAdmission } from './job_presentation';
+	import { migrationCreateSuccessIntent } from './create_success_intent';
+	import type { MigrationCreateSuccessIntent } from './create_success_intent';
 	import {
 		checkMigrationDestination,
 		createMigrationJob,
 		listMigrationSources,
 		migrationSourceCredentials,
-		sourceCredentialFingerprint,
-		type MigrationCreateClient
+		sourceCredentialFingerprint
 	} from './migration_create_client';
-	import MigrationCreateReview from './MigrationCreateReview.svelte';
+	import type { MigrationCreateClient } from './migration_create_client';
+	import {
+		clearMigrationPreviewState,
+		createMigrationPreviewState,
+		markMigrationPreviewError,
+		migrationPreviewArguments,
+		requestMigrationPreview
+	} from './migration_create_preview_state';
+	import MigrationCreateDestination from './MigrationCreateDestination.svelte';
 	import { scheduleEligibilityExpiry } from './eligibility';
 	import {
 		activeProviderEligibility as activeProviderEligibilityForNow,
 		defaultProviderEligibility,
 		describeProviderEligibility as describeProviderEligibilityState,
 		providerEligibilityBinding as buildProviderEligibilityBinding,
-		providerEligibilityResponse,
-		type ProviderEligibilityState
+		providerEligibilityResponse
 	} from './provider_eligibility';
+	import type { ProviderEligibilityState } from './provider_eligibility';
 	import {
 		activeTargetEligibility as activeTargetEligibilityForNow,
 		createSubmitIntentBinding,
@@ -81,8 +88,6 @@
 	let searchTerm = $state('');
 	let selectedSourceName = $state<string | null>(null);
 	let sourceStepHeading = $state<HTMLHeadingElement>();
-	let destinationStepHeading = $state<HTMLHeadingElement>();
-	let destinationErrorMessage = $state<HTMLParagraphElement>();
 	// Seeded from the source, then customer-owned; producer eligibility decides
 	// whether this advisory proposal is actually available.
 	let destinationName = $state('');
@@ -98,6 +103,7 @@
 	let submitIntentBinding = $state<string | null>(null);
 	let submitIntentIdempotencyKey = $state<string | null>(null);
 	let successfulSubmitIntentBinding = $state<string | null>(null);
+	let previewState = $state(createMigrationPreviewState());
 	// An empty source array cannot distinguish unconnected from an empty account.
 	let hasDiscovered = $state(false);
 	// Retain the non-secret identity, but only a one-way fingerprint of the key.
@@ -186,6 +192,10 @@
 	const currentSubmitIntentBinding = $derived(
 		currentTargetEligibility === null ? null : submitIntentBindingFor(currentTargetEligibility)
 	);
+	const previewSupported = $derived(capabilities?.preview === true);
+	const currentPreviewSatisfied = $derived(
+		!previewSupported || previewAttemptMatches(currentSubmitIntentBinding)
+	);
 	const isCheckingTargetEligibility = $derived(
 		activeTargetEligibilityRequest !== null &&
 			activeTargetEligibilityRequest.binding === targetEligibilityInputsBinding
@@ -199,12 +209,37 @@
 	);
 	const startImportDisabled = $derived(
 		currentTargetEligibility === null ||
+			!currentPreviewSatisfied ||
 			activeSubmit ||
 			!replaceConfirmed ||
 			(successfulSubmitIntentBinding !== null &&
 				successfulSubmitIntentBinding === currentSubmitIntentBinding) ||
 			startsDisabled
 	);
+	const currentPreviewResult = $derived(
+		previewState.binding !== null && previewState.binding === currentSubmitIntentBinding
+			? previewState.result
+			: null
+	);
+	const currentPreviewError = $derived(
+		previewState.attemptBinding !== null &&
+			previewState.attemptBinding === currentSubmitIntentBinding &&
+			previewState.error !== null
+			? describeMigrationPreviewFailure(sourceProvider, previewState.error)
+			: null
+	);
+	// Both a failed preview request and a successful report carrying hard
+	// rejections warn that the import may fail or omit data. Neither blocks the
+	// import, so both surface the advisory start label.
+	const previewWarnsImportMayFail = $derived(
+		currentPreviewError !== null || (currentPreviewResult?.report.summary.hardRejections ?? 0) > 0
+	);
+	const previewWarningPresentation = $derived(
+		currentPreviewResult === null
+			? null
+			: migrationPreviewCompatibilityWarningPresentation(currentPreviewResult)
+	);
+	const isPreviewing = $derived(previewState.activeRequest);
 
 	// Discovery has no query parameter, so search filters only loaded pages.
 	const visibleSources = $derived(
@@ -220,20 +255,11 @@
 		selectedSourceName = name;
 		destinationName = proposeDestinationIndexName(name);
 		clearTargetEligibility();
-		await tick();
-		destinationStepHeading?.focus();
 	}
 
-	function handleDestinationInput(): void {
+	function handleDestinationInput(name: string): void {
+		destinationName = name;
 		clearTargetEligibility();
-	}
-
-	async function focusDestinationError(): Promise<void> {
-		if (destinationError === null) {
-			return;
-		}
-		await tick();
-		destinationErrorMessage?.focus();
 	}
 
 	function clearSourceSelection(): void {
@@ -292,6 +318,7 @@
 		targetEligibilityBinding = null;
 		targetEligibilityError = null;
 		submitError = null;
+		clearMigrationPreviewState(previewState);
 		submitIntentBinding = null;
 		submitIntentIdempotencyKey = null;
 		successfulSubmitIntentBinding = null;
@@ -353,6 +380,10 @@
 		});
 	}
 
+	function previewAttemptMatches(binding: string | null): boolean {
+		return binding !== null && previewState.attemptBinding === binding;
+	}
+
 	function idempotencyKeyFor(binding: string): string {
 		if (submitIntentBinding !== binding || submitIntentIdempotencyKey === null) {
 			submitIntentBinding = binding;
@@ -402,6 +433,7 @@
 			}
 			targetEligibility = validatedEligibility;
 			targetEligibilityBinding = binding;
+			clearMigrationPreviewState(previewState);
 			submitIntentBinding = null;
 			submitIntentIdempotencyKey = null;
 			return validatedEligibility;
@@ -418,18 +450,53 @@
 			}
 		}
 	}
-
 	async function ensureFreshTargetEligibility(): Promise<AlgoliaDestinationEligibilityResponse | null> {
 		if (targetEligibilityExpired()) {
 			return refreshTargetEligibility();
 		}
 		return currentTargetEligibility;
 	}
-
+	async function runPreview(): Promise<void> {
+		if (startsDisabled || !previewSupported) return;
+		await requestMigrationPreview(previewState, {
+			client,
+			currentBinding: () => currentSubmitIntentBinding,
+			prepare: async () => {
+				const mode = migrationMode;
+				const eligibility = await ensureFreshTargetEligibility();
+				const sourceName = selectedSourceName;
+				if (eligibility === null || sourceName === null) return null;
+				const binding = submitIntentBindingFor(eligibility);
+				const args = migrationPreviewArguments({
+					sourceProvider,
+					sourceIdentity: sourceProvider === 'algolia' ? appId : host,
+					apiKey,
+					sourceName,
+					targetIndex: eligibilityTargetName,
+					mode
+				});
+				if (binding === null) return null;
+				if (args === null) {
+					markMigrationPreviewError(previewState, binding, 'source_provider_unsupported');
+					return null;
+				}
+				return {
+					arguments: args,
+					binding,
+					redactions: [
+						sourceProvider === 'algolia' ? appId : host,
+						apiKey,
+						eligibility.eligibilityToken
+					]
+				};
+			}
+		});
+	}
 	async function submitImport(): Promise<void> {
 		if (
 			activeSubmit ||
 			startsDisabled ||
+			!currentPreviewSatisfied ||
 			!replaceConfirmed ||
 			(successfulSubmitIntentBinding !== null &&
 				successfulSubmitIntentBinding === currentSubmitIntentBinding)
@@ -443,7 +510,7 @@
 			return;
 		}
 		const intentBinding = submitIntentBindingFor(eligibility);
-		if (intentBinding === null) {
+		if (intentBinding === null || (previewSupported && !previewAttemptMatches(intentBinding))) {
 			return;
 		}
 		const idempotencyKey = idempotencyKeyFor(intentBinding);
@@ -667,107 +734,46 @@
 					Load more source indexes
 				</button>
 			{/if}
-
 			{#if selectedSourceName}
-				<h4
-					bind:this={destinationStepHeading}
-					tabindex="-1"
-					class="text-sm font-semibold text-flapjack-ink"
-				>
-					Review destination
-				</h4>
-				<p data-testid="migration-selected-source" class="text-sm text-flapjack-ink">
-					Selected source: {selectedSourceName}
-				</p>
-
-				{#if replaceDestination}
-					<div
-						data-testid="migration-selected-replace-destination"
-						class="rounded border border-flapjack-ink/20 p-3 text-sm text-flapjack-ink"
-					>
-						<span class="font-medium">Replacement target</span>:
-						{replaceDestination.name} in {replaceDestination.region}
-					</div>
-				{:else}
-					<div>
-						<label
-							for="migration-destination-name"
-							class="mb-1 block text-sm font-medium text-flapjack-ink/80"
-						>
-							Destination index name
-						</label>
-						<input
-							id="migration-destination-name"
-							type="text"
-							autocomplete="off"
-							spellcheck="false"
-							maxlength={INDEX_NAME_MAX_LENGTH}
-							bind:value={destinationName}
-							oninput={handleDestinationInput}
-							onchange={focusDestinationError}
-							aria-invalid={destinationError !== null}
-							aria-describedby={destinationError === null
-								? undefined
-								: 'migration-destination-error'}
-							class="w-full rounded border border-flapjack-ink/30 px-3 py-2"
-						/>
-						{#if destinationError}
-							<p
-								id="migration-destination-error"
-								data-testid="migration-destination-error"
-								bind:this={destinationErrorMessage}
-								tabindex="-1"
-								class="mt-1 text-sm text-flapjack-plum"
-							>
-								{destinationError}
-							</p>
-						{/if}
-					</div>
-				{/if}
-				<div class="space-y-3">
-					<button
-						type="button"
-						disabled={!canCheckTargetEligibility}
-						onclick={() => refreshTargetEligibility()}
-						class="rounded border border-flapjack-ink/30 px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-					>
-						{isCheckingTargetEligibility
-							? 'Checking destination eligibility'
-							: 'Check destination eligibility'}
-					</button>
-
-					{#if targetEligibilityError}
-						<p
-							data-testid="migration-target-eligibility-error"
-							role="alert"
-							class="text-sm text-flapjack-plum"
-						>
-							{targetEligibilityError}
-						</p>
-					{/if}
-				</div>
-
-				{#if currentTargetEligibility}
-					<MigrationCreateReview
-						mode={migrationMode}
-						sourceName={selectedSourceName}
-						targetEligibility={currentTargetEligibility}
-						{admissionPresentation}
+				{#key selectedSourceName}
+					<MigrationCreateDestination
+						destination={{
+							sourceName: selectedSourceName,
+							name: destinationName,
+							error: destinationError,
+							replace: replaceDestination
+						}}
+						eligibility={{
+							canCheck: canCheckTargetEligibility,
+							checking: isCheckingTargetEligibility,
+							error: targetEligibilityError,
+							current: currentTargetEligibility
+						}}
+						preview={{
+							result: currentPreviewResult,
+							warnings: previewWarningPresentation,
+							error: currentPreviewError,
+							loading: isPreviewing,
+							satisfied: currentPreviewSatisfied,
+							supported: previewSupported
+						}}
+						review={{
+							mode: migrationMode,
+							admission: admissionPresentation,
+							submitError,
+							submitDisabled: startImportDisabled,
+							submitting: activeSubmit,
+							submitLabel: previewWarnsImportMayFail ? 'Start import anyway' : 'Start import'
+						}}
 						bind:confirmationName={replaceConfirmation}
-						{submitError}
-						submitDisabled={startImportDisabled}
-						submitting={activeSubmit}
-						onSubmit={submitImport}
+						actions={{
+							onDestinationInput: handleDestinationInput,
+							onCheck: () => void refreshTargetEligibility(),
+							onPreview: () => void runPreview(),
+							onSubmit: () => void submitImport()
+						}}
 					/>
-				{:else}
-					<button
-						type="button"
-						disabled
-						class="rounded bg-flapjack-rose px-4 py-2 text-sm font-medium text-white opacity-50"
-					>
-						Start import
-					</button>
-				{/if}
+				{/key}
 			{/if}
 		</section>
 	{/if}

@@ -807,7 +807,7 @@ test_up_port_in_use_emits_reason_code() {
         "port collision should emit port_in_use reason code"
 }
 
-test_up_port_check_skipped_when_lsof_unavailable() {
+test_up_port_check_fails_closed_when_lsof_unavailable() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"
     setup_startup_mocks "$tmp_dir"
@@ -822,9 +822,11 @@ test_up_port_check_skipped_when_lsof_unavailable() {
 
     cleanup_startup_mocks "$tmp_dir"
 
-    assert_eq "$exit_code" "0" "startup should continue when lsof is unavailable"
-    assert_not_contains "$output" "REASON: port_in_use" \
-        "missing lsof should not trigger port_in_use failure"
+    assert_eq "$exit_code" "1" "startup should fail closed when lsof is unavailable"
+    assert_contains "$output" "REASON: port_in_use" \
+        "indeterminate port ownership should stop startup before binding"
+    assert_contains "$output" "lsof failed while checking port" \
+        "startup should explain that lsof could not determine port ownership"
 }
 
 # ============================================================================
@@ -1090,7 +1092,7 @@ main() {
     test_up_delegates_flapjack_source_build_to_shared_helper
     test_up_prints_shared_source_provenance_for_selected_checkout
     test_up_port_in_use_emits_reason_code
-    test_up_port_check_skipped_when_lsof_unavailable
+    test_up_port_check_fails_closed_when_lsof_unavailable
 
     echo ""
     echo "--- Docker Fallback + Startup Env ---"

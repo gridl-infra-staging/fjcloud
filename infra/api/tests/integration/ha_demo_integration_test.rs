@@ -146,16 +146,15 @@ async fn kill_rejects_remote_url_even_with_admin_auth() {
 #[tokio::test]
 async fn kill_rejects_prefix_attack_urls() {
     // Regression test for the prefix-matching security bug.
-    // URLs that START WITH a valid loopback string but aren't actually loopback
-    // must be rejected.
+    // A hostname that starts with a valid loopback address is still remote.
     let vm_repo = mock_vm_inventory_repo();
     let evil_vm = vm_repo
         .create(NewVmInventory {
             region: "us-east-1".into(),
             provider: "local".into(),
             hostname: "evil-local".into(),
-            // This starts with "http://127.0.0.1" but is a different IP
-            flapjack_url: "http://127.0.0.199:7700".into(),
+            // This starts with "http://127.0.0.1" but is a hostname, not a loopback IP.
+            flapjack_url: "http://127.0.0.1.evil.invalid:7700".into(),
             capacity: json!({"cpu_cores": 4}),
         })
         .await
@@ -174,7 +173,7 @@ async fn kill_rejects_prefix_attack_urls() {
         .await
         .unwrap();
 
-    // Must be rejected — 127.0.0.199 is NOT 127.0.0.1
+    // Must be rejected as a prefix attack, not treated as a loopback host.
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
 

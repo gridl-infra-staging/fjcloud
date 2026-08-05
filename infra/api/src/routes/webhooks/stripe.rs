@@ -8,6 +8,9 @@ use crate::invoicing::stripe_sync::send_invoice_ready_email_best_effort;
 use crate::models::{Customer, InvoiceRow};
 use crate::repos::WebhookEventRepo;
 use crate::services::alerting::{Alert, AlertSeverity};
+use crate::services::audit_log::{
+    system_audit_metadata, AuditEntry, ACTION_CUSTOMER_SUSPENDED, STRIPE_SYSTEM_ACTOR_ID,
+};
 use crate::services::email::{
     DunningRecoveredAfterFailureEmailRequest, DunningRetriesExhaustedEmailRequest,
     DunningRetryScheduledEmailRequest,
@@ -428,7 +431,23 @@ async fn handle_retries_exhausted(
         _ => return Ok(()),
     }
 
-    state.customer_repo.suspend(invoice.customer_id).await?;
+    let audit_entry = AuditEntry {
+        actor_id: STRIPE_SYSTEM_ACTOR_ID,
+        action: ACTION_CUSTOMER_SUSPENDED.to_owned(),
+        target_tenant_id: Some(invoice.customer_id),
+        metadata: system_audit_metadata(
+            "stripe",
+            serde_json::json!({
+                "invoice_id": invoice.id,
+                "stripe_invoice_id": invoice.stripe_invoice_id,
+                "attempt_count": attempt_count,
+            }),
+        ),
+    };
+    state
+        .customer_repo
+        .suspend(invoice.customer_id, audit_entry)
+        .await?;
     if let Some(customer) = customer {
         metadata.insert("customer_email".to_string(), customer.email.clone());
         send_dunning_retries_exhausted_email_best_effort(

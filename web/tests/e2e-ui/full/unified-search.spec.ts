@@ -80,6 +80,13 @@ test.describe('Unified Search', () => {
 		seedIndex,
 		testRegion
 	}) => {
+		// `gotoIndexDetailWithRetry` below can spend GOTO_INDEX_DETAIL_WORST_CASE_WAIT_MS
+		// (45s) waiting for a freshly seeded index to become renderable, which is more than
+		// Playwright's 30s default. Without this budget the test dies mid-ladder and reports
+		// a bare timeout instead of the Search-tab assertion it exists to make — it passed in
+		// isolation and failed in the full suite purely on that timing. Every other caller of
+		// the helper declares the same kind of budget; this one was the outlier.
+		test.setTimeout(180_000);
 		const name = `e2e-preview-${Date.now()}`;
 		await seedIndex(name, testRegion);
 

@@ -19,7 +19,7 @@ use crate::repos::{
 use crate::state::AppState;
 
 use super::{
-    job_not_found, sign_list_cursor, validate_source_provider, verify_list_cursor,
+    job_not_found, sign_list_cursor, validate_adapter_source_provider, verify_list_cursor,
     MigrationJobPath, MigrationSourcePath,
 };
 
@@ -185,16 +185,17 @@ pub(super) fn public_algolia_import_job(job: AlgoliaImportJob) -> PublicAlgoliaI
 /// exposure flag or backpressure - only admission is.
 #[utoipa::path(
     get,
-    path = "/migration/algolia/jobs",
+    path = "/migration/{source_provider}/jobs",
     operation_id = "list_algolia_import_jobs",
     tag = "Migration",
     params(
+        ("source_provider" = SourceImportProvider, Path, description = "Source migration provider"),
         ("limit" = Option<i64>, Query, description = "Page size; clamped to a default of 50 and a maximum of 200"),
         ("cursor" = Option<String>, Query, description = "Opaque signed keyset cursor returned as `nextCursor` by a previous page"),
     ),
     responses(
         (status = 200, description = "One newest-first page of the caller's retained import jobs", body = PublicAlgoliaImportJobPage),
-        (status = 400, description = "Tampered, expired, or cross-customer list cursor", body = crate::errors::ErrorResponse),
+        (status = 400, description = "Unsupported source provider (source_provider_unsupported), or tampered, expired, or cross-customer list cursor", body = crate::errors::RetainedListErrorResponse),
         (status = 401, description = "Authentication required", body = crate::errors::ErrorResponse),
     )
 )]
@@ -204,7 +205,7 @@ pub async fn list_import_jobs(
     Path(path): Path<MigrationSourcePath>,
     Query(query): Query<ListAlgoliaImportJobsQuery>,
 ) -> Result<Json<PublicAlgoliaImportJobPage>, ApiError> {
-    let requested_provider = validate_source_provider(path.source_provider.as_deref())?;
+    let requested_provider = validate_adapter_source_provider(path.source_provider.as_deref())?;
     let limit = clamp_algolia_import_job_list_limit(query.limit);
     let after = match query.cursor.as_deref() {
         Some(token) => Some(verify_list_cursor(&state, &auth, token)?),
@@ -230,14 +231,16 @@ pub async fn list_import_jobs(
 /// and one owned by another customer, so ownership is not observable.
 #[utoipa::path(
     get,
-    path = "/migration/algolia/jobs/{id}",
+    path = "/migration/{source_provider}/jobs/{id}",
     operation_id = "get_algolia_import_job",
     tag = "Migration",
     params(
+        ("source_provider" = SourceImportProvider, Path, description = "Source migration provider"),
         ("id" = uuid::Uuid, Path, description = "Retained import job id owned by the calling customer"),
     ),
     responses(
         (status = 200, description = "The requested retained import job", body = PublicAlgoliaImportJob),
+        (status = 400, description = "Unsupported source provider (source_provider_unsupported)", body = crate::errors::MigrationErrorResponse),
         (status = 401, description = "Authentication required", body = crate::errors::ErrorResponse),
         (status = 404, description = "No such job, or the job is owned by another customer (indistinguishable)", body = crate::errors::ErrorResponse),
     )
@@ -247,7 +250,7 @@ pub async fn get_import_job(
     State(state): State<AppState>,
     Path(path): Path<MigrationJobPath>,
 ) -> Result<Json<PublicAlgoliaImportJob>, ApiError> {
-    let requested_provider = validate_source_provider(path.source_provider.as_deref())?;
+    let requested_provider = validate_adapter_source_provider(path.source_provider.as_deref())?;
     let job = PgSourceMigrationJobRepo::new(state.pool.clone())
         .get_for_customer(auth.customer_id, path.id)
         .await

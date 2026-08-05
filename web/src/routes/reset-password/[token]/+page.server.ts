@@ -1,7 +1,9 @@
 import type { Actions } from './$types';
 import { fail } from '@sveltejs/kit';
+import { passwordApiValidationError, passwordMinimumLengthError } from '$lib/auth/password-policy';
 import { createApiClient } from '$lib/server/api';
 import { mapAuthActionFailure } from '$lib/server/auth-action-errors';
+import { formDataString } from '$lib/server/form-data';
 import { ApiRequestError } from '$lib/api/client';
 
 const INVALID_TOKEN_RECOVERY_ACTION = 'invalid_or_expired_token';
@@ -22,12 +24,15 @@ function isInvalidOrExpiredResetTokenError(error: unknown): error is ApiRequestE
 export const actions = {
 	default: async ({ request, params, fetch }) => {
 		const data = await request.formData();
-		const password = data.get('password') as string;
-		const confirmPassword = data.get('confirm_password') as string;
+		const password = formDataString(data, 'password');
+		const confirmPassword = formDataString(data, 'confirm_password');
 
 		const errors: Record<string, string> = {};
 		if (!password) errors.password = 'Password is required';
-		else if (password.length < 8) errors.password = 'Password must be at least 8 characters';
+		else {
+			const passwordLengthError = passwordMinimumLengthError(password);
+			if (passwordLengthError) errors.password = passwordLengthError;
+		}
 		if (password !== confirmPassword) errors.confirm_password = 'Passwords do not match';
 
 		if (Object.keys(errors).length > 0) {
@@ -39,6 +44,14 @@ export const actions = {
 			await api.resetPassword({ token: params.token, new_password: password });
 			return { success: true };
 		} catch (e) {
+			if (e instanceof ApiRequestError) {
+				const passwordError = passwordApiValidationError(e.message);
+				if (passwordError) {
+					return fail(400, {
+						errors: { password: passwordError }
+					});
+				}
+			}
 			if (isInvalidOrExpiredResetTokenError(e)) {
 				const { status, errors } = mapAuthActionFailure(e);
 				return fail(status, {

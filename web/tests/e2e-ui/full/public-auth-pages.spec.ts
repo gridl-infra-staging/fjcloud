@@ -4,6 +4,7 @@
  * Exercises unauthenticated auth form surfaces from a blank browser state.
  */
 
+import { PASSWORD_MIN_LENGTH } from '$lib/auth/password-policy';
 import { test, expect } from '../../fixtures/fixtures';
 
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -144,7 +145,7 @@ test.describe('Signup page', () => {
 		await expect(page.getByLabel('Email')).toBeVisible();
 		await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
 		await expect(page.getByLabel('Confirm Password')).toBeVisible();
-		await expect(page.getByText('Use at least 8 characters.')).toBeVisible();
+		await expect(page.getByText('Use at least 15 characters.')).toBeVisible();
 		await expect(page.getByRole('checkbox', { name: /public beta terms/i })).toHaveCount(0);
 		await expect(page.getByRole('button', { name: 'Sign Up' })).toBeVisible();
 	});
@@ -178,7 +179,7 @@ test.describe('Signup page', () => {
 
 		await page.getByLabel('Name').fill('Test User');
 		await page.getByLabel('Email').fill(`signup-validation-${Date.now()}@example.com`);
-		await page.getByLabel('Password', { exact: true }).fill('validpassword1');
+		await page.getByLabel('Password', { exact: true }).fill('ValidPassword123!');
 		await page.getByLabel('Confirm Password').fill('differentpassword1');
 		await page.getByRole('button', { name: 'Sign Up' }).click();
 
@@ -192,26 +193,27 @@ test.describe('Signup page', () => {
 		const password = page.getByLabel('Password', { exact: true });
 		const confirmPassword = page.getByLabel('Confirm Password');
 
-		await password.fill('validpassword1');
+		await password.fill('ValidPassword123!');
 		await expect(password).toHaveAttribute('type', 'password');
 		await page.getByRole('button', { name: 'Show password' }).first().click();
 		await expect(password).toHaveAttribute('type', 'text');
-		await expect(password).toHaveValue('validpassword1');
+		await expect(password).toHaveValue('ValidPassword123!');
 		await expect(confirmPassword).toHaveAttribute('type', 'password');
 	});
 
 	test('weak password signup shows deterministic password-length feedback', async ({ page }) => {
 		await page.goto('/signup');
+		const shortPassword = '🔒'.repeat(8);
 
 		await page.getByLabel('Name').fill('Weak Password User');
 		await page.getByLabel('Email').fill(`weak-password-${Date.now()}@e2e.griddle.test`);
-		await page.getByLabel('Password', { exact: true }).fill('short');
-		await page.getByLabel('Confirm Password').fill('short');
-		await page.getByRole('button', { name: 'Sign Up' }).click();
+		await page.getByLabel('Password', { exact: true }).fill(shortPassword);
+		await page.getByLabel('Confirm Password').fill(shortPassword);
 
-		await expect(page.getByText('Password must be at least 8 characters')).toBeVisible({
-			timeout: 5_000
-		});
+		await expect(
+			page.getByText(`Password must be at least ${PASSWORD_MIN_LENGTH} characters`)
+		).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Sign Up' })).toBeDisabled();
 		await expect(page).toHaveURL(/\/signup/);
 	});
 });

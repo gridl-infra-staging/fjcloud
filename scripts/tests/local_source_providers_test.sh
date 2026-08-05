@@ -343,15 +343,20 @@ assert_tree_without_literal() {
 }
 
 compose_contract_errors() {
+    # host_default is separate from container_port: they were the same value until
+    # 2026-08-03, when LOCAL_MEILISEARCH_PORT moved off 7700 so it could not collide
+    # with FLAPJACK_PORT. Conflating them silently pins the host default to the
+    # container port and would refuse any future per-service remap.
     local compose_file="$1" service="$2" image="$3" port_var="$4" container_port="$5"
-    python3 - "$compose_file" "$service" "$image" "$port_var" "$container_port" <<'PY'
+    local host_default="${6:-$5}"
+    python3 - "$compose_file" "$service" "$image" "$port_var" "$container_port" "$host_default" <<'PY'
 import os
 import re
 import shlex
 import sys
 import yaml
 
-compose_file, service_name, expected_image, port_var, container_port = sys.argv[1:]
+compose_file, service_name, expected_image, port_var, container_port, host_default = sys.argv[1:]
 with open(compose_file, encoding="utf-8") as handle:
     payload = yaml.safe_load(handle) or {}
 
@@ -368,7 +373,7 @@ else:
     if image != expected_image:
         errors.append(f"image must equal {expected_image!r}, got {image!r}")
 
-    expected_port = f"${{{port_var}:-{container_port}}}:{container_port}"
+    expected_port = f"127.0.0.1:${{{port_var}:-{host_default}}}:{container_port}"
     ports = service.get("ports")
     if not isinstance(ports, list) or expected_port not in [str(port) for port in ports]:
         errors.append(f"ports must include {expected_port!r}, got {ports!r}")
@@ -587,8 +592,9 @@ PY
 
 assert_compose_provider_contract() {
     local service="$1" image="$2" port_var="$3" container_port="$4"
+    local host_default="${5:-$4}"
     local errors
-    errors="$(compose_contract_errors "$REPO_ROOT/docker-compose.yml" "$service" "$image" "$port_var" "$container_port" 2>&1)" && {
+    errors="$(compose_contract_errors "$REPO_ROOT/docker-compose.yml" "$service" "$image" "$port_var" "$container_port" "$host_default" 2>&1)" && {
         pass "compose declaration: '$service' has exact profile, digest image, parameterised port, and healthcheck"
         return
     }
@@ -632,84 +638,102 @@ EOF
     assert_contains "$errors" "healthcheck must execute a failure-coupled probe" \
         "compose declaration: semantic parser rejects empty healthcheck text"
 
+    cat > "$bad_compose" <<EOF
+services:
+  meilisearch:
+    profiles: ["source-providers"]
+    image: $MEILI_IMAGE
+    ports:
+      - "\${LOCAL_MEILISEARCH_PORT:-7700}:7700"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:7700/health"]
+EOF
+
+    errors="$(compose_contract_errors "$bad_compose" "meilisearch" "$MEILI_IMAGE" "LOCAL_MEILISEARCH_PORT" "7700" 2>&1)" && {
+        fail "compose declaration: semantic parser rejects public provider port binding"
+        return
+    }
+    assert_contains "$errors" "ports must include" \
+        "compose declaration: semantic parser rejects public provider port binding"
+
     cat > "$healthcheck_compose" <<EOF
 services:
   valid_cmd:
     profiles: ["source-providers"]
     image: $MEILI_IMAGE
-    ports: ["\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
+    ports: ["127.0.0.1:\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:7700/health"]
   valid_shell:
     profiles: ["source-providers"]
     image: $MEILI_IMAGE
-    ports: ["\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
+    ports: ["127.0.0.1:\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:7700/health"]
   valid_shell_control_flow:
     profiles: ["source-providers"]
     image: $MEILI_IMAGE
-    ports: ["\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
+    ports: ["127.0.0.1:\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:7700/health || exit 1"]
   valid_shell_setup:
     profiles: ["source-providers"]
     image: $MEILI_IMAGE
-    ports: ["\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
+    ports: ["127.0.0.1:\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
     healthcheck:
       test: ["CMD-SHELL", "set -e; curl --fail --silent http://localhost:7700/health >/dev/null"]
   valid_shell_status_assignment:
     profiles: ["source-providers"]
     image: $MEILI_IMAGE
-    ports: ["\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
+    ports: ["127.0.0.1:\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
     healthcheck:
       test: ["CMD-SHELL", "code=\$\$(curl -s -o /dev/null -w '%{http_code}' http://localhost:7700/health || true); test \"\$\$code\" = 200"]
   valid_bash_dev_tcp:
     profiles: ["source-providers"]
     image: $MEILI_IMAGE
-    ports: ["\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
+    ports: ["127.0.0.1:\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
     healthcheck:
       test: ["CMD-SHELL", "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/7700; printf \"GET /health HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3; grep -q \"200 OK\" <&3'"]
   status_assignment_accepts_failure_status:
     profiles: ["source-providers"]
     image: $MEILI_IMAGE
-    ports: ["\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
+    ports: ["127.0.0.1:\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
     healthcheck:
       test: ["CMD-SHELL", "code=\$\$(curl -s -o /dev/null -w '%{http_code}' http://localhost:7700/health || true); test \"\$\$code\" = 200 -o \"\$\$code\" = 500"]
   single_dollar_status_reference:
     profiles: ["source-providers"]
     image: $MEILI_IMAGE
-    ports: ["\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
+    ports: ["127.0.0.1:\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
     healthcheck:
       test: ["CMD-SHELL", "code=\$\$(curl -s -o /dev/null -w '%{http_code}' http://localhost:7700/health || true); test \"\$code\" = 200"]
   inert:
     profiles: ["source-providers"]
     image: $MEILI_IMAGE
-    ports: ["\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
+    ports: ["127.0.0.1:\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
     healthcheck:
       test: ["CMD", "echo", "curl", "-fsS", "http://localhost:7700/health"]
   always_failing:
     profiles: ["source-providers"]
     image: $MEILI_IMAGE
-    ports: ["\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
+    ports: ["127.0.0.1:\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
     healthcheck:
       test: ["CMD-SHELL", "false; curl -fsS http://localhost:7700/health"]
   masked_pipeline:
     profiles: ["source-providers"]
     image: $MEILI_IMAGE
-    ports: ["\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
+    ports: ["127.0.0.1:\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:7700/health | cat"]
   masked_or_true:
     profiles: ["source-providers"]
     image: $MEILI_IMAGE
-    ports: ["\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
+    ports: ["127.0.0.1:\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:7700/health || true"]
   masked_success_tail:
     profiles: ["source-providers"]
     image: $MEILI_IMAGE
-    ports: ["\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
+    ports: ["127.0.0.1:\${LOCAL_MEILISEARCH_PORT:-7700}:7700"]
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:7700/health; true"]
 EOF
@@ -1463,7 +1487,10 @@ assert_producer_metadata_is_not_seeded_contract
 assert_seed_evidence_is_derived_from_payloads
 assert_secret_output_matcher_rejects_leak_specimen
 assert_teardown_matchers_are_owned
-assert_compose_provider_contract "meilisearch" "$MEILI_IMAGE" "LOCAL_MEILISEARCH_PORT" "7700"
+# Meilisearch listens on 7700 inside the container but publishes on host 7710,
+# because 7700 is FLAPJACK_PORT's default and a three-provider migration run
+# binds flapjack and Meilisearch at the same time.
+assert_compose_provider_contract "meilisearch" "$MEILI_IMAGE" "LOCAL_MEILISEARCH_PORT" "7700" "7710"
 assert_compose_provider_contract "typesense" "$TYPESENSE_IMAGE" "LOCAL_TYPESENSE_PORT" "8108"
 assert_shared_stack_reachability_contract
 assert_seeded_exactness_contract

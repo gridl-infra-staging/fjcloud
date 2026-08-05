@@ -608,7 +608,13 @@ async fn billing_portal_400_for_disallowed_return_url_origin() {
 async fn suspended_customer_gets_403_on_billing_portal() {
     let customer_repo = mock_repo();
     let customer = seed_stripe_customer(&customer_repo, "Acme", "acme@example.com").await;
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     let app = test_app_with_stripe(customer_repo, mock_invoice_repo(), mock_stripe_service());
 
@@ -2245,7 +2251,13 @@ async fn sync_stripe_404_deleted_customer() {
 async fn reactivate_suspended_customer_success() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Acme", "acme@example.com");
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     let app = test_app_with_stripe(
         customer_repo.clone(),
@@ -2483,7 +2495,13 @@ async fn admin_billing_summary_sums_hand_calculated_dollars() {
         .set_billing_plan(suspended.id, "shared")
         .await
         .unwrap();
-    customer_repo.suspend(suspended.id).await.unwrap();
+    customer_repo
+        .suspend(
+            suspended.id,
+            crate::common::customer_suspended_audit_entry(suspended.id),
+        )
+        .await
+        .unwrap();
 
     let current = NaiveDate::from_ymd_opt(2026, 7, 1).unwrap();
     let preceding = NaiveDate::from_ymd_opt(2026, 6, 1).unwrap();
@@ -3227,7 +3245,13 @@ async fn batch_billing_run_skips_suspended_customer() {
 
     // Suspended customer with stripe — should be skipped
     let customer = seed_stripe_customer(&customer_repo, "Suspended", "sus@example.com").await;
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     usage_repo.seed(
         customer.id,
@@ -3367,7 +3391,13 @@ async fn batch_billing_run_continues_on_stripe_failure() {
 async fn suspended_customer_gets_403_on_usage() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Acme", "acme@example.com");
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     let app = test_app_with_stripe(customer_repo, mock_invoice_repo(), mock_stripe_service());
 
@@ -3389,7 +3419,13 @@ async fn suspended_customer_gets_403_on_usage() {
 async fn suspended_customer_gets_403_on_invoices() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Acme", "acme@example.com");
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     let app = test_app_with_stripe(customer_repo, mock_invoice_repo(), mock_stripe_service());
 
@@ -3411,7 +3447,13 @@ async fn suspended_customer_gets_403_on_invoices() {
 async fn suspended_customer_gets_403_on_billing() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Acme", "acme@example.com");
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     let app = test_app_with_stripe(customer_repo, mock_invoice_repo(), mock_stripe_service());
 
@@ -3917,7 +3959,13 @@ async fn billing_unauthorized_routes_return_401() {
 async fn suspended_customer_gets_403_on_list_payment_methods() {
     let customer_repo = mock_repo();
     let customer = seed_stripe_customer(&customer_repo, "Acme", "acme@example.com").await;
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     let app = test_app_with_stripe(customer_repo, mock_invoice_repo(), mock_stripe_service());
 
@@ -3939,7 +3987,13 @@ async fn suspended_customer_gets_403_on_list_payment_methods() {
 async fn suspended_customer_gets_403_on_delete_payment_method() {
     let customer_repo = mock_repo();
     let customer = seed_stripe_customer(&customer_repo, "Acme", "acme@example.com").await;
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     let app = test_app_with_stripe(customer_repo, mock_invoice_repo(), mock_stripe_service());
 
@@ -3961,7 +4015,13 @@ async fn suspended_customer_gets_403_on_delete_payment_method() {
 async fn suspended_customer_gets_403_on_set_default_payment_method() {
     let customer_repo = mock_repo();
     let customer = seed_stripe_customer(&customer_repo, "Acme", "acme@example.com").await;
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     let app = test_app_with_stripe(customer_repo, mock_invoice_repo(), mock_stripe_service());
 
@@ -5561,7 +5621,13 @@ async fn suspend_non_active_returns_400() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Acme", "acme@example.com");
     // Suspend first so it's no longer active
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     let app = test_app_with_stripe(customer_repo, mock_invoice_repo(), mock_stripe_service());
 

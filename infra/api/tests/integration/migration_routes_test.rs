@@ -28,7 +28,9 @@ use api::services::algolia_import::{AlgoliaImportAdmissionOutcome, AlgoliaImport
 use api::services::algolia_source::{
     AlgoliaClientError, AlgoliaClientRequest, AlgoliaClientResponse, AlgoliaIndexMetadata,
     AlgoliaSourceClient, AlgoliaSourceError, AlgoliaSourceInspectRequest, AlgoliaSourceListRequest,
-    AlgoliaSourceListResponse, AlgoliaSourceLister, AlgoliaSourceService,
+    AlgoliaSourceListResponse, AlgoliaSourceLister, AlgoliaSourceQueryRequest,
+    AlgoliaSourceSearchHit, AlgoliaSourceSearchResponse, AlgoliaSourceService,
+    ReqwestAlgoliaSourceClient,
 };
 use api::services::flapjack_proxy::{FlapjackProxy, ProxyError};
 use api::state::AppState;
@@ -110,6 +112,8 @@ struct FakeAlgoliaSourceLister {
     requests: Mutex<Vec<AlgoliaSourceListRequest>>,
     inspect_responses: Mutex<VecDeque<Result<AlgoliaImportSource, AlgoliaSourceError>>>,
     inspect_requests: Mutex<Vec<AlgoliaSourceInspectRequest>>,
+    search_responses: Mutex<VecDeque<Result<AlgoliaSourceSearchResponse, AlgoliaSourceError>>>,
+    search_requests: Mutex<Vec<AlgoliaSourceQueryRequest>>,
 }
 
 impl FakeAlgoliaSourceLister {
@@ -121,6 +125,8 @@ impl FakeAlgoliaSourceLister {
             requests: Mutex::new(Vec::new()),
             inspect_responses: Mutex::new(VecDeque::new()),
             inspect_requests: Mutex::new(Vec::new()),
+            search_responses: Mutex::new(VecDeque::new()),
+            search_requests: Mutex::new(Vec::new()),
         })
     }
 
@@ -132,6 +138,21 @@ impl FakeAlgoliaSourceLister {
             requests: Mutex::new(Vec::new()),
             inspect_responses: Mutex::new(responses.into_iter().collect()),
             inspect_requests: Mutex::new(Vec::new()),
+            search_responses: Mutex::new(VecDeque::new()),
+            search_requests: Mutex::new(Vec::new()),
+        })
+    }
+
+    fn with_search(
+        responses: impl IntoIterator<Item = Result<AlgoliaSourceSearchResponse, AlgoliaSourceError>>,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            responses: Mutex::new(VecDeque::new()),
+            requests: Mutex::new(Vec::new()),
+            inspect_responses: Mutex::new(VecDeque::new()),
+            inspect_requests: Mutex::new(Vec::new()),
+            search_responses: Mutex::new(responses.into_iter().collect()),
+            search_requests: Mutex::new(Vec::new()),
         })
     }
 
@@ -141,6 +162,10 @@ impl FakeAlgoliaSourceLister {
 
     fn inspect_requests(&self) -> Vec<AlgoliaSourceInspectRequest> {
         self.inspect_requests.lock().unwrap().clone()
+    }
+
+    fn search_requests(&self) -> Vec<AlgoliaSourceQueryRequest> {
+        self.search_requests.lock().unwrap().clone()
     }
 }
 
@@ -168,6 +193,18 @@ impl AlgoliaSourceLister for FakeAlgoliaSourceLister {
             .unwrap()
             .pop_front()
             .expect("fake Algolia inspect response configured")
+    }
+
+    async fn search_index(
+        &self,
+        request: AlgoliaSourceQueryRequest,
+    ) -> Result<AlgoliaSourceSearchResponse, AlgoliaSourceError> {
+        self.search_requests.lock().unwrap().push(request);
+        self.search_responses
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("fake Algolia search response configured")
     }
 }
 
@@ -453,14 +490,52 @@ async fn setup_algolia_cloud_discovery_app_with_flag(
     service: Arc<dyn AlgoliaSourceLister>,
     algolia_migration_enabled: bool,
 ) -> (axum::Router, String) {
+    let (app, jwt, _) =
+        setup_source_discovery_app_with_flag(service, algolia_migration_enabled, false).await;
+    (app, jwt)
+}
+
+async fn setup_source_discovery_app_with_flag(
+    service: Arc<dyn AlgoliaSourceLister>,
+    algolia_migration_enabled: bool,
+    attach_engine_proxy: bool,
+) -> (axum::Router, String, Arc<MockFlapjackHttpClient>) {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed_verified_free_customer("Alice", "alice@example.com");
     let jwt = create_test_jwt(customer.id);
-    let state = TestStateBuilder::new()
+    let flapjack_http = Arc::new(MockFlapjackHttpClient::default());
+    let state_builder = TestStateBuilder::new()
         .with_customer_repo(customer_repo)
         .with_algolia_source_service(service)
-        .with_algolia_migration_enabled(algolia_migration_enabled)
-        .build();
+        .with_algolia_migration_enabled(algolia_migration_enabled);
+    let state = if attach_engine_proxy {
+        let vm_inventory_repo = crate::common::mock_vm_inventory_repo();
+        let vm = vm_inventory_repo
+            .create(NewVmInventory {
+                region: "us-east-1".to_string(),
+                provider: "aws".to_string(),
+                hostname: "vm-source-discovery.flapjack.test".to_string(),
+                flapjack_url: "https://vm-source-discovery.flapjack.test".to_string(),
+                capacity: json!({ "disk_bytes": 10_000_000_000_i64 }),
+            })
+            .await
+            .expect("seed mock source-discovery VM");
+        let node_secret_manager = Arc::new(MockNodeSecretManager::new());
+        node_secret_manager
+            .create_node_api_key(vm.node_secret_id(), "us-east-1")
+            .await
+            .expect("seed source-discovery VM admin key");
+        let flapjack_proxy = Arc::new(FlapjackProxy::with_http_client(
+            flapjack_http.clone(),
+            node_secret_manager,
+        ));
+        state_builder
+            .with_vm_inventory_repo(vm_inventory_repo)
+            .with_flapjack_proxy(flapjack_proxy)
+            .build()
+    } else {
+        state_builder.build()
+    };
     let app = axum::Router::new()
         .route(
             "/migration/:source_provider/list-indexes",
@@ -471,7 +546,7 @@ async fn setup_algolia_cloud_discovery_app_with_flag(
             post(api::routes::migration::check_destination_eligibility),
         )
         .with_state(state);
-    (app, jwt)
+    (app, jwt, flapjack_http)
 }
 
 async fn setup_algolia_cloud_job_test_app(
@@ -778,11 +853,14 @@ fn discovery_response(next_cursor: Option<&str>) -> AlgoliaSourceListResponse {
 async fn post_discovery(
     app: axum::Router,
     jwt: Option<&str>,
+    provider: &str,
+    query: Option<&str>,
     body: serde_json::Value,
 ) -> (StatusCode, serde_json::Value) {
+    let query = query.map(|value| format!("?{value}")).unwrap_or_default();
     let mut request = Request::builder()
         .method(http::Method::POST)
-        .uri("/migration/algolia/list-indexes")
+        .uri(format!("/migration/{provider}/list-indexes{query}"))
         .header("content-type", "application/json");
     if let Some(jwt) = jwt {
         request = request.header("authorization", format!("Bearer {jwt}"));
@@ -822,11 +900,21 @@ async fn post_create_job(
     idempotency_key: &str,
     body: serde_json::Value,
 ) -> (StatusCode, http::HeaderMap, serde_json::Value) {
+    post_create_job_for_provider(app, jwt, "algolia", idempotency_key, body).await
+}
+
+async fn post_create_job_for_provider(
+    app: axum::Router,
+    jwt: &str,
+    source_provider: &str,
+    idempotency_key: &str,
+    body: serde_json::Value,
+) -> (StatusCode, http::HeaderMap, serde_json::Value) {
     let response = app
         .oneshot(
             Request::builder()
                 .method(http::Method::POST)
-                .uri("/migration/algolia/jobs")
+                .uri(format!("/migration/{source_provider}/jobs"))
                 .header("authorization", format!("Bearer {jwt}"))
                 .header("content-type", "application/json")
                 .header("idempotency-key", idempotency_key)
@@ -1012,9 +1100,15 @@ async fn serialized_import_job_row(pool: &PgPool, id: Uuid) -> serde_json::Value
 
 #[path = "migration_routes_test/create.rs"]
 mod create;
+#[path = "migration_routes_test/create_contract.rs"]
+mod create_contract;
 #[path = "migration_routes_test/discovery.rs"]
 mod discovery;
 #[path = "migration_routes_test/eligibility.rs"]
 mod eligibility;
+#[path = "migration_routes_test/preview.rs"]
+mod preview;
 #[path = "migration_routes_test/read/mod.rs"]
 mod read;
+#[path = "migration_routes_test/verify.rs"]
+mod verify;

@@ -40,7 +40,7 @@ describe('ApiClient - migration availability', () => {
 			available: false,
 			reason: 'temporarily_unavailable',
 			message: 'Algolia migration is temporarily unavailable while we replace the importer.',
-			capabilities: { cancel: false, resume: false, replace: false }
+			capabilities: { cancel: false, resume: false, replace: false, preview: false, verify: false }
 		};
 		const fetch = mockFetch(200, expected);
 		client.setFetch(fetch);
@@ -64,14 +64,20 @@ describe('ApiClient - migration availability', () => {
 
 		const result = await client.getAlgoliaMigrationAvailability();
 
-		expect(result.capabilities).toEqual({ cancel: false, resume: false, replace: false });
+		expect(result.capabilities).toEqual({
+			cancel: false,
+			resume: false,
+			replace: false,
+			preview: false,
+			verify: false
+		});
 	});
 
 	it('accepts an available payload with no reason', async () => {
 		const wirePayload = {
 			available: true,
 			message: 'Algolia migration is available.',
-			capabilities: { cancel: true, resume: false, replace: true }
+			capabilities: { cancel: true, resume: false, replace: true, preview: true, verify: false }
 		};
 		client.setFetch(mockFetch(200, wirePayload));
 
@@ -81,12 +87,130 @@ describe('ApiClient - migration availability', () => {
 		expect('reason' in result).toBe(false);
 	});
 
+	it('normalizes preview capability to a required fail-closed boolean', async () => {
+		const cases = [
+			{
+				name: 'wire preview true',
+				wire: {
+					available: true,
+					message: 'Algolia migration is available.',
+					capabilities: { cancel: true, resume: false, replace: true, preview: true, verify: false }
+				},
+				expected: {
+					available: true,
+					message: 'Algolia migration is available.',
+					capabilities: { cancel: true, resume: false, replace: true, preview: true, verify: false }
+				}
+			},
+			{
+				name: 'omitted capabilities',
+				wire: {
+					available: false,
+					reason: 'temporarily_unavailable',
+					message: 'Algolia migration is temporarily unavailable.'
+				},
+				expected: {
+					available: false,
+					reason: 'temporarily_unavailable',
+					message: 'Algolia migration is temporarily unavailable.',
+					capabilities: {
+						cancel: false,
+						resume: false,
+						replace: false,
+						preview: false,
+						verify: false
+					}
+				}
+			},
+			{
+				name: 'omitted preview',
+				wire: {
+					available: true,
+					message: 'Algolia migration is available.',
+					capabilities: {
+						cancel: true,
+						resume: true,
+						replace: false,
+						preview: false,
+						verify: false
+					}
+				},
+				expected: {
+					available: true,
+					message: 'Algolia migration is available.',
+					capabilities: {
+						cancel: true,
+						resume: true,
+						replace: false,
+						preview: false,
+						verify: false
+					}
+				}
+			},
+			{
+				name: 'malformed preview',
+				wire: {
+					available: true,
+					message: 'Algolia migration is available.',
+					capabilities: {
+						cancel: true,
+						resume: false,
+						replace: true,
+						preview: 'true',
+						verify: false
+					}
+				},
+				expected: {
+					available: true,
+					message: 'Algolia migration is available.',
+					capabilities: {
+						cancel: true,
+						resume: false,
+						replace: true,
+						preview: false,
+						verify: false
+					}
+				}
+			}
+		] as const;
+
+		for (const { wire, expected } of cases) {
+			client.setFetch(mockFetch(200, wire));
+
+			await expect(client.getAlgoliaMigrationAvailability()).resolves.toEqual(expected);
+		}
+	});
+
+	it('normalizes verify capability to a required fail-closed boolean', async () => {
+		const cases = [
+			{ name: 'wire verify true', wire: { verify: true }, expected: true },
+			{ name: 'wire verify false', wire: { verify: false }, expected: false },
+			{ name: 'omitted verify', wire: {}, expected: false },
+			{ name: 'malformed verify', wire: { verify: 'true' }, expected: false },
+			{ name: 'null verify', wire: { verify: null }, expected: false }
+		] as const;
+
+		for (const { name, wire, expected } of cases) {
+			client.setFetch(
+				mockFetch(200, {
+					available: true,
+					message: 'Algolia migration is available.',
+					capabilities: { cancel: true, resume: false, replace: true, preview: true, ...wire }
+				})
+			);
+
+			const result = await client.getAlgoliaMigrationAvailability();
+
+			expect(result.capabilities.verify, name).toBe(expected);
+		}
+	});
+
 	it('omits a nullable OpenAPI reason from the normalized response', async () => {
 		const wirePayload = {
 			available: true,
 			reason: null,
 			message: 'Algolia migration is available.',
-			capabilities: { cancel: true, resume: false, replace: true }
+			capabilities: { cancel: true, resume: false, replace: true, preview: true, verify: false }
 		};
 		client.setFetch(mockFetch(200, wirePayload));
 
@@ -95,7 +219,7 @@ describe('ApiClient - migration availability', () => {
 		expect(result).toEqual({
 			available: true,
 			message: 'Algolia migration is available.',
-			capabilities: { cancel: true, resume: false, replace: true }
+			capabilities: { cancel: true, resume: false, replace: true, preview: true, verify: false }
 		});
 		expect('reason' in result).toBe(false);
 	});
@@ -123,7 +247,13 @@ describe('ApiClient - migration availability', () => {
 		};
 		client.setFetch(mockFetch(200, wirePayload));
 		const result = await client.getAlgoliaMigrationAvailability();
-		expect(result.capabilities).toEqual({ cancel: false, resume: false, replace: true });
+		expect(result.capabilities).toEqual({
+			cancel: false,
+			resume: false,
+			replace: true,
+			preview: false,
+			verify: false
+		});
 	});
 
 	it('fails closed when the availability value is truthy but not boolean true', async () => {
@@ -131,7 +261,7 @@ describe('ApiClient - migration availability', () => {
 			mockFetch(200, {
 				available: 'false',
 				message: 'Malformed upstream availability.',
-				capabilities: { cancel: true, resume: false, replace: true }
+				capabilities: { cancel: true, resume: false, replace: true, preview: true, verify: false }
 			})
 		);
 		const result = await client.getAlgoliaMigrationAvailability();
@@ -286,7 +416,7 @@ describe('ApiClient - migration availability', () => {
 			cursor: 'opaque.source.cursor/v1',
 			hitsPerPage: 100
 		};
-		const providerEligibilityRequest: AlgoliaDestinationEligibilityRequest = {
+		const destinationEligibilityRequest: AlgoliaDestinationEligibilityRequest = {
 			phase: 'provider',
 			mode: 'create',
 			target: { region: 'us-east-1', name: 'fj_products' }
@@ -325,7 +455,7 @@ describe('ApiClient - migration availability', () => {
 			cursor: 'opaque.source.cursor/v1',
 			hitsPerPage: 100
 		});
-		expect(providerEligibilityRequest.eligibilityToken).toBeUndefined();
+		expect(destinationEligibilityRequest.eligibilityToken).toBeUndefined();
 		expect(targetEligibilityResponse.eligibilityToken).toBe('target-token');
 		expect(createRequest.target.eligibilityToken).toBe('target-token');
 		expect(historyRequest.limit).toBe(200);

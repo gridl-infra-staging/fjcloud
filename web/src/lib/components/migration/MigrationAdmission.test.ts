@@ -5,6 +5,7 @@ import type { ComponentProps } from 'svelte';
 import MigrationCreateFlow from './MigrationCreateFlow.svelte';
 import ImportJobDetail from './ImportJobDetail.svelte';
 import RecentImports from './RecentImports.svelte';
+import { availableAvailability, previewResponse } from './migration_test_fixtures';
 import type {
 	AlgoliaIndexMetadata,
 	AlgoliaSourceListResponse,
@@ -36,7 +37,8 @@ function migrationClient(listAlgoliaSourceIndexes = vi.fn()): MigrationFlowClien
 	return {
 		listAlgoliaSourceIndexes,
 		checkAlgoliaDestinationEligibility: vi.fn(),
-		createAlgoliaImportJob: vi.fn()
+		createAlgoliaImportJob: vi.fn(),
+		previewMigrationImport: vi.fn()
 	};
 }
 
@@ -200,11 +202,13 @@ describe('Algolia import admission presentation', () => {
 				eligibilityToken: 'target-eligibility-token',
 				expiresAt: '2099-07-18T10:20:00Z'
 			}),
+			previewMigrationImport: vi.fn().mockResolvedValue(previewResponse()),
 			createAlgoliaImportJob
 		};
 		const { rerender } = render(MigrationCreateFlow, {
 			client,
 			providerEligibility: ELIGIBLE_AWS_PROVIDER,
+			capabilities: availableAvailability.capabilities,
 			admission: { admitted: true }
 		});
 		await fireEvent.input(screen.getByLabelText(/algolia application id/i), {
@@ -218,11 +222,14 @@ describe('Algolia import admission presentation', () => {
 		await fireEvent.change(screen.getByRole('radio', { name: /products/i }));
 		await fireEvent.click(screen.getByRole('button', { name: /check destination eligibility/i }));
 		await screen.findByTestId('migration-create-review');
+		await fireEvent.click(screen.getByRole('button', { name: /^preview import$/i }));
+		await screen.findByTestId('migration-preview-counts');
 		expect(screen.getByRole('button', { name: /start import/i })).toBeEnabled();
 
 		await rerender({
 			client,
 			providerEligibility: ELIGIBLE_AWS_PROVIDER,
+			capabilities: availableAvailability.capabilities,
 			admission: {
 				admitted: false,
 				reason: 'repository_backpressure',
@@ -240,6 +247,7 @@ describe('Algolia import admission presentation', () => {
 		await rerender({
 			client,
 			providerEligibility: ELIGIBLE_AWS_PROVIDER,
+			capabilities: availableAvailability.capabilities,
 			admission: { admitted: true }
 		});
 		const start = screen.getByRole('button', { name: /start import/i });

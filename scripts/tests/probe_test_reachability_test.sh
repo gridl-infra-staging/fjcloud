@@ -331,7 +331,7 @@ test_local_ci_registration_is_complete() {
     local local_ci="$REPO_ROOT/scripts/local-ci.sh"
     local manifest="$REPO_ROOT/scripts/lib/test_reachability_manifest.sh"
     local gate_name="test-reachability-contract"
-    local gate_body runner_body
+    local gate_body runner_body membership_body membership_rc=0
 
     assert_file_exists "$manifest" \
         "classified hermetic reachability tests have a canonical manifest"
@@ -347,6 +347,10 @@ test_local_ci_registration_is_complete() {
         "$(grep -Fxc '    "scripts/tests/gitleaks_allowlist_contract_test.sh"' "$manifest" || true)" \
         "1" \
         "the gitleaks allowlist contract is registered exactly once"
+    assert_eq \
+        "$(grep -Fxc '    "scripts/tests/local_ci_reachability_timeout_test.sh"' "$manifest" || true)" \
+        "1" \
+        "the reachability timeout contract is registered exactly once"
     assert_eq \
         "$(grep -Fxc '    "scripts/tests/chaos_ha_failover_proof_test.sh"' "$manifest" || true)" \
         "1" \
@@ -417,6 +421,20 @@ test_local_ci_registration_is_complete() {
         "reachability gate consults the serial-only registry"
     assert_contains "$gate_body" 'serial registry names a test not in the hermetic manifest' \
         "reachability gate rejects a serial entry that is not in the manifest"
+    assert_contains "$gate_body" 'reachability_manifest_contains "$test_path"' \
+        "reachability gate uses the pipefail-safe manifest membership owner"
+
+    membership_body="$(sed -n '/^reachability_manifest_contains()/,/^}/p' "$local_ci")"
+    (
+        [ -n "$membership_body" ] || exit 127
+        eval "$membership_body"
+        # shellcheck source=../lib/test_reachability_manifest.sh
+        source "$manifest"
+        reachability_manifest_contains "scripts/tests/probe_organic_alert_dispatch_test.sh"
+        ! reachability_manifest_contains "scripts/tests/not_registered_test.sh"
+    ) || membership_rc=$?
+    assert_eq "$membership_rc" "0" \
+        "manifest membership accepts a valid mid-list entry and rejects an absent entry under pipefail"
 
     local serial_registry serial_entry manifest
     serial_registry="$REPO_ROOT/scripts/tests/serial_only_tests.txt"
@@ -425,18 +443,38 @@ test_local_ci_registration_is_complete() {
     assert_eq \
         "$(sed -e 's/[[:space:]]*#.*$//' -e 's/[[:space:]]*$//' "$serial_registry" \
             | grep -Fxc 'scripts/tests/run_browser_lane_against_staging_test.sh' || true)" \
-        "0" \
-        "duplicate-green browser-lane contract should not remain in the serial tail"
+        "1" \
+        "real concurrency-8 browser-lane failure should override the earlier duplicate-green proxy"
+    assert_eq \
+        "$(sed -e 's/[[:space:]]*#.*$//' -e 's/[[:space:]]*$//' "$serial_registry" \
+            | grep -Fxc 'scripts/tests/start_metering_test.sh' || true)" \
+        "1" \
+        "real concurrency-8 start-metering interference should keep the suite in the serial tail"
     assert_eq \
         "$(sed -e 's/[[:space:]]*#.*$//' -e 's/[[:space:]]*$//' "$serial_registry" \
             | grep -Fxc 'scripts/tests/seed_synthetic_traffic_test.sh' || true)" \
-        "0" \
-        "duplicate-green synthetic traffic contract should not remain in the serial tail"
+        "1" \
+        "2026-08-03 real concurrency-8 synthetic traffic result 250/3 plus isolated result 253/0 should keep the suite in the serial tail"
     assert_eq \
         "$(sed -e 's/[[:space:]]*#.*$//' -e 's/[[:space:]]*$//' "$serial_registry" \
             | grep -Fxc 'scripts/tests/api_dev_test.sh' || true)" \
         "0" \
         "duplicate-green api-dev contract should not remain in the serial tail"
+    assert_eq \
+        "$(sed -e 's/[[:space:]]*#.*$//' -e 's/[[:space:]]*$//' "$serial_registry" \
+            | grep -Fxc 'scripts/tests/probe_browser_stack_exclusive_test.sh' || true)" \
+        "1" \
+        "browser stack exclusivity subprocess specimen must remain in the serial tail"
+    assert_eq \
+        "$(sed -e 's/[[:space:]]*#.*$//' -e 's/[[:space:]]*$//' "$serial_registry" \
+            | grep -Fxc 'scripts/tests/probe_organic_alert_dispatch_test.sh' || true)" \
+        "1" \
+        "organic alert dispatch env-shim specimen must remain in the serial tail"
+    assert_eq \
+        "$(sed -e 's/[[:space:]]*#.*$//' -e 's/[[:space:]]*$//' "$serial_registry" \
+            | grep -Fxc 'scripts/tests/integration_up_test.sh' || true)" \
+        "1" \
+        "integration-up environment export specimen must remain in the serial tail"
     manifest="$REPO_ROOT/scripts/lib/test_reachability_manifest.sh"
     while IFS= read -r serial_entry; do
         [ -n "$serial_entry" ] || continue

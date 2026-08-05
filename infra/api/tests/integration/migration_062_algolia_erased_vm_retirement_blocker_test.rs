@@ -90,7 +90,11 @@ async fn erased_exact_target_work_blocks_vm_until_absence_and_ack_are_confirmed(
         .await
         .expect("soft-delete customer before privacy erasure");
     let outcome = customer_repo
-        .hard_delete(customer_id, CustomerHardDeleteKind::PrivacyErasure)
+        .hard_delete(
+            customer_id,
+            CustomerHardDeleteKind::PrivacyErasure,
+            api::repos::CustomerHardDeleteAuditPolicy::NoAudit,
+        )
         .await
         .expect("hard-erase customer");
     let CustomerHardDeleteOutcome::Erased { seal_scrub_work } = outcome else {

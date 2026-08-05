@@ -16,11 +16,13 @@
 #     lane before flipping a LAUNCH.md verdict.
 #
 # ─── What it does ─────────────────────────────────────────────────────────
-#   1. Hydrates test-mode Stripe keys (sk_test_/pk_test_/whsec_) from SSM
+#   1. For billing lanes, hydrates test-mode Stripe keys
+#      (sk_test_/pk_test_/whsec_) from SSM
 #      (the staging Stripe sandbox — same account as .secret/.env.secret's
 #      sk_test, VERIFIED account acct_1Sy…z4UH). Fails closed on wrong prefix.
-#   2. Starts a local flapjack + a local API (real Stripe test mode) in the
-#      background, on explicitly-pinned ports.
+#   2. For billing lanes, starts a local flapjack + a local API (real Stripe
+#      test mode) in the background, on explicitly-pinned ports. The B21 email
+#      verification lane instead lets Playwright own its required stack.
 #   3. Lets Playwright own the web server (SvelteKit dev) via the config's
 #      explicit --no-deps web-only path, pointed at our local API.
 #   4. Runs the target spec(s), captures an evidence bundle mirroring the
@@ -56,7 +58,7 @@
 #
 # Usage:
 #   scripts/launch/run_browser_lane_locally.sh \
-#     --lane signup_to_paid_invoice|billing_portal_payment_method_update|both \
+#     --lane signup_to_paid_invoice|billing_portal_payment_method_update|b21_verify_email|both \
 #     [--evidence-dir <path>]
 #
 #   scripts/launch/run_browser_lane_locally.sh --help
@@ -131,7 +133,7 @@ print_usage() {
   cat <<'EOF'
 Usage:
   scripts/launch/run_browser_lane_locally.sh \
-    --lane <signup_to_paid_invoice|billing_portal_payment_method_update|upgrade_to_shared_unmocked|both> \
+    --lane <signup_to_paid_invoice|billing_portal_payment_method_update|upgrade_to_shared_unmocked|b21_verify_email|both> \
     [--evidence-dir <path>]
 
   scripts/launch/run_browser_lane_locally.sh --help
@@ -140,6 +142,7 @@ Lanes:
   signup_to_paid_invoice                — drives the LB-2 spec
   billing_portal_payment_method_update  — drives the LB-3 spec (@p0_coverage)
   upgrade_to_shared_unmocked            — drives the B7 shared-plan upgrade spec
+  b21_verify_email                      — drives B21 with Playwright's email-verification stack
   both                                  — runs all three lanes sequentially
 
 Default evidence dir:
@@ -167,14 +170,35 @@ done
 if [ "$SHOW_HELP" = "1" ]; then print_usage; exit 0; fi
 
 case "$LANE_ARG" in
-  signup_to_paid_invoice|billing_portal_payment_method_update|upgrade_to_shared_unmocked|both) ;;
+  signup_to_paid_invoice|billing_portal_payment_method_update|upgrade_to_shared_unmocked|b21_verify_email|both) ;;
   "") echo "ERROR: --lane is required" >&2; print_usage >&2; exit 64 ;;
-  *) echo "ERROR: --lane must be signup_to_paid_invoice|billing_portal_payment_method_update|upgrade_to_shared_unmocked|both (got: $LANE_ARG)" >&2; exit 64 ;;
+  *) echo "ERROR: --lane must be signup_to_paid_invoice|billing_portal_payment_method_update|upgrade_to_shared_unmocked|b21_verify_email|both (got: $LANE_ARG)" >&2; exit 64 ;;
 esac
 
 if ! [[ "$LANE_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] || [ "$LANE_TIMEOUT_SECONDS" -le 0 ]; then
   die "BROWSER_LANE_TIMEOUT_SECONDS must be a positive integer (got: $LANE_TIMEOUT_SECONDS)"
 fi
+
+lane_needs_local_stack() {
+  [ "$1" != "b21_verify_email" ]
+}
+
+require_web_playwright_runtime() {
+  if ! has_web_playwright_test_runtime "$REPO_ROOT"; then
+    die "$(web_playwright_test_runtime_missing_message) — owner: scripts/launch/run_browser_lane_locally.sh"
+  fi
+}
+
+# Shared timeout/teardown helper. Stack-owning lanes use it for API/flapjack
+# cleanup; the no-stack B21 lane still needs it for Playwright timeout paths.
+terminate_pid_tree() {
+  local signal="$1" root_pid="$2" child_pid children
+  children="$(pgrep -P "$root_pid" 2>/dev/null || true)"
+  for child_pid in $children; do terminate_pid_tree "$signal" "$child_pid"; done
+  kill "-$signal" "$root_pid" 2>/dev/null || true
+}
+
+if lane_needs_local_stack "$LANE_ARG"; then
 
 # ---------------------------------------------------------------------------
 # AWS credentials for SSM. Prefer whatever is already in the shell; otherwise
@@ -310,9 +334,7 @@ export E2E_USER_EMAIL="${E2E_USER_EMAIL:-local-browser-lane-${TS_SEED}@e2e.gridd
 export E2E_USER_PASSWORD="${E2E_USER_PASSWORD:-LocalLanePass${TS_SEED}!}"
 
 # Fail closed if the Playwright runtime deps are missing (deterministic hint).
-if ! has_web_playwright_test_runtime "$REPO_ROOT"; then
-  die "$(web_playwright_test_runtime_missing_message) — owner: scripts/launch/run_browser_lane_locally.sh"
-fi
+require_web_playwright_runtime
 
 # ---------------------------------------------------------------------------
 # Preflight: refuse to run if our pinned ports are already occupied. We own
@@ -348,13 +370,6 @@ API_LOG="$LOCAL_DIR/local_browser_lane_api.log"
 # ---------------------------------------------------------------------------
 FLAPJACK_PID=""
 API_PID=""
-
-terminate_pid_tree() {
-  local signal="$1" root_pid="$2" child_pid children
-  children="$(pgrep -P "$root_pid" 2>/dev/null || true)"
-  for child_pid in $children; do terminate_pid_tree "$signal" "$child_pid"; done
-  kill "-$signal" "$root_pid" 2>/dev/null || true
-}
 
 cleanup() {
   if [ -n "$API_PID" ] && kill -0 "$API_PID" 2>/dev/null; then
@@ -416,6 +431,18 @@ for state_file in user.json admin.json onboarding.json customer-journeys.json; d
   state_path="$REPO_ROOT/web/tests/fixtures/.auth/$state_file"
   [ -f "$state_path" ] || printf '{"cookies": [], "origins": []}\n' > "$state_path"
 done
+else
+  # B21 must not inherit the billing lane's explicit-stack contract. With these
+  # absent, playwright.config.contract.ts selects and spawns the verification
+  # stack, including Mailpit, with email verification enabled.
+  require_web_playwright_runtime
+  TS_SEED="$(date -u +%Y%m%dT%H%M%SZ)"
+  unset BASE_URL API_URL API_BASE_URL
+  unset PLAYWRIGHT_WEB_PORT PLAYWRIGHT_API_PORT PLAYWRIGHT_FLAPJACK_PORT
+  unset SKIP_EMAIL_VERIFICATION API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION
+  unset PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION
+  unset LISTEN_ADDR S3_LISTEN_ADDR FLAPJACK_URL LOCAL_DEV_FLAPJACK_URL
+fi
 
 # ---------------------------------------------------------------------------
 # Evidence bundle (same shape as the staging launcher).
@@ -431,24 +458,39 @@ validate_repo_owned_output_dir "$EVIDENCE_DIR_ARG"
 mkdir -p "$EVIDENCE_DIR_ARG"
 GIT_SHA="$(cd "$REPO_ROOT" && git rev-parse HEAD)"
 echo "$GIT_SHA" > "$EVIDENCE_DIR_ARG/git_sha.txt"
-cat > "$EVIDENCE_DIR_ARG/SUMMARY.md" <<EOF
+{
+cat <<EOF
 # Browser-lane LOCAL evidence — ${TS_SEED}
 
 - **Lane:** $LANE_ARG
 - **Git SHA:** $GIT_SHA
+EOF
+if lane_needs_local_stack "$LANE_ARG"; then
+cat <<EOF
 - **Target:** LOCAL stack, REAL Stripe test mode
 - **BASE_URL (web):** $BASE_URL
 - **API_URL:** $API_URL
 - **FLAPJACK_URL:** $FLAPJACK_URL
 - **Stripe publishable prefix:** ${STRIPE_PUBLISHABLE_KEY:0:8}…
 - **PLAYWRIGHT_TARGET_REMOTE:** (unset — local auto-verify)
+EOF
+else
+cat <<'EOF'
+- **Target:** LOCAL Playwright-owned email-verification stack
+- **BASE_URL / API_URL:** Playwright workspace-derived loopback URLs
+- **Email verification:** required; skip-verification environment unset
+EOF
+fi
+cat <<EOF
 - **Started at (UTC):** $TS_SEED
 
 Run by \`scripts/launch/run_browser_lane_locally.sh\`. Per-spec stdout lives in
 \`signup_to_paid_invoice.txt\` / \`billing_portal_payment_method_update.txt\` /
-\`upgrade_to_shared_unmocked.txt\` (each ends with an \`exit=<code>\` line). This is the FAST local lane;
+\`upgrade_to_shared_unmocked.txt\` / \`b21_verify_email.txt\` (each ends with an
+\`exit=<code>\` line). This is the FAST local lane;
 \`run_browser_lane_against_staging.sh\` remains the deploy gate.
 EOF
+} > "$EVIDENCE_DIR_ARG/SUMMARY.md"
 
 # ---------------------------------------------------------------------------
 # Playwright runner with a per-lane timeout (adapted from the staging launcher).
@@ -473,21 +515,38 @@ run_playwright_with_timeout() {
 
 run_one_lane() {
   local lane="$1" spec_file
+  local stdout_path="$EVIDENCE_DIR_ARG/${lane}.txt"
+  local lane_output_dir="test-results/${lane}"
+  local -a playwright_args
   case "$lane" in
     signup_to_paid_invoice) spec_file="tests/e2e-ui/full/signup_to_paid_invoice.spec.ts" ;;
     billing_portal_payment_method_update) spec_file="tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts" ;;
     upgrade_to_shared_unmocked) spec_file="tests/e2e-ui/full/upgrade_to_shared_unmocked.spec.ts" ;;
+    b21_verify_email)
+      spec_file="tests/e2e-ui/full/auth-end-effects.spec.ts"
+      playwright_args=(
+        "$spec_file"
+        --project=chromium:email-verification
+        --grep "valid verification token shows success heading and login CTA @p0_coverage"
+        --reporter=list
+        --trace on
+        --output "$lane_output_dir"
+      )
+      ;;
     *) echo "ERROR: unknown lane: $lane" >&2; return 64 ;;
   esac
-  echo "=== Running $lane (spec: $spec_file) against local $BASE_URL / api $API_URL ==="
-  local stdout_path="$EVIDENCE_DIR_ARG/${lane}.txt"
-  local lane_output_dir="test-results/${lane}"
+  if lane_needs_local_stack "$lane"; then
+    echo "=== Running $lane (spec: $spec_file) against local $BASE_URL / api $API_URL ==="
+    # --no-deps: skip auth.setup (target specs arrange their own auth). Explicit
+    # BASE_URL + --no-deps makes the config start only the web dev server,
+    # pointed at our already-running local API.
+    playwright_args=("$spec_file" --reporter=list --trace on --output "$lane_output_dir" --no-deps)
+  else
+    echo "=== Running $lane (spec: $spec_file) with Playwright-owned email-verification stack ==="
+  fi
   local exit_code=0
-  # --no-deps: skip auth.setup (target specs arrange their own auth). Explicit
-  # BASE_URL + --no-deps (no PLAYWRIGHT_TARGET_REMOTE) makes the config start the
-  # web-only dev server itself, pointed at our already-running local API.
   run_playwright_with_timeout "$LANE_TIMEOUT_SECONDS" "$stdout_path" "$REPO_ROOT/web" \
-    npx playwright test "$spec_file" --reporter=list --trace on --output "$lane_output_dir" --no-deps || exit_code=$?
+    npx playwright test "${playwright_args[@]}" || exit_code=$?
   # Scrub absolute repo paths out of the captured stdout (repo rule).
   local scrubbed; scrubbed="$(sed "s|${REPO_ROOT}/||g" "$stdout_path")"
   printf '%s\n' "$scrubbed" > "$stdout_path"
@@ -501,6 +560,7 @@ case "$LANE_ARG" in
   signup_to_paid_invoice) run_one_lane signup_to_paid_invoice || OVERALL_EXIT=$? ;;
   billing_portal_payment_method_update) run_one_lane billing_portal_payment_method_update || OVERALL_EXIT=$? ;;
   upgrade_to_shared_unmocked) run_one_lane upgrade_to_shared_unmocked || OVERALL_EXIT=$? ;;
+  b21_verify_email) run_one_lane b21_verify_email || OVERALL_EXIT=$? ;;
   both)
     run_one_lane signup_to_paid_invoice || OVERALL_EXIT=$?
     run_one_lane billing_portal_payment_method_update || OVERALL_EXIT=$?

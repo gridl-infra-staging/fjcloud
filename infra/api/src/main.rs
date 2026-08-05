@@ -3,6 +3,7 @@ use api::dns::DnsManager;
 use api::provisioner::region_map::RegionConfig;
 use api::provisioner::VmProvisioner;
 use api::repos::{ColdSnapshotRepo, IndexReplicaRepo, PgAlgoliaImportJobRepo, PgIndexReplicaRepo};
+use api::router::RateLimiter;
 use api::secrets::NodeSecretManager;
 use api::services::access_tracker::AccessTracker;
 use api::services::alerting::AlertService;
@@ -239,15 +240,20 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
 
     let state = AppState {
         pool: pool.clone(),
+        audit_log_writer: Arc::new(pool.clone()),
         jwt_secret: Arc::from(cfg.jwt_secret.as_str()),
         admin_key: Arc::from(cfg.admin_key.as_str()),
         admin_user_repo: Arc::new(api::auth::admin::PgAdminUserRepo::new(pool.clone())),
+        admin_session_repo: Arc::new(api::auth::admin_session::PgAdminSessionRepo::new(
+            pool.clone(),
+        )),
         internal_auth_token: cfg.internal_auth_token.as_deref().map(Arc::from),
         stripe_webhook_secret: cfg.stripe_webhook_secret.as_deref().map(Arc::from),
         stripe_publishable_key: cfg.stripe_publishable_key.clone(),
         stripe_success_url: cfg.stripe_success_url.clone(),
         stripe_cancel_url: cfg.stripe_cancel_url.clone(),
         metrics_collector: Arc::new(api::services::metrics::MetricsCollector::new()),
+        api_key_rate_limiter: RateLimiter::new_dynamic(Duration::from_secs(3600)),
         api_key_repo,
         customer_repo,
         deployment_repo,
@@ -261,9 +267,10 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         dunning_emails_disabled: cfg.dunning_emails_disabled,
         algolia_migration_enabled: cfg.algolia_migration_enabled,
         algolia_import_service,
-        algolia_source_service: Arc::new(AlgoliaSourceService::new(
+        algolia_source_service: Arc::new(AlgoliaSourceService::new_with_source_base_url(
             Arc::new(ReqwestAlgoliaSourceClient::new()?),
             cfg.jwt_secret.as_bytes(),
+            cfg.algolia_source_base_url.clone(),
         )?),
         object_store,
         cold_snapshot_repo: cold_snapshot_repo.clone(),

@@ -1,3 +1,5 @@
+use api::models::algolia_import_job::SourceImportProvider;
+use api::routes::migration::engine_supported_migration_capabilities;
 use api::services::algolia_import::{
     AsyncMigrationDisposition, AsyncMigrationPhase, AsyncMigrationStatusResponse, MigrationTopology,
 };
@@ -80,6 +82,19 @@ fn successful_terminal_status_with_published_growth() -> Value {
     response["objectsImported"] = serde_json::json!({"imported": 9});
     response["targetIndex"] = serde_json::json!("catalog_v2");
     response["topology"] = serde_json::json!("single_node_only");
+    response
+}
+
+/// One specimen carrying every status field the pinned engine contract
+/// publishes. `..._decodes_every_pinned_status_field` asserts this key set
+/// equals the fixture's required + optional field lists, so the updater can
+/// never pin an engine status field that the fjcloud decoder still rejects.
+fn status_specimen_with_every_pinned_field() -> Value {
+    let mut response = successful_terminal_status_with_published_growth();
+    response["exportProgress"] = serde_json::json!({"completed": 1, "total": 2});
+    response["operation"] = serde_json::json!("migrate");
+    response["resumable"] = serde_json::json!(true);
+    response["resumeHandle"] = serde_json::json!("resume-7f2a");
     response
 }
 
@@ -217,6 +232,9 @@ fn algolia_migration_engine_contract_fixture_closes_routes_and_wire_sets() {
         [
             "exportProgress",
             "objectsImported",
+            "operation",
+            "resumable",
+            "resumeHandle",
             "rulesImported",
             "settingsApplied",
             "synonymsImported",
@@ -319,9 +337,13 @@ fn algolia_migration_engine_contract_fixture_closes_provider_discriminator_and_s
             "acknowledge": {
                 "method": "POST",
                 "path": "/1/migrations/{source_provider}/{job_id}/acknowledge"
+            },
+            "preview": {
+                "method": "POST",
+                "path": "/1/migrations/{source_provider}/preview"
             }
         }),
-        "all providers must share one lifecycle route-role map"
+        "all providers must share one lifecycle route-role map plus stateless preview"
     );
     assert_eq!(
         contract["provider_aliases"],
@@ -330,22 +352,25 @@ fn algolia_migration_engine_contract_fixture_closes_provider_discriminator_and_s
                 "submit": "/1/migrations/algolia",
                 "status": "/1/migrations/algolia/{job_id}",
                 "cancel": "/1/migrations/algolia/{job_id}/cancel",
-                "acknowledge": "/1/migrations/algolia/{job_id}/acknowledge"
+                "acknowledge": "/1/migrations/algolia/{job_id}/acknowledge",
+                "preview": "/1/migrations/algolia/preview"
             },
             "meilisearch": {
                 "submit": "/1/migrations/meilisearch",
                 "status": "/1/migrations/meilisearch/{job_id}",
                 "cancel": "/1/migrations/meilisearch/{job_id}/cancel",
-                "acknowledge": "/1/migrations/meilisearch/{job_id}/acknowledge"
+                "acknowledge": "/1/migrations/meilisearch/{job_id}/acknowledge",
+                "preview": "/1/migrations/meilisearch/preview"
             },
             "typesense": {
                 "submit": "/1/migrations/typesense",
                 "status": "/1/migrations/typesense/{job_id}",
                 "cancel": "/1/migrations/typesense/{job_id}/cancel",
-                "acknowledge": "/1/migrations/typesense/{job_id}/acknowledge"
+                "acknowledge": "/1/migrations/typesense/{job_id}/acknowledge",
+                "preview": "/1/migrations/typesense/preview"
             }
         }),
-        "every closed provider must expose the shared lifecycle aliases, including the existing Algolia wire"
+        "every closed provider must expose the shared lifecycle aliases and stateless preview, including the existing Algolia wire"
     );
     assert!(
         transport_owner.contains("fn migration_url(")
@@ -370,6 +395,164 @@ fn algolia_migration_engine_contract_fixture_closes_provider_discriminator_and_s
         assert!(
             contract[preserved_key].is_object(),
             "{preserved_key} must remain in the provider-discriminated fixture"
+        );
+    }
+}
+
+#[test]
+fn algolia_migration_engine_contract_fixture_pins_preview_schema() {
+    let contract = contract();
+
+    assert_eq!(
+        contract["preview"]["request_schema_refs"],
+        json!({
+            "algolia": "#/components/schemas/MigrateFromAlgoliaRequest",
+            "meilisearch": "#/components/schemas/MigrateFromMeilisearchRequest",
+            "typesense": "#/components/schemas/MigrateFromAlgoliaRequest"
+        }),
+        "preview must pin each provider route's engine request schema reference"
+    );
+    assert_eq!(
+        contract["preview"]["request_fields"],
+        json!({
+            "algolia": {
+                "required_fields": ["apiKey", "appId", "sourceIndex"],
+                "optional_fields": ["overwrite", "targetIndex"]
+            },
+            "meilisearch": {
+                "required_fields": ["apiKey", "endpoint", "sourceIndex"],
+                "optional_fields": ["overwrite", "targetIndex"]
+            },
+            "typesense": {
+                "required_fields": ["apiKey", "appId", "sourceIndex"],
+                "optional_fields": ["overwrite", "targetIndex"]
+            }
+        }),
+        "preview request fields must be generated for every closed-union provider"
+    );
+    assert_eq!(
+        contract["preview"]["runtime_preview_support"],
+        json!({
+            "algolia": true,
+            "meilisearch": true,
+            "typesense": false
+        }),
+        "runtime preview support must be derived from the pinned engine source"
+    );
+    assert_eq!(
+        contract["preview"]["response"],
+        json!({
+            "required_fields": ["report", "sourceCounts"],
+            "optional_fields": [],
+            "report_ref": "#/components/schemas/MigrationPreviewReport",
+            "source_counts_ref": "#/components/schemas/MigrationPreviewSourceCounts"
+        }),
+        "preview must preserve the top-level advisory response fields"
+    );
+    assert_eq!(
+        contract["preview"]["source_counts"],
+        json!({
+            "required_fields": ["indexes", "records"],
+            "optional_fields": [],
+            "field_types": {
+                "indexes": ["integer"],
+                "records": ["integer"]
+            }
+        }),
+        "preview must pin concrete source-count fields"
+    );
+    assert_eq!(
+        contract["preview"]["report"],
+        json!({
+            "required_fields": ["entries", "summary"],
+            "optional_fields": ["reportDigest"],
+            "entries": {
+                "type": "array",
+                "items_ref": "#/components/schemas/MigrationPreviewReportEntry"
+            },
+            "summary_ref": "#/components/schemas/MigrationPreviewReportSummary",
+            "reportDigest": {
+                "type": ["null", "string"]
+            }
+        }),
+        "preview report must pin the report container and digest nullability"
+    );
+    assert_eq!(
+        contract["preview"]["report_summary"],
+        json!({
+            "required_fields": ["hardRejections", "scopeGaps", "totalEntries", "warnings"],
+            "optional_fields": [],
+            "field_types": {
+                "hardRejections": ["integer"],
+                "scopeGaps": ["integer"],
+                "totalEntries": ["integer"],
+                "warnings": ["integer"]
+            }
+        }),
+        "preview report summary counts must remain explicit"
+    );
+    assert_eq!(
+        contract["preview"]["report_entry"],
+        json!({
+            "required_fields": ["code", "jsonPath", "resource", "severity"],
+            "optional_fields": ["itemIndex", "pageIndex"],
+            "field_types": {
+                "itemIndex": ["integer", "null"],
+                "jsonPath": ["string"],
+                "pageIndex": ["integer", "null"]
+            },
+            "refs": {
+                "code": "#/components/schemas/ReportCode",
+                "resource": "#/components/schemas/ReportResource",
+                "severity": "#/components/schemas/ReportSeverity"
+            }
+        }),
+        "preview entries must preserve severity/code/resource refs and positional fields"
+    );
+    assert_eq!(
+        contract["preview"]["enums"]["severity"],
+        json!(["ScopeGap", "Warning", "HardRejection"]),
+        "preview report severity is a closed engine enum"
+    );
+    assert_eq!(
+        contract["preview"]["enums"]["resource"],
+        json!([
+            "Analytics",
+            "ApiKeys",
+            "Document",
+            "Events",
+            "Experiments",
+            "Recommend",
+            "Rule",
+            "Settings",
+            "Synonym"
+        ]),
+        "preview report resources are a closed engine enum"
+    );
+    assert!(
+        strings_at(&contract, &["preview", "enums", "code"]).contains(&"UnsupportedSourceField"),
+        "preview report codes must carry engine translation diagnostics"
+    );
+}
+
+#[test]
+fn fjcloud_preview_capabilities_agree_with_engine_contract_fixture() {
+    let contract = contract();
+
+    for provider in [
+        SourceImportProvider::Algolia,
+        SourceImportProvider::Meilisearch,
+        SourceImportProvider::Typesense,
+    ] {
+        let fixture_support = contract["preview"]["runtime_preview_support"][provider.as_str()]
+            .as_bool()
+            .expect("every provider must have boolean runtime preview support");
+
+        assert_eq!(
+            engine_supported_migration_capabilities(provider).preview,
+            fixture_support,
+            "fjcloud and flapjack preview support must agree for {}",
+            provider.as_str()
         );
     }
 }
@@ -572,6 +755,66 @@ fn algolia_migration_engine_contract_fixture_covers_all_typed_status_arms() {
 }
 
 #[test]
+fn algolia_migration_engine_contract_fixture_decodes_every_pinned_status_field() {
+    let contract = contract();
+    let mut pinned_fields: Vec<&str> = strings_at(&contract, &["status", "required_fields"]);
+    pinned_fields.extend(strings_at(&contract, &["status", "optional_fields"]));
+    pinned_fields.sort_unstable();
+
+    let specimen = status_specimen_with_every_pinned_field();
+    let mut specimen_fields: Vec<&str> = specimen
+        .as_object()
+        .expect("status specimen must be an object")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    specimen_fields.sort_unstable();
+    assert_eq!(
+        specimen_fields, pinned_fields,
+        "the typed decode specimen must carry every status field the fixture pins; \
+         a newly pinned engine field has to reach AsyncMigrationStatusResponse before \
+         the fixture may advertise it"
+    );
+
+    let decoded: AsyncMigrationStatusResponse = serde_json::from_value(specimen)
+        .expect("every status field the fixture pins must decode into the typed response");
+    let progress = decoded
+        .export_progress
+        .expect("pinned exportProgress must survive decoding");
+    assert_eq!((progress.completed, progress.total), (1, 2));
+    assert_eq!(decoded.objects_imported.unwrap().imported, 9);
+    assert_eq!(decoded.target_index.as_deref(), Some("catalog_v2"));
+    assert_eq!(decoded.operation.as_deref(), Some("migrate"));
+    assert_eq!(decoded.resumable, Some(true));
+    assert_eq!(decoded.resume_handle.as_deref(), Some("resume-7f2a"));
+
+    // The engine publishes the resume trio as nullable, so an explicit null is
+    // as real a wire shape as an absent key.
+    let mut nulled = status_specimen_with_every_pinned_field();
+    nulled["operation"] = serde_json::json!(null);
+    nulled["resumable"] = serde_json::json!(null);
+    nulled["resumeHandle"] = serde_json::json!(null);
+    let decoded: AsyncMigrationStatusResponse =
+        serde_json::from_value(nulled).expect("nullable engine resume fields must decode as null");
+    assert_eq!(decoded.operation, None);
+    assert_eq!(decoded.resumable, None);
+    assert_eq!(decoded.resume_handle, None);
+
+    // Resume metadata is not an outcome field: the engine attaches it to
+    // running statuses, which carry no terminal-completeness obligation.
+    let mut running = valid_status_json();
+    running["operation"] = serde_json::json!("migrate");
+    running["resumable"] = serde_json::json!(false);
+    running["resumeHandle"] = serde_json::json!("resume-1c9d");
+    let decoded: AsyncMigrationStatusResponse =
+        serde_json::from_value(running).expect("running status may carry engine resume metadata");
+    assert_eq!(decoded.terminal_at, None);
+    assert_eq!(decoded.resumable, Some(false));
+    assert_eq!(decoded.resume_handle.as_deref(), Some("resume-1c9d"));
+    assert_eq!(decoded.settings_applied, None);
+}
+
+#[test]
 fn algolia_migration_engine_contract_fixture_enforces_terminal_outcome_legality() {
     let contract = contract();
     let phases = strings_at(&contract, &["enums", "phase"]);
@@ -636,6 +879,7 @@ fn algolia_migration_engine_contract_fixture_closes_top_level_schema() {
         "errors",
         "openapi_artifacts",
         "pinned_engine_sha",
+        "preview",
         "privacy_scrub_contract",
         "privacy_scrub_known_answer",
         "progress",

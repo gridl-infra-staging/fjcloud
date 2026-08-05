@@ -204,7 +204,13 @@ async fn payment_succeeded_after_failed_invoice_sends_recovery_dunning_email() {
         .await
         .unwrap();
     invoice_repo.mark_failed(invoice.id).await.unwrap();
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     let app = test_app_with_services(
         Arc::clone(&customer_repo),
@@ -250,7 +256,13 @@ async fn payment_succeeded_skips_recovery_email_when_reactivate_errors() {
         .await
         .unwrap();
     invoice_repo.mark_failed(invoice.id).await.unwrap();
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
     *customer_repo.should_fail_reactivate.lock().unwrap() = true;
 
     let app = test_app_with_services(

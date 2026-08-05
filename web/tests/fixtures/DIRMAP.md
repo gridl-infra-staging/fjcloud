@@ -19,5 +19,6 @@
 | shared_auth_call_counter.ts | Stub summary for web/tests/fixtures/shared_auth_call_counter.ts. |
 | staging_db_lookup.ts | Stub summary for staging_db_lookup.ts. |
 | staging_stripe_lookup.ts | Stub summary for staging_stripe_lookup.ts. |
+| unconfigured_billing_stack.ts | Nested local-stack harness for the unconfigured-billing route proof. |
 | upgrade_fixture.ts | Stub summary for upgrade_fixture.ts. |
 <!-- [scrai:end] -->

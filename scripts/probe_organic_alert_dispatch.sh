@@ -36,6 +36,10 @@ PROBE_BUNDLE_TS=""
 PROBE_BUNDLE_DIR=""
 PROBE_STDOUT_LOG=""
 PROBE_STDERR_LOG=""
+PROBE_STDOUT_PIPE=""
+PROBE_STDERR_PIPE=""
+PROBE_STDOUT_TEE_PID=""
+PROBE_STDERR_TEE_PID=""
 PROBE_REPLAY_COMMAND=""
 PROBE_ALERT_QUERY_RESULT="<empty>"
 PROBE_CLEANUP_CONFIRMATION="not-run"
@@ -123,6 +127,8 @@ init_bundle_paths() {
     PROBE_BUNDLE_DIR="$EVIDENCE_ROOT/${PROBE_BUNDLE_TS}_organic_dispatch_probe"
     PROBE_STDOUT_LOG="$PROBE_BUNDLE_DIR/probe_stdout.log"
     PROBE_STDERR_LOG="$PROBE_BUNDLE_DIR/probe_stderr.log"
+    PROBE_STDOUT_PIPE="$PROBE_BUNDLE_DIR/.probe_stdout.pipe"
+    PROBE_STDERR_PIPE="$PROBE_BUNDLE_DIR/.probe_stderr.pipe"
     PROBE_FAILURE_ALERT_ROWS_PATH="$PROBE_BUNDLE_DIR/failure_alert_rows.txt"
     PROBE_FAILURE_JOURNALCTL_PATH="$PROBE_BUNDLE_DIR/failure_journalctl_fjcloud_api.txt"
 }
@@ -131,7 +137,21 @@ setup_bundle_logging() {
     mkdir -p "$PROBE_BUNDLE_DIR"
     : >"$PROBE_STDOUT_LOG"
     : >"$PROBE_STDERR_LOG"
-    exec > >(tee -a "$PROBE_STDOUT_LOG") 2> >(tee -a "$PROBE_STDERR_LOG" >&2)
+    mkfifo "$PROBE_STDOUT_PIPE" "$PROBE_STDERR_PIPE"
+    exec 3>&1 4>&2
+    tee -a "$PROBE_STDOUT_LOG" <"$PROBE_STDOUT_PIPE" >&3 &
+    PROBE_STDOUT_TEE_PID="$!"
+    tee -a "$PROBE_STDERR_LOG" <"$PROBE_STDERR_PIPE" >&4 &
+    PROBE_STDERR_TEE_PID="$!"
+    exec >"$PROBE_STDOUT_PIPE" 2>"$PROBE_STDERR_PIPE"
+}
+
+flush_bundle_logging() {
+    exec 1>&3 2>&4
+    exec 3>&- 4>&-
+    wait "$PROBE_STDOUT_TEE_PID" || true
+    wait "$PROBE_STDERR_TEE_PID" || true
+    rm -f "$PROBE_STDOUT_PIPE" "$PROBE_STDERR_PIPE"
 }
 
 run_sql() {
@@ -267,6 +287,7 @@ cleanup() {
         emit_result false
     fi
 
+    flush_bundle_logging
     exit "$final_exit_code"
 }
 

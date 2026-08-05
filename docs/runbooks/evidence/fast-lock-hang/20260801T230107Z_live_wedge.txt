@@ -1,0 +1,34 @@
+Stage 1 live fast-lock wedge evidence
+captured_at_utc=2026-08-01T23:01:07Z
+head=83ba2e378c22dc07a9438484e6663ea52f14ecff
+process_signals_sent=none
+
+COMMAND: cat /tmp/fjcloud_local_ci_fast_lock.*/holder
+--- /tmp/fjcloud_local_ci_fast_lock.5e5413058df69456293836dac893cb3d0dfb6ee7/holder ---
+pid=51132
+worktree=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev
+started_at=1785619957
+
+COMMAND: ps -o pid,ppid,etime,pcpu,command -p 51132
+  PID  PPID  ELAPSED  %CPU COMMAND
+51132     1 01:28:30   0.0 bash scripts/local-ci.sh --fast
+
+COMMAND: read the child process tree with one exact `pgrep -P <pid>` per recorded lineage member, then render the named PIDs with `/bin/ps -o pid,ppid,etime,pcpu,command -p 51132,67143,59519,64430,64432,64691,64693`
+children_of_51132=67143
+children_of_67143=59519
+children_of_59519=64430,64691
+children_of_64430=64432
+children_of_64691=64693
+  PID  PPID  ELAPSED  %CPU COMMAND
+51132     1 01:28:30   0.0 bash scripts/local-ci.sh --fast
+59519 67143    56:20   0.0 bash /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/scripts/tests/probe_browser_stack_exclusive_test.sh
+64430 59519    55:39   0.0 bash /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.21EDCWffmM/fakestack/scripts/local-dev-up.sh
+64432 64430    55:39   0.0 sleep 3600
+64691 59519    55:38   0.0 bash /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/scripts/tests/probe_browser_stack_exclusive_test.sh
+64693 64691    55:38   0.0 bash /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/scripts/tests/probe_browser_stack_exclusive_test.sh
+67143 51132 01:12:20   0.0 bash scripts/local-ci.sh --fast
+
+OBSERVATION: the clone-scoped holder is alive after more than 88 minutes. Its
+reachability worker is blocked in the outer browser-stack contract, which is
+blocked in the nested whole-suite command substitution. No process in this
+pre-existing tree was signaled while collecting this receipt.

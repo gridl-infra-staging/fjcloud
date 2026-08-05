@@ -340,16 +340,44 @@ const ADMIN_RATE_LIMIT_MAX_RETRIES = 2;
 const ADMIN_RATE_LIMIT_FALLBACK_DELAY_MS = 1_000;
 const ADMIN_RATE_LIMIT_MAX_DELAY_MS = 5_000;
 
-export class AdminClient extends BaseClient {
-	private readonly adminKey: string;
+/**
+ * TODO: Document AdminClient.
+ */
+/**
+ * How an admin request proves who it is. `admin-key` is the static server
+ * credential and is reserved for deliberate server-key use (session minting,
+ * unattended jobs); `session` is the durable per-operator token issued by
+ * `POST /admin/sessions`, and is what interactive admin traffic uses so the API
+ * can attribute, time out, and revoke it.
+ */
+export type AdminCredential =
+	| { readonly kind: 'admin-key'; readonly value: string }
+	| { readonly kind: 'session'; readonly value: string };
 
-	constructor(baseUrl: string, adminKey: string) {
+const ADMIN_CREDENTIAL_HEADERS: Record<AdminCredential['kind'], string> = {
+	'admin-key': 'X-Admin-Key',
+	session: 'X-Admin-Session'
+};
+
+export interface AdminSessionCreatedResponse {
+	session_id: string;
+}
+
+export interface AdminSessionOperatorResponse {
+	operator_id: string;
+}
+
+export class AdminClient extends BaseClient {
+	private readonly credential: AdminCredential;
+
+	constructor(baseUrl: string, credential: string | AdminCredential) {
 		super(baseUrl);
-		this.adminKey = adminKey;
+		this.credential =
+			typeof credential === 'string' ? { kind: 'admin-key', value: credential } : credential;
 	}
 
 	protected authHeaders(): Record<string, string> {
-		return { 'X-Admin-Key': this.adminKey };
+		return { [ADMIN_CREDENTIAL_HEADERS[this.credential.kind]]: this.credential.value };
 	}
 
 	protected async handleErrorResponse(res: Response): Promise<never> {
@@ -433,6 +461,26 @@ export class AdminClient extends BaseClient {
 	private withQuery(path: string, params: URLSearchParams): string {
 		const query = params.toString();
 		return query ? `${path}?${query}` : path;
+	}
+
+	/** Mints a durable admin session. Requires an `admin-key` credential. */
+	createSession(maxAgeSeconds: number): Promise<AdminSessionCreatedResponse> {
+		return this.post<AdminSessionCreatedResponse>('/admin/sessions', {
+			max_age_seconds: maxAgeSeconds
+		});
+	}
+
+	/** Non-destructive validation of the caller's own durable session. */
+	getCurrentSession(): Promise<AdminSessionOperatorResponse> {
+		return this.get<AdminSessionOperatorResponse>('/admin/sessions/current');
+	}
+
+	revokeCurrentSession(): Promise<void> {
+		return this.deleteRequest('/admin/sessions/current');
+	}
+
+	revokeAllSessions(): Promise<void> {
+		return this.deleteRequest('/admin/sessions');
 	}
 
 	getFleet(): Promise<AdminFleetDeployment[]> {
@@ -621,4 +669,22 @@ export function createAdminClient(apiBaseUrl?: string, runtimeEnv?: RuntimeEnv):
 		throw new Error('ADMIN_KEY is required for admin client requests');
 	}
 	return new AdminClient(apiBaseUrl ?? getApiBaseUrl(), adminKey);
+}
+
+/**
+ * Builds an admin client for a caller-supplied credential and request-scoped
+ * `fetch`. Used by the durable admin-session boundary, which holds the
+ * submitted admin key (session minting) or the operator's session token
+ * (everything else) rather than reading a static server key.
+ */
+export function createAdminClientWithCredential(
+	apiBaseUrl: string,
+	credential: AdminCredential,
+	fetchFn?: typeof globalThis.fetch
+): AdminClient {
+	const client = new AdminClient(apiBaseUrl, credential);
+	if (fetchFn) {
+		client.setFetch(fetchFn);
+	}
+	return client;
 }

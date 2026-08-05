@@ -875,7 +875,13 @@ async fn get_invoice_detail_403_suspended_customer() {
         vec![sample_line_item("us-east-1", 5000)],
     );
 
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     let app = test_app_all(
         customer_repo,

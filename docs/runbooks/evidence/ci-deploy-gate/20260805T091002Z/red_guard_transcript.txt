@@ -1,0 +1,27 @@
+# Stage 2 RED bounded guard transcript, exact named filter, test binary
+utc_start=2026-08-05T09:20:14Z
+command=timeout 60 sudo systemd-run --scope -p AllowedCPUs=0-0 -p CPUQuota=1% ... /home/ubuntu/fjcloud_dev/infra/target/debug/deps/auth_admin-856e96dda8ebebbe reference_publication --test-threads=2 --nocapture
+
+running 2 tests
+
+thread 'admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins' (12709) panicked at api/tests/integration/admin_vms_test.rs:977:6:
+admin VM reference-first publication test must finish inside 30s: Elapsed(())
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins ... FAILED
+exit=124
+wall_s=60
+utc_end=2026-08-05T09:21:14Z
+
+--- single-test control ---
+# Stage 2 RED bounded guard transcript, single named test binary
+utc_start=2026-08-05T09:21:32Z
+command=timeout 45 sudo systemd-run --scope -p AllowedCPUs=0-0 -p CPUQuota=1% ... /home/ubuntu/fjcloud_dev/infra/target/debug/deps/auth_admin-856e96dda8ebebbe --exact admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins --nocapture
+
+running 1 test
+test admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 404 filtered out; finished in 29.70s
+
+exit=0
+wall_s=30
+utc_end=2026-08-05T09:22:02Z

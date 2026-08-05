@@ -2,6 +2,12 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import {
+	MIGRATION_PREVIEW_SOURCE_PROVIDERS,
+	MIGRATION_PREVIEW_REPORT_CODES,
+	MIGRATION_PREVIEW_REPORT_RESOURCES,
+	MIGRATION_PREVIEW_REPORT_SEVERITIES
+} from '$lib/api/types';
 
 type JsonSchema = {
 	type?: string | string[];
@@ -22,6 +28,9 @@ type OpenApiDocument = {
 };
 
 type OpenApiOperation = {
+	requestBody?: {
+		content?: Record<string, { schema?: JsonSchema }>;
+	};
 	responses?: Record<
 		string,
 		{
@@ -37,75 +46,40 @@ type OpenApiOperation = {
 
 type PrimitiveKind = 'string' | 'number' | 'integer' | 'boolean';
 
-type PropertyDescriptor =
-	| {
-			name: string;
-			kind: 'primitive';
-			type: PrimitiveKind;
-			required?: boolean;
-	  }
-	| {
-			name: string;
-			kind: 'nullableString';
-			required?: boolean;
-	  }
-	| {
-			name: string;
-			kind: 'refArray';
-			ref: string;
-			required?: boolean;
-	  }
-	| {
-			name: string;
-			kind: 'primitiveArray';
-			type: PrimitiveKind;
-			required?: boolean;
-	  }
-	| {
-			name: string;
-			kind: 'ref';
-			ref: string;
-			required?: boolean;
-	  }
-	| {
-			name: string;
-			kind: 'nullableRef';
-			ref: string;
-			required?: boolean;
-	  }
-	| {
-			name: string;
-			kind: 'object';
-			required?: boolean;
-	  }
-	| {
-			name: string;
-			kind: 'map';
-			required?: boolean;
-	  };
+type PropertyDescriptor = { name: string; required?: boolean } & (
+	| { kind: 'primitive'; type: PrimitiveKind }
+	| { kind: 'nullablePrimitive'; type: PrimitiveKind }
+	| { kind: 'nullableString' }
+	| { kind: 'refArray'; ref: string }
+	| { kind: 'primitiveArray'; type: PrimitiveKind }
+	| { kind: 'ref'; ref: string }
+	| { kind: 'nullableRef'; ref: string }
+	| { kind: 'object' }
+	| { kind: 'map' }
+);
 
 type SchemaDescriptor = {
 	schemaName: string;
 	properties: PropertyDescriptor[];
 };
 
-type ArrayResponseDescriptor = {
+type ResponseDescriptor = {
 	path: string;
 	method: 'get' | 'post';
 	status: string;
 	ref: string;
 };
 
-type ObjectResponseDescriptor = {
-	path: string;
-	method: 'get' | 'post';
-	status: string;
-	ref: string;
-};
+type RequestDescriptor = Omit<ResponseDescriptor, 'status'>;
 
 type EnumSchemaDescriptor = {
 	schemaName: string;
-	values: string[];
+	values: readonly string[];
+};
+
+type OneOfSchemaDescriptor = {
+	schemaName: string;
+	refs: readonly string[];
 };
 
 const openApiPath = resolve(
@@ -345,19 +319,89 @@ const schemaDescriptors: SchemaDescriptor[] = [
 			{ name: 'items', kind: 'refArray', ref: 'AlgoliaIndexMetadata', required: true },
 			{ name: 'nextCursor', kind: 'nullableString', required: true }
 		]
+	},
+	{
+		schemaName: 'AlgoliaMigrationPreviewRequest',
+		properties: [
+			{ name: 'appId', kind: 'primitive', type: 'string', required: true },
+			{ name: 'apiKey', kind: 'primitive', type: 'string', required: true },
+			{ name: 'sourceIndex', kind: 'primitive', type: 'string', required: true },
+			{ name: 'targetIndex', kind: 'nullableString' },
+			{ name: 'overwrite', kind: 'primitive', type: 'boolean' }
+		]
+	},
+	{
+		schemaName: 'MeilisearchMigrationPreviewRequest',
+		properties: [
+			{ name: 'endpoint', kind: 'primitive', type: 'string', required: true },
+			{ name: 'apiKey', kind: 'primitive', type: 'string', required: true },
+			{ name: 'sourceIndex', kind: 'primitive', type: 'string', required: true },
+			{ name: 'targetIndex', kind: 'nullableString' },
+			{ name: 'overwrite', kind: 'primitive', type: 'boolean' }
+		]
+	},
+	{
+		schemaName: 'MigrationPreviewReportEntry',
+		properties: [
+			{ name: 'severity', kind: 'ref', ref: 'MigrationPreviewReportSeverity', required: true },
+			{ name: 'code', kind: 'ref', ref: 'MigrationPreviewReportCode', required: true },
+			{ name: 'resource', kind: 'ref', ref: 'MigrationPreviewReportResource', required: true },
+			{ name: 'pageIndex', kind: 'nullablePrimitive', type: 'integer' },
+			{ name: 'itemIndex', kind: 'nullablePrimitive', type: 'integer' },
+			{ name: 'jsonPath', kind: 'primitive', type: 'string', required: true }
+		]
+	},
+	{
+		schemaName: 'MigrationPreviewReportSummary',
+		properties: [
+			{ name: 'totalEntries', kind: 'primitive', type: 'integer', required: true },
+			{ name: 'hardRejections', kind: 'primitive', type: 'integer', required: true },
+			{ name: 'warnings', kind: 'primitive', type: 'integer', required: true },
+			{ name: 'scopeGaps', kind: 'primitive', type: 'integer', required: true }
+		]
+	},
+	{
+		schemaName: 'MigrationPreviewReport',
+		properties: [
+			{ name: 'entries', kind: 'refArray', ref: 'MigrationPreviewReportEntry', required: true },
+			{ name: 'summary', kind: 'ref', ref: 'MigrationPreviewReportSummary', required: true },
+			{ name: 'reportDigest', kind: 'nullableString' }
+		]
+	},
+	{
+		schemaName: 'MigrationPreviewSourceCounts',
+		properties: [
+			{ name: 'indexes', kind: 'primitive', type: 'integer', required: true },
+			{ name: 'records', kind: 'primitive', type: 'integer', required: true }
+		]
+	},
+	{
+		schemaName: 'MigrationPreviewResponse',
+		properties: [
+			{ name: 'report', kind: 'ref', ref: 'MigrationPreviewReport', required: true },
+			{ name: 'sourceCounts', kind: 'ref', ref: 'MigrationPreviewSourceCounts', required: true }
+		]
 	}
 ];
 
-const arrayResponseDescriptors: ArrayResponseDescriptor[] = [
+const arrayResponseDescriptors: ResponseDescriptor[] = [
 	{ path: '/indexes', method: 'get', status: '200', ref: 'IndexResponse' }
 ];
 
-const objectResponseDescriptors: ObjectResponseDescriptor[] = [
+const objectResponseDescriptors: ResponseDescriptor[] = [
 	{
-		path: '/migration/algolia/list-indexes',
+		path: '/migration/{source_provider}/preview',
 		method: 'post',
 		status: '200',
-		ref: 'AlgoliaSourceListResponse'
+		ref: 'MigrationPreviewResponse'
+	},
+	{
+		// list-indexes 200 now returns the composite body owner, whose oneOf arms
+		// are pinned by the ListSourceIndexesResponseBody oneOf descriptor below.
+		path: '/migration/{source_provider}/list-indexes',
+		method: 'post',
+		status: '200',
+		ref: 'ListSourceIndexesResponseBody'
 	},
 	{
 		path: '/indexes/{name}/infrastructure',
@@ -367,9 +411,49 @@ const objectResponseDescriptors: ObjectResponseDescriptor[] = [
 	}
 ];
 
+const objectRequestDescriptors: RequestDescriptor[] = [
+	{
+		path: '/migration/{source_provider}/list-indexes',
+		method: 'post',
+		ref: 'ListSourceIndexesRequest'
+	},
+	{
+		path: '/migration/{source_provider}/preview',
+		method: 'post',
+		ref: 'MigrationPreviewRequest'
+	}
+];
+
 const enumSchemaDescriptors: EnumSchemaDescriptor[] = [
 	{ schemaName: 'HeadroomStatus', values: ['comfortable', 'busy', 'approaching_limits'] },
-	{ schemaName: 'UtilizationBucket', values: ['green', 'yellow', 'red'] }
+	{ schemaName: 'UtilizationBucket', values: ['green', 'yellow', 'red'] },
+	{ schemaName: 'MigrationPreviewReportSeverity', values: MIGRATION_PREVIEW_REPORT_SEVERITIES },
+	{ schemaName: 'MigrationPreviewReportResource', values: MIGRATION_PREVIEW_REPORT_RESOURCES },
+	{ schemaName: 'MigrationPreviewReportCode', values: MIGRATION_PREVIEW_REPORT_CODES }
+];
+
+const oneOfSchemaDescriptors: OneOfSchemaDescriptor[] = [
+	{
+		schemaName: 'ListSourceIndexesRequest',
+		refs: ['ListAlgoliaIndexesRequest', 'ListMeilisearchIndexesRequest', 'ListTypesenseIndexesRequest']
+	},
+	{
+		schemaName: 'ListSourceIndexesResponseBody',
+		refs: ['AlgoliaSourceListResponse', 'ListSourceIndexesResponse']
+	},
+	{
+		schemaName: 'MigrationPreviewRequest',
+		refs: MIGRATION_PREVIEW_SOURCE_PROVIDERS.map(
+			(sourceProvider) =>
+				`${sourceProvider[0].toUpperCase()}${sourceProvider.slice(1)}MigrationPreviewRequest`
+		)
+	},
+	{
+		// list-indexes 200 is an untagged union: the Algolia compatibility arm and
+		// the hosted-engine discovery arm. Pin both so a dropped arm is drift.
+		schemaName: 'ListSourceIndexesResponseBody',
+		refs: ['AlgoliaSourceListResponse', 'ListSourceIndexesResponse']
+	}
 ];
 
 function componentSchema(schemaName: string): JsonSchema {
@@ -419,6 +503,18 @@ function assertNullableString(schemaName: string, propertyName: string): void {
 	]);
 }
 
+function assertNullablePrimitive(
+	schemaName: string,
+	propertyName: string,
+	type: PrimitiveKind
+): void {
+	const property = propertySchema(schemaName, propertyName);
+	expect(property.type, `${schemaName}.${propertyName} nullable primitive type drift`).toEqual([
+		type,
+		'null'
+	]);
+}
+
 function assertRefArray(schemaName: string, propertyName: string, refName: string): void {
 	const property = propertySchema(schemaName, propertyName);
 	expect(property.type, `${schemaName}.${propertyName} array type drift`).toBe('array');
@@ -455,6 +551,15 @@ function assertEnumSchema(descriptor: EnumSchemaDescriptor): void {
 	expect(schema?.enum, `${descriptor.schemaName} enum values drift`).toEqual(descriptor.values);
 }
 
+function assertOneOfSchema(descriptor: OneOfSchemaDescriptor): void {
+	const schema = openApi.components?.schemas?.[descriptor.schemaName];
+	expect(schema, `${descriptor.schemaName} component schema must exist`).toBeDefined();
+	expect(
+		schema?.oneOf?.map((arm) => arm.$ref),
+		`${descriptor.schemaName} oneOf arms drift`
+	).toEqual(descriptor.refs.map((ref) => `#/components/schemas/${ref}`));
+}
+
 function assertObjectContainer(schemaName: string, propertyName: string): void {
 	const property = propertySchema(schemaName, propertyName);
 	const objectLike =
@@ -475,30 +580,53 @@ function assertMapContainer(schemaName: string, propertyName: string): void {
 	).toBeDefined();
 }
 
-function assertJsonArrayResponseRef(descriptor: ArrayResponseDescriptor): void {
-	const responseName = `${descriptor.method.toUpperCase()} ${descriptor.path} ${descriptor.status}`;
-	const operation = openApi.paths?.[descriptor.path]?.[descriptor.method];
-	expect(operation, `${responseName} operation must exist`).toBeDefined();
+function responseName(descriptor: ResponseDescriptor): string {
+	return `${descriptor.method.toUpperCase()} ${descriptor.path} ${descriptor.status}`;
+}
 
+function openApiOperation(
+	document: OpenApiDocument,
+	descriptor: Pick<ResponseDescriptor, 'path' | 'method'>,
+	name: string
+): OpenApiOperation {
+	const path = document.paths?.[descriptor.path];
+	expect(path, `${name} spec has no such path: ${descriptor.path}`).toBeDefined();
+	const operation = path?.[descriptor.method];
+	expect(operation, `${name} operation must exist`).toBeDefined();
+	return operation as OpenApiOperation;
+}
+
+function jsonResponseSchema(document: OpenApiDocument, descriptor: ResponseDescriptor): JsonSchema {
+	const name = responseName(descriptor);
+	const operation = openApiOperation(document, descriptor, name);
 	const response = operation?.responses?.[descriptor.status];
-	expect(response, `${responseName} response must exist`).toBeDefined();
+	expect(response, `${name} response must exist`).toBeDefined();
 
 	const schema = response?.content?.['application/json']?.schema;
-	expect(schema, `${responseName} application/json schema must exist`).toBeDefined();
-	expect(schema?.type, `${responseName} response array type drift`).toBe('array');
-	expect(schema?.items?.$ref, `${responseName} response array item ref drift`).toBe(
+	expect(schema, `${name} application/json schema must exist`).toBeDefined();
+	return schema as JsonSchema;
+}
+
+function assertJsonObjectRequestRef(descriptor: RequestDescriptor): void {
+	const name = `${descriptor.method.toUpperCase()} ${descriptor.path} request`;
+	const operation = openApiOperation(openApi, descriptor, name);
+	const schema = operation.requestBody?.content?.['application/json']?.schema;
+	expect(schema?.$ref, `${name} ref drift`).toBe(`#/components/schemas/${descriptor.ref}`);
+}
+
+function assertJsonArrayResponseRef(descriptor: ResponseDescriptor): void {
+	const name = responseName(descriptor);
+	const schema = jsonResponseSchema(openApi, descriptor);
+	expect(schema.type, `${name} response array type drift`).toBe('array');
+	expect(schema.items?.$ref, `${name} response array item ref drift`).toBe(
 		`#/components/schemas/${descriptor.ref}`
 	);
 }
 
-function assertJsonObjectResponseRef(descriptor: ObjectResponseDescriptor): void {
-	const responseName = `${descriptor.method.toUpperCase()} ${descriptor.path} ${descriptor.status}`;
-	const schema =
-		openApi.paths?.[descriptor.path]?.[descriptor.method]?.responses?.[descriptor.status]
-			?.content?.['application/json']?.schema;
-	expect(schema?.$ref, `${responseName} response ref drift`).toBe(
-		`#/components/schemas/${descriptor.ref}`
-	);
+function assertJsonObjectResponseRef(descriptor: ResponseDescriptor): void {
+	const name = responseName(descriptor);
+	const schema = jsonResponseSchema(openApi, descriptor);
+	expect(schema.$ref, `${name} response ref drift`).toBe(`#/components/schemas/${descriptor.ref}`);
 }
 
 function assertProperty(schemaName: string, descriptor: PropertyDescriptor): void {
@@ -506,6 +634,10 @@ function assertProperty(schemaName: string, descriptor: PropertyDescriptor): voi
 
 	if (descriptor.kind === 'primitive') {
 		assertPrimitiveKind(schemaName, descriptor.name, descriptor.type, descriptor.required ?? false);
+		return;
+	}
+	if (descriptor.kind === 'nullablePrimitive') {
+		assertNullablePrimitive(schemaName, descriptor.name, descriptor.type);
 		return;
 	}
 	if (descriptor.kind === 'nullableString') {
@@ -539,6 +671,106 @@ function schemaTypeIncludes(schema: JsonSchema, type: PrimitiveKind): boolean {
 	return schema.type === type || (Array.isArray(schema.type) && schema.type.includes(type));
 }
 
+describe('OpenAPI response boundary guards', () => {
+	// This is the arm that actually fired: `53f9c3f89` renamed the published spec
+	// path to the neutral `{source_provider}` form without updating the descriptor
+	// below, so the lookup resolved to `undefined` and the suite reported a
+	// *schema ref* drift for a path that no longer existed. The message must name
+	// the missing path, or the next rename is triaged as a schema problem again.
+	it('names a missing object-response path instead of collapsing it into ref drift', () => {
+		const descriptor: ResponseDescriptor = {
+			path: '/migration/algolia/list-indexes',
+			method: 'post',
+			status: '200',
+			ref: 'AlgoliaSourceListResponse'
+		};
+
+		const document: OpenApiDocument = {
+			paths: {
+				'/migration/{source_provider}/list-indexes': {
+					post: {
+						responses: {
+							200: {
+								content: {
+									'application/json': {
+										schema: { $ref: '#/components/schemas/AlgoliaSourceListResponse' }
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		};
+
+		expect(() => jsonResponseSchema(document, descriptor)).toThrowError(
+			'spec has no such path: /migration/algolia/list-indexes'
+		);
+	});
+
+	it('names a missing object-response operation instead of collapsing it into ref drift', () => {
+		const descriptor: ResponseDescriptor = {
+			path: '/migration/{source_provider}/list-indexes',
+			method: 'post',
+			status: '200',
+			ref: 'AlgoliaSourceListResponse'
+		};
+
+		const document: OpenApiDocument = {
+			paths: {
+				'/migration/{source_provider}/list-indexes': {
+					get: {
+						responses: {
+							200: {
+								content: {
+									'application/json': {
+										schema: { $ref: '#/components/schemas/AlgoliaSourceListResponse' }
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		};
+
+		expect(() => jsonResponseSchema(document, descriptor)).toThrowError(
+			'POST /migration/{source_provider}/list-indexes 200 operation must exist'
+		);
+	});
+
+	it('names a missing object-response application/json schema boundary', () => {
+		const descriptor: ResponseDescriptor = {
+			path: '/migration/{source_provider}/list-indexes',
+			method: 'post',
+			status: '200',
+			ref: 'AlgoliaSourceListResponse'
+		};
+
+		const document: OpenApiDocument = {
+			paths: {
+				'/migration/{source_provider}/list-indexes': {
+					post: {
+						responses: {
+							200: {
+								content: {
+									'text/plain': {
+										schema: { type: 'string' }
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		};
+
+		expect(() => jsonResponseSchema(document, descriptor)).toThrowError(
+			'POST /migration/{source_provider}/list-indexes 200 application/json schema must exist'
+		);
+	});
+});
+
 describe('OpenAPI frontend type drift guard', () => {
 	it.each(schemaDescriptors)('$schemaName matches the frontend API type owner', (descriptor) => {
 		for (const property of descriptor.properties) {
@@ -553,6 +785,10 @@ describe('OpenAPI frontend type drift guard', () => {
 		}
 	);
 
+	it.each(objectRequestDescriptors)('$method $path request accepts a $ref object', (descriptor) => {
+		assertJsonObjectRequestRef(descriptor);
+	});
+
 	it.each(objectResponseDescriptors)(
 		'$method $path $status response returns a $ref object',
 		(descriptor) => {
@@ -562,5 +798,9 @@ describe('OpenAPI frontend type drift guard', () => {
 
 	it.each(enumSchemaDescriptors)('$schemaName matches the frontend enum owner', (descriptor) => {
 		assertEnumSchema(descriptor);
+	});
+
+	it.each(oneOfSchemaDescriptors)('$schemaName matches the frontend oneOf owner', (descriptor) => {
+		assertOneOfSchema(descriptor);
 	});
 });

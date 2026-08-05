@@ -24,6 +24,32 @@ Backend ownership for post-signup billing setup is explicit: `infra/api/src/rout
 - Error: weak passwords, mismatched confirmation, invalid email, and duplicate-email/API failures show safe visible feedback without exposing whether an email already exists.
 - Success: valid signup redirects to `/console`; email verification remains the gate that unlocks downstream Stripe/billing setup.
 
+### OAuth control states
+
+`OAuthButtons.svelte` renders one control per provider (`google`, `github`) and
+resolves availability once on mount from `GET {apiBaseUrl}/auth/oauth/_status`.
+Three states, and the third is deliberate:
+
+- **Available** (`{provider: {enabled: true}}`): renders an enabled `<a>` with
+  `data-testid="oauth-button-<provider>"` and
+  `href="{apiBaseUrl}/auth/oauth/<provider>/start"`, accessible name
+  `Continue with Google` / `Continue with GitHub`.
+- **Unavailable** (`{provider: {enabled: false}}`): renders a `disabled`
+  `<button>` keeping the same `data-testid`, plus explanatory copy at
+  `data-testid="oauth-unavailable-<provider>"` reading
+  `<Provider> sign-in is unavailable in this environment.` The control still
+  renders — it is never removed from the DOM.
+- **Unknown** — the initial state, and the state kept when the status fetch
+  throws, returns non-OK, returns unparseable JSON, or returns a payload in
+  which any provider entry is missing or its `enabled` is not a boolean:
+  renders exactly as **Available**. The parse is all-or-nothing, so a payload
+  naming one provider `enabled: false` while omitting the other leaves **both**
+  controls enabled. This is fail-open by design — a transient status failure
+  must not hide a provider that still works — and it is asserted by the
+  `preserves enabled links without helper copy for %s` cases in
+  `web/src/lib/components/OAuthButtons.test.ts`. Do not "fix" it to render
+  disabled.
+
 ## Mobile Narrow Contract
 
 Baseline viewport: 390px wide (iPhone 14). The account fields, free-tier promise, validation messages, submit button, OAuth controls, login link, and support contact remain readable and tappable in one column without implying billing setup is complete before email verification.
@@ -37,7 +63,7 @@ Baseline viewport: 390px wide (iPhone 14). The account fields, free-tier promise
 ## Acceptance Criteria
 
 - [ ] Default render includes all required fields and the free-tier promise.
-- [ ] Passwords shorter than 8 characters show `Password must be at least 8 characters`.
+- [ ] Passwords shorter than 15 Unicode code points show `Password must be at least 15 characters`.
 - [ ] Mismatched passwords show visible validation and remain on `/signup`.
 - [ ] Duplicate email uses generic form failure text and does not reveal the email or existence state.
 - [ ] Successful signup reaches `/console` immediately.

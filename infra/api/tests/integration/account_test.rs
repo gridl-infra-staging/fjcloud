@@ -418,7 +418,7 @@ async fn change_password_with_correct_current_succeeds() {
                 .body(Body::from(
                     serde_json::to_string(&serde_json::json!({
                         "current_password": "oldpassword",
-                        "new_password": "newpassword123"
+                        "new_password": "NewPassword123!"
                     }))
                     .unwrap(),
                 ))
@@ -530,7 +530,7 @@ async fn change_password_wrong_current_password_does_not_leak_account_info() {
                 .body(Body::from(
                     serde_json::json!({
                         "current_password": "wrongpassword",
-                        "new_password": "newpassword123"
+                        "new_password": "NewPassword123!"
                     })
                     .to_string(),
                 ))
@@ -558,7 +558,7 @@ async fn change_password_wrong_current_password_does_not_leak_account_info() {
     assert!(!body_str.contains("$argon2"), "password hash leaked");
 }
 
-/// Change-password should reject current passwords exceeding 128 chars (defense-in-depth).
+/// Change-password should reject current passwords exceeding 128 bytes (defense-in-depth).
 #[tokio::test]
 async fn change_password_rejects_current_password_exceeding_max_length() {
     let repo = mock_repo();
@@ -579,7 +579,7 @@ async fn change_password_rejects_current_password_exceeding_max_length() {
                 .body(Body::from(
                     serde_json::json!({
                         "current_password": long_current,
-                        "new_password": "newpassword123"
+                        "new_password": "NewPassword123!"
                     })
                     .to_string(),
                 ))
@@ -590,10 +590,9 @@ async fn change_password_rejects_current_password_exceeding_max_length() {
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
     let json = body_json(resp.into_body()).await;
-    assert!(
-        json["error"].as_str().unwrap().contains("at most 128"),
-        "expected length error, got: {:?}",
-        json
+    assert_eq!(
+        json,
+        serde_json::json!({"error": "current password must be at most 128 bytes"})
     );
 }
 
@@ -908,7 +907,7 @@ async fn delete_account_without_auth_returns_401() {
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
-/// DELETE /account should reject passwords exceeding 128 chars (Argon2 DoS prevention).
+/// DELETE /account should reject passwords exceeding 128 bytes (Argon2 DoS prevention).
 #[tokio::test]
 async fn delete_account_rejects_password_exceeding_max_length() {
     let repo = mock_repo();
@@ -938,10 +937,9 @@ async fn delete_account_rejects_password_exceeding_max_length() {
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
     let json = body_json(resp.into_body()).await;
-    assert!(
-        json["error"].as_str().unwrap().contains("at most 128"),
-        "expected length error, got: {:?}",
-        json
+    assert_eq!(
+        json,
+        serde_json::json!({"error": "password must be at most 128 bytes"})
     );
 }
 

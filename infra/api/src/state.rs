@@ -8,6 +8,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::auth::admin::AdminUserRepo;
+use crate::auth::admin_session::AdminSessionRepo;
 use crate::dns::DnsManager;
 use crate::provisioner::region_map::RegionConfig;
 use crate::provisioner::VmProvisioner;
@@ -28,10 +29,12 @@ use crate::repos::VmHostMetricsRepo;
 use crate::repos::VmInventoryRepo;
 use crate::repos::VmLifecycleEventRepo;
 use crate::repos::WebhookEventRepo;
+use crate::router::RateLimiter;
 use crate::routes::public_infrastructure::PublicInfrastructureResponse;
 use crate::services::alerting::AlertService;
 use crate::services::algolia_import::AlgoliaImportService;
 use crate::services::algolia_source::AlgoliaSourceLister;
+use crate::services::audit_log::AuditLogWriter;
 use crate::services::discovery::DiscoveryService;
 use crate::services::email::EmailService;
 use crate::services::flapjack_proxy::FlapjackProxy;
@@ -221,15 +224,18 @@ impl PublicInfrastructureCache {
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
+    pub audit_log_writer: Arc<dyn AuditLogWriter>,
     pub jwt_secret: Arc<str>,
     pub admin_key: Arc<str>,
     pub admin_user_repo: Arc<dyn AdminUserRepo>,
+    pub admin_session_repo: Arc<dyn AdminSessionRepo>,
     pub internal_auth_token: Option<Arc<str>>,
     pub stripe_webhook_secret: Option<Arc<str>>,
     pub stripe_publishable_key: Option<String>,
     pub stripe_success_url: String,
     pub stripe_cancel_url: String,
     pub metrics_collector: Arc<MetricsCollector>,
+    pub api_key_rate_limiter: RateLimiter,
     pub api_key_repo: Arc<dyn ApiKeyRepo + Send + Sync>,
     pub customer_repo: Arc<dyn CustomerRepo + Send + Sync>,
     pub deployment_repo: Arc<dyn DeploymentRepo + Send + Sync>,

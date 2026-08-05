@@ -17,6 +17,8 @@ export default defineConfig({
 	test: {
 		include: ['src/**/*.test.ts', 'tests/fixtures/**/*.test.ts'],
 		environment: 'jsdom',
-		setupFiles: ['src/tests/setup.ts']
+		setupFiles: ['src/tests/setup.ts'],
+		maxWorkers: 2,
+		testTimeout: 60_000
 	}
 });

@@ -163,6 +163,40 @@ MOCK
     fi
 }
 
+test_check_port_available_returns_nonzero_when_lsof_missing() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap "rm -rf '$tmp_dir'" RETURN
+
+    LOG_OUTPUT=""
+    local exit_code=0
+    PATH="$tmp_dir" check_port_available 7700 "flapjack" || exit_code=$?
+
+    assert_eq "$exit_code" "1" "check_port_available should fail closed when lsof is missing"
+    assert_contains "$LOG_OUTPUT" "lsof is required" \
+        "missing lsof should explain that port ownership is indeterminate"
+}
+
+test_check_port_available_returns_nonzero_when_lsof_fails() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap "rm -rf '$tmp_dir'" RETURN
+
+    cat > "$tmp_dir/lsof" << 'MOCK'
+#!/usr/bin/env bash
+exit 127
+MOCK
+    chmod +x "$tmp_dir/lsof"
+
+    LOG_OUTPUT=""
+    local exit_code=0
+    PATH="$tmp_dir:$PATH" check_port_available 7700 "flapjack" || exit_code=$?
+
+    assert_eq "$exit_code" "1" "check_port_available should fail closed when lsof cannot probe"
+    assert_contains "$LOG_OUTPUT" "lsof failed while checking port 7700" \
+        "failed lsof should explain that port ownership is indeterminate"
+}
+
 # ============================================================================
 # Run all tests
 # ============================================================================
@@ -180,6 +214,8 @@ main() {
     echo "--- check_port_available ---"
     test_check_port_available_returns_zero_when_free
     test_check_port_available_returns_nonzero_when_occupied
+    test_check_port_available_returns_nonzero_when_lsof_missing
+    test_check_port_available_returns_nonzero_when_lsof_fails
 
     echo ""
     echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="

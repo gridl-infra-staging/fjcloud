@@ -11,11 +11,10 @@ import {
 } from '$lib/error-boundary/recovery-copy';
 import { env } from '$env/dynamic/private';
 import { privateEnvValue } from '$lib/server/runtime-env';
+import { applyDocumentSecurityHeaders } from '$lib/server/security_headers';
 
 const PUBLIC_PATHS = ['/login', '/signup', '/verify-email', '/forgot-password', '/reset-password'];
 const SESSION_EXPIRED_REASON = 'session_expired';
-const ROBOTS_HEADER_VALUE =
-	'noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai';
 
 function isPublicPath(pathname: string): boolean {
 	if (pathname === '/') return true;
@@ -93,9 +92,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	const response = await resolve(event);
-	// The public beta should be fetchable for humans and link-preview bots, but
-	// not indexed while product copy, pricing, and signup flows are still changing.
-	response.headers.set('X-Robots-Tag', ROBOTS_HEADER_VALUE);
+	applyDocumentSecurityHeaders(response.headers);
 	return response;
 };
 

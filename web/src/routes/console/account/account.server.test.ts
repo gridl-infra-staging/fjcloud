@@ -7,6 +7,8 @@ const updateProfileMock = vi.fn();
 const changePasswordMock = vi.fn();
 const deleteAccountMock = vi.fn();
 const exportAccountMock = vi.fn();
+const VALID_PASSWORD = 'ValidPassword123!';
+const MULTIBYTE_SHORT_PASSWORD = '🔒🔒🔒';
 
 vi.mock('$lib/server/api', () => ({
 	createApiClient: vi.fn(() => ({
@@ -161,8 +163,8 @@ describe('Account page server', () => {
 			const result = await actions.changePassword(
 				makeRequest({
 					current_password: '',
-					new_password: 'newpass123',
-					confirm_password: 'newpass123'
+					new_password: VALID_PASSWORD,
+					confirm_password: VALID_PASSWORD
 				})
 			);
 			expect(result).toEqual(
@@ -189,18 +191,18 @@ describe('Account page server', () => {
 			);
 		});
 
-		it('fails when new password is less than 8 characters', async () => {
+		it('fails when new password is less than 15 code points', async () => {
 			const result = await actions.changePassword(
 				makeRequest({
 					current_password: 'current',
-					new_password: 'short',
-					confirm_password: 'short'
+					new_password: MULTIBYTE_SHORT_PASSWORD,
+					confirm_password: MULTIBYTE_SHORT_PASSWORD
 				})
 			);
 			expect(result).toEqual(
 				expect.objectContaining({
 					status: 400,
-					data: { error: 'New password must be at least 8 characters' }
+					data: { error: 'New password must be at least 15 characters' }
 				})
 			);
 		});
@@ -209,8 +211,8 @@ describe('Account page server', () => {
 			const result = await actions.changePassword(
 				makeRequest({
 					current_password: 'current',
-					new_password: 'newpassword1',
-					confirm_password: 'newpassword2'
+					new_password: 'ValidPassword123!',
+					confirm_password: 'DifferentPassword123!'
 				})
 			);
 			expect(result).toEqual(
@@ -226,14 +228,14 @@ describe('Account page server', () => {
 			const result = await actions.changePassword(
 				makeRequest({
 					current_password: 'oldpass123',
-					new_password: 'newpass123',
-					confirm_password: 'newpass123'
+					new_password: VALID_PASSWORD,
+					confirm_password: VALID_PASSWORD
 				})
 			);
 			expect(result).toEqual({ success: 'Password changed successfully' });
 			expect(changePasswordMock).toHaveBeenCalledWith({
 				current_password: 'oldpass123',
-				new_password: 'newpass123'
+				new_password: VALID_PASSWORD
 			});
 		});
 
@@ -244,8 +246,8 @@ describe('Account page server', () => {
 			const result = await actions.changePassword(
 				makeRequest({
 					current_password: 'wrong',
-					new_password: 'newpass123',
-					confirm_password: 'newpass123'
+					new_password: VALID_PASSWORD,
+					confirm_password: VALID_PASSWORD
 				})
 			);
 			expect(result).toEqual(
@@ -256,14 +258,33 @@ describe('Account page server', () => {
 			);
 		});
 
+		it('keeps backend new-password validation on the new-password field', async () => {
+			changePasswordMock.mockRejectedValue(
+				new ApiRequestError(400, 'password is too common; choose another password')
+			);
+			const result = await actions.changePassword(
+				makeRequest({
+					current_password: 'oldpass123',
+					new_password: VALID_PASSWORD,
+					confirm_password: VALID_PASSWORD
+				})
+			);
+			expect(result).toEqual(
+				expect.objectContaining({
+					status: 400,
+					data: { newPasswordError: 'New password is too common; choose another password' }
+				})
+			);
+		});
+
 		it('returns shared session-expired payload when password change loses auth', async () => {
 			changePasswordMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
 
 			const result = await actions.changePassword(
 				makeRequest({
 					current_password: 'oldpass123',
-					new_password: 'newpass123',
-					confirm_password: 'newpass123'
+					new_password: VALID_PASSWORD,
+					confirm_password: VALID_PASSWORD
 				})
 			);
 			expect(result).toEqual(
@@ -283,8 +304,8 @@ describe('Account page server', () => {
 			const result = await actions.changePassword(
 				makeRequest({
 					current_password: 'oldpass123',
-					new_password: 'newpass123',
-					confirm_password: 'newpass123'
+					new_password: VALID_PASSWORD,
+					confirm_password: VALID_PASSWORD
 				})
 			);
 			expect(result).toEqual(
@@ -295,13 +316,13 @@ describe('Account page server', () => {
 			);
 		});
 
-		it('accepts exactly 8 character password (boundary)', async () => {
+		it('accepts exactly 15 code point password (boundary)', async () => {
 			changePasswordMock.mockResolvedValue(undefined);
 			const result = await actions.changePassword(
 				makeRequest({
 					current_password: 'current1',
-					new_password: '12345678',
-					confirm_password: '12345678'
+					new_password: 'abc café 123456',
+					confirm_password: 'abc café 123456'
 				})
 			);
 			expect(result).toEqual({ success: 'Password changed successfully' });

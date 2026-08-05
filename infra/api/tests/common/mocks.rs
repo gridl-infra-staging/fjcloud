@@ -16,7 +16,7 @@ use api::repos::dispute_repo::{DisputeRepo, DisputeRow, DisputeUpsertInput};
 use api::repos::index_migration_repo::IndexMigrationRepo;
 use api::repos::invoice_repo::{AdminInvoiceSummaryRow, InvoiceRepo, NewInvoice, NewLineItem};
 use api::repos::tenant_repo::TenantRepo;
-use api::repos::usage_repo::{rolling_window_for_days, UsageSummary};
+use api::repos::usage_repo::{rolling_window_for_days, AdminUsageMutation, UsageSummary};
 use api::repos::vm_inventory_repo::{
     validate_vm_retirement_candidate, VmInventoryRepo, VmRetirementCandidateStatus,
 };
@@ -35,6 +35,7 @@ use api::repos::{
 };
 use api::secrets::mock::MockNodeSecretManager;
 use api::services::alerting::MockAlertService;
+use api::services::audit_log::{AuditEntry, AuditLogError, AuditLogWriter};
 use api::services::cold_tier::{ColdTierError, FlapjackNodeClient};
 use api::services::email::{
     BroadcastDeliveryStatus, DunningRecoveredAfterFailureEmailRequest,
@@ -64,10 +65,42 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::Notify;
 use uuid::Uuid;
 
+#[derive(Default)]
+pub struct MockAuditLogWriter {
+    entries: Mutex<Vec<AuditEntry>>,
+    should_fail: AtomicBool,
+}
+
+impl MockAuditLogWriter {
+    pub fn entries(&self) -> Vec<AuditEntry> {
+        self.entries.lock().unwrap().clone()
+    }
+
+    pub fn fail_writes(&self) {
+        self.should_fail.store(true, Ordering::SeqCst);
+    }
+}
+
+#[async_trait]
+impl AuditLogWriter for MockAuditLogWriter {
+    async fn write(&self, entry: &AuditEntry) -> Result<(), AuditLogError> {
+        if self.should_fail.load(Ordering::SeqCst) {
+            return Err(AuditLogError::Db("injected audit failure".to_string()));
+        }
+        self.entries.lock().unwrap().push(entry.clone());
+        Ok(())
+    }
+}
+
+pub fn mock_audit_log_writer() -> Arc<MockAuditLogWriter> {
+    Arc::new(MockAuditLogWriter::default())
+}
+
 pub struct MockCustomerRepo {
     customers: Mutex<Vec<Customer>>,
     oauth_identities: Mutex<HashMap<(String, String), Uuid>>,
     pub should_fail_suspend: Mutex<bool>,
+    suspend_audit_entries: Mutex<Vec<AuditEntry>>,
     pub should_fail_reactivate: Mutex<bool>,
     list_calls: AtomicUsize,
     reactivate_calls: AtomicUsize,
@@ -144,6 +177,7 @@ impl MockCustomerRepo {
             customers: Mutex::new(Vec::new()),
             oauth_identities: Mutex::new(HashMap::new()),
             should_fail_suspend: Mutex::new(false),
+            suspend_audit_entries: Mutex::new(Vec::new()),
             should_fail_reactivate: Mutex::new(false),
             list_calls: AtomicUsize::new(0),
             reactivate_calls: AtomicUsize::new(0),
@@ -176,6 +210,10 @@ impl MockCustomerRepo {
 
     pub fn reactivate_call_count(&self) -> usize {
         self.reactivate_calls.load(Ordering::SeqCst)
+    }
+
+    pub fn suspend_audit_entries(&self) -> Vec<AuditEntry> {
+        self.suspend_audit_entries.lock().unwrap().clone()
     }
 
     pub fn list_call_count(&self) -> usize {
@@ -621,6 +659,7 @@ impl CustomerRepo for MockCustomerRepo {
         &self,
         id: Uuid,
         kind: api::repos::CustomerHardDeleteKind,
+        _audit_policy: api::repos::CustomerHardDeleteAuditPolicy,
     ) -> Result<api::repos::CustomerHardDeleteOutcome, RepoError> {
         if self
             .fail_next_hard_delete_open_invoices
@@ -1238,7 +1277,7 @@ impl CustomerRepo for MockCustomerRepo {
     /// `"suspended"`. Returns `RepoError::Other` if `should_fail_suspend` is set
     /// (for error-path testing); returns `false` if the customer is not found or
     /// not currently active.
-    async fn suspend(&self, id: Uuid) -> Result<bool, RepoError> {
+    async fn suspend(&self, id: Uuid, audit_entry: AuditEntry) -> Result<bool, RepoError> {
         if *self.should_fail_suspend.lock().unwrap() {
             return Err(RepoError::Other("injected suspend failure".into()));
         }
@@ -1250,6 +1289,7 @@ impl CustomerRepo for MockCustomerRepo {
             Some(c) => {
                 c.status = "suspended".to_string();
                 c.updated_at = Utc::now();
+                self.suspend_audit_entries.lock().unwrap().push(audit_entry);
                 Ok(true)
             }
             None => Ok(false),
@@ -1840,13 +1880,25 @@ pub fn mock_deployment_repo() -> Arc<MockDeploymentRepo> {
 
 pub struct MockUsageRepo {
     rows: Mutex<Vec<UsageDaily>>,
+    audit_entries: Mutex<Vec<AuditEntry>>,
+    monthly_search_count_calls: AtomicUsize,
 }
 
 impl MockUsageRepo {
     pub fn new() -> Self {
         Self {
             rows: Mutex::new(Vec::new()),
+            audit_entries: Mutex::new(Vec::new()),
+            monthly_search_count_calls: AtomicUsize::new(0),
         }
+    }
+
+    pub fn monthly_search_count_call_count(&self) -> usize {
+        self.monthly_search_count_calls.load(Ordering::SeqCst)
+    }
+
+    pub fn audit_entries(&self) -> Vec<AuditEntry> {
+        self.audit_entries.lock().unwrap().clone()
     }
 
     /// Directly inserts a `UsageDaily` row into the in-memory store. Used in
@@ -1931,6 +1983,8 @@ impl UsageRepo for MockUsageRepo {
         year: i32,
         month: u32,
     ) -> Result<i64, RepoError> {
+        self.monthly_search_count_calls
+            .fetch_add(1, Ordering::SeqCst);
         let start_date = NaiveDate::from_ymd_opt(year, month, 1)
             .ok_or_else(|| RepoError::Other("invalid year/month".to_string()))?;
         let (next_year, next_month) = if month == 12 {
@@ -1962,6 +2016,79 @@ impl UsageRepo for MockUsageRepo {
         };
 
         Ok(summarize_usage_totals(&rows))
+    }
+
+    async fn upsert_daily_usage(
+        &self,
+        mutation: AdminUsageMutation,
+        entries: &[api::repos::usage_repo::DailyUsageWrite],
+    ) -> Result<u64, RepoError> {
+        let mut rows = self.rows.lock().unwrap();
+        for entry in entries {
+            rows.retain(|row| {
+                !(row.customer_id == mutation.customer_id
+                    && row.date == entry.date
+                    && row.region == entry.region)
+            });
+            rows.push(UsageDaily {
+                customer_id: mutation.customer_id,
+                date: entry.date,
+                region: entry.region.clone(),
+                search_requests: entry.search_requests,
+                write_operations: entry.write_operations,
+                storage_bytes_avg: entry.storage_bytes_avg,
+                documents_count_avg: entry.documents_count_avg,
+                aggregated_at: Utc::now(),
+            });
+        }
+        rows.sort_by(|left, right| {
+            (left.date, left.region.as_str()).cmp(&(right.date, right.region.as_str()))
+        });
+        let mutation_count = entries.len() as u64;
+        self.audit_entries.lock().unwrap().push(
+            api::services::audit_log::daily_usage_upserted_audit_entry(
+                mutation.operator_id,
+                mutation.customer_id,
+                entries
+                    .iter()
+                    .map(|entry| (entry.date, entry.region.as_str())),
+                mutation_count,
+            ),
+        );
+        Ok(mutation_count)
+    }
+
+    async fn delete_daily_usage(
+        &self,
+        mutation: AdminUsageMutation,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+        month: &str,
+        region: &str,
+    ) -> Result<u64, RepoError> {
+        let mut rows = self.rows.lock().unwrap();
+        let before = rows.len();
+        rows.retain(|row| {
+            row.customer_id != mutation.customer_id
+                || row.date < start_date
+                || row.date > end_date
+                || row.region != region
+        });
+        let mutation_count = (before - rows.len()) as u64;
+        self.audit_entries.lock().unwrap().push(
+            api::services::audit_log::daily_usage_deleted_audit_entry(
+                mutation.operator_id,
+                mutation.customer_id,
+                &api::services::audit_log::DailyUsageDeleteAuditScope {
+                    month,
+                    start_date,
+                    end_date,
+                    region,
+                    mutation_count,
+                },
+            ),
+        );
+        Ok(mutation_count)
     }
 }
 
@@ -4329,6 +4456,7 @@ pub struct MockTenantRepo {
     deployments: Mutex<HashMap<Uuid, DeploymentInfo>>,
     list_by_vm_calls: AtomicUsize,
     list_by_vms_calls: AtomicUsize,
+    find_by_name_calls: AtomicUsize,
     find_raw_calls: Mutex<usize>,
     last_accessed_updates: Mutex<Vec<(Uuid, String, DateTime<Utc>)>>,
     update_last_accessed_calls: Mutex<usize>,
@@ -4343,6 +4471,7 @@ impl MockTenantRepo {
             deployments: Mutex::new(HashMap::new()),
             list_by_vm_calls: AtomicUsize::new(0),
             list_by_vms_calls: AtomicUsize::new(0),
+            find_by_name_calls: AtomicUsize::new(0),
             find_raw_calls: Mutex::new(0),
             last_accessed_updates: Mutex::new(Vec::new()),
             update_last_accessed_calls: Mutex::new(0),
@@ -4361,6 +4490,10 @@ impl MockTenantRepo {
 
     pub fn list_by_vms_call_count(&self) -> usize {
         self.list_by_vms_calls.load(Ordering::SeqCst)
+    }
+
+    pub fn find_by_name_call_count(&self) -> usize {
+        self.find_by_name_calls.load(Ordering::SeqCst)
     }
 
     pub fn last_accessed_updates(&self) -> Vec<(Uuid, String, DateTime<Utc>)> {
@@ -4593,6 +4726,7 @@ impl TenantRepo for MockTenantRepo {
                     customer_id: t.customer_id,
                     tenant_id: t.tenant_id.clone(),
                     deployment_id: t.deployment_id,
+                    vm_id: t.vm_id,
                     created_at: t.created_at,
                     region: d.region.clone(),
                     flapjack_url: d.flapjack_url.clone(),
@@ -4618,6 +4752,7 @@ impl TenantRepo for MockTenantRepo {
         customer_id: Uuid,
         tenant_id: &str,
     ) -> Result<Option<CustomerTenantSummary>, RepoError> {
+        self.find_by_name_calls.fetch_add(1, Ordering::SeqCst);
         let tenants = self.tenants.lock().unwrap();
         let deployments = self.deployments.lock().unwrap();
 
@@ -4633,6 +4768,7 @@ impl TenantRepo for MockTenantRepo {
                     customer_id: t.customer_id,
                     tenant_id: t.tenant_id.clone(),
                     deployment_id: t.deployment_id,
+                    vm_id: t.vm_id,
                     created_at: t.created_at,
                     region: d.region.clone(),
                     flapjack_url: d.flapjack_url.clone(),
@@ -4866,6 +5002,7 @@ impl TenantRepo for MockTenantRepo {
                     customer_id: t.customer_id,
                     tenant_id: t.tenant_id.clone(),
                     deployment_id: t.deployment_id,
+                    vm_id: t.vm_id,
                     created_at: t.created_at,
                     region: d.region.clone(),
                     flapjack_url: d.flapjack_url.clone(),

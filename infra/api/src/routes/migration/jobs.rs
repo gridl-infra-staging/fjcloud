@@ -1,16 +1,20 @@
 use std::fmt;
 
+use axum::body::Bytes;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
 use chrono::Utc;
-use serde::Deserialize;
+use serde::ser::{SerializeStruct, Serializer};
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::auth::AuthenticatedTenant;
 use crate::errors::ApiError;
-use crate::models::algolia_import_job::{AlgoliaImportDestinationKind, AlgoliaImportJob};
+use crate::models::algolia_import_job::{
+    AlgoliaImportDestinationKind, AlgoliaImportJob, SourceImportProvider,
+};
 use crate::models::AlgoliaImportErrorCode;
 use crate::repos::{
     AlgoliaImportDispatchReplayIdentity, AlgoliaImportTransitionDisposition, AlgoliaLifecycleError,
@@ -28,7 +32,8 @@ use super::retained_jobs::{
 use super::{
     job_not_found, map_algolia_source_error, map_create_admission_error, map_job_admission_error,
     migration_backend_unavailable, migration_code_error, migration_error, migration_unavailable,
-    validate_source_provider, MigrationJobPath, MigrationSourcePath,
+    require_json_content_type, serde_offending_field, validate_adapter_source_provider,
+    MigrationJobPath, MigrationSourcePath, REDACTED_CREDENTIAL,
 };
 
 #[derive(Deserialize, ToSchema)]
@@ -46,11 +51,96 @@ impl fmt::Debug for CreateAlgoliaImportJobRequest {
         formatter
             .debug_struct("CreateAlgoliaImportJobRequest")
             .field("mode", &self.mode)
-            .field("app_id", &"[REDACTED]")
-            .field("api_key", &"[REDACTED]")
-            .field("source_name", &"[REDACTED]")
+            .field("app_id", &REDACTED_CREDENTIAL)
+            .field("api_key", &REDACTED_CREDENTIAL)
+            .field("source_name", &REDACTED_CREDENTIAL)
             .field("target", &self.target)
             .finish()
+    }
+}
+
+/// Redacting serializer. `Serialize` exists only to satisfy the documentation union's
+/// bounds; `ToSchema` reads the serde attributes above, not this impl, so the published
+/// schema is unaffected while no serde emission can leak a credential.
+impl Serialize for CreateAlgoliaImportJobRequest {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut request = serializer.serialize_struct("CreateAlgoliaImportJobRequest", 5)?;
+        request.serialize_field("mode", &self.mode)?;
+        request.serialize_field("appId", REDACTED_CREDENTIAL)?;
+        request.serialize_field("apiKey", REDACTED_CREDENTIAL)?;
+        request.serialize_field("sourceName", REDACTED_CREDENTIAL)?;
+        request.serialize_field("target", &self.target)?;
+        request.end()
+    }
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateMeilisearchImportJobRequest {
+    pub(super) mode: AlgoliaImportDestinationKind,
+    pub(super) endpoint: String,
+    pub(super) api_key: String,
+    pub(super) source_index: String,
+    pub(super) target: CreateAlgoliaImportJobTargetRequest,
+}
+
+impl fmt::Debug for CreateMeilisearchImportJobRequest {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CreateMeilisearchImportJobRequest")
+            .field("mode", &self.mode)
+            .field("endpoint", &REDACTED_CREDENTIAL)
+            .field("api_key", &REDACTED_CREDENTIAL)
+            .field("source_index", &REDACTED_CREDENTIAL)
+            .field("target", &self.target)
+            .finish()
+    }
+}
+
+impl Serialize for CreateMeilisearchImportJobRequest {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut request = serializer.serialize_struct("CreateMeilisearchImportJobRequest", 5)?;
+        request.serialize_field("mode", &self.mode)?;
+        request.serialize_field("endpoint", REDACTED_CREDENTIAL)?;
+        request.serialize_field("apiKey", REDACTED_CREDENTIAL)?;
+        request.serialize_field("sourceIndex", REDACTED_CREDENTIAL)?;
+        request.serialize_field("target", &self.target)?;
+        request.end()
+    }
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateTypesenseImportJobRequest {
+    pub(super) mode: AlgoliaImportDestinationKind,
+    pub(super) node: String,
+    pub(super) api_key: String,
+    pub(super) source_index: String,
+    pub(super) target: CreateAlgoliaImportJobTargetRequest,
+}
+
+impl fmt::Debug for CreateTypesenseImportJobRequest {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CreateTypesenseImportJobRequest")
+            .field("mode", &self.mode)
+            .field("node", &REDACTED_CREDENTIAL)
+            .field("api_key", &REDACTED_CREDENTIAL)
+            .field("source_index", &REDACTED_CREDENTIAL)
+            .field("target", &self.target)
+            .finish()
+    }
+}
+
+impl Serialize for CreateTypesenseImportJobRequest {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut request = serializer.serialize_struct("CreateTypesenseImportJobRequest", 5)?;
+        request.serialize_field("mode", &self.mode)?;
+        request.serialize_field("node", REDACTED_CREDENTIAL)?;
+        request.serialize_field("apiKey", REDACTED_CREDENTIAL)?;
+        request.serialize_field("sourceIndex", REDACTED_CREDENTIAL)?;
+        request.serialize_field("target", &self.target)?;
+        request.end()
     }
 }
 
@@ -64,8 +154,69 @@ impl fmt::Debug for CreateAlgoliaImportJobTargetRequest {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("CreateAlgoliaImportJobTargetRequest")
-            .field("eligibility_token", &"[REDACTED]")
+            .field("eligibility_token", &REDACTED_CREDENTIAL)
             .finish()
+    }
+}
+
+impl Serialize for CreateAlgoliaImportJobTargetRequest {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut target = serializer.serialize_struct("CreateAlgoliaImportJobTargetRequest", 1)?;
+        target.serialize_field("eligibilityToken", REDACTED_CREDENTIAL)?;
+        target.end()
+    }
+}
+
+/// Documentation-only union; runtime deserialization remains provider-selected in the handler.
+#[derive(Serialize, ToSchema)]
+#[serde(untagged)]
+pub enum CreateSourceImportJobRequest {
+    Algolia(CreateAlgoliaImportJobRequest),
+    Meilisearch(CreateMeilisearchImportJobRequest),
+    Typesense(CreateTypesenseImportJobRequest),
+}
+
+struct CreateImportJobAdmissionRequest {
+    mode: AlgoliaImportDestinationKind,
+    source_connection_id: String,
+    api_key: String,
+    source_name: String,
+    target: CreateAlgoliaImportJobTargetRequest,
+}
+
+impl From<CreateAlgoliaImportJobRequest> for CreateImportJobAdmissionRequest {
+    fn from(request: CreateAlgoliaImportJobRequest) -> Self {
+        Self {
+            mode: request.mode,
+            source_connection_id: request.app_id,
+            api_key: request.api_key,
+            source_name: request.source_name,
+            target: request.target,
+        }
+    }
+}
+
+impl From<CreateMeilisearchImportJobRequest> for CreateImportJobAdmissionRequest {
+    fn from(request: CreateMeilisearchImportJobRequest) -> Self {
+        Self {
+            mode: request.mode,
+            source_connection_id: request.endpoint,
+            api_key: request.api_key,
+            source_name: request.source_index,
+            target: request.target,
+        }
+    }
+}
+
+impl From<CreateTypesenseImportJobRequest> for CreateImportJobAdmissionRequest {
+    fn from(request: CreateTypesenseImportJobRequest) -> Self {
+        Self {
+            mode: request.mode,
+            source_connection_id: request.node,
+            api_key: request.api_key,
+            source_name: request.source_index,
+            target: request.target,
+        }
     }
 }
 
@@ -90,16 +241,20 @@ impl fmt::Debug for ResumeAlgoliaImportJobRequest {
 
 #[utoipa::path(
     post,
-    path = "/migration/algolia/jobs",
+    path = "/migration/{source_provider}/jobs",
     operation_id = "create_algolia_import_job",
     tag = "Migration",
-    request_body = CreateAlgoliaImportJobRequest,
+    params(
+        ("source_provider" = SourceImportProvider, Path, description = "Source migration provider"),
+    ),
+    request_body = CreateSourceImportJobRequest,
     responses(
         (status = 202, description = "Import job accepted (also returned for an idempotent replay); Location header carries the retained job path", body = PublicAlgoliaImportJob),
         (status = 400, description = "Invalid credentials, missing source, or tampered/stale eligibility envelope", body = crate::errors::MigrationErrorResponse),
         (status = 401, description = "Authentication required", body = crate::errors::ErrorResponse),
         (status = 403, description = "Source key lacks the required ACL or the replace target is not owned", body = crate::errors::MigrationErrorResponse),
         (status = 409, description = "Destination conflict or a changed request under an existing idempotency key", body = crate::errors::MigrationErrorResponse),
+        (status = 415, description = "Request body must use a JSON media type", body = crate::errors::MigrationErrorResponse),
         (status = 503, description = "Migration admission disabled or repository backpressured", body = crate::errors::MigrationErrorResponse),
     )
 )]
@@ -109,9 +264,12 @@ pub async fn create_import_job(
     State(state): State<AppState>,
     Path(path): Path<MigrationSourcePath>,
     headers: HeaderMap,
-    Json(request): Json<CreateAlgoliaImportJobRequest>,
+    body: Bytes,
 ) -> Result<impl IntoResponse, ApiError> {
-    validate_source_provider(path.source_provider.as_deref())?;
+    let source_provider = validate_adapter_source_provider(path.source_provider.as_deref())?;
+    require_json_content_type(&headers)?;
+    // Opaque extraction preserves labelled handler errors instead of Axum 422 responses.
+    let request = deserialize_create_import_job_request(source_provider, &body)?;
     if !state.algolia_migration_enabled {
         return Err(migration_unavailable());
     }
@@ -134,12 +292,17 @@ pub async fn create_import_job(
             )
         })?
         .to_string();
-    let target_binding = super::verify_target_envelope(&state, &auth, &request)?;
+    let target_binding = super::verify_target_envelope(
+        &state,
+        &auth,
+        request.mode,
+        &request.target.eligibility_token,
+    )?;
     // Return an exact idempotent replay from persisted state before running any
     // fresh create-target placement/compatibility admission or credential-bearing
     // source inspection, so a retained job replays unchanged under later drift.
     let replay_identity = AlgoliaImportDispatchReplayIdentity {
-        app_id: request.app_id.clone(),
+        app_id: request.source_connection_id.clone(),
         source_name: request.source_name.clone(),
         kind: target_binding.mode(),
         logical_target: target_binding.logical_target().to_string(),
@@ -157,7 +320,7 @@ pub async fn create_import_job(
         .map_err(map_submit_admission_error)?
     {
         let body = public_algolia_import_job(existing);
-        let location = format!("/migration/algolia/jobs/{}", body.id);
+        let location = retained_job_path(source_provider, body.id);
         return Ok((
             StatusCode::ACCEPTED,
             [(axum::http::header::LOCATION, location)],
@@ -167,7 +330,7 @@ pub async fn create_import_job(
     let inspected_source = state
         .algolia_source_service
         .inspect_source(AlgoliaSourceInspectRequest {
-            app_id: request.app_id.clone(),
+            app_id: request.source_connection_id.clone(),
             api_key: zeroize::Zeroizing::new(request.api_key.clone()),
             source_name: request.source_name.clone(),
         })
@@ -192,7 +355,7 @@ pub async fn create_import_job(
             AlgoliaImportAdmissionRequest::new(
                 target_binding,
                 create_target,
-                request.app_id,
+                request.source_connection_id,
                 request.api_key,
                 request.source_name,
                 idempotency_key,
@@ -206,12 +369,58 @@ pub async fn create_import_job(
         .map_err(map_submit_admission_error)?;
     let job = outcome.into_job();
     let body = public_algolia_import_job(job);
-    let location = format!("/migration/algolia/jobs/{}", body.id);
+    let location = retained_job_path(source_provider, body.id);
     Ok((
         StatusCode::ACCEPTED,
         [(axum::http::header::LOCATION, location)],
         Json(body),
     ))
+}
+
+fn deserialize_create_import_job_request(
+    source_provider: SourceImportProvider,
+    body: &[u8],
+) -> Result<CreateImportJobAdmissionRequest, ApiError> {
+    match source_provider {
+        SourceImportProvider::Algolia => {
+            serde_json::from_slice::<CreateAlgoliaImportJobRequest>(body)
+                .map(CreateImportJobAdmissionRequest::from)
+        }
+        SourceImportProvider::Meilisearch => {
+            serde_json::from_slice::<CreateMeilisearchImportJobRequest>(body)
+                .map(CreateImportJobAdmissionRequest::from)
+        }
+        SourceImportProvider::Typesense => {
+            serde_json::from_slice::<CreateTypesenseImportJobRequest>(body)
+                .map(CreateImportJobAdmissionRequest::from)
+        }
+    }
+    .map_err(|error| map_create_request_deserialize_error(source_provider, error))
+}
+
+fn map_create_request_deserialize_error(
+    source_provider: SourceImportProvider,
+    error: serde_json::Error,
+) -> ApiError {
+    let message = match serde_offending_field(&error) {
+        Some(field) => format!(
+            "invalid {} create request: field `{field}` is incompatible",
+            source_provider.as_str()
+        ),
+        None => format!(
+            "invalid {} create request: request body is incompatible",
+            source_provider.as_str()
+        ),
+    };
+    migration_error(
+        StatusCode::BAD_REQUEST,
+        message,
+        AlgoliaImportErrorCode::IncompatibleData,
+    )
+}
+
+fn retained_job_path(source_provider: SourceImportProvider, job_id: uuid::Uuid) -> String {
+    format!("/migration/{}/jobs/{job_id}", source_provider.as_str())
 }
 
 fn map_submit_admission_error(error: AlgoliaImportAdmissionError) -> ApiError {
@@ -236,16 +445,18 @@ fn map_submit_admission_error(error: AlgoliaImportAdmissionError) -> ApiError {
 
 #[utoipa::path(
     post,
-    path = "/migration/algolia/jobs/{id}/cancel",
+    path = "/migration/{source_provider}/jobs/{id}/cancel",
     operation_id = "cancel_algolia_import_job",
     tag = "Migration",
     params(
+        ("source_provider" = SourceImportProvider, Path, description = "Source migration provider"),
         ("id" = uuid::Uuid, Path, description = "Retained import job id owned by the calling customer"),
     ),
     request_body = CancelAlgoliaImportJobRequest,
     responses(
         (status = 202, description = "Cancel accepted", body = PublicAlgoliaImportJob),
         (status = 200, description = "Cancel request was already recorded", body = PublicAlgoliaImportJob),
+        (status = 400, description = "Unsupported source provider (source_provider_unsupported)", body = crate::errors::MigrationErrorResponse),
         (status = 401, description = "Authentication required", body = crate::errors::ErrorResponse),
         (status = 404, description = "No such job, or the job is owned by another customer (indistinguishable)", body = crate::errors::ErrorResponse),
         (status = 409, description = "Job state cannot be cancelled", body = crate::errors::MigrationErrorResponse),
@@ -258,7 +469,7 @@ pub async fn cancel_import_job(
     Path(path): Path<MigrationJobPath>,
     Json(_request): Json<CancelAlgoliaImportJobRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let requested_provider = validate_source_provider(path.source_provider.as_deref())?;
+    let requested_provider = validate_adapter_source_provider(path.source_provider.as_deref())?;
     let id = path.id;
     let repo = PgSourceMigrationJobRepo::new(state.pool.clone());
     let retained = repo
@@ -296,10 +507,11 @@ pub async fn cancel_import_job(
 
 #[utoipa::path(
     post,
-    path = "/migration/algolia/jobs/{id}/resume",
+    path = "/migration/{source_provider}/jobs/{id}/resume",
     operation_id = "resume_algolia_import_job",
     tag = "Migration",
     params(
+        ("source_provider" = SourceImportProvider, Path, description = "Source migration provider"),
         ("id" = uuid::Uuid, Path, description = "Retained import job id owned by the calling customer"),
     ),
     request_body = ResumeAlgoliaImportJobRequest,
@@ -321,7 +533,7 @@ pub async fn resume_import_job(
     Path(path): Path<MigrationJobPath>,
     Json(request): Json<ResumeAlgoliaImportJobRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let requested_provider = validate_source_provider(path.source_provider.as_deref())?;
+    let requested_provider = validate_adapter_source_provider(path.source_provider.as_deref())?;
     let id = path.id;
     if !state.algolia_migration_enabled {
         return Err(migration_backend_unavailable(
@@ -402,28 +614,63 @@ mod tests {
     };
 
     #[test]
-    fn credential_bearing_create_request_debug_redacts_secret_identifiers() {
-        let request = CreateAlgoliaImportJobRequest {
-            mode: AlgoliaImportDestinationKind::Create,
-            app_id: "APPID-CANARY".to_string(),
-            api_key: "APIKEY-CANARY".to_string(),
-            source_name: "SOURCE-NAME-CANARY".to_string(),
-            target: CreateAlgoliaImportJobTargetRequest {
-                eligibility_token: "TOKEN-CANARY".to_string(),
-            },
-        };
+    fn retained_job_path_uses_the_requested_source_provider() {
+        let job_id = uuid::Uuid::from_u128(42);
 
-        let debug = format!("{request:?}");
+        assert_eq!(
+            retained_job_path(SourceImportProvider::Algolia, job_id),
+            format!("/migration/algolia/jobs/{job_id}")
+        );
+        assert_eq!(
+            retained_job_path(SourceImportProvider::Meilisearch, job_id),
+            format!("/migration/meilisearch/jobs/{job_id}")
+        );
+        assert_eq!(
+            retained_job_path(SourceImportProvider::Typesense, job_id),
+            format!("/migration/typesense/jobs/{job_id}")
+        );
+    }
 
-        for secret in [
-            "APPID-CANARY",
-            "APIKEY-CANARY",
-            "SOURCE-NAME-CANARY",
-            "TOKEN-CANARY",
+    #[test]
+    fn json_content_type_accepts_json_media_types_and_rejects_every_other_shape() {
+        for media_type in [
+            "application/json",
+            "APPLICATION/JSON; charset=utf-8",
+            "application/vnd.fjcloud+json",
         ] {
-            assert!(!debug.contains(secret), "Debug leaked {secret}: {debug}");
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                axum::http::header::CONTENT_TYPE,
+                axum::http::HeaderValue::from_static(media_type),
+            );
+            assert!(require_json_content_type(&headers).is_ok(), "{media_type}");
         }
-        assert!(debug.contains("[REDACTED]"));
+        for media_type in [
+            "text/plain",
+            "text/json",
+            "application/xml",
+            "application/+json",
+            "application/ +json",
+        ] {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                axum::http::header::CONTENT_TYPE,
+                axum::http::HeaderValue::from_static(media_type),
+            );
+            assert!(require_json_content_type(&headers).is_err(), "{media_type}");
+        }
+        assert!(require_json_content_type(&HeaderMap::new()).is_err());
+
+        let mut duplicate_content_type = HeaderMap::new();
+        duplicate_content_type.append(
+            axum::http::header::CONTENT_TYPE,
+            axum::http::HeaderValue::from_static("application/json"),
+        );
+        duplicate_content_type.append(
+            axum::http::header::CONTENT_TYPE,
+            axum::http::HeaderValue::from_static("text/plain"),
+        );
+        assert!(require_json_content_type(&duplicate_content_type).is_err());
     }
 
     #[test]

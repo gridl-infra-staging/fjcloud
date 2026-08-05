@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { adminSessionRouteEvent } from '../admin_session_durable_test_support';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
 import { getAccessibilityViolations } from '../../../tests/a11y';
 
@@ -149,21 +150,23 @@ describe('Admin migrations page', () => {
 			})
 		});
 
-		const result = await actions.trigger({
-			request,
-			fetch: async (input: string | URL | Request, init?: RequestInit) => {
-				capturedUrl = typeof input === 'string' ? input : input.toString();
-				capturedMethod = init?.method ?? 'GET';
-				capturedBody = String(init?.body ?? '');
-				return new Response(
-					JSON.stringify({
-						migration_id: 'aaaaaaaa-0001-0000-0000-000000000001',
-						status: 'started'
-					}),
-					{ status: 202 }
-				);
-			}
-		} as never);
+		const result = await actions.trigger(
+			adminSessionRouteEvent({
+				request,
+				fetch: async (input: string | URL | Request, init?: RequestInit) => {
+					capturedUrl = typeof input === 'string' ? input : input.toString();
+					capturedMethod = init?.method ?? 'GET';
+					capturedBody = String(init?.body ?? '');
+					return new Response(
+						JSON.stringify({
+							migration_id: 'aaaaaaaa-0001-0000-0000-000000000001',
+							status: 'started'
+						}),
+						{ status: 202 }
+					);
+				}
+			}) as never
+		);
 
 		expect(capturedUrl).toContain('/admin/migrations');
 		expect(capturedMethod).toBe('POST');

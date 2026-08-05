@@ -63,21 +63,10 @@ async function openCustomerListWithSearch(
 async function openCustomerFromList(page: Page, customerName: string): Promise<void> {
 	const { customersTableBody } = await openCustomerListWithSearch(page, customerName);
 
-	const detailLink = customersTableBody.getByRole('link', { name: customerName }).first();
+	const detailLink = customersTableBody.getByRole('link', { name: customerName });
 	await expect(detailLink).toHaveAttribute('href', /\/admin\/customers\/[^/]+$/);
-	const detailHref = await detailLink.getAttribute('href');
-	if (!detailHref) {
-		throw new Error(`Expected detail link href for customer "${customerName}"`);
-	}
 	await detailLink.click();
 	const customerDetailUrlPattern = /\/admin\/customers\/[^/]+$/;
-	const navigatedViaClick = await page
-		.waitForURL(customerDetailUrlPattern, { timeout: 5_000 })
-		.then(() => true)
-		.catch(() => false);
-	if (!navigatedViaClick) {
-		await page.goto(detailHref);
-	}
 	await expect(page).toHaveURL(customerDetailUrlPattern, { timeout: 15_000 });
 	await expect(page.getByRole('heading', { name: customerName })).toBeVisible({ timeout: 15_000 });
 	await expect(page.getByTestId('customer-status')).toBeVisible({ timeout: 5_000 });
@@ -167,13 +156,9 @@ async function expectQuotaPanelWithoutIndexes(page: Page): Promise<void> {
 }
 
 async function expectUsagePanelLoaded(page: Page): Promise<void> {
-	const searchesCard = page.getByText('Searches');
-	if (await searchesCard.isVisible().catch(() => false)) {
-		await expect(page.getByText('0.00')).toBeVisible();
-		return;
-	}
-
-	await expect(page.getByText('Usage data unavailable.')).toBeVisible();
+	const unavailableState = page.getByText('Usage data unavailable.');
+	await expect(page.getByText('Searches').or(unavailableState)).toBeVisible();
+	await expect(page.getByText('0.00').or(unavailableState)).toBeVisible();
 }
 
 test.describe('Admin customer detail workflows', () => {
@@ -224,7 +209,7 @@ test.describe('Admin customer detail workflows', () => {
 		const indexesHeading = page.getByRole('heading', { name: 'Indexes' });
 		await expect(indexesHeading).toHaveCount(0);
 		await page.getByRole('button', { name: 'Indexes' }).click();
-		await expect(page.getByText('Index data unavailable.')).toBeVisible();
+		await expect(page.getByText('No indexes found for this customer.')).toBeVisible();
 
 		const deploymentsHeading = page.getByRole('heading', { name: 'Deployments' });
 		await expect(deploymentsHeading).toHaveCount(0);

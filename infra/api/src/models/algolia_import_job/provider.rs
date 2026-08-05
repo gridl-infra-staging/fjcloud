@@ -37,9 +37,8 @@ impl SourceImportProvider {
     pub(crate) fn has_adapter(self) -> bool {
         match self {
             Self::Algolia => true,
-            // Meilisearch and Typesense are durable source identities in the
-            // closed union, but Stage 2 does not add adapters for either one.
-            Self::Meilisearch | Self::Typesense => false,
+            // Merged Meilisearch and Typesense adapter receipts activate both sources.
+            Self::Meilisearch | Self::Typesense => true,
         }
     }
 }
@@ -69,6 +68,28 @@ mod tests {
         assert_eq!(
             SourceImportProvider::parse("unsupported"),
             Err("unsupported source provider stored for import job: unsupported".to_string())
+        );
+    }
+
+    #[test]
+    fn source_import_provider_has_adapter_covers_closed_union() {
+        let adapter_flags: Vec<(SourceImportProvider, bool)> = [
+            SourceImportProvider::Algolia,
+            SourceImportProvider::Meilisearch,
+            SourceImportProvider::Typesense,
+        ]
+        .into_iter()
+        .map(|provider| (provider, provider.has_adapter()))
+        .collect();
+
+        assert_eq!(
+            adapter_flags,
+            [
+                (SourceImportProvider::Algolia, true),
+                (SourceImportProvider::Meilisearch, true),
+                (SourceImportProvider::Typesense, true),
+            ],
+            "merged Meilisearch and Typesense adapter receipts require every closed-union source provider to report an adapter"
         );
     }
 }

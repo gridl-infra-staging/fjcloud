@@ -13,12 +13,13 @@ use api::repos::InMemoryColdSnapshotRepo;
 use api::repos::InMemoryStorageBucketRepo;
 use api::repos::InMemoryStorageKeyRepo;
 use api::repos::PgAlgoliaImportJobRepo;
-use api::router::build_router;
+use api::router::{build_router, RateLimiter};
 use api::services::alerting::MockAlertService;
 use api::services::algolia_import::AlgoliaImportService;
 use api::services::algolia_source::{
     AlgoliaSourceLister, AlgoliaSourceService, ReqwestAlgoliaSourceClient,
 };
+use api::services::audit_log::AuditLogWriter;
 use api::services::email::EmailService;
 use api::services::flapjack_proxy::FlapjackProxy;
 use api::services::health_monitor::{EngineHealthWaitPolicy, HealthCheckClient};
@@ -43,9 +44,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use super::mocks::{
-    mock_alert_service, mock_api_key_repo, mock_cold_snapshot_repo, mock_deployment_repo,
-    mock_dispute_repo, mock_dns_manager, mock_email_service, mock_flapjack_proxy,
-    mock_garage_admin_client, mock_index_migration_repo, mock_invoice_repo,
+    mock_alert_service, mock_api_key_repo, mock_audit_log_writer, mock_cold_snapshot_repo,
+    mock_deployment_repo, mock_dispute_repo, mock_dns_manager, mock_email_service,
+    mock_flapjack_proxy, mock_garage_admin_client, mock_index_migration_repo, mock_invoice_repo,
     mock_node_secret_manager, mock_rate_card_repo, mock_repo, mock_storage_bucket_repo,
     mock_storage_key_repo, mock_stripe_service, mock_tenant_repo, mock_usage_repo,
     mock_vm_host_metrics_repo, mock_vm_inventory_repo, mock_vm_lifecycle_event_repo,
@@ -92,6 +93,23 @@ fn test_admin_user_repo() -> Arc<dyn AdminUserRepo> {
             credential_sha256,
         },
     })
+}
+
+/// Seeds the `TEST_ADMIN_KEY` operator into a Postgres-backed `admin_users`
+/// table so routers built through [`TestStateBuilder::with_pool`] can
+/// authenticate `x-admin-key: TEST_ADMIN_KEY`.
+///
+/// `with_pool` replaces the in-memory `TestAdminUserRepo` with the real
+/// `PgAdminUserRepo`, which resolves credentials only from `admin_users`.
+/// Production fills that table at startup (`main.rs` calls
+/// `bootstrap_admin_user_if_empty`), but test routers are built directly from
+/// `build_router`, so they never run that startup path. Idempotent: the
+/// underlying insert is a no-op once `admin_users` has any row, so calling this
+/// once per pool sharing an isolated schema is safe.
+pub async fn seed_test_admin_operator(pool: &sqlx::PgPool) {
+    api::auth::admin::bootstrap_admin_user_if_empty(pool, TEST_ADMIN_KEY)
+        .await
+        .expect("seed the TEST_ADMIN_KEY operator into admin_users");
 }
 
 fn lazy_pool() -> sqlx::PgPool {
@@ -262,6 +280,7 @@ pub struct TestStateBuilder {
     stripe_success_url: String,
     stripe_cancel_url: String,
     metrics_collector: Arc<MetricsCollector>,
+    api_key_rate_limiter: RateLimiter,
     api_key_repo: Arc<MockApiKeyRepo>,
     customer_repo: Arc<MockCustomerRepo>,
     deployment_repo: Arc<MockDeploymentRepo>,
@@ -277,6 +296,7 @@ pub struct TestStateBuilder {
     algolia_import_service: Option<Arc<AlgoliaImportService>>,
     algolia_source_service: Arc<dyn AlgoliaSourceLister>,
     pool_override: Option<sqlx::PgPool>,
+    audit_log_writer_override: Option<Arc<dyn AuditLogWriter>>,
     webhook_event_repo: Arc<MockWebhookEventRepo>,
     object_store: Arc<InMemoryObjectStore>,
     cold_snapshot_repo: Arc<InMemoryColdSnapshotRepo>,
@@ -326,6 +346,7 @@ impl TestStateBuilder {
             stripe_success_url: "http://localhost:5173/console".to_string(),
             stripe_cancel_url: "http://localhost:5173/console".to_string(),
             metrics_collector: test_metrics_collector(),
+            api_key_rate_limiter: RateLimiter::new_dynamic(std::time::Duration::from_secs(3600)),
             api_key_repo: mock_api_key_repo(),
             customer_repo: mock_repo(),
             deployment_repo: mock_deployment_repo(),
@@ -340,6 +361,7 @@ impl TestStateBuilder {
             algolia_migration_enabled: false,
             algolia_import_service: None,
             pool_override: None,
+            audit_log_writer_override: None,
             algolia_source_service: Arc::new(
                 AlgoliaSourceService::new(
                     Arc::new(
@@ -478,6 +500,10 @@ impl TestStateBuilder {
     /// `connect_and_migrate`) so admin authentication and route handlers that
     /// construct a `PgAlgoliaImportJobRepo` from `state.pool` exercise real SQL
     /// instead of test repositories and the never-connecting lazy pool.
+    ///
+    /// Because this swaps in the real `PgAdminUserRepo`, `x-admin-key:
+    /// TEST_ADMIN_KEY` only authenticates when a matching `admin_users` row
+    /// exists — call [`seed_test_admin_operator`] on the same pool first.
     pub fn with_pool(mut self, pool: sqlx::PgPool) -> Self {
         self.admin_user_repo = Arc::new(PgAdminUserRepo::new(pool.clone()));
         self.pool_override = Some(pool);
@@ -523,6 +549,11 @@ impl TestStateBuilder {
         self
     }
 
+    pub fn with_api_key_rate_limiter(mut self, api_key_rate_limiter: RateLimiter) -> Self {
+        self.api_key_rate_limiter = api_key_rate_limiter;
+        self
+    }
+
     pub fn with_webhook_event_repo(
         mut self,
         webhook_event_repo: Arc<MockWebhookEventRepo>,
@@ -564,6 +595,11 @@ impl TestStateBuilder {
 
     pub fn with_object_store(mut self, object_store: Arc<InMemoryObjectStore>) -> Self {
         self.object_store = object_store;
+        self
+    }
+
+    pub fn with_audit_log_writer(mut self, writer: Arc<dyn AuditLogWriter>) -> Self {
+        self.audit_log_writer_override = Some(writer);
         self
     }
 
@@ -664,6 +700,12 @@ impl TestStateBuilder {
                 self.garage_proxy.clone(),
             ),
         );
+        let audit_log_writer: Arc<dyn AuditLogWriter> = self
+            .audit_log_writer_override
+            .unwrap_or_else(|| match &self.pool_override {
+                Some(pool) => Arc::new(pool.clone()),
+                None => mock_audit_log_writer(),
+            });
         let pool = self.pool_override.unwrap_or_else(lazy_pool);
         let algolia_import_service = self
             .algolia_import_service
@@ -671,15 +713,20 @@ impl TestStateBuilder {
 
         AppState {
             pool: pool.clone(),
+            audit_log_writer,
             jwt_secret: self.jwt_secret,
             admin_key: self.admin_key,
             admin_user_repo: self.admin_user_repo,
+            admin_session_repo: Arc::new(api::auth::admin_session::PgAdminSessionRepo::new(
+                pool.clone(),
+            )),
             internal_auth_token: self.internal_auth_token,
             stripe_webhook_secret: self.stripe_webhook_secret,
             stripe_publishable_key: self.stripe_publishable_key,
             stripe_success_url: self.stripe_success_url,
             stripe_cancel_url: self.stripe_cancel_url,
             metrics_collector: self.metrics_collector,
+            api_key_rate_limiter: self.api_key_rate_limiter,
             api_key_repo: self.api_key_repo,
             customer_repo: self.customer_repo,
             deployment_repo: self.deployment_repo,

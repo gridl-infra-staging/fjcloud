@@ -69,6 +69,45 @@ fn build_user_data_aws_uses_ssm() {
     );
 }
 
+#[test]
+#[ignore = "operator-only emitter for first TLS VM proof"]
+fn emit_aws_user_data_for_operator() {
+    let emit_path = std::env::var("FJCLOUD_USER_DATA_EMIT_PATH")
+        .expect("FJCLOUD_USER_DATA_EMIT_PATH is required");
+    let emit_path = std::path::PathBuf::from(emit_path);
+    assert!(
+        emit_path.is_absolute(),
+        "FJCLOUD_USER_DATA_EMIT_PATH must be absolute"
+    );
+
+    let customer_id = std::env::var("FJCLOUD_USER_DATA_CUSTOMER_ID")
+        .expect("FJCLOUD_USER_DATA_CUSTOMER_ID is required");
+    let node_id =
+        std::env::var("FJCLOUD_USER_DATA_NODE_ID").expect("FJCLOUD_USER_DATA_NODE_ID is required");
+    let region =
+        std::env::var("FJCLOUD_USER_DATA_REGION").expect("FJCLOUD_USER_DATA_REGION is required");
+    let hostname = std::env::var("FJCLOUD_USER_DATA_HOSTNAME")
+        .expect("FJCLOUD_USER_DATA_HOSTNAME is required");
+
+    let _env_guard = EnvVarGuard::set("ENVIRONMENT", Some("staging"));
+    let script = build_user_data(
+        "aws",
+        &customer_id,
+        &node_id,
+        &region,
+        "fj_live_operator_emit_placeholder",
+        &hostname,
+    );
+
+    assert!(script.contains("ENVIRONMENT='staging'"));
+    assert!(script.contains("aws ssm get-parameter"));
+    assert!(script.contains("/fjcloud/$NODE_ID/api-key"));
+    assert!(!script.contains("fj_live_operator_emit_placeholder"));
+    assert_caddy_runtime_present(&script, &hostname);
+
+    std::fs::write(&emit_path, script).expect("failed to write FJCLOUD_USER_DATA_EMIT_PATH");
+}
+
 /// Verifies that managed Hetzner shared VM provisioning is rejected
 /// before user-data generation can embed live credentials.
 #[test]

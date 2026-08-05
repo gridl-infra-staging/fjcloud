@@ -23,6 +23,8 @@ mod admin_operator_identity_test;
 mod admin_providers_test;
 #[path = "integration/admin_token_audit_test.rs"]
 mod admin_token_audit_test;
+#[path = "integration/admin_usage_audit_test.rs"]
+mod admin_usage_audit_test;
 #[path = "integration/admin_vm_host_metrics_test.rs"]
 mod admin_vm_host_metrics_test;
 #[path = "integration/admin_vm_kill_test.rs"]

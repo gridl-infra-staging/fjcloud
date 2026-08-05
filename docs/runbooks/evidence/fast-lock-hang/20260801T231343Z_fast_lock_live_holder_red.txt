@@ -1,0 +1,53 @@
+Stage 1 stale-live fast-lock RED receipt
+captured_at_utc=2026-08-01T23:13:43Z
+head=83ba2e378c22dc07a9438484e6663ea52f14ecff
+production_source_modified=no
+
+RUN 1 EXACT COMMAND:
+bash scripts/tests/local_ci_fast_lock_test.sh
+
+RUN 1 RESULT:
+exit_status=1
+PASS: stale-live reclamation identifies the displaced holder in the canonical shape
+FAIL: a live holder older than the reclaim bound releases the lock to the waiter (expected='0' actual='75')
+FAIL: stale-live reclamation is loud rather than silently stealing the lock (expected substring 'reclaiming' in 'local-ci --fast lock refused (exit 75): holder_pid=33862 holder_worktree=<fixture>/stale_live_worktree held_seconds=1785625929; wait for its natural exit rather than bypass; FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS=0')
+FAIL: stale-live reclamation replaces the old holder record (expected='32432' actual='33862')
+PASS: stale-live reclamation does not signal the displaced process
+PASS: a live holder inside the reclaim bound continues to refuse the waiter
+PASS: recent-live refusal preserves the canonical holder diagnostic
+PASS: recent-live refusal leaves the holder record unchanged
+PASS: recent-live refusal never signals the holder
+
+=== Results: 71 passed, 3 failed ===
+
+RUN 2 EXACT COMMAND:
+bash scripts/tests/local_ci_fast_lock_test.sh
+
+RUN 2 RESULT:
+exit_status=1
+FAIL: a live holder older than the reclaim bound releases the lock to the waiter (expected='0' actual='75')
+FAIL: stale-live reclamation is loud rather than silently stealing the lock (expected substring 'reclaiming' in 'local-ci --fast lock refused (exit 75): holder_pid=49525 holder_worktree=<fixture>/stale_live_worktree held_seconds=1785625976; wait for its natural exit rather than bypass; FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS=0')
+PASS: stale-live reclamation identifies the displaced holder in the canonical shape
+FAIL: stale-live reclamation replaces the old holder record (expected='48082' actual='49525')
+PASS: stale-live reclamation does not signal the displaced process
+PASS: a live holder inside the reclaim bound continues to refuse the waiter
+PASS: recent-live refusal preserves the canonical holder diagnostic
+PASS: recent-live refusal leaves the holder record unchanged
+PASS: recent-live refusal never signals the holder
+
+=== Results: 71 passed, 3 failed ===
+
+OUTPUT NOTE:
+The receipt preserves every assertion emitted by the two new specimens and the
+exact overall summaries. The 65 unchanged pre-existing assertions also passed
+on each run and are not repeated here. `<fixture>` replaces only the randomized
+mktemp prefix in the diagnostic; holder PIDs and held_seconds are the observed
+values.
+
+INTERPRETATION:
+Both runs prove the positive defect and negative guard together. The old live
+holder remains alive and is refused solely because kill -0 succeeds, even
+though started_at=1 is vastly older than any permissible future bound. The
+fresh live holder continues to return exit 75 with the exact existing
+describe_fast_lock_holder refusal shape, so a future reclaim cannot broaden to
+all live PIDs. Neither specimen signals a process it did not start.

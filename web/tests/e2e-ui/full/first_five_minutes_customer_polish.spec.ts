@@ -10,7 +10,10 @@ import { chooseFirstAvailableRegion } from '../../fixtures/create_index_form_hel
 import { LOCAL_AUTO_VERIFIED_TOKEN_PREFIX, test, expect } from '../../fixtures/fixtures';
 import { MARKETING_PRICING, sharedPlanMinimumMonthlyLabel } from '../../../src/lib/pricing';
 import { REMOTE_TARGET_OPT_IN_ENV } from '../../../playwright.config.contract';
-import { SEARCH_TAB_LABEL, SEARCH_TAB_QUERY_VALUE } from '../../fixtures/search-preview-helpers';
+import {
+	SEARCH_TAB_QUERY_VALUE,
+	getIndexDetailSearchTab
+} from '../../fixtures/search-preview-helpers';
 import { openIndexDetailTab } from './index_detail_helpers';
 
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -54,9 +57,12 @@ test.describe('First five minutes customer journey', () => {
 		await expect(page.getByRole('link', { name: /sign up|get started/i })).toHaveCount(0);
 
 		await page.goto('/');
-		await expect(page).toHaveURL(/\/login/);
-		await expect(page.getByRole('heading', { name: 'Log in to Flapjack Cloud' })).toBeVisible();
-		await expect(page.getByTestId('public-beta-banner')).toHaveCount(0);
+		// The former root-to-login redirect was removed; the public landing page now owns `/`.
+		await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/);
+		await expect(page.getByTestId('landing-page-main')).toBeVisible();
+		await expect(
+			page.getByRole('heading', { name: 'Managed search API', exact: true })
+		).toBeVisible();
 
 		await page.goto('/pricing');
 		const pricingMain = page.getByTestId('pricing-page-main');
@@ -76,7 +82,7 @@ test.describe('First five minutes customer journey', () => {
 		await page.goto('/signup');
 		await expect(page).toHaveURL(/\/signup/);
 		await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
-		await expect(page.getByText('Use at least 8 characters.')).toBeVisible();
+		await expect(page.getByText('Use at least 15 characters.')).toBeVisible();
 		await page.getByLabel('Name').fill(signup.name);
 		await page.getByLabel('Email').fill(signup.email);
 		await page.getByLabel('Password', { exact: true }).fill(signup.password);
@@ -158,7 +164,7 @@ test.describe('First five minutes customer journey', () => {
 			timeout: 30_000
 		});
 		await expect(page.getByRole('button', { name: 'Open Search' })).toHaveCount(0);
-		await page.getByRole('tab', { name: SEARCH_TAB_LABEL }).click();
+		await getIndexDetailSearchTab(page).click();
 		const searchUrl = new URL(page.url());
 		expect(searchUrl.searchParams.get('tab')).toBe(SEARCH_TAB_QUERY_VALUE);
 

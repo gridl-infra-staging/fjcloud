@@ -10,6 +10,31 @@ export const SEARCH_PREVIEW_STATE_TIMEOUT_MS = 10_000;
 export const SEARCH_PREVIEW_READY_TIMEOUT_MS = 90_000;
 export const SEARCH_PREVIEW_READY_MESSAGE = 'Waiting for authenticated Search to become ready';
 export const INDEX_DETAIL_READY_TIMEOUT_MS = 30_000;
+/**
+ * Retry ladder shape for `gotoIndexDetailWithRetry`. These live here rather than
+ * inline in the loop so the worst-case budget below has exactly one owner: change
+ * the ladder and the published budget moves with it automatically.
+ */
+export const GOTO_INDEX_DETAIL_MAX_ATTEMPTS = 5;
+export const GOTO_INDEX_DETAIL_RETRY_BACKOFF_STEP_MS = 1_000;
+/**
+ * The wall-clock a single `gotoIndexDetailWithRetry` call can burn before it gives up.
+ *
+ * It is the linear backoff sum (step x 1+2+...+N) plus the final `expect` that runs
+ * after the ladder is exhausted. A freshly seeded index is often not renderable on the
+ * first navigation, so the ladder is real behaviour, not defensive padding — under
+ * full-suite load it IS exercised.
+ *
+ * WHY THIS IS EXPORTED: Playwright's default per-test timeout is 30s, which is LESS
+ * than this budget, so a test that calls the helper on that default can die mid-ladder
+ * and report a timeout instead of the assertion under test. Every caller must therefore
+ * declare a budget of at least this much; `search_preview_helpers.test.ts` enforces it.
+ */
+export const GOTO_INDEX_DETAIL_WORST_CASE_WAIT_MS =
+	(GOTO_INDEX_DETAIL_RETRY_BACKOFF_STEP_MS *
+		(GOTO_INDEX_DETAIL_MAX_ATTEMPTS * (GOTO_INDEX_DETAIL_MAX_ATTEMPTS + 1))) /
+		2 +
+	INDEX_DETAIL_READY_TIMEOUT_MS;
 const LOCAL_STACK_UNAVAILABLE_ERROR_PATTERN =
 	/(local stack unavailable|econnrefused|connect ECONNREFUSED|failed to fetch|service is unavailable|temporarily unavailable|prerequisite unavailable in local env|verify (api_url|jwt_secret)|invalid admin key|authentication session could not be established|customer login setup failed before reaching \/console|seedindex failed: 401|get \/account failed: 401)/i;
 
@@ -28,6 +53,10 @@ export function getSearchPreviewLocators(page: Page): SearchPreviewLocators {
 			'Endpoint not available yet. The index is still being provisioned.'
 		)
 	};
+}
+
+export function getIndexDetailSearchTab(page: Page): Locator {
+	return page.getByRole('tab', { name: SEARCH_TAB_LABEL, exact: true });
 }
 
 async function isVisible(locator: Locator): Promise<boolean> {
@@ -70,16 +99,27 @@ export async function waitForSearchPreviewReady(page: Page): Promise<void> {
 		.toBe('ready');
 }
 
+/**
+ * Navigate to an index detail page, retrying while the index becomes renderable.
+ *
+ * A just-seeded index can take several seconds before its detail page renders its
+ * heading, so a single `page.goto` races the backend. The ladder re-navigates with a
+ * linear backoff and returns as soon as the heading appears.
+ *
+ * COST: up to `GOTO_INDEX_DETAIL_WORST_CASE_WAIT_MS` of waiting, which exceeds
+ * Playwright's 30s default per-test timeout. Callers MUST declare their own budget —
+ * see that constant's comment and the contract test that enforces it.
+ */
 export async function gotoIndexDetailWithRetry(page: Page, indexName: string): Promise<void> {
 	const path = `/console/indexes/${encodeURIComponent(indexName)}`;
 
-	for (let attempt = 0; attempt < 5; attempt += 1) {
+	for (let attempt = 0; attempt < GOTO_INDEX_DETAIL_MAX_ATTEMPTS; attempt += 1) {
 		await page.goto(path);
 		const heading = page.getByRole('heading', { name: indexName });
 		if (await isVisible(heading)) {
 			return;
 		}
-		await page.waitForTimeout(1000 * (attempt + 1));
+		await page.waitForTimeout(GOTO_INDEX_DETAIL_RETRY_BACKOFF_STEP_MS * (attempt + 1));
 	}
 
 	await expect(page.getByRole('heading', { name: indexName })).toBeVisible({

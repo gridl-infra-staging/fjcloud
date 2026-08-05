@@ -33,6 +33,7 @@ subtle             = "2"
 argon2             = "0.5"
 rand               = "0.8"
 hex                = "0.4"
+ipnet              = "2"
 billing            = { path = "../billing" }
 database-url       = { path = "../database-url" }
 pricing-calculator = { path = "../pricing-calculator" }

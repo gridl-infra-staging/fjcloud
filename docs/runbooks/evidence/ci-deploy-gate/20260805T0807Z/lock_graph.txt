@@ -1,0 +1,143 @@
+Stage 1 — CI deploy-gate hang: live PostgreSQL lock graph + two-value verdict
+============================================================================
+Captured 2026-08-05 on Linux devbox fjcloud-devbox-fri (i-0d0e9aaa87c7a4005),
+x86_64, Ubuntu 24.04, postgres:16 (docker compose, max_connections=100).
+DATABASE_URL=postgres://griddle:griddle_local@127.0.0.1:5432/fjcloud_test
+Companion files in this directory:
+  ci_rust_test_hang_excerpt.txt   — the authoritative CI specimen (exit 124 + named hung tests)
+  reproduction_pass1_convoy.txt   — live repro, 64 threads / ~1.2 cores, sustained 38s convoy
+  reproduction_pass2_convoy.txt   — live repro, 32 threads / 0.3 core, exact "over 60 seconds" signature
+
+============================================================================
+PREMISE (re-derived from live systems 2026-08-05, not trusted from PURPOSE)
+============================================================================
+- Newest gridl-infra-staging/fjcloud CI/push run: id 30688467404, conclusion=failure,
+  headSha a60600178f13352c335ec11f548e7a3ce5eb4647, createdAt 2026-08-01T06:48:58Z.
+  Every newer row is a `schedule` event (Outside AWS Health / Nightly Stripe Clock),
+  NOT a push. The 2026-08-01 red push run is still the newest push.
+- curl -fsS https://api.staging.flapjack.foo/version -> exit 0, dev_sha a384a42e..., 1583 behind origin/main.
+- curl -fsS https://api.flapjack.foo/version        -> exit 0, dev_sha 99262771..., 1629 behind origin/main.
+- Decision gate: newest push NOT green AND both deployed SHAs stale => the 2026-08-01
+  exit-124 premise HOLDS. Continue.
+
+============================================================================
+WHAT THE CI FAILURE ACTUALLY IS (ci_rust_test_hang_excerpt.txt — no prior session pulled this)
+============================================================================
+rust-test job 91338784969: step "Run rust tests" ran 06:55:20 -> 07:10:20 = 900s EXACTLY,
+then failed with "Process completed with exit code 124" (timeout(1) SIGTERM). This is the
+genuine hang, NOT the exit-101 platform-binary failure a prior 16-core run mistook for it.
+
+The hang is NAMED by the job's own diagnostic. At 06:55:28 the auth_admin binary began
+("running 371 tests"); at 06:56:30 / 06:56:31 cargo printed:
+
+  test admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins has been running for over 60 seconds
+  test admin_vms_test::decommission_endpoint_wins_concurrent_reference_publication_after_inventory_lock has been running for over 60 seconds
+
+...then SILENCE until the 900s SIGTERM at 07:10:20. The two named tests are the hang. They
+never emit "... ok". (cargo prints a test name only on COMPLETION, so a running-forever test
+leaves exactly this trace: the 60s notice, then nothing.)
+
+============================================================================
+WHY A HANDLER/RACE DEADLOCK IS RULED OUT BY SOURCE (the decisive new argument)
+============================================================================
+Every wait INSIDE the two named tests is bounded by `tokio::time::timeout(Duration::from_secs(2), ..)`
+with `.expect(...)` (admin_vm_retirement_test_support.rs:213-247 and
+vm_inventory_reference_guard_races.rs:181-196 wait_until_blocked):
+  - wait_until_blocked        -> timeout(2s)  .expect("transaction must reach the intended lock wait")
+  - route_task join           -> timeout(2s)  .expect("route retirement must not deadlock")
+  - publication_task join     -> timeout(2s)  .expect("publication must not deadlock")
+A deadlock in the decommission handler or the decommission<->publication race would therefore
+trip one of these at 2 seconds and PANIC -> the binary exits 101, NOT a 900s hang -> 124.
+So the 900s hang cannot live in the guarded race section. It lives in the UNGUARDED harness
+setup that runs before those guards: `connect_and_migrate` (pg_schema_harness.rs:58-66).
+
+Handler source confirms no production cycle is even possible
+(pg_vm_inventory_repo.rs:188 decommission_if_unreferenced):
+  ONE pool.begin() -> ONE transaction: SELECT vm_inventory FOR UPDATE (row R); read
+  vm_inventory_reference_blockers (MVCC read of customer_tenants, no blocking row lock);
+  UPDATE vm_inventory; COMMIT. Single connection, linear lock order, no second acquire.
+  The concurrent publication (spawn_reference_publication) only does
+  UPDATE customer_tenants SET vm_id=R -> takes FOR KEY SHARE on vm_inventory row R.
+  FOR UPDATE (handler) vs FOR KEY SHARE (publication) on the same row R is a SINGLE
+  directional edge that resolves on commit. Publication never touches vm_inventory except
+  the FK key-share; there is no back-edge, so no cycle. With an unbounded production pool
+  the handler issues the identical single-transaction sequence and cannot deadlock.
+
+============================================================================
+THE LOCK GRAPH — live pg_stat_activity during a reproduced hang (reproduction_pass2_convoy.txt)
+============================================================================
+The hang was invisible on macOS, on the 16-vCPU default devbox, and on this box at full speed,
+because its trigger is disk/CPU-latency amplification of a harness-only serialization. Driving
+the auth_admin binary at high parallelism under a CI-shaped CPU budget reproduces it and the
+exact CI "has been running for over 60 seconds" line (11 tests in pass 2). Representative live
+capture (pass 2, 2026-08-05 08:05:08Z), ordered by wait seconds:
+
+  pid   | state               | wait_event_type | wait_event | blocked_by                          | wait_s | query
+  33601 | active              | Lock            | advisory   | {33514}                             |   5    | SELECT pg_advisory_lock($1)
+  33603 | active              | Lock            | advisory   | {33514,33601}                       |   5    | SELECT pg_advisory_lock($1)
+  33602 | active              | Lock            | advisory   | {33514,33601,33603}                 |   5    | SELECT pg_advisory_lock($1)
+  33604 | active              | Lock            | advisory   | {33514,33601,33603,33602}           |   4    | SELECT pg_advisory_lock($1)
+  33605 | active              | Lock            | advisory   | {33514,...,33604}                   |   4    | SELECT pg_advisory_lock($1)
+  33606 | active              | Lock            | advisory   | {33514,...,33605}                   |   4    | SELECT pg_advisory_lock($1)
+  33607 | active              | Lock            | advisory   | {33514,...,33606}                   |   4    | SELECT pg_advisory_lock($1)
+  33514 | idle in transaction | Client          | ClientRead | {}                                  |   0    | CREATE TABLE vm_lifecycle_events (... migration ...)
+
+Reading the graph:
+  - PID 33514 HOLDS the lock and blocks NOTHING it waits on (blocked_by {} ). It is
+    `idle in transaction` on wait_event ClientRead: the DB is idle, waiting for the
+    application to send the next migration statement. The application (the test's
+    current-thread `#[tokio::test]` runtime — admin_vms_test.rs:952,961 carry no
+    `flavor = "multi_thread"`) is CPU-starved and not driving the connection.
+  - PIDs 33601..33607 are every OTHER concurrent test's `connect_and_migrate` waiting to
+    acquire the SAME advisory lock. The blocked_by sets are strictly nested (33601 waits on
+    the head; 33603 on head+33601; ...). This is a LINEAR CONVOY. There is no back-edge and
+    no PID appears in its own transitive blocked_by set: **there is NO cycle.**
+  Pass 1 (reproduction_pass1_convoy.txt) shows the same head-idle-in-transaction convoy
+  sustained to 38 seconds (head running the "VM inventory retirement reference guard"
+  migration), and under enough throttle one 2s race guard panicked -> exit 101, exactly the
+  guarded-path failure mode predicted above.
+
+Why this is a HARNESS lock the handler never issues:
+  connect_and_migrate (pg_schema_harness.rs:58) runs `sqlx::migrate!("../migrations").run(&pool)`
+  on a max_connections(1) pool, for EACH of the 54 integration-test files' isolated schemas.
+  sqlx's Migrator takes a database-keyed `pg_advisory_lock` to serialize migrations. Because
+  the key is derived from the database, all N concurrent per-schema migration runs contend on
+  ONE global advisory lock and each replays the full ~60-migration suite (incl. fsync-heavy
+  041_audit_log). Production migrates ONE database ONCE at startup with an unbounded pool; it
+  never has this convoy. The decommission handler issues no advisory lock at all.
+
+============================================================================
+VERDICT
+============================================================================
+TEST_HARNESS_ARTIFACT
+
+Support (the load-bearing lock graph above):
+  1. CI specimen (ci_rust_test_hang_excerpt.txt): exit 124 at 900s; the two named
+     admin_vms decommission tests are the hang, stuck from the 60s notice to the SIGTERM.
+  2. Source: all in-test waits are 2s-guarded, so a handler/race deadlock would exit 101,
+     not hang 900s. The 900s hang is in the UNGUARDED `connect_and_migrate` setup.
+  3. Live lock graph (reproduced on Linux, pass 1 + pass 2): the ONLY sustained serialization
+     is the global sqlx-migrator advisory-lock migration convoy, headed by an
+     `idle in transaction` backend — a starved harness runtime, not a DB deadlock. The waiter
+     chain is strictly linear: ZERO cycles. The decommission<->publication race is a one-way
+     FOR UPDATE vs FOR KEY SHARE edge that resolves.
+  4. Handler source: one connection, one linear transaction, no back-edge -> with an unbounded
+     production pool it cannot deadlock.
+
+Note on the "lock cycle" the stage expected: there is no cycle. The hang is a harness
+serialization/starvation convoy on a lock production never contends on, plus the single-
+connection micro-pools and current-thread `#[tokio::test]` runtimes the harness manufactures.
+The ABSENCE of any cycle is the finding, and it is what rules out PRODUCTION_HANDLER_DEFECT.
+
+Stage 2 keys its fix location on this verdict: TEST_HARNESS_ARTIFACT ->
+infra/api/tests/common/support/pg_schema_harness.rs::connect_and_migrate (the global
+advisory-lock migration convoy) and infra/api/tests/common/admin_vm_retirement_test_support.rs
+(the single-connection route pools + current-thread test runtime that let a starved holder
+stall the convoy) — NOT infra/api/src/routes/admin/vms.rs (the handler).
+
+Recommended Stage-2 direction (not implemented here — Stage 1 is observe-and-classify only):
+bound the harness setup the same way the race body is already bounded — either serialize/
+guard `connect_and_migrate` (e.g. run it off the test's own starved current-thread runtime,
+or wrap it in a timeout so a stalled convoy self-names instead of hanging 900s), and/or give
+the two named tests a `#[tokio::test(flavor = "multi_thread")]` runtime so a descheduled task
+cannot freeze the connection driving the migration.

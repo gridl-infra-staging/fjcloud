@@ -43,10 +43,13 @@
 #                    security-suite,
 #                    evidence-secret-hygiene,
 #                    index-export-clientside-contract,
+#                    api-client-route-contract,
 #                    engine-exposure-probe-contract,
 #                    fleet-dataplane-probe-contract,
+#                    mirror-ci-currency-probe-contract,
 #                    usage-rollup-freshness-contract,
 #                    launch-evidence-freshness-contract,
+#                    claim-freshness-contract,
 #                    test-reachability-contract,
 #                    local-real-pipeline-contract,
 #                    local-schema-drift-contract,
@@ -114,11 +117,16 @@ done
 # Only a whole-suite `--fast` run acquires the lock. `--gate <name>` and
 # `--summary-only` dispatch no full run, so they stay lock-free and can always
 # run alongside a held lock. Acquisition happens here, before any gate is
-# scheduled, so a second concurrent `--fast` queues behind the holder for
-# FAST_LOCK_DEFAULT_WAIT_SECONDS and refuses (exit 75) only after that budget
-# elapses, instead of racing gate bodies against the in-flight run. Released by the
-# cleanup_local_ci_logs EXIT trap installed below. `acquire_fast_lock` returns
-# the refusal code on contention; propagate it as this script's exit status.
+# scheduled, so a second concurrent `--fast` waits up to
+# FAST_LOCK_DEFAULT_WAIT_SECONDS and is expected to refuse (exit 75) once that
+# budget expires instead of racing gate bodies against the in-flight run. The
+# current 300-second default is intentionally below the old 1800-second wait,
+# but 300 + the 2386-second same-locality upper-bound specimen still exceeds
+# the 2400-second caller session; closing that residual belongs to the
+# whole-suite gate composition or matt's caller timeout.
+# Released by the cleanup_local_ci_logs EXIT trap installed below.
+# `acquire_fast_lock` returns the refusal code on contention; propagate it as
+# this script's exit status.
 FAST_LOCK_HELD=0
 if [ "$MODE" = "fast" ] && [ -z "$SINGLE_GATE" ] && [ "$SUMMARY_ONLY" -eq 0 ]; then
     acquire_fast_lock || exit $?
@@ -181,6 +189,12 @@ else
 fi
 MAX_PARALLEL="$(sanitize_parallel_cap "$MAX_PARALLEL" 8)"
 
+# Per-suite reachability watchdog. Override for focused timeout contract tests
+# or unusually slow local hosts; invalid/non-positive values fall back here.
+REACHABILITY_SUITE_TIMEOUT_DEFAULT_SECONDS=900
+REACHABILITY_SUITE_TIMEOUT_RC=124
+REACHABILITY_SUITE_TERM_GRACE_SECONDS=0.2
+
 render_prod_drift() {
     printf '\n## Prod deploy drift (informational — does not affect exit code)\n'
     local drift_output
@@ -196,7 +210,7 @@ render_prod_drift() {
 # preserved and no gates are scheduled or executed.
 if [ "$SUMMARY_ONLY" -eq 1 ]; then
     printf '=== local-ci summary (summary-only) ===\n'
-    printf 'Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape web-lint secret-scan dep-audit baseline-integrity web-audit security-suite evidence-secret-hygiene index-export-clientside-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract usage-rollup-freshness-contract launch-evidence-freshness-contract test-reachability-contract local-real-pipeline-contract local-schema-drift-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver script-exec-bits port-collision-diagnose compose-project\n'
+    printf 'Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape handover-consumption web-lint secret-scan dep-audit baseline-integrity web-audit security-suite evidence-secret-hygiene index-export-clientside-contract api-client-route-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract mirror-ci-currency-probe-contract usage-rollup-freshness-contract launch-evidence-freshness-contract claim-freshness-contract test-reachability-contract local-real-pipeline-contract local-schema-drift-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver script-exec-bits port-collision-diagnose compose-project\n'
     render_prod_drift
     exit 0
 fi
@@ -319,7 +333,14 @@ gate_script_exec_bits() {
     # need the exec bit and crashed at runtime instead. This gate asserts on
     # top-level scripts/*.sh git modes so the next mis-permissioned script
     # fails in CI, not in a user's local-demo run 5 days later.
-    bash "$REPO_ROOT/scripts/tests/script_exec_bits_test.sh"
+    # `|| return $?` is load-bearing, not style. A bash function returns the
+    # status of its LAST command, so without it a failing exec-bits check is
+    # discarded whenever local_play_test.sh passes — which is exactly what
+    # happened: measured 2026-08-01, chmod-ing scripts/api-dev.sh to 100644
+    # made script_exec_bits_test.sh exit 1 while `--gate script-exec-bits`
+    # still exited 0, so this gate could not detect the regression it was
+    # written for. Guarded by scripts/tests/merge_gate_declaration_test.sh.
+    bash "$REPO_ROOT/scripts/tests/script_exec_bits_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/local_play_test.sh"
 }
 
@@ -432,6 +453,32 @@ gate_status_doc_consistency() {
     bash "$REPO_ROOT/scripts/tests/vm_autorepair_docs_contract_test.sh" || return $?
 }
 
+gate_handover_consumption() {
+    # Reports ROADMAP handovers that were written by a merged lane and never
+    # applied to the SSOT. Deliberately NON-FATAL: a feature lane's own merge
+    # carries the handover it just wrote, which is by construction not yet
+    # applied, so failing on that would refuse exactly the merges that are
+    # behaving correctly. SHADOW_WARN puts it in front of every lane instead --
+    # every lane runs `--fast` before push -- without ever wrongly blocking one.
+    #
+    # The falsifiable guard is the probe itself, covered by
+    # scripts/tests/check_handover_consumption_test.sh (28 assertions incl. a
+    # sibling-reference false positive and hostile-filename rejection). Costs ~30ms.
+    local output probe_status=0
+    output="$(bash "$REPO_ROOT/scripts/check_handover_consumption.sh" 2>&1)" || probe_status=$?
+    printf '%s\n' "$output"
+    if [ "$probe_status" -eq 2 ]; then
+        # Missing required input is a real failure: the probe measured nothing,
+        # so it must not be reported as "no unconsumed handovers".
+        echo "handover consumption probe could not read its required inputs"
+        return 1
+    fi
+    if [ "$probe_status" -ne 0 ]; then
+        echo "SHADOW_WARN: ROADMAP handovers written but never applied to ROADMAP.md; see the UNCONSUMED lines above"
+    fi
+    return 0
+}
+
 gate_dirmap_merge_driver() {
     # Asserts the DIRMAP anti-duplication mechanism is fully wired: the
     # committed `**/DIRMAP.md merge=ours` declaration in .gitattributes AND the
@@ -485,12 +532,12 @@ gate_publish_scripts_buildx() {
 }
 
 gate_index_export_clientside_contract() {
-    # Keep the canonical Overview export browser-path probe script honest
-    # without requiring a live Playwright/browser run on every local-ci
-    # invocation. This hermetic contract test stubs `npx playwright`,
-    # executes the probe owner, and asserts the run dir preserves exactly
-    # one machine-readable verdict artifact (`summary.json`).
     bash "$REPO_ROOT/scripts/canary/contracts/index_export_browser_path_probe_contract_test.sh"
+}
+
+gate_api_client_route_contract() {
+    bash "$REPO_ROOT/scripts/tests/api_client_route_contract_test.sh" || return $?
+    bash "$REPO_ROOT/scripts/canary/contracts/api_client_route_contract.sh"
 }
 
 node_modules_fresh_or_fail() {
@@ -769,6 +816,32 @@ gate_baseline_integrity() {
     bash "$REPO_ROOT/scripts/security/probe_baseline_integrity.sh" --baseline-file "$REPO_ROOT/docs/security/control_baseline.md" || return $?
 }
 
+# Run the npm-audit classifier over one report file against one exception file.
+# The classifier prints its verdict (`pass`/`fail`/`parse_error`) on stdout and
+# names blocking advisories on stderr; we swallow stdout so only the blocking
+# ids reach the gate log, and return success only on a clean `pass`.
+web_audit_classify() {
+    local report="$1" exceptions="$2" verdict rc=0
+    verdict="$(python3 "$REPO_ROOT/scripts/lib/npm_audit_exceptions.py" "$report" "$exceptions")" || rc=$?
+    [ "$rc" -eq 0 ] && [ "$verdict" = "pass" ]
+}
+
+web_audit_capture_json() {
+    local report="$1" label="$2" npm_status=0
+    shift 2
+
+    npm "$@" > "$report" 2>/dev/null || npm_status=$?
+    case "$npm_status" in
+        0|1)
+            return 0
+            ;;
+        *)
+            echo "web-audit: npm audit for $label exited with unexpected status $npm_status; refusing to trust captured JSON" >&2
+            return 1
+            ;;
+    esac
+}
+
 gate_web_audit() {
     local web_audit_root="${FJCLOUD_WEB_AUDIT_ROOT:-$REPO_ROOT/web}"
 
@@ -781,10 +854,40 @@ gate_web_audit() {
         return 1
     fi
 
+    # Helper and policy paths are resolved from $REPO_ROOT because we cd into
+    # the web root below; a path relative to that root would resolve wrong.
+    local exceptions_file="$REPO_ROOT/web/npm_audit_exceptions.txt"
+
     cd "$web_audit_root" || return $?
-    # Start at high: block high/critical advisories without making lower
-    # severity findings pre-push blockers.
-    npm audit --audit-level=high --package-lock-only || return $?
+
+    local prod_report full_report rc=0
+    prod_report="$(mktemp)"
+    full_report="$(mktemp)"
+
+    # Production reachability guard: runs FIRST and never consults the exception
+    # list (empty /dev/null policy), so no exception can hide a high/critical
+    # advisory that reaches production dependencies. --omit=dev scopes the tree
+    # to prod deps; the classifier fails closed on any high/critical or on
+    # unparsable output. npm exits 1 when audit findings are present, but other
+    # statuses mean the audit itself did not complete as a usable result.
+    if ! web_audit_capture_json "$prod_report" "production dependencies" audit --audit-level=high --package-lock-only --omit=dev --json; then
+        rc=1
+    elif ! web_audit_classify "$prod_report" /dev/null; then
+        echo "web-audit: a high/critical advisory reaches production dependencies (or the production audit was unparsable); the exception list does not apply to production deps" >&2
+        rc=1
+    fi
+
+    # Full dependency tree, filtered through the committed GHSA exception list.
+    if [ "$rc" -eq 0 ]; then
+        if ! web_audit_capture_json "$full_report" "full dependency tree" audit --audit-level=high --package-lock-only --json; then
+            rc=1
+        elif ! web_audit_classify "$full_report" "$exceptions_file"; then
+            rc=1
+        fi
+    fi
+
+    rm -f "$prod_report" "$full_report"
+    return "$rc"
 }
 
 gate_security_suite() {
@@ -816,9 +919,45 @@ gate_fleet_dataplane_probe_contract() {
     bash "$REPO_ROOT/scripts/tests/probe_fleet_dataplane_test.sh" || return $?
 }
 
+gate_mirror_ci_currency_probe_contract() {
+    # Hermetic fixtures and command stubs; this gate never queries live GitHub state.
+    bash "$REPO_ROOT/scripts/tests/mirror_ci_currency_probe_test.sh" || return $?
+}
+
 gate_usage_rollup_freshness_contract() {
     bash "$REPO_ROOT/scripts/tests/probe_usage_rollup_freshness_test.sh" || return $?
     bash "$REPO_ROOT/scripts/test_probe_live_state.sh" || return $?
+}
+
+gate_claim_freshness_contract() {
+    # Hermetic known-answer suite first, then the probe against this repo.
+    #
+    # Running the probe here is the whole point of the gate. Before aug01 the
+    # probe classified claims for nobody: it was registered in the reachability
+    # manifest through its TEST only, so the test passed on every run while the
+    # probe itself was never invoked against the real tree.
+    #
+    # The probe is fail-closed on exactly-decidable states only — a cited
+    # repo-local path that does not exist, and a cross-repo claim that records
+    # no re-derive command. Its stdout carries the per-claim records and the
+    # counters; both are printed so a red run names the claim, not just a count.
+    local rc probe_stdout stderr_file probe_stderr
+    bash "$REPO_ROOT/scripts/tests/probe_screen_spec_claim_freshness_test.sh" || return $?
+
+    stderr_file="$(mktemp)"
+    set +e
+    probe_stdout="$(bash "$REPO_ROOT/scripts/probe_screen_spec_claim_freshness.sh" 2>"$stderr_file")"
+    rc=$?
+    set -e
+    probe_stderr="$(cat "$stderr_file")"
+    rm -f "$stderr_file"
+    if [ -n "$probe_stdout" ]; then
+        printf '%s\n' "$probe_stdout"
+    fi
+    if [ -n "$probe_stderr" ]; then
+        printf '%s\n' "$probe_stderr" >&2
+    fi
+    return "$rc"
 }
 
 gate_launch_evidence_freshness_contract() {
@@ -953,6 +1092,16 @@ reachability_result_stem() {
     printf '%s' "$1" | tr '/' '_'
 }
 
+reachability_manifest_contains() {
+    local candidate="$1" registered
+    for registered in "${TEST_REACHABILITY_HERMETIC_TESTS[@]}"; do
+        if [ "$registered" = "$candidate" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 write_reachability_timing_row() {
     local results_dir="$1" result_stem="$2" elapsed="$3" test_path="$4" rc="$5"
     local tmp_path
@@ -965,26 +1114,87 @@ write_reachability_timing_row() {
 
 run_reachability_suite() {
     local test_path="$1" results_dir="$2"
-    local result_stem start rc=0 suite_pid=""
+    local result_stem start rc=0 suite_pid="" timed_suite_pid="" watchdog_pid="" timeout_seconds
+    local timeout_marker monitor_was_on=0 term_grace_seconds
 
     result_stem="$(reachability_result_stem "$test_path")"
     start="$(now_seconds)"
+    timeout_seconds="${FJCLOUD_REACHABILITY_SUITE_TIMEOUT_SECONDS:-${REACHABILITY_SUITE_TIMEOUT_DEFAULT_SECONDS:-900}}"
+    case "$timeout_seconds" in
+        ''|*[!0-9]*|0)
+            timeout_seconds="${REACHABILITY_SUITE_TIMEOUT_DEFAULT_SECONDS:-900}"
+            ;;
+    esac
+    term_grace_seconds="${REACHABILITY_SUITE_TERM_GRACE_SECONDS:-0.2}"
+    timeout_marker="$results_dir/$result_stem.timeout"
+    rm -f "$timeout_marker"
+
+    terminate_suite_after_grace() {
+        local pid="$1" grace_seconds="$2"
+        [ -n "$pid" ] || return 0
+        kill -TERM -- "-$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
+        sleep "$grace_seconds"
+        # The process-group owner may exit on TERM while a descendant keeps the
+        # group alive. Always target the owned group after grace so descendants
+        # cannot survive timeout cleanup just because the leader exited first.
+        kill -KILL -- "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+    }
+
     write_reachability_timing_row "$results_dir" "$result_stem" "0" "$test_path" "RUNNING"
+    case "$-" in
+        *m*) monitor_was_on=1 ;;
+    esac
+    if [ "$monitor_was_on" -eq 0 ]; then
+        set -m
+    fi
     trap '
+        if [ -n "$watchdog_pid" ]; then
+            kill -TERM -- "-$watchdog_pid" 2>/dev/null || kill "$watchdog_pid" 2>/dev/null || true
+            wait "$watchdog_pid" 2>/dev/null || true
+        fi
         if [ -n "$suite_pid" ]; then
-            kill "$suite_pid" 2>/dev/null || true
+            terminate_suite_after_grace "$suite_pid" "$term_grace_seconds"
             wait "$suite_pid" 2>/dev/null || true
+        fi
+        if [ "$monitor_was_on" -eq 0 ]; then
+            set +m
         fi
         exit 143
     ' TERM INT HUP
     bash "$REPO_ROOT/$test_path" >"$results_dir/$result_stem.log" 2>&1 &
     suite_pid="$!"
+    (
+        sleep "$timeout_seconds"
+        if kill -0 "$suite_pid" 2>/dev/null; then
+            : >"$timeout_marker"
+            terminate_suite_after_grace "$suite_pid" "$term_grace_seconds"
+        fi
+    ) &
+    watchdog_pid="$!"
+    timed_suite_pid="$suite_pid"
     wait "$suite_pid" || rc=$?
     suite_pid=""
+    # The watchdog is a bounded `sleep` regardless of whether it already fired,
+    # so it must be signalled before waiting on it in BOTH directions. Waiting
+    # first would stall the suite tail for the remainder of the timeout budget
+    # on the common path where the suite exits well inside its bound.
+    if [ -n "$watchdog_pid" ]; then
+        kill -TERM -- "-$watchdog_pid" 2>/dev/null || kill "$watchdog_pid" 2>/dev/null || true
+        wait "$watchdog_pid" 2>/dev/null || true
+        watchdog_pid=""
+    fi
     trap - TERM INT HUP
+    if [ "$monitor_was_on" -eq 0 ]; then
+        set +m
+    fi
+    if [ -f "$timeout_marker" ]; then
+        terminate_suite_after_grace "$timed_suite_pid" "$term_grace_seconds"
+        rc="${REACHABILITY_SUITE_TIMEOUT_RC:-124}"
+    fi
     printf '%s\n' "$rc" >"$results_dir/$result_stem.rc"
     write_reachability_timing_row \
         "$results_dir" "$result_stem" "$(( $(now_seconds) - start ))" "$test_path" "$rc"
+    rm -f "$timeout_marker"
 }
 
 write_reachability_timings() {
@@ -1076,7 +1286,7 @@ gate_test_reachability_contract() {
     # avoiding fixed max_jobs-wide batches, whose wait-for-the-slowest barriers
     # leave most slots idle during long probe suites.
     for test_path in "${TEST_REACHABILITY_HERMETIC_TESTS[@]}"; do
-        if printf '%s\n' "$serial_list" | grep -Fxq "$test_path"; then
+        if grep -Fxq "$test_path" <<<"$serial_list"; then
             continue
         fi
         throttle_parallel "$max_jobs"
@@ -1089,7 +1299,7 @@ gate_test_reachability_contract() {
     # defect this whole gate exists to prevent.
     while IFS= read -r test_path; do
         [ -n "$test_path" ] || continue
-        if ! printf '%s\n' "${TEST_REACHABILITY_HERMETIC_TESTS[@]}" | grep -Fxq "$test_path"; then
+        if ! reachability_manifest_contains "$test_path"; then
             echo "reachability gate: serial registry names a test not in the hermetic manifest: $test_path" >&2
             return 1
         fi
@@ -1102,8 +1312,13 @@ EOF
         result_stem="$(reachability_result_stem "$test_path")"
         rc="$(cat "$results_dir/$result_stem.rc" 2>/dev/null || echo 1)"
         if [ "$rc" != "0" ]; then
-            failed+=("$test_path (exit $rc)")
-            echo "--- FAILING hermetic suite: $test_path (exit $rc) ---" >&2
+            if [ "$rc" = "${REACHABILITY_SUITE_TIMEOUT_RC:-124}" ]; then
+                failed+=("$test_path (timed out)")
+                echo "--- FAILING hermetic suite: $test_path (timed out) ---" >&2
+            else
+                failed+=("$test_path (exit $rc)")
+                echo "--- FAILING hermetic suite: $test_path (exit $rc) ---" >&2
+            fi
             tail -n 30 "$results_dir/$result_stem.log" >&2 || true
         fi
     done
@@ -1220,6 +1435,7 @@ schedule source-pollution
 schedule stripe-checks
 schedule status-doc-consistency
 schedule roadmap-v2-shape
+schedule handover-consumption
 schedule package-manager-consistency
 schedule dirmap-merge-driver
 schedule secret-scan
@@ -1229,6 +1445,7 @@ schedule web-audit
 schedule evidence-secret-hygiene
 schedule web-lint
 schedule index-export-clientside-contract
+schedule api-client-route-contract
 schedule migration-test
 schedule validate-bootstrap-parser
 schedule validate-bootstrap-env-local
@@ -1237,8 +1454,10 @@ schedule algolia-safety-probe-contract
 schedule flapjack-ami-pointer-contract
 schedule engine-exposure-probe-contract
 schedule fleet-dataplane-probe-contract
+schedule mirror-ci-currency-probe-contract
 schedule usage-rollup-freshness-contract
 schedule launch-evidence-freshness-contract
+schedule claim-freshness-contract
 schedule local-real-pipeline-contract
 schedule local-multinode-migration-contract
 
@@ -1304,7 +1523,7 @@ if [ "${#SCHEDULED_GATES[@]}" -eq 0 ] \
     && [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 0 ]; then
     if [ -n "$SINGLE_GATE" ]; then
         echo "ERROR: --gate '$SINGLE_GATE' did not match any known gate" >&2
-        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape web-lint secret-scan dep-audit baseline-integrity web-audit security-suite evidence-secret-hygiene index-export-clientside-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract usage-rollup-freshness-contract launch-evidence-freshness-contract test-reachability-contract local-real-pipeline-contract local-schema-drift-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver script-exec-bits port-collision-diagnose compose-project" >&2
+        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape handover-consumption web-lint secret-scan dep-audit baseline-integrity web-audit security-suite evidence-secret-hygiene index-export-clientside-contract api-client-route-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract mirror-ci-currency-probe-contract usage-rollup-freshness-contract launch-evidence-freshness-contract claim-freshness-contract test-reachability-contract local-real-pipeline-contract local-schema-drift-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver script-exec-bits port-collision-diagnose compose-project" >&2
         exit 2
     fi
     echo "ERROR: no gates scheduled" >&2
@@ -1375,6 +1594,7 @@ if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
             stripe-checks)   run_gate stripe-checks   gate_stripe_checks ;;
             status-doc-consistency) run_gate status-doc-consistency gate_status_doc_consistency ;;
             roadmap-v2-shape) run_gate roadmap-v2-shape gate_roadmap_v2_shape ;;
+            handover-consumption) run_gate handover-consumption gate_handover_consumption ;;
             package-manager-consistency) run_gate package-manager-consistency gate_package_manager_consistency ;;
             dirmap-merge-driver) run_gate dirmap-merge-driver gate_dirmap_merge_driver ;;
             secret-scan)     run_gate secret-scan     gate_secret_scan ;;
@@ -1385,6 +1605,7 @@ if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
             evidence-secret-hygiene) run_gate evidence-secret-hygiene gate_evidence_secret_hygiene ;;
             web-lint)        run_gate web-lint        gate_web_lint ;;
             index-export-clientside-contract) run_gate index-export-clientside-contract gate_index_export_clientside_contract ;;
+            api-client-route-contract) run_gate api-client-route-contract gate_api_client_route_contract ;;
             migration-test)  run_gate migration-test  gate_migration_test ;;
             validate-bootstrap-parser) run_gate validate-bootstrap-parser gate_validate_bootstrap_parser ;;
             validate-bootstrap-env-local) run_gate validate-bootstrap-env-local gate_validate_bootstrap_env_local ;;
@@ -1393,8 +1614,10 @@ if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
             flapjack-ami-pointer-contract) run_gate flapjack-ami-pointer-contract gate_flapjack_ami_pointer_contract ;;
             engine-exposure-probe-contract) run_gate engine-exposure-probe-contract gate_engine_exposure_probe_contract ;;
             fleet-dataplane-probe-contract) run_gate fleet-dataplane-probe-contract gate_fleet_dataplane_probe_contract ;;
+            mirror-ci-currency-probe-contract) run_gate mirror-ci-currency-probe-contract gate_mirror_ci_currency_probe_contract ;;
             usage-rollup-freshness-contract) run_gate usage-rollup-freshness-contract gate_usage_rollup_freshness_contract ;;
             launch-evidence-freshness-contract) run_gate launch-evidence-freshness-contract gate_launch_evidence_freshness_contract ;;
+            claim-freshness-contract) run_gate claim-freshness-contract gate_claim_freshness_contract ;;
             local-real-pipeline-contract) run_gate local-real-pipeline-contract gate_local_real_pipeline_contract ;;
             local-multinode-migration-contract) run_gate local-multinode-migration-contract gate_local_multinode_migration_contract ;;
         esac
@@ -1499,13 +1722,13 @@ if grep -q '^SHADOW_WARN:' "$LOG_DIR"/*.log 2>/dev/null; then
     done < <(sort "$RESULTS_FILE")
 fi
 
-# Tail failed gate logs so the operator can act without opening files.
+# Print failed gate logs so durable command receipts retain every diagnostic.
 if [ "$fail_count" -gt 0 ]; then
     printf '\n%b=== FAIL tails ===%b\n' "$C_BOLD" "$C_RESET"
     while IFS='|' read -r name status seconds log; do
         if [ "$status" = "FAIL" ]; then
             printf '\n%b--- %s (%ss) ---%b\n' "$C_RED" "$name" "$seconds" "$C_RESET"
-            tail -40 "$log"
+            cat "$log"
         fi
     done < <(sort "$RESULTS_FILE")
 fi

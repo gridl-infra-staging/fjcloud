@@ -70,12 +70,41 @@ pub fn live_gate_enabled() -> bool {
 /// Test binaries include helper tests that toggle env vars like
 /// `BACKEND_LIVE_GATE`. This lock allows tests that rely on those vars
 /// to serialize reads/writes and avoid cross-test races.
-pub fn test_env_lock() -> MutexGuard<'static, ()> {
+pub fn test_env_mutex() -> &'static Mutex<()> {
     static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    ENV_LOCK
-        .get_or_init(|| Mutex::new(()))
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
+    ENV_LOCK.get_or_init(|| Mutex::new(()))
+}
+
+pub fn test_env_lock() -> MutexGuard<'static, ()> {
+    test_env_mutex().lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Restores one process environment variable when an integration test exits,
+/// including when an assertion panics. Callers must hold [`test_env_lock`].
+pub struct TestEnvVarGuard {
+    key: &'static str,
+    previous: Option<String>,
+}
+
+impl TestEnvVarGuard {
+    pub fn set(key: &'static str, value: &str) -> Self {
+        let previous = std::env::var(key).ok();
+        // SAFETY: callers serialize process-environment mutation with test_env_lock.
+        unsafe { std::env::set_var(key, value) };
+        Self { key, previous }
+    }
+}
+
+impl Drop for TestEnvVarGuard {
+    fn drop(&mut self) {
+        // SAFETY: callers keep test_env_lock held until this guard drops.
+        unsafe {
+            match &self.previous {
+                Some(value) => std::env::set_var(self.key, value),
+                None => std::env::remove_var(self.key),
+            }
+        }
+    }
 }
 
 /// Global lock for tests that install tracing subscribers or inspect captured tracing output.

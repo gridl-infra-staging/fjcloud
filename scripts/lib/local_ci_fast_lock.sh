@@ -37,15 +37,36 @@ FAST_LOCK_WAIT_ENV_NAME="FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS"
 
 # Default bounded wait, in seconds, applied when the knob is absent or empty.
 #
-# WHY NON-ZERO: a whole-suite `--fast` run is clone-exclusive and long-running,
-# and nothing in this repo or the orchestrator ever exports the knob. With a 0
-# default every concurrent worktree got an instant exit-75 refusal, recorded
-# `--fast` as an unrunnable gate, and pushed on a self-selected subset of
-# `--gate` runs instead — which is how partially validated work reached `main`.
-# Queueing behind the holder makes the canonical pre-push gate slow rather than
-# unobtainable. The wait stays bounded so no caller hangs forever, and an
-# explicit `0` still opts back into fail-fast for interactive use.
-FAST_LOCK_DEFAULT_WAIT_SECONDS=1800
+# WHY NON-ZERO: the default queues briefly behind a live holder while staying
+# far below the earlier 1800-second budget that could burn most of the caller
+# session before a run even starts. With the current 2386-second upper-bound
+# suite specimen, this does not close the caller-session constraint by itself;
+# the remaining owners are the whole-suite gate size and matt's caller timeout.
+# An explicit FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS=0 still gives interactive
+# callers instant fail-fast behavior.
+FAST_LOCK_DEFAULT_WAIT_SECONDS=300
+
+# Measured wall-clock cost of ONE whole-suite `--fast` run, in seconds.
+# Provenance: the 2026-08-02 same-locality Stage 3 command
+# `/usr/bin/time -p env FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS=300 bash
+# scripts/local-ci.sh --fast` recorded `real 2385.98`. Its failed gates
+# short-circuited, so retain it as the conservative applicable specimen and
+# round up to whole seconds so the budget arithmetic never under-counts it.
+FAST_LOCK_MEASURED_FAST_RUN_SECONDS=2386
+
+# Wall-clock budget of the caller session that invokes the gate, in seconds.
+# Provenance: the orchestrator caps a session at `timeout=2400`
+# (matt_root/matt/llm.py:760). fjcloud cannot import that orchestrator value —
+# it lives in a different repo with no shared config seam — so the number is
+# mirrored here solely as the reference bound for the local default-wait budget
+# test. It is not consumed by lock acquisition or any runtime path.
+FAST_LOCK_CALLER_SESSION_BUDGET_SECONDS=2400
+
+# A live holder can be a real long-running --fast gate, but the Stage-1 wedge
+# evidence showed orphaned live holders can survive far past any useful wait.
+# Protect roughly three measured 1241s fast runs plus scheduling slack; older
+# live holders are displaced without signaling their process.
+FAST_LOCK_LIVE_RECLAIM_SECONDS=3900
 
 # Poll cadence for the bounded wait, in hundredths of a second. The wait loop
 # re-attempts acquisition every tick, so a holder that exits mid-wait is
@@ -137,6 +158,15 @@ _fast_lock_wait_seconds() {
 
 _fast_lock_wait_hundredths() {
     printf '%s' "$(( $(_fast_lock_wait_seconds) * 100 ))"
+}
+
+_fast_lock_wait_budget_open() {
+    local waited_hundredths="$1" budget_hundredths="$2"
+    local started_seconds="$3" wait_seconds="$4"
+    local elapsed_seconds
+    elapsed_seconds=$(( ${SECONDS:-0} - started_seconds ))
+    [ "$waited_hundredths" -lt "$budget_hundredths" ] \
+        && [ "$elapsed_seconds" -le "$wait_seconds" ]
 }
 
 # ---------------------------------------------------------------------------
@@ -366,15 +396,32 @@ describe_fast_lock_holder() {
         "$pid" "$worktree" "$held"
 }
 
+fast_lock_holder_held_seconds() {
+    local lock_dir="$1" started_at now held
+    started_at="$(_fast_lock_holder_field "$lock_dir" started_at)"
+    _fast_lock_is_nonneg_int "$started_at" || return 1
+    now="$(date +%s)"
+    held=$(( now - started_at ))
+    [ "$held" -lt 0 ] && held=0
+    printf '%s\n' "$held"
+}
+
+fast_lock_live_holder_is_reclaimable() {
+    local lock_dir="$1" held_seconds
+    held_seconds="$(fast_lock_holder_held_seconds "$lock_dir")" || return 1
+    [ "$held_seconds" -gt "$FAST_LOCK_LIVE_RECLAIM_SECONDS" ]
+}
+
 # _fast_lock_refuse <lock_dir> — emit the full contention diagnostic. Written
 # by the caller to stderr; keeps the refusal string in one place.
 _fast_lock_refuse() {
     local lock_dir="$1" record="${2:-$1/holder}"
-    printf 'local-ci --fast lock refused (exit %s): %s; wait for its natural exit rather than bypass; %s=%s\n' \
+    printf 'local-ci --fast lock refused (exit %s): %s; wait for its natural exit rather than bypass; %s=%s; exit %s means contention, not a gate result; do not replace the whole suite with self-selected --gate <name> runs\n' \
         "$FAST_LOCK_CONTENTION_EXIT_CODE" \
         "$(describe_fast_lock_holder "$lock_dir" "$record")" \
         "$FAST_LOCK_WAIT_ENV_NAME" \
-        "$(_fast_lock_wait_seconds)"
+        "$(_fast_lock_wait_seconds)" \
+        "$FAST_LOCK_CONTENTION_EXIT_CODE"
 }
 
 _fast_lock_acquire_guarded() {
@@ -388,7 +435,11 @@ _fast_lock_acquire_guarded() {
     if ! _fast_lock_pid_is_valid "$holder_pid"; then
         printf 'reclaiming corrupt local-ci --fast lock: holder PID missing or invalid\n' >&2
     elif kill -0 "$holder_pid" 2>/dev/null; then
-        return "$FAST_LOCK_CONTENTION_EXIT_CODE"
+        if ! fast_lock_live_holder_is_reclaimable "$lock_dir"; then
+            return "$FAST_LOCK_CONTENTION_EXIT_CODE"
+        fi
+        printf 'reclaiming stale live local-ci --fast lock: %s\n' \
+            "$(describe_fast_lock_holder "$lock_dir")" >&2
     else
         printf 'reclaiming stale local-ci --fast lock held by dead PID %s\n' \
             "$holder_pid" >&2
@@ -410,14 +461,17 @@ _fast_lock_acquire_guarded() {
 # with a diagnostic on stderr, then acquisition retries.
 acquire_fast_lock() {
     local lock_dir worktree process_pid
-    local budget_hundredths waited_hundredths guard_rc guarded_rc refusal_record
+    local budget_hundredths waited_hundredths wait_seconds started_seconds elapsed_seconds
+    local guard_rc guarded_rc refusal_record
     lock_dir="$(_fast_lock_dir)"
     worktree="$(_fast_lock_worktree)"
     _fast_lock_set_current_process_pid || return 1
     process_pid="$_FAST_LOCK_PROCESS_PID"
     _fast_lock_pid_is_valid "$process_pid" || return 1
-    budget_hundredths="$(_fast_lock_wait_hundredths)"
+    wait_seconds="$(_fast_lock_wait_seconds)"
+    budget_hundredths="$(( wait_seconds * 100 ))"
     waited_hundredths=0
+    started_seconds="${SECONDS:-0}"
 
     while : ; do
         guard_rc=0
@@ -425,13 +479,26 @@ acquire_fast_lock() {
             || guard_rc=$?
         if [ "$guard_rc" -eq "$FAST_LOCK_CONTENTION_EXIT_CODE" ]; then
             # The stable guard path always points at a complete record for the
-            # process publishing or reclaiming metadata. If it disappeared
-            # between the busy result and this read, retry against the completed
-            # holder instead of emitting an empty diagnostic.
-            [ -f "$lock_dir.guard" ] || continue
-            refusal_record="$lock_dir.guard"
+            # process publishing or reclaiming metadata. If it disappears
+            # between the busy result and this read, reuse the completed holder
+            # when present; otherwise only retry while budget remains, so this
+            # race cannot spin past the advertised wait bound.
+            if [ -f "$lock_dir.guard" ]; then
+                refusal_record="$lock_dir.guard"
+            elif [ -f "$lock_dir/holder" ]; then
+                refusal_record="$lock_dir/holder"
+            elif _fast_lock_wait_budget_open \
+                "$waited_hundredths" "$budget_hundredths" \
+                "$started_seconds" "$wait_seconds"
+            then
+                sleep 0.25
+                waited_hundredths=$(( waited_hundredths + _FAST_LOCK_POLL_HUNDREDTHS ))
+                continue
+            else
+                refusal_record="$lock_dir.guard"
+            fi
         else
-            [ "$guard_rc" -eq 0 ] || return "$guard_rc"
+            [ "$guard_rc" -eq 0 ] || { printf 'local-ci --fast lock acquisition failed before gate dispatch: metadata guard exited %s\n' "$guard_rc" >&2; return "$guard_rc"; }
 
             guarded_rc=0
             _fast_lock_acquire_guarded "$lock_dir" "$worktree" || guarded_rc=$?
@@ -445,7 +512,17 @@ acquire_fast_lock() {
             refusal_record="$lock_dir/holder"
         fi
 
-        if [ "$waited_hundredths" -lt "$budget_hundredths" ]; then
+        # The poll counter alone undercounts time spent starting and joining
+        # the metadata guard. Under host pressure that made a 300-second wait
+        # substantially exceed its advertised bound. Bash's SECONDS is a
+        # process-local monotonic elapsed clock, so use it without forking a
+        # timing subprocess on every poll. The one-second grace avoids an
+        # early refusal at an integer clock boundary; the poll counter keeps
+        # the ordinary path at the exact configured interval.
+        if _fast_lock_wait_budget_open \
+            "$waited_hundredths" "$budget_hundredths" \
+            "$started_seconds" "$wait_seconds"
+        then
             sleep 0.25
             waited_hundredths=$(( waited_hundredths + _FAST_LOCK_POLL_HUNDREDTHS ))
             continue

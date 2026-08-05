@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import ResetPasswordPage from './+page.svelte';
+import { PASSWORD_MIN_LENGTH } from '$lib/auth/password-policy';
 import { getAccessibilityViolations, getPageMainLandmarkCount } from '../../../tests/a11y';
 
 vi.mock('$app/forms', () => ({
@@ -46,12 +47,12 @@ describe('Reset password page', () => {
 
 		expect(password).toHaveAttribute('id', 'password');
 		expect(password).toHaveAttribute('name', 'password');
-		expect(password).toHaveAttribute('minlength', '8');
+		expect(password).toHaveAttribute('minlength', String(PASSWORD_MIN_LENGTH));
 		expect(password).toBeRequired();
 		expect(password).toHaveAttribute('type', 'password');
 		expect(confirmPassword).toHaveAttribute('id', 'confirm_password');
 		expect(confirmPassword).toHaveAttribute('name', 'confirm_password');
-		expect(confirmPassword).toHaveAttribute('minlength', '8');
+		expect(confirmPassword).toHaveAttribute('minlength', String(PASSWORD_MIN_LENGTH));
 		expect(confirmPassword).toBeRequired();
 		expect(confirmPassword).toHaveAttribute('type', 'password');
 
@@ -67,14 +68,14 @@ describe('Reset password page', () => {
 	it('renders validation and invalid-token messages with forgot-password recovery CTA', () => {
 		renderResetPasswordPage({
 			errors: {
-				password: 'Password must be at least 8 characters',
+				password: 'Password must be at least 15 characters',
 				confirm_password: 'Passwords do not match',
 				form: 'token expired'
 			},
 			recoveryAction: 'invalid_or_expired_token'
 		});
 
-		expect(screen.getByText('Password must be at least 8 characters')).toBeInTheDocument();
+		expect(screen.getByText('Password must be at least 15 characters')).toBeInTheDocument();
 		expect(screen.getByText('Passwords do not match')).toBeInTheDocument();
 		expect(screen.getByRole('alert')).toHaveTextContent('token expired');
 		expect(screen.getByRole('link', { name: 'Request another reset email' })).toHaveAttribute(
@@ -105,5 +106,26 @@ describe('Reset password page', () => {
 			'password reset email temporarily unavailable'
 		);
 		expect(screen.queryByTestId('reset-password-request-new-email')).not.toBeInTheDocument();
+	});
+
+	it('blocks submission for an eight-emoji password that native minlength would accept', async () => {
+		renderResetPasswordPage();
+
+		const password = screen.getByLabelText('New Password');
+		const submit = screen.getByRole('button', { name: 'Reset Password' });
+
+		// Eight lock emoji: 8 code points but 16 UTF-16 units, so native
+		// minlength={15} treats it as long enough while the policy does not.
+		await fireEvent.input(password, { target: { value: '🔒'.repeat(8) } });
+		expect(
+			screen.getByText(`Password must be at least ${PASSWORD_MIN_LENGTH} characters`)
+		).toBeInTheDocument();
+		expect(submit).toBeDisabled();
+
+		await fireEvent.input(password, { target: { value: 'abc café 123456' } });
+		expect(
+			screen.queryByText(`Password must be at least ${PASSWORD_MIN_LENGTH} characters`)
+		).not.toBeInTheDocument();
+		expect(submit).toBeEnabled();
 	});
 });

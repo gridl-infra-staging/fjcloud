@@ -97,6 +97,32 @@ write_openapi() {
         "requestBody": null
       }
     },
+    "/1/migrations/algolia/preview": {
+      "post": {
+        "operationId": "preview_algolia_migration",
+        "security": [{"api_key": []}],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/MigrateFromAlgoliaRequest"}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Advisory source migration translation report",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/MigrationPreviewResponse"}
+              }
+            }
+          },
+          "400": {"description": "Invalid migration request or unsupported source provider"},
+          "502": {"description": "Upstream source provider request failed"}
+        }
+      }
+    },
     "/1/migrations/privacy-scrub": {
       "post": {
         "operationId": "submit_privacy_scrub",
@@ -187,6 +213,72 @@ write_openapi() {
           "jsonPath": {"type": "string"}
         }
       },
+      "MigrationPreviewResponse": {
+        "type": "object",
+        "required": ["report", "sourceCounts"],
+        "properties": {
+          "report": {"$ref": "#/components/schemas/MigrationPreviewReport"},
+          "sourceCounts": {"$ref": "#/components/schemas/MigrationPreviewSourceCounts"}
+        }
+      },
+      "MigrationPreviewSourceCounts": {
+        "type": "object",
+        "required": ["indexes", "records"],
+        "properties": {
+          "indexes": {"type": "integer", "minimum": 0},
+          "records": {"type": "integer", "minimum": 0}
+        }
+      },
+      "MigrationPreviewReport": {
+        "type": "object",
+        "required": ["entries", "summary"],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/MigrationPreviewReportEntry"}
+          },
+          "summary": {"$ref": "#/components/schemas/MigrationPreviewReportSummary"},
+          "reportDigest": {"type": ["string", "null"]}
+        }
+      },
+      "MigrationPreviewReportSummary": {
+        "type": "object",
+        "required": ["totalEntries", "hardRejections", "warnings", "scopeGaps"],
+        "properties": {
+          "totalEntries": {"type": "integer", "minimum": 0},
+          "hardRejections": {"type": "integer", "minimum": 0},
+          "warnings": {"type": "integer", "minimum": 0},
+          "scopeGaps": {"type": "integer", "minimum": 0}
+        }
+      },
+      "MigrationPreviewReportEntry": {
+        "type": "object",
+        "required": ["severity", "code", "resource", "jsonPath"],
+        "properties": {
+          "severity": {"$ref": "#/components/schemas/ReportSeverity"},
+          "code": {"$ref": "#/components/schemas/ReportCode"},
+          "resource": {"$ref": "#/components/schemas/ReportResource"},
+          "jsonPath": {"type": "string"},
+          "pageIndex": {"type": ["integer", "null"], "minimum": 0},
+          "itemIndex": {"type": ["integer", "null"], "minimum": 0}
+        }
+      },
+      "ReportSeverity": {
+        "type": "string",
+        "enum": ["ScopeGap", "Warning", "HardRejection"]
+      },
+      "ReportCode": {
+        "type": "string",
+        "enum": [
+          "ProductNotMigrated",
+          "PersistedNoBehaviorSetting",
+          "ReadOnlySourceField"
+        ]
+      },
+      "ReportResource": {
+        "type": "string",
+        "enum": ["Analytics", "Document", "Settings"]
+      },
       "AsyncMigrationExportProgress": {
         "type": "object",
         "required": ["completed", "total"],
@@ -231,7 +323,11 @@ JSON
 
 init_engine_repo() {
     local dir="$1"
-    mkdir -p "$dir/engine/docs2/4_EVIDENCE" "$dir/engine/tests" "$dir/scripts"
+    mkdir -p \
+        "$dir/engine/docs2/4_EVIDENCE" \
+        "$dir/engine/flapjack-http/src/handlers/migration" \
+        "$dir/engine/tests" \
+        "$dir/scripts"
     cat >"$dir/engine/Cargo.toml" <<'EOF_CARGO'
 [package]
 name = "flapjack-server"
@@ -246,6 +342,11 @@ fi
 printf '%s\n' 'privacy-scrub transport receipt: PASS'
 EOF_PRIVACY_CHECK
     chmod +x "$dir/scripts/update_algolia_migration_engine_contract.sh"
+    cat >"$dir/engine/flapjack-http/src/handlers/migration/mod.rs" <<'EOF_MIGRATION_MOD'
+impl SourceProvider {
+    fn supports_preview(&self) -> bool { matches!(self, Self::Algolia) }
+}
+EOF_MIGRATION_MOD
     cat >"$dir/engine/tests/migration_import_contract_test.sh" <<'EOF_ACK_TEST'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -378,6 +479,24 @@ assert_fails_with_status() {
     assert_action_required "$output"
 }
 
+assert_fails_with_status_and_text() {
+    local expected_status="$1"
+    local expected_text="$2"
+    local output="$tmpdir/output.$RANDOM"
+    shift 2
+    local actual_status=0
+    "$@" >"$output" 2>&1 || actual_status=$?
+    [ "$actual_status" -eq "$expected_status" ] || {
+        cat "$output" >&2
+        fail "expected exit $expected_status, got $actual_status"
+    }
+    assert_action_required "$output"
+    grep -Fqx "$expected_text" "$output" || {
+        cat "$output" >&2
+        fail "expected exact diagnostic: $expected_text"
+    }
+}
+
 mutate_openapi_artifacts() {
     local fixture_path="$1"
     local scope="$2"
@@ -461,6 +580,9 @@ for rel_path in [
             {"$ref": "#/components/schemas/MigrateCount"},
         ],
     }
+    status_properties["operation"] = {"type": ["string", "null"]}
+    status_properties["resumable"] = {"type": ["boolean", "null"]}
+    status_properties["resumeHandle"] = {"type": ["string", "null"]}
     status_properties["targetIndex"] = {"type": ["string", "null"]}
     status_properties["topology"] = {
         "oneOf": [
@@ -546,6 +668,7 @@ payload["provider_aliases"] = {
     "algolia": {
         "acknowledge": "/1/migrations/algolia/{job_id}/acknowledge",
         "cancel": "/1/migrations/algolia/{job_id}/cancel",
+        "preview": "/1/migrations/algolia/preview",
         "status": "/1/migrations/algolia/{job_id}",
         "submit": "/1/migrations/algolia",
     },
@@ -558,6 +681,79 @@ payload["status"]["optional_fields"] = [
     "terminalAt",
     "warnings",
 ]
+payload["preview"] = {
+    "runtime_preview_support": {
+        "algolia": True,
+    },
+    "request_schema_refs": {
+        "algolia": "#/components/schemas/MigrateFromAlgoliaRequest",
+    },
+    "request_fields": {
+        "algolia": {
+            "required_fields": ["apiKey", "appId", "sourceIndex"],
+            "optional_fields": ["overwrite", "targetIndex"],
+        },
+    },
+    "response": {
+        "required_fields": ["report", "sourceCounts"],
+        "optional_fields": [],
+        "report_ref": "#/components/schemas/MigrationPreviewReport",
+        "source_counts_ref": "#/components/schemas/MigrationPreviewSourceCounts",
+    },
+    "source_counts": {
+        "required_fields": ["indexes", "records"],
+        "optional_fields": [],
+        "field_types": {
+            "indexes": ["integer"],
+            "records": ["integer"],
+        },
+    },
+    "report": {
+        "required_fields": ["entries", "summary"],
+        "optional_fields": ["reportDigest"],
+        "entries": {
+            "type": "array",
+            "items_ref": "#/components/schemas/MigrationPreviewReportEntry",
+        },
+        "summary_ref": "#/components/schemas/MigrationPreviewReportSummary",
+        "reportDigest": {
+            "type": ["null", "string"],
+        },
+    },
+    "report_summary": {
+        "required_fields": ["hardRejections", "scopeGaps", "totalEntries", "warnings"],
+        "optional_fields": [],
+        "field_types": {
+            "hardRejections": ["integer"],
+            "scopeGaps": ["integer"],
+            "totalEntries": ["integer"],
+            "warnings": ["integer"],
+        },
+    },
+    "report_entry": {
+        "required_fields": ["code", "jsonPath", "resource", "severity"],
+        "optional_fields": ["itemIndex", "pageIndex"],
+        "field_types": {
+            "itemIndex": ["integer", "null"],
+            "jsonPath": ["string"],
+            "pageIndex": ["integer", "null"],
+        },
+        "refs": {
+            "code": "#/components/schemas/ReportCode",
+            "resource": "#/components/schemas/ReportResource",
+            "severity": "#/components/schemas/ReportSeverity",
+        },
+    },
+    "enums": {
+        "code": [
+            "ProductNotMigrated",
+            "PersistedNoBehaviorSetting",
+            "ReadOnlySourceField",
+        ],
+        "resource": ["Analytics", "Document", "Settings"],
+        "severity": ["ScopeGap", "Warning", "HardRejection"],
+    },
+}
 for artifact in payload["openapi_artifacts"]:
     artifact["sha256"] = artifact_sha
 open(path, "w", encoding="utf-8").write(json.dumps(payload, sort_keys=True, indent=2) + "\n")
@@ -612,13 +808,109 @@ if after != expected:
     raise SystemExit("update changed fields outside pinned_engine_sha/openapi_artifacts sha256")
 PY
 
+preview_schema_drift_fixture="$fixture_tmpdir/contract.preview-schema-drift.json"
+cp "$update_fixture" "$preview_schema_drift_fixture"
+python3 - "$engine" <<'PY'
+import json
+import pathlib
+import sys
+
+engine = pathlib.Path(sys.argv[1])
+for rel_path in [
+    "engine/docs2/openapi.json",
+    "engine/demo-dualclient/public/openapi.json",
+]:
+    path = engine / rel_path
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    schema = payload["components"]["schemas"]["MigrationPreviewSourceCounts"]
+    schema["required"].append("bytes")
+    schema["properties"]["bytes"] = {"type": "integer", "minimum": 0}
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
+git -C "$engine" add engine/docs2/openapi.json engine/demo-dualclient/public/openapi.json
+git -C "$engine" commit -q -m "drift preview schema"
+preview_schema_drift_head_sha="$(git -C "$engine" rev-parse HEAD)"
+assert_fails_action_required \
+    run_updater "$engine" "$preview_schema_drift_head_sha" "$preview_schema_drift_fixture"
+git -C "$engine" reset --quiet --hard "$head_sha"
+
+preview_request_drift_fixture="$fixture_tmpdir/contract.preview-request-drift.json"
+cp "$update_fixture" "$preview_request_drift_fixture"
+python3 - "$engine" <<'PY'
+import json
+import pathlib
+import sys
+
+engine = pathlib.Path(sys.argv[1])
+for rel_path in [
+    "engine/docs2/openapi.json",
+    "engine/demo-dualclient/public/openapi.json",
+]:
+    path = engine / rel_path
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    schema = payload["components"]["schemas"]["MigrateFromAlgoliaRequest"]
+    schema["required"].append("region")
+    schema["properties"]["region"] = {"type": "string"}
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
+git -C "$engine" add engine/docs2/openapi.json engine/demo-dualclient/public/openapi.json
+git -C "$engine" commit -q -m "drift preview request schema"
+preview_request_drift_head_sha="$(git -C "$engine" rev-parse HEAD)"
+assert_fails_action_required \
+    run_updater "$engine" "$preview_request_drift_head_sha" "$preview_request_drift_fixture"
+git -C "$engine" reset --quiet --hard "$head_sha"
+
+unsupported_preview_fixture="$fixture_tmpdir/contract.unsupported-preview.json"
+cp "$test_fixture" "$unsupported_preview_fixture"
+python3 - "$engine/engine/flapjack-http/src/handlers/migration/mod.rs" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+payload = path.read_text(encoding="utf-8")
+payload = payload.replace("Self::Algolia", "Self::Meilisearch")
+path.write_text(payload, encoding="utf-8")
+PY
+git -C "$engine" add engine/flapjack-http/src/handlers/migration/mod.rs
+git -C "$engine" commit -q -m "drift preview runtime support outside union"
+unsupported_preview_head_sha="$(git -C "$engine" rev-parse HEAD)"
+python3 - "$unsupported_preview_fixture" "$unsupported_preview_head_sha" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+payload["pinned_engine_sha"] = sys.argv[2]
+path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+PY
+assert_fails_with_status_and_text 3 \
+    "ACTION_REQUIRED: supports_preview contains providers outside the OpenAPI closed union: Meilisearch" \
+    run_checker "$engine" "$unsupported_preview_head_sha" "$unsupported_preview_fixture"
+git -C "$engine" reset --quiet --hard "$head_sha"
+
 provider_update_fixture="$fixture_tmpdir/contract.provider-update.json"
 cp "$test_fixture" "$provider_update_fixture"
 widen_openapi_provider_aliases
 provider_head_sha="$(git -C "$engine" rev-parse HEAD)"
+provider_update_expected_providers_json='["algolia", "meilisearch", "typesense"]'
+python3 - "$provider_update_fixture" "$provider_update_expected_providers_json" <<'PY'
+import json
+import pathlib
+import sys
+
+fixture_path = pathlib.Path(sys.argv[1])
+providers = json.loads(sys.argv[2])
+fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+fixture["preview"]["runtime_preview_support"] = {
+    provider: provider == "algolia"
+    for provider in providers
+}
+fixture_path.write_text(json.dumps(fixture, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+PY
 cp "$provider_update_fixture" "$tmpdir/contract.provider-update.before.json"
 run_updater "$engine" "$provider_head_sha" "$provider_update_fixture"
-python3 - "$tmpdir/contract.provider-update.before.json" "$provider_update_fixture" "$provider_head_sha" <<'PY'
+python3 - "$tmpdir/contract.provider-update.before.json" "$provider_update_fixture" "$provider_head_sha" "$provider_update_expected_providers_json" <<'PY'
 import copy
 import json
 import sys
@@ -626,16 +918,36 @@ import sys
 before_path, after_path, provider_head_sha = sys.argv[1:4]
 before = json.loads(open(before_path, encoding="utf-8").read())
 after = json.loads(open(after_path, encoding="utf-8").read())
-expected_providers = ["algolia", "meilisearch", "typesense"]
+expected_providers = json.loads(sys.argv[4])
 expected_aliases = {
     provider: {
         "submit": f"/1/migrations/{provider}",
         "status": f"/1/migrations/{provider}/{{job_id}}",
         "cancel": f"/1/migrations/{provider}/{{job_id}}/cancel",
         "acknowledge": f"/1/migrations/{provider}/{{job_id}}/acknowledge",
+        "preview": f"/1/migrations/{provider}/preview",
     }
     for provider in expected_providers
 }
+expected_preview = copy.deepcopy(before["preview"])
+expected_preview["request_schema_refs"] = {
+    "algolia": "#/components/schemas/MigrateFromAlgoliaRequest",
+    "meilisearch": "#/components/schemas/MigrateFromAlgoliaRequest",
+    "typesense": "#/components/schemas/MigrateFromAlgoliaRequest",
+}
+expected_preview["request_fields"] = {
+    provider: {
+        "required_fields": ["apiKey", "appId", "sourceIndex"],
+        "optional_fields": ["overwrite", "targetIndex"],
+    }
+    for provider in expected_providers
+}
+expected_preview["runtime_preview_support"] = {
+    provider: provider == "algolia"
+    for provider in expected_providers
+}
+if before["preview"]["request_schema_refs"] == expected_preview["request_schema_refs"]:
+    raise SystemExit("provider update fixture already had widened preview request schemas before updater")
 if after["pinned_engine_sha"] != provider_head_sha:
     raise SystemExit("provider update did not pin the widened engine commit")
 if after["provider_discriminator"] != {
@@ -647,17 +959,48 @@ if after["provider_aliases"] != expected_aliases:
     raise SystemExit("provider update did not widen provider_aliases")
 if after["routes"] != before["routes"]:
     raise SystemExit("provider update changed shared lifecycle routes")
+if after["preview"] != expected_preview:
+    raise SystemExit("provider update did not widen preview request schemas")
 normalized_before = copy.deepcopy(before)
 normalized_after = copy.deepcopy(after)
 for payload in [normalized_before, normalized_after]:
     payload["pinned_engine_sha"] = "<normalized>"
     payload["provider_discriminator"] = "<normalized>"
     payload["provider_aliases"] = "<normalized>"
+    payload["preview"] = "<normalized>"
     for artifact in payload["openapi_artifacts"]:
         artifact["sha256"] = "<normalized>"
 if normalized_after != normalized_before:
     raise SystemExit("provider update changed non-provider contract keys")
 PY
+
+provider_ref_drift_fixture="$fixture_tmpdir/contract.provider-ref-drift.json"
+cp "$test_fixture" "$provider_ref_drift_fixture"
+git -C "$engine" reset --quiet --hard "$head_sha"
+widen_openapi_provider_aliases
+python3 - "$engine" <<'PY'
+import json
+import pathlib
+import sys
+
+engine = pathlib.Path(sys.argv[1])
+for rel_path in [
+    "engine/docs2/openapi.json",
+    "engine/demo-dualclient/public/openapi.json",
+]:
+    path = engine / rel_path
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["paths"]["/1/migrations/algolia/preview"]["post"]["requestBody"]["content"][
+        "application/json"
+    ]["schema"]["$ref"] = "#/components/schemas/MigrateFromAlgoliaV2Request"
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
+git -C "$engine" add engine/docs2/openapi.json engine/demo-dualclient/public/openapi.json
+git -C "$engine" commit -q -m "drift existing provider preview request ref"
+provider_ref_drift_head_sha="$(git -C "$engine" rev-parse HEAD)"
+assert_fails_action_required \
+    run_updater "$engine" "$provider_ref_drift_head_sha" "$provider_ref_drift_fixture"
+git -C "$engine" reset --quiet --hard "$provider_head_sha"
 
 status_update_fixture="$fixture_tmpdir/contract.status-update.json"
 cp "$provider_update_fixture" "$status_update_fixture"
@@ -678,6 +1021,9 @@ after = json.loads(open(after_path, encoding="utf-8").read())
 expected_optional = [
     "exportProgress",
     "objectsImported",
+    "operation",
+    "resumable",
+    "resumeHandle",
     "rulesImported",
     "settingsApplied",
     "synonymsImported",
@@ -725,7 +1071,14 @@ payload = json.loads(path.read_text(encoding="utf-8"))
 payload["status"]["optional_fields"] = [
     field
     for field in payload["status"]["optional_fields"]
-    if field not in {"objectsImported", "targetIndex", "topology"}
+    if field not in {
+        "objectsImported",
+        "operation",
+        "resumable",
+        "resumeHandle",
+        "targetIndex",
+        "topology",
+    }
 ]
 path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 PY

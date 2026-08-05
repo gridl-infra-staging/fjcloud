@@ -2,11 +2,15 @@
 
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd -P)"
 
 CARGO_PREFIX="cd infra && cargo test -p api"
 VITEST_PREFIX="cd web && npx vitest run"
+# Stands in for a Markdown-escaped `\|` while a table row is split into cells.
+ESCAPED_PIPE_SENTINEL=$'\x01'
+RECORDED_COUNT_PREFIX_REGEX='^[[:space:]]*(\(([0-9]+)[[:space:]]+(tests?|selected[[:space:]]+(tests?|ignored[[:space:]]+DB[[:space:]]+tests?))\))'
+RECORDED_COUNT_ANY_REGEX='\([0-9]+[[:space:]]+[^)]*tests?\)'
 BASELINE_FILE=""
 FOUND_COUNT=0
 VERIFIED_COUNT=0
@@ -22,6 +26,8 @@ CARGO_FILTER=""
 CARGO_TARGET_KEY=""
 CARGO_TARGET_ARGS=()
 CARGO_FEATURE_ARGS=()
+VITEST_RELATIVE_PATHS=()
+VITEST_RESOLVED_PATHS=()
 RECORDED_COUNT=""
 
 usage() {
@@ -72,14 +78,14 @@ extract_recorded_count() {
     local first_match remainder
 
     RECORDED_COUNT=""
-    if [[ ! "$adjacent_text" =~ ^[[:space:]]*(\(([0-9]+)[[:space:]]+tests?\)) ]]; then
+    if [[ ! "$adjacent_text" =~ $RECORDED_COUNT_PREFIX_REGEX ]]; then
         return 1
     fi
 
     first_match="${BASH_REMATCH[1]}"
     RECORDED_COUNT="${BASH_REMATCH[2]}"
     remainder="${adjacent_text#*"$first_match"}"
-    if [[ "$remainder" =~ \([0-9]+[[:space:]]+tests?\) ]]; then
+    if [[ "$remainder" =~ $RECORDED_COUNT_ANY_REGEX ]]; then
         RECORDED_COUNT=""
         return 1
     fi
@@ -118,6 +124,10 @@ record_count_result() {
 }
 
 is_safe_cargo_value() {
+    # A leading `-` would make the token an option to Cargo rather than the
+    # target/filter value this position is meant to carry, so reject it here
+    # instead of letting Cargo reinterpret it (mirrors the Vitest path guard).
+    [[ "$1" != -* ]] || return 1
     [[ "$1" =~ ^[A-Za-z0-9_.:-]+$ ]]
 }
 
@@ -127,7 +137,7 @@ parse_cargo_command() {
     local selector_seen=0
     local features_seen=0
     local filter_seen=0
-    local list_seen=0
+    local separator_seen=0
     local token
     local -a tokens
 
@@ -171,11 +181,23 @@ parse_cargo_command() {
                 index=$((index + 2))
                 ;;
             --)
-                [ "$list_seen" -eq 0 ] || return 1
-                [ $((index + 1)) -eq $((${#tokens[@]} - 1)) ] || return 1
-                [ "${tokens[$((index + 1))]}" = "--list" ] || return 1
-                list_seen=1
-                index=$((index + 2))
+                [ "$separator_seen" -eq 0 ] || return 1
+                [ $((index + 1)) -lt "${#tokens[@]}" ] || return 1
+                case "${tokens[$((index + 1))]}" in
+                    --list)
+                        [ $((index + 2)) -eq "${#tokens[@]}" ] || return 1
+                        ;;
+                    --ignored)
+                        [ "$filter_seen" -eq 1 ] || return 1
+                        [ $((index + 3)) -eq "${#tokens[@]}" ] || return 1
+                        [ "${tokens[$((index + 2))]}" = "--nocapture" ] || return 1
+                        ;;
+                    *)
+                        return 1
+                        ;;
+                esac
+                separator_seen=1
+                index="${#tokens[@]}"
                 ;;
             -*)
                 return 1
@@ -273,19 +295,32 @@ process_cargo_invocation() {
     record_count_result "$control_name" CARGO "$recorded_count" "$actual_count"
 }
 
-parse_vitest_path() {
+is_safe_vitest_path() {
+    [[ "$1" != -* ]] || return 1
+    [[ "$1" =~ ^[A-Za-z0-9_./-]+$ ]] || return 1
+    case "$1" in
+        *.test.js|*.test.jsx|*.test.ts|*.test.tsx|*.spec.js|*.spec.jsx|*.spec.ts|*.spec.tsx) ;;
+        *) return 1 ;;
+    esac
+}
+
+parse_vitest_paths() {
     local command="$1"
+    local index
     local -a tokens
 
+    VITEST_RELATIVE_PATHS=()
     read -r -a tokens <<< "$command"
-    [ "${#tokens[@]}" -eq 7 ] || return 1
+    [ "${#tokens[@]}" -ge 7 ] || return 1
     [ "${tokens[0]}" = "cd" ] && [ "${tokens[1]}" = "web" ] \
         && [ "${tokens[2]}" = "&&" ] && [ "${tokens[3]}" = "npx" ] \
         && [ "${tokens[4]}" = "vitest" ] && [ "${tokens[5]}" = "run" ] \
         || return 1
-    [[ "${tokens[6]}" != -* ]] || return 1
-    [[ "${tokens[6]}" =~ ^[A-Za-z0-9_./-]+$ ]] || return 1
-    printf '%s\n' "${tokens[6]}"
+
+    for ((index = 6; index < ${#tokens[@]}; index++)); do
+        is_safe_vitest_path "${tokens[$index]}" || return 1
+        VITEST_RELATIVE_PATHS+=("${tokens[$index]}")
+    done
 }
 
 resolve_vitest_file() {
@@ -294,11 +329,28 @@ resolve_vitest_file() {
     local resolved_path
 
     [ -f "$candidate" ] || return 1
-    resolved_path="$(cd "$(dirname "$candidate")" && pwd -P)/$(basename "$candidate")"
+    resolved_path="$(
+        python3 - "$candidate" <<'PY'
+import os
+import sys
+
+print(os.path.realpath(sys.argv[1]))
+PY
+    )" || return 1
     case "$resolved_path" in
         "$REPO_ROOT/web/"*) printf '%s\n' "$resolved_path" ;;
         *) return 1 ;;
     esac
+}
+
+resolve_vitest_paths() {
+    local relative_path resolved_path
+
+    VITEST_RESOLVED_PATHS=()
+    for relative_path in "${VITEST_RELATIVE_PATHS[@]}"; do
+        resolved_path="$(resolve_vitest_file "$relative_path")" || return 1
+        VITEST_RESOLVED_PATHS+=("$resolved_path")
+    done
 }
 
 parse_vitest_total() {
@@ -318,17 +370,23 @@ process_vitest_invocation() {
     local control_name="$1"
     local command="$2"
     local recorded_count="$3"
-    local relative_path resolved_path runner_output actual_count
+    local runner_output actual_count
 
-    if ! relative_path="$(parse_vitest_path "$command")"; then
+    if ! parse_vitest_paths "$command"; then
         record_failure "$control_name" VITEST UNPARSEABLE "$recorded_count" NA
         return
     fi
-    if ! resolved_path="$(resolve_vitest_file "$relative_path")"; then
+    if ! resolve_vitest_paths; then
         record_failure "$control_name" VITEST RUNNER_ERROR "$recorded_count" NA
         return
     fi
-    if ! runner_output="$(cd "$REPO_ROOT/web" && npx vitest run "$resolved_path" 2>&1)"; then
+    # The baseline records the familiar `npx vitest` spelling, but the probe
+    # must never let npx fetch an unpinned package when dependencies are
+    # missing. Fail closed and require the repository-installed Vitest.
+    if ! runner_output="$(
+        cd "$REPO_ROOT/web" \
+            && npx --no-install vitest run "${VITEST_RESOLVED_PATHS[@]}" 2>&1
+    )"; then
         record_failure "$control_name" VITEST RUNNER_ERROR "$recorded_count" NA
         return
     fi
@@ -380,14 +438,26 @@ process_verify_cell() {
     done
 }
 
+restore_escaped_pipes() {
+    printf '%s\n' "${1//$ESCAPED_PIPE_SENTINEL/\\|}"
+}
+
 process_baseline() {
-    local line ignored control_name status owner verify trailing
+    local line delimiter_only_line ignored control_name status owner verify trailing
 
     while IFS= read -r line || [ -n "$line" ]; do
         [[ "$line" == \|* ]] || continue
-        IFS='|' read -r ignored control_name status owner verify trailing <<< "$line"
-        control_name="$(trim_whitespace "$control_name")"
-        process_verify_cell "$control_name" "$verify"
+        # Markdown requires a literal pipe inside a table cell to be written
+        # `\|`, so splitting on every `|` truncates such a cell and silently
+        # drops any runner command after it — the exact silent-skip this probe
+        # exists to prevent. Hide the escaped form behind a sentinel that
+        # cannot occur in a text file, split on the real delimiters, then put
+        # it back before scanning the cell.
+        delimiter_only_line="${line//\\|/$ESCAPED_PIPE_SENTINEL}"
+        IFS='|' read -r ignored control_name status owner verify trailing \
+            <<< "$delimiter_only_line"
+        control_name="$(trim_whitespace "$(restore_escaped_pipes "$control_name")")"
+        process_verify_cell "$control_name" "$(restore_escaped_pipes "$verify")"
     done < "$BASELINE_FILE"
 }
 

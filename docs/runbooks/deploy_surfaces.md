@@ -22,6 +22,11 @@ one of them; know which before you reason about "is it deployed?".
 | Version readout | `GET /version` → `dev_sha` / `mirror_sha` (a **fjcloud_dev** commit) | the Pages deployment's `canonical_deployment.deployment_trigger.metadata.commit_hash` (the `--commit-hash=$GITHUB_SHA` the `deploy-web` step stamps) | the baked flapjack version inside the AMI; **not** exposed by `/version` |
 | "Is the fix live?" check | `bash scripts/deploy_status.sh` (diffs deployed `/version.dev_sha` vs dev `origin/main`) | `bash scripts/launch/wait_for_pages_parity.sh` (polls the Pages API `commit_hash` for the deployment owning the cloud alias) — staging parity now depends on the `--branch=staging` deploy refreshing the staging branch alias | provision a throwaway tenant and assert its EC2 `ImageId == <new AMI id>` |
 
+**"Is the deploy pipeline alive?"** Run `bash scripts/probe_mirror_ci_currency.sh`. This is the sole
+read-only CI-visibility owner for both mirrors: each repository is green only when its newest
+`CI` + `push` run is completed successfully at that mirror's current `main` HEAD. The probe always
+reports both mirror verdicts and exits non-zero when either is non-green or cannot be measured.
+
 ## The web plane deploys itself now — but it did not for a month (2026-06-05 → 07-07)
 
 The `flapjack-cloud` Cloudflare Pages project has **no git integration** (`source: null` in the Pages

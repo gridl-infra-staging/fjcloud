@@ -1,15 +1,17 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { createAdminClient } from '$lib/admin-client';
 import type { AdminMigration } from '$lib/admin-client';
+import {
+	redirectIfAdminSessionAuthError,
+	requireDurableAdminSession
+} from '$lib/server/admin-session';
 
 const ACTIVE_STATUSES = new Set(['pending', 'replicating', 'cutting_over']);
 
-export const load: PageServerLoad = async ({ fetch, depends, platform }) => {
-	depends('admin:migrations');
+export const load: PageServerLoad = async (event) => {
+	event.depends('admin:migrations');
 
-	const client = createAdminClient(undefined, platform?.env);
-	client.setFetch(fetch);
+	const { adminClient: client } = await requireDurableAdminSession(event);
 
 	try {
 		const [activeMigrations, recentMigrationsRaw] = await Promise.all([
@@ -23,7 +25,8 @@ export const load: PageServerLoad = async ({ fetch, depends, platform }) => {
 		);
 
 		return { activeMigrations, recentMigrations };
-	} catch {
+	} catch (error) {
+		redirectIfAdminSessionAuthError(error);
 		return {
 			activeMigrations: [] as AdminMigration[],
 			recentMigrations: [] as AdminMigration[]
@@ -32,8 +35,10 @@ export const load: PageServerLoad = async ({ fetch, depends, platform }) => {
 };
 
 export const actions = {
-	trigger: async ({ request, fetch, platform }) => {
-		const formData = await request.formData();
+	trigger: async (event) => {
+		const { adminClient: client } = await requireDurableAdminSession(event);
+
+		const formData = await event.request.formData();
 		const indexName = formData.get('index_name');
 		const destVmId = formData.get('dest_vm_id');
 
@@ -51,9 +56,6 @@ export const actions = {
 			});
 		}
 
-		const client = createAdminClient(undefined, platform?.env);
-		client.setFetch(fetch);
-
 		try {
 			const result = await client.triggerMigration({
 				index_name: indexName.trim(),
@@ -65,6 +67,7 @@ export const actions = {
 				migrationId: result.migration_id
 			};
 		} catch (err) {
+			redirectIfAdminSessionAuthError(err);
 			return fail(400, {
 				success: false,
 				error: err instanceof Error ? err.message : 'Failed to trigger migration'

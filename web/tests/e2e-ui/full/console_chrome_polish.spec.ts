@@ -3,20 +3,12 @@ import {
 	isRemoteTargetMode,
 	setAuthCookieForToken
 } from '../../fixtures/fresh_signup_remote_bootstrap';
+import { SUPPORT_EMAIL } from '../../../src/lib/format';
+import { CANONICAL_PUBLIC_API_DOCS_URL } from '../../../src/lib/public_api';
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
 const SESSION_EXPIRED_REASON = 'session_expired';
-
-type FooterLinkExpectation = {
-	label: string;
-	href: string;
-};
-
-const HELP_LINKS: FooterLinkExpectation[] = [
-	{ label: 'Support', href: 'mailto:support@flapjack.foo' },
-	{ label: 'API Docs', href: 'https://api.flapjack.foo/docs' }
-];
 
 function isSessionExpiredUrl(urlString: string): boolean {
 	const currentUrl = new URL(urlString);
@@ -99,14 +91,30 @@ test.describe('Console chrome polish Paid-label seam', () => {
 			'href',
 			/mailto:support@flapjack\.foo\?subject=/
 		);
+		await expect(
+			betaSupportBadge.getByRole('link', { name: 'Support', exact: true })
+		).toHaveAttribute('href', `mailto:${SUPPORT_EMAIL}`);
 
 		const sidebar = page.getByRole('complementary');
 		await expect(sidebar).toBeVisible();
-		for (const link of HELP_LINKS) {
-			await expect(sidebar.getByRole('link', { name: link.label, exact: true })).toHaveAttribute(
-				'href',
-				link.href
-			);
-		}
+		await expect(sidebar.getByRole('link', { name: 'API Docs', exact: true })).toHaveAttribute(
+			'href',
+			CANONICAL_PUBLIC_API_DOCS_URL
+		);
+
+		const supportAffordance = sidebar.getByRole('button', {
+			name: 'Report a problem or request a feature'
+		});
+		const cloudSupport = sidebar.getByRole('link', {
+			name: 'Email support for cloud console, API, billing, account, invoice, index, or data issues'
+		});
+		await expect(supportAffordance).toHaveAttribute('aria-expanded', 'false');
+		await expect(cloudSupport).toHaveCount(0);
+		await supportAffordance.click();
+		await expect(supportAffordance).toHaveAttribute('aria-expanded', 'true');
+		await expect(cloudSupport).toHaveAttribute(
+			'href',
+			new RegExp(`^mailto:${SUPPORT_EMAIL}\\?subject=`)
+		);
 	});
 });

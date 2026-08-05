@@ -189,7 +189,12 @@ async fn tenant_non_uuid_sub_returns_401() {
 async fn tenant_suspended_customer_returns_403() {
     let repo = crate::common::mock_repo();
     let customer = repo.seed("Suspended", "suspended@example.com");
-    repo.suspend(customer.id).await.unwrap();
+    repo.suspend(
+        customer.id,
+        crate::common::customer_suspended_audit_entry(customer.id),
+    )
+    .await
+    .unwrap();
     let token = crate::common::create_test_jwt(customer.id);
 
     let req = Request::builder()
@@ -301,7 +306,11 @@ async fn token_issue_valid_request_returns_200() {
     let repo = crate::common::mock_repo();
     let customer = repo.seed("Token Issue Active", "token-issue-active@e2e.test");
     let customer_id = customer.id;
-    let app = crate::common::test_app_with_repo(repo);
+    let audit_writer = crate::common::mock_audit_log_writer();
+    let app = crate::common::TestStateBuilder::new()
+        .with_customer_repo(repo)
+        .with_audit_log_writer(audit_writer.clone())
+        .build_app();
 
     let req = Request::builder()
         .method("POST")
@@ -342,6 +351,51 @@ async fn token_issue_valid_request_returns_200() {
         (86398..=86402).contains(&duration),
         "expected ~86400s default duration, got {duration}"
     );
+
+    assert_eq!(
+        audit_writer.entries(),
+        vec![api::services::audit_log::AuditEntry {
+            actor_id: Uuid::from_u128(0xa11d_0000_0000_0000_0000_0000_0000_0001),
+            action: api::services::audit_log::ACTION_IMPERSONATION_TOKEN_CREATED.to_string(),
+            target_tenant_id: Some(customer_id),
+            metadata: serde_json::json!({
+                "duration_secs": 86_400,
+                "purpose": "admin",
+            }),
+        }],
+        "successful issuance must write one attributed audit entry"
+    );
+}
+
+#[tokio::test]
+async fn token_issue_audit_failure_returns_500_without_token() {
+    let repo = crate::common::mock_repo();
+    let customer = repo.seed(
+        "Token Issue Audit Failure",
+        "token-issue-audit-failure@e2e.test",
+    );
+    let audit_writer = crate::common::mock_audit_log_writer();
+    audit_writer.fail_writes();
+    let app = crate::common::TestStateBuilder::new()
+        .with_customer_repo(repo)
+        .with_audit_log_writer(audit_writer)
+        .build_app();
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/admin/tokens")
+        .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({"customer_id": customer.id}).to_string(),
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let json = body_json(resp).await;
+    assert_eq!(json["error"], "internal server error");
+    assert!(json.get("token").is_none());
 }
 
 #[tokio::test]

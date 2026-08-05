@@ -4,8 +4,15 @@ import { ApiRequestError } from '$lib/api/client';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DOCUMENT_SECURITY_HEADER_NAMES, ROBOTS_HEADER_VALUE } from '$lib/server/security_headers';
 
-const ROBOTS_TAG = 'noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai';
+const EXPECTED_DOCUMENT_SECURITY_HEADERS = {
+	'Strict-Transport-Security': 'max-age=63072000; includeSubDomains',
+	'X-Content-Type-Options': 'nosniff',
+	'X-Frame-Options': 'DENY',
+	'Referrer-Policy': 'strict-origin-when-cross-origin',
+	'X-Robots-Tag': ROBOTS_HEADER_VALUE
+} as const satisfies Record<(typeof DOCUMENT_SECURITY_HEADER_NAMES)[number], string>;
 
 // --- Mocks ---
 
@@ -140,6 +147,14 @@ function readCloudflareRobotsHeaderLine(): string {
 	return robotsHeaderLine;
 }
 
+function ownedDocumentSecurityHeaderSubset(
+	headers: Headers
+): Record<(typeof DOCUMENT_SECURITY_HEADER_NAMES)[number], string> {
+	return Object.fromEntries(
+		DOCUMENT_SECURITY_HEADER_NAMES.map((name) => [name, headers.get(name)])
+	) as Record<(typeof DOCUMENT_SECURITY_HEADER_NAMES)[number], string>;
+}
+
 // --- Tests ---
 
 describe('hooks.server handle', () => {
@@ -208,8 +223,27 @@ describe('hooks.server handle', () => {
 
 			const { response } = await callHandle('/', undefined);
 
-			expect(response?.headers.get('X-Robots-Tag')).toBe(ROBOTS_TAG);
-			expect(readCloudflareRobotsHeaderLine()).toBe(`  X-Robots-Tag: ${ROBOTS_TAG}`);
+			expect(response?.headers.get('X-Robots-Tag')).toBe(ROBOTS_HEADER_VALUE);
+			expect(readCloudflareRobotsHeaderLine()).toBe(`  X-Robots-Tag: ${ROBOTS_HEADER_VALUE}`);
+		});
+
+		it('adds the exact document security headers to an HTML response without replacing content type', async () => {
+			resolveAuthMock.mockReturnValue(null);
+
+			const { response } = await callHandle(
+				'/',
+				undefined,
+				async () =>
+					new Response('<!doctype html>', {
+						headers: { 'Content-Type': 'text/html' }
+					})
+			);
+
+			expect(response).toBeDefined();
+			expect(ownedDocumentSecurityHeaderSubset(response!.headers)).toEqual(
+				EXPECTED_DOCUMENT_SECURITY_HEADERS
+			);
+			expect(response?.headers.get('Content-Type')).toBe('text/html');
 		});
 
 		it('redirects /console to /login when not authenticated', async () => {
@@ -242,7 +276,7 @@ describe('hooks.server handle', () => {
 			);
 			expect(resolved).toBe(true);
 			expect(resolveSpy).toHaveBeenCalledTimes(1);
-			expect(response?.headers.get('X-Robots-Tag')).toBe(ROBOTS_TAG);
+			expect(response?.headers.get('X-Robots-Tag')).toBe(ROBOTS_HEADER_VALUE);
 		});
 
 		it('does not redirect unauthenticated /auth/oauth/github/callback requests', async () => {
@@ -253,7 +287,7 @@ describe('hooks.server handle', () => {
 			);
 			expect(resolved).toBe(true);
 			expect(resolveSpy).toHaveBeenCalledTimes(1);
-			expect(response?.headers.get('X-Robots-Tag')).toBe(ROBOTS_TAG);
+			expect(response?.headers.get('X-Robots-Tag')).toBe(ROBOTS_HEADER_VALUE);
 		});
 
 		it('clears a stale auth cookie before redirecting dashboard traffic to /login', async () => {

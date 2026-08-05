@@ -16,6 +16,12 @@ use zeroize::Zeroizing;
 
 use crate::models::algolia_import_job::{AlgoliaImportSource, AlgoliaImportSourceMetadata};
 
+mod search;
+pub use search::{
+    AlgoliaSourceQueryClientRequest, AlgoliaSourceQueryRequest, AlgoliaSourceSearchHit,
+    AlgoliaSourceSearchResponse,
+};
+
 type HmacSha256 = Hmac<Sha256>;
 
 const ALGOLIA_HITS_PER_PAGE: u32 = 100;
@@ -69,7 +75,7 @@ impl fmt::Debug for AlgoliaClientRequest {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("AlgoliaClientRequest")
-            .field("url", &self.url)
+            .field("url", &"[REDACTED]")
             .field("page", &self.page)
             .field("hits_per_page", &self.hits_per_page)
             .field("app_id", &"[REDACTED]")
@@ -116,6 +122,13 @@ pub trait AlgoliaSourceClient: Send + Sync {
         &self,
         request: AlgoliaClientRequest,
     ) -> Result<AlgoliaClientResponse, AlgoliaClientError>;
+
+    async fn search_index(
+        &self,
+        _request: AlgoliaSourceQueryClientRequest,
+    ) -> Result<AlgoliaClientResponse, AlgoliaClientError> {
+        Err(AlgoliaClientError::Transport)
+    }
 }
 
 pub struct ReqwestAlgoliaSourceClient {
@@ -151,16 +164,14 @@ impl AlgoliaSourceClient for ReqwestAlgoliaSourceClient {
             .send()
             .await
             .map_err(classify_reqwest_error)?;
-        let status = response.status().as_u16();
-        let body = response
-            .bytes()
-            .await
-            .map_err(classify_reqwest_error)?
-            .to_vec();
-        if body.len() > MAX_UPSTREAM_BODY_BYTES {
-            return Err(AlgoliaClientError::Transport);
-        }
-        Ok(AlgoliaClientResponse { status, body })
+        search::read_bounded_response(response).await
+    }
+
+    async fn search_index(
+        &self,
+        request: AlgoliaSourceQueryClientRequest,
+    ) -> Result<AlgoliaClientResponse, AlgoliaClientError> {
+        self.execute_search(request).await
     }
 }
 
@@ -297,6 +308,7 @@ struct CursorPayload {
 pub struct AlgoliaSourceService {
     client: Arc<dyn AlgoliaSourceClient>,
     cursor_key: Vec<u8>,
+    source_base_url: Option<reqwest::Url>,
     spent_cursors: Mutex<HashSet<[u8; 32]>>,
 }
 
@@ -314,6 +326,13 @@ pub trait AlgoliaSourceLister: Send + Sync {
         &self,
         request: AlgoliaSourceInspectRequest,
     ) -> Result<AlgoliaImportSource, AlgoliaSourceError>;
+
+    async fn search_index(
+        &self,
+        _request: AlgoliaSourceQueryRequest,
+    ) -> Result<AlgoliaSourceSearchResponse, AlgoliaSourceError> {
+        Err(AlgoliaSourceError::Unavailable)
+    }
 }
 
 #[async_trait]
@@ -331,12 +350,27 @@ impl AlgoliaSourceLister for AlgoliaSourceService {
     ) -> Result<AlgoliaImportSource, AlgoliaSourceError> {
         AlgoliaSourceService::inspect_source(self, request).await
     }
+
+    async fn search_index(
+        &self,
+        request: AlgoliaSourceQueryRequest,
+    ) -> Result<AlgoliaSourceSearchResponse, AlgoliaSourceError> {
+        AlgoliaSourceService::search_index(self, request).await
+    }
 }
 
 impl AlgoliaSourceService {
     pub fn new(
         client: Arc<dyn AlgoliaSourceClient>,
         cursor_key: impl AsRef<[u8]>,
+    ) -> Result<Self, AlgoliaSourceError> {
+        Self::new_with_source_base_url(client, cursor_key, None)
+    }
+
+    pub fn new_with_source_base_url(
+        client: Arc<dyn AlgoliaSourceClient>,
+        cursor_key: impl AsRef<[u8]>,
+        source_base_url: Option<reqwest::Url>,
     ) -> Result<Self, AlgoliaSourceError> {
         let cursor_key = cursor_key.as_ref();
         if cursor_key.len() < MIN_CURSOR_KEY_BYTES {
@@ -345,6 +379,7 @@ impl AlgoliaSourceService {
         Ok(Self {
             client,
             cursor_key: cursor_key.to_vec(),
+            source_base_url,
             spent_cursors: Mutex::new(HashSet::new()),
         })
     }
@@ -363,7 +398,7 @@ impl AlgoliaSourceService {
         &self,
         request: AlgoliaSourceListRequest,
     ) -> Result<AlgoliaSourceListResponse, AlgoliaSourceError> {
-        let url = algolia_list_url(&request.app_id)?;
+        let url = algolia_list_url(&request.app_id, self.source_base_url.as_ref())?;
         if request.api_key.is_empty() {
             return Err(AlgoliaSourceError::InvalidCredentials);
         }
@@ -408,7 +443,7 @@ impl AlgoliaSourceService {
         &self,
         request: AlgoliaSourceInspectRequest,
     ) -> Result<AlgoliaImportSource, AlgoliaSourceError> {
-        let url = algolia_list_url(&request.app_id)?;
+        let url = algolia_list_url(&request.app_id, self.source_base_url.as_ref())?;
         if request.api_key.is_empty() {
             return Err(AlgoliaSourceError::InvalidCredentials);
         }
@@ -718,7 +753,10 @@ fn algolia_index_action_url(
     Ok(url)
 }
 
-fn algolia_list_url(app_id: &str) -> Result<reqwest::Url, AlgoliaSourceError> {
+fn algolia_list_url(
+    app_id: &str,
+    source_base_url: Option<&reqwest::Url>,
+) -> Result<reqwest::Url, AlgoliaSourceError> {
     if app_id.is_empty()
         || app_id.len() > 64
         || !app_id
@@ -726,6 +764,11 @@ fn algolia_list_url(app_id: &str) -> Result<reqwest::Url, AlgoliaSourceError> {
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
     {
         return Err(AlgoliaSourceError::InvalidApplicationId);
+    }
+    if let Some(source_base_url) = source_base_url {
+        let mut url = source_base_url.clone();
+        url.set_path("/1/indexes");
+        return Ok(url);
     }
     format!(
         "https://{}.algolia.net/1/indexes",

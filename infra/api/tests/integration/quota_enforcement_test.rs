@@ -625,6 +625,57 @@ async fn free_tier_search_succeeds_under_quota() {
 }
 
 #[tokio::test]
+async fn ready_search_admission_uses_one_tenant_snapshot() {
+    let customer_repo = crate::common::mock_repo();
+    let deployment_repo = crate::common::mock_deployment_repo();
+    let tenant_repo = crate::common::mock_tenant_repo();
+    let usage_repo = crate::common::mock_usage_repo();
+    let customer = customer_repo.seed_verified_free_customer("Free", "free@example.com");
+
+    let setup = build_quota_app(
+        customer_repo,
+        deployment_repo.clone(),
+        tenant_repo.clone(),
+        usage_repo,
+        FreeTierLimits {
+            max_indexes: 1,
+            max_searches_per_month: 100,
+            max_records: 100_000,
+            max_storage_mb: 250,
+        },
+    )
+    .await;
+
+    let jwt = crate::common::create_test_jwt(customer.id);
+    seed_searchable_index(
+        deployment_repo,
+        tenant_repo.clone(),
+        customer.id,
+        "searchable",
+        setup.vm_id,
+    )
+    .await;
+
+    let calls_before = tenant_repo.find_by_name_call_count();
+    let resp = setup
+        .app
+        .oneshot(post_bearer_json(
+            "/indexes/searchable/search",
+            &jwt,
+            json!({ "query": "hello" }),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        tenant_repo.find_by_name_call_count() - calls_before,
+        1,
+        "ready-search admission must resolve ownership, lifecycle, and target from one tenant snapshot"
+    );
+}
+
+#[tokio::test]
 async fn quota_warning_email_sent_at_80_percent() {
     let customer_repo = crate::common::mock_repo();
     let deployment_repo = crate::common::mock_deployment_repo();

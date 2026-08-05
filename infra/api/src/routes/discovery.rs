@@ -25,6 +25,7 @@ pub async fn discover(
     Query(query): Query<DiscoverQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
     auth.require_scope(scopes::SEARCH)?;
+    auth.require_index(&query.index)?;
 
     let result = state
         .discovery_service

@@ -1660,7 +1660,13 @@ async fn reactivation_advances_lifecycle_generation() {
         .await
         .expect("seed established lifecycle generation");
 
-    assert!(repo.suspend(customer.id).await.expect("suspend customer"));
+    assert!(repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id)
+        )
+        .await
+        .expect("suspend customer"));
     assert!(repo
         .reactivate(customer.id)
         .await
@@ -2294,7 +2300,11 @@ async fn hard_delete_removes_customer_and_dependents_then_404s_on_repeat() {
     // 2. Hard-erase. The repo seam must return true and leave NO
     //    dependents pointing at this customer.
     let first_erase = repo
-        .hard_delete(customer.id, CustomerHardDeleteKind::PrivacyErasure)
+        .hard_delete(
+            customer.id,
+            CustomerHardDeleteKind::PrivacyErasure,
+            api::repos::CustomerHardDeleteAuditPolicy::NoAudit,
+        )
         .await
         .expect("hard_delete");
     assert!(matches!(
@@ -2339,7 +2349,11 @@ async fn hard_delete_removes_customer_and_dependents_then_404s_on_repeat() {
 
     // 3. Repeat call must return false (already erased).
     let second_erase = repo
-        .hard_delete(customer.id, CustomerHardDeleteKind::PrivacyErasure)
+        .hard_delete(
+            customer.id,
+            CustomerHardDeleteKind::PrivacyErasure,
+            api::repos::CustomerHardDeleteAuditPolicy::NoAudit,
+        )
         .await
         .expect("second hard_delete");
     assert_eq!(second_erase, CustomerHardDeleteOutcome::NotFound);
@@ -2379,7 +2393,11 @@ async fn hard_delete_rejects_customers_with_open_invoices() {
     repo.soft_delete(customer.id).await.expect("soft delete");
 
     let err = repo
-        .hard_delete(customer.id, CustomerHardDeleteKind::PrivacyErasure)
+        .hard_delete(
+            customer.id,
+            CustomerHardDeleteKind::PrivacyErasure,
+            api::repos::CustomerHardDeleteAuditPolicy::NoAudit,
+        )
         .await
         .expect_err("hard_delete must refuse customers with open invoices");
     match err {
@@ -2942,12 +2960,24 @@ async fn hard_delete_scrubs_algolia_jobs_and_retains_reconciliation_tombstone_ma
     .await
     .expect("seed audit metadata canary");
 
-    let hard_delete_started_at = chrono::Utc::now();
+    let hard_delete_started_at: chrono::DateTime<chrono::Utc> =
+        sqlx::query_scalar("SELECT clock_timestamp()")
+            .fetch_one(&pool)
+            .await
+            .expect("read database clock before hard delete");
     let outcome = repo
-        .hard_delete(customer.id, CustomerHardDeleteKind::PrivacyErasure)
+        .hard_delete(
+            customer.id,
+            CustomerHardDeleteKind::PrivacyErasure,
+            api::repos::CustomerHardDeleteAuditPolicy::NoAudit,
+        )
         .await
         .expect("hard delete");
-    let hard_delete_finished_at = chrono::Utc::now();
+    let hard_delete_finished_at: chrono::DateTime<chrono::Utc> =
+        sqlx::query_scalar("SELECT clock_timestamp()")
+            .fetch_one(&pool)
+            .await
+            .expect("read database clock after hard delete");
     let CustomerHardDeleteOutcome::Erased { seal_scrub_work } = outcome else {
         panic!("expected typed erased outcome, got {outcome:?}");
     };
@@ -3486,7 +3516,10 @@ async fn reactivate_cannot_cross_soft_delete_generation_fence() {
         .await
         .expect("seed suspended-arm generation");
     assert!(repo
-        .suspend(suspended.id)
+        .suspend(
+            suspended.id,
+            crate::common::customer_suspended_audit_entry(suspended.id)
+        )
         .await
         .expect("suspend control customer"));
     assert!(

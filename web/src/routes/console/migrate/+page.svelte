@@ -12,6 +12,8 @@
 		AlgoliaSourceListResponse,
 		CreateMigrationImportJobRequest,
 		ListMigrationSourceIndexesRequest,
+		MigrationPreviewArguments,
+		MigrationPreviewResponse,
 		PublicAlgoliaImportJob,
 		PublicAlgoliaImportJobPage,
 		SourceProvider
@@ -35,10 +37,11 @@
 		};
 	}>();
 
-	const availability = $derived(data.availability);
+	// svelte-ignore state_referenced_locally
+	let availability = $state(data.availability);
 	const defaultMigrationRegion = DEFAULT_INTERNAL_REGIONS[0]?.id ?? 'us-east-1';
 	let providerEligibility = $state<ProviderEligibilityState>(defaultProviderEligibility());
-	let providerEligibilityRequest: Promise<void> | null = null;
+	let providerContextRequest: Promise<void> | null = null;
 	let providerEligibilitySource = $state<SourceProvider | null>(null);
 
 	// The SSR load owns the first recent-import page; browser retry/load-more go
@@ -60,6 +63,7 @@
 	let recentImportsProvider = $state<SourceProvider>(initialSourceProvider);
 
 	$effect(() => {
+		availability = data.availability;
 		recentImportsRequestId += 1;
 		recentImportsPage = data.recentImports?.page ?? null;
 		recentImportsError = data.recentImports?.error ?? null;
@@ -114,14 +118,14 @@
 	async function loadRecentImportsPage(
 		cursor: string | null,
 		requestedProvider: SourceProvider = sourceProvider,
-		eligibilityRequest: Promise<void> | null = providerEligibilityRequest
+		providerContextLoad: Promise<void> | null = providerContextRequest
 	): Promise<void> {
 		if (recentImportsLoading) return;
 		const requestId = ++recentImportsRequestId;
 		recentImportsLoading = true;
 		recentImportsError = null;
 		try {
-			await eligibilityRequest;
+			await providerContextLoad;
 			if (!recentImportsRequestIsCurrent(requestId, requestedProvider)) return;
 			const body = new FormData();
 			body.set('source_provider', requestedProvider);
@@ -173,7 +177,7 @@
 			selectedSourceProvider: SourceProvider,
 			request: ListMigrationSourceIndexesRequest
 		) => {
-			await providerEligibilityRequest;
+			await providerContextRequest;
 			return submitMigrationAction<AlgoliaSourceListResponse>(
 				'listSourceIndexes',
 				{ source_provider: selectedSourceProvider, ...request },
@@ -184,7 +188,7 @@
 			selectedSourceProvider: SourceProvider,
 			request: AlgoliaDestinationEligibilityRequest
 		) => {
-			await providerEligibilityRequest;
+			await providerContextRequest;
 			return submitMigrationAction<AlgoliaDestinationEligibilityResponse>(
 				'checkDestinationEligibility',
 				{ source_provider: selectedSourceProvider, ...request },
@@ -196,28 +200,66 @@
 			request: CreateMigrationImportJobRequest,
 			idempotencyKey: string
 		) => {
-			await providerEligibilityRequest;
+			await providerContextRequest;
 			return submitMigrationAction<PublicAlgoliaImportJob>(
 				'createImportJob',
 				{ source_provider: selectedSourceProvider, ...request },
 				'job',
 				idempotencyKey
 			);
+		},
+		previewMigrationImport: async (
+			...[selectedSourceProvider, request]: MigrationPreviewArguments
+		): Promise<MigrationPreviewResponse> => {
+			await providerContextRequest;
+			return submitMigrationAction<MigrationPreviewResponse>(
+				'previewImport',
+				{ source_provider: selectedSourceProvider, ...request },
+				'preview'
+			);
 		}
 	} satisfies MigrationCreateClient;
 
-	async function loadProviderEligibility(selectedSourceProvider: SourceProvider): Promise<void> {
+	function availabilityWithPreviewFailedClosed(
+		current: AlgoliaMigrationAvailabilityResponse
+	): AlgoliaMigrationAvailabilityResponse {
+		return {
+			...current,
+			// Provider availability owns runtime preview support. If that refresh
+			// fails, keep the stable migration availability copy and fail closed only
+			// on the provider-varying preview flag.
+			capabilities: { ...current.capabilities, preview: false }
+		};
+	}
+
+	async function loadProviderContext(selectedSourceProvider: SourceProvider): Promise<void> {
+		const providerEligibilityLoad = submitMigrationAction<AlgoliaDestinationEligibilityResponse>(
+			'providerEligibility',
+			{ source_provider: selectedSourceProvider, region: defaultMigrationRegion },
+			'providerEligibility'
+		);
+		const availabilityLoad = submitMigrationAction<AlgoliaMigrationAvailabilityResponse>(
+			'availability',
+			{ source_provider: selectedSourceProvider },
+			'availability'
+		)
+			.then((refreshedAvailability) => {
+				return refreshedAvailability ?? availabilityWithPreviewFailedClosed(availability);
+			})
+			.catch(() => availabilityWithPreviewFailedClosed(availability));
 		try {
-			const eligibility = await submitMigrationAction<AlgoliaDestinationEligibilityResponse>(
-				'providerEligibility',
-				{ source_provider: selectedSourceProvider, region: defaultMigrationRegion },
-				'providerEligibility'
-			);
+			const [eligibility, refreshedAvailability] = await Promise.all([
+				providerEligibilityLoad,
+				availabilityLoad
+			]);
 			if (sourceProvider === selectedSourceProvider) {
 				providerEligibility = eligibility;
+				availability = refreshedAvailability;
 			}
 		} catch (error) {
+			const refreshedAvailability = await availabilityLoad;
 			if (sourceProvider === selectedSourceProvider) {
+				availability = refreshedAvailability;
 				providerEligibility = {
 					status: 'unsupported',
 					message: error instanceof Error ? error.message : 'Migration request failed'
@@ -236,16 +278,16 @@
 
 		providerEligibilitySource = selectedSourceProvider;
 		providerEligibility = defaultProviderEligibility();
-		const eligibilityRequest = loadProviderEligibility(selectedSourceProvider);
-		providerEligibilityRequest = eligibilityRequest;
-		void eligibilityRequest;
+		const providerContextLoad = loadProviderContext(selectedSourceProvider);
+		providerContextRequest = providerContextLoad;
+		void providerContextLoad;
 
 		if (recentImportsProvider !== selectedSourceProvider) {
 			recentImportsProvider = selectedSourceProvider;
 			recentImportsPage = null;
 			recentImportsError = null;
 			recentImportsLoading = false;
-			void loadRecentImportsPage(null, selectedSourceProvider, eligibilityRequest);
+			void loadRecentImportsPage(null, selectedSourceProvider, providerContextLoad);
 		}
 	});
 </script>

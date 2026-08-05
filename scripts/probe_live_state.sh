@@ -127,6 +127,10 @@ if [ -n "${USAGE_ROLLUP_FRESHNESS_PROBE:-}" ] && [ -z "${LIVE_STATE_OUTPUT_PATH:
   echo "FAIL_UNSAFE_PROBE_OVERRIDE: USAGE_ROLLUP_FRESHNESS_PROBE requires LIVE_STATE_OUTPUT_PATH" >&2
   exit 2
 fi
+if [ -n "${MIRROR_CI_CURRENCY_PROBE:-}" ] && [ -z "${LIVE_STATE_OUTPUT_PATH:-}" ]; then
+  echo "FAIL_UNSAFE_PROBE_OVERRIDE: MIRROR_CI_CURRENCY_PROBE requires LIVE_STATE_OUTPUT_PATH" >&2
+  exit 2
+fi
 
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 if [ -n "${LIVE_STATE_OUTPUT_PATH:-}" ]; then
@@ -927,6 +931,72 @@ if [ "$api_errors" -eq 0 ]; then
 else
   add_row "api_health" "ACTION_REQUIRED" "false" "$api_errors of 2 /health endpoints not 200" "api_health.txt"
 fi
+
+# ---------------------------------------------------------------------------
+# 7a. Mirror CI current-HEAD currency
+# ---------------------------------------------------------------------------
+
+mirror_ci_currency_reasons() {
+  local raw_path="$1"
+  awk '
+    function value(field, key, parts) {
+      split(field, parts, "=")
+      if (parts[1] != key || parts[2] == "") exit 1
+      return parts[2]
+    }
+    {
+      if (NF != 8) exit 1
+      repo = value($1, "repo")
+      value($2, "mirror_head")
+      value($3, "run_id")
+      value($4, "status")
+      value($5, "conclusion")
+      value($6, "run_head_sha")
+      value($7, "age_seconds")
+      reason = value($8, "reason")
+      if (repo == "gridl-infra-staging/fjcloud") staging++
+      else if (repo == "gridl-infra-prod/fjcloud") prod++
+      else exit 1
+      if (reason !~ /^(green|ci_non_success|ci_not_completed|ci_run_missing|ci_head_mismatch|malformed_output|auth_missing|api_failure)$/) exit 1
+      print reason
+    }
+    END {
+      if (NR != 2 || staging != 1 || prod != 1) exit 1
+    }
+  ' "$raw_path"
+}
+
+mirror_ci_currency_row_status() {
+  local reasons="$1" probe_rc="$2"
+  if printf '%s\n' "$reasons" | grep -Eq '^(api_failure|malformed_output)$'; then
+    printf 'PROBE_ERROR\n'
+  elif [ "$probe_rc" -eq 0 ] && [ "$(printf '%s\n' "$reasons" | grep -c '^green$')" -eq 2 ]; then
+    printf 'OK\n'
+  elif [ "$probe_rc" -ne 0 ] && [ "$(printf '%s\n' "$reasons" | grep -c '^auth_missing$')" -eq 2 ]; then
+    printf 'SKIP_NO_CREDS\n'
+  elif [ "$probe_rc" -ne 0 ] && printf '%s\n' "$reasons" | grep -Eq '^(ci_non_success|ci_not_completed|ci_run_missing|ci_head_mismatch)$'; then
+    printf 'ACTION_REQUIRED\n'
+  else
+    printf 'PROBE_ERROR\n'
+  fi
+}
+
+mirror_ci_raw_name="mirror_ci_currency.txt"
+raw_file="$OUT/$mirror_ci_raw_name"
+register_raw "$mirror_ci_raw_name"
+mirror_ci_probe="${MIRROR_CI_CURRENCY_PROBE:-$PROBE_SCRIPT_DIR/probe_mirror_ci_currency.sh}"
+mirror_ci_rc=0
+"$mirror_ci_probe" > "$raw_file" 2>/dev/null || mirror_ci_rc=$?
+if mirror_ci_reasons="$(mirror_ci_currency_reasons "$raw_file" 2>/dev/null)"; then
+  mirror_ci_status="$(mirror_ci_currency_row_status "$mirror_ci_reasons" "$mirror_ci_rc")"
+else
+  mirror_ci_reasons="classifier_output_invalid"
+  mirror_ci_status="PROBE_ERROR"
+fi
+mirror_ci_reason_summary="$(printf '%s\n' "$mirror_ci_reasons" | paste -sd, -)"
+add_row "mirror_ci_currency" "$mirror_ci_status" "false" \
+  "mirror CI current-HEAD verdict reasons=$mirror_ci_reason_summary" \
+  "$mirror_ci_raw_name"
 
 # ---------------------------------------------------------------------------
 # 7b. Managed EC2 fleet + data-plane

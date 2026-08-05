@@ -50,6 +50,14 @@ add_verify_row() {
         "$control_name" "$command" "$recorded_count" "$count_label" >> "$BASELINE_FILE"
 }
 
+add_raw_verify_row() {
+    local control_name="$1"
+    local verify_cell="$2"
+
+    printf "| %s | IMPLEMENTED | \`fixture/owner\` | %s |\n" \
+        "$control_name" "$verify_cell" >> "$BASELINE_FILE"
+}
+
 write_matching_fixture() {
     add_verify_row \
         "matching-rust-runner" \
@@ -150,7 +158,11 @@ install_cargo_inventory_shim() {
     : > "$invocation_file"
     cat > "$CASE_DIR/bin/cargo" <<EOF
 #!/usr/bin/env bash
-printf '%s\\n' "\$*" >> "$invocation_file"
+{
+    printf 'ARGV_BEGIN\\n'
+    printf '%s\\n' "\$@"
+    printf 'ARGV_END\\n'
+} >> "$invocation_file"
 cat <<'LIST'
 password::alpha: test
 password::beta: test
@@ -160,6 +172,58 @@ LIST
 EOF
     chmod +x "$CASE_DIR/bin/cargo"
     RUN_PATH="$CASE_DIR/bin:$PATH"
+}
+
+install_cargo_mixed_inventory_shim() {
+    local selected_test_count="$1"
+    local selected_test_name_prefix="$2"
+    local invocation_file="$CASE_DIR/cargo_invocations"
+
+    mkdir -p "$CASE_DIR/bin"
+    : > "$invocation_file"
+    cat > "$CASE_DIR/bin/cargo" <<EOF
+#!/usr/bin/env bash
+{
+    printf 'ARGV_BEGIN\\n'
+    printf '%s\\n' "\$@"
+    printf 'ARGV_END\\n'
+} >> "$invocation_file"
+for index in \$(seq 1 "$selected_test_count"); do
+    printf '${selected_test_name_prefix}::selected_%02d: test\\n' "\$index"
+done
+printf 'unrelated_fixture::not_selected: test\\n'
+EOF
+    chmod +x "$CASE_DIR/bin/cargo"
+    RUN_PATH="$CASE_DIR/bin:$PATH"
+}
+
+install_npx_vitest_total_shim() {
+    local test_count="$1"
+    local invocation_file="$CASE_DIR/npx_invocations"
+
+    mkdir -p "$CASE_DIR/bin"
+    : > "$invocation_file"
+    cat > "$CASE_DIR/bin/npx" <<EOF
+#!/usr/bin/env bash
+{
+    printf 'ARGV_BEGIN\\n'
+    printf '%s\\n' "\$@"
+    printf 'ARGV_END\\n'
+} >> "$invocation_file"
+printf 'Tests (%s)\\n' "$test_count"
+EOF
+    chmod +x "$CASE_DIR/bin/npx"
+    RUN_PATH="$CASE_DIR/bin:$PATH"
+}
+
+make_physical_tmpdir() {
+    python3 - "$TEST_ROOT" <<'PY'
+import os
+import sys
+import tempfile
+
+print(os.path.realpath(tempfile.mkdtemp(dir=sys.argv[1])))
+PY
 }
 
 test_matching_count_fixture_passes() {
@@ -194,13 +258,25 @@ test_known_runner_with_malformed_count_is_unparseable() {
     printf '| %s | IMPLEMENTED | `fixture/owner` | `%s` (four tests) |\n' \
         "runner-with-malformed-count" \
         "cd web && npx vitest run src/lib/server/auth-cookies.test.ts" >> "$BASELINE_FILE"
+    printf '| %s | IMPLEMENTED | `fixture/owner` | `%s` (4 approximate tests) |\n' \
+        "runner-with-unsupported-count-label" \
+        "cd web && npx vitest run src/lib/server/auth-cookies.test.ts" >> "$BASELINE_FILE"
+    printf '| %s | IMPLEMENTED | `fixture/owner` | `%s` (4 tests) (4 selected tests) |\n' \
+        "runner-with-ambiguous-counts" \
+        "cd web && npx vitest run src/lib/server/auth-cookies.test.ts" >> "$BASELINE_FILE"
     run_case
 
     assert_ne "$RUN_EXIT_CODE" "0" "a malformed inline count is fail-loud"
     assert_contains "$RUN_OUTPUT" "runner-with-malformed-count" \
         "malformed-count failure names the offending baseline row"
+    assert_contains "$RUN_OUTPUT" "runner-with-unsupported-count-label" \
+        "unsupported count-label failure names the offending baseline row"
+    assert_contains "$RUN_OUTPUT" "runner-with-ambiguous-counts" \
+        "ambiguous-count failure names the offending baseline row"
     assert_contains "$RUN_OUTPUT" "UNPARSEABLE" \
         "a malformed inline count is unparseable"
+    assert_contains "$RUN_OUTPUT" "SUMMARY found=3 verified=0 failed=3" \
+        "malformed count labels remain in the denominator"
 }
 
 test_missing_vitest_file_is_runner_error() {
@@ -216,6 +292,55 @@ test_missing_vitest_file_is_runner_error() {
         "missing Vitest file names the offending baseline row"
     assert_contains "$RUN_OUTPUT" "RUNNER_ERROR" \
         "a missing Vitest file is classified as a runner error"
+}
+
+test_vitest_symlink_escape_is_runner_error() {
+    local probe_root copied_script copied_baseline npx_invocations output exit_code
+
+    probe_root="$(make_physical_tmpdir)"
+    copied_script="$probe_root/scripts/security/probe_baseline_integrity.sh"
+    copied_baseline="$probe_root/control_baseline.md"
+    npx_invocations="$probe_root/npx_invocations"
+
+    mkdir -p \
+        "$probe_root/scripts/security" \
+        "$probe_root/web/src/lib/server" \
+        "$probe_root/outside" \
+        "$probe_root/bin"
+    cp "$TARGET_SCRIPT" "$copied_script"
+
+    cat > "$copied_baseline" <<'EOF'
+| Control | Status | Owner | Verify |
+| --- | --- | --- | --- |
+| symlink-escape | IMPLEMENTED | `fixture/owner` | `cd web && npx vitest run src/lib/server/link.test.ts` (1 test) |
+EOF
+    cat > "$probe_root/outside/real.test.ts" <<'EOF'
+export const escaped = true;
+EOF
+    ln -s ../../../../outside/real.test.ts \
+        "$probe_root/web/src/lib/server/link.test.ts"
+    : > "$npx_invocations"
+    cat > "$probe_root/bin/npx" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$npx_invocations"
+printf 'Tests (1)\n'
+EOF
+    chmod +x "$probe_root/bin/npx"
+
+    set +e
+    output="$(PATH="$probe_root/bin:$PATH" bash "$copied_script" \
+        --baseline-file "$copied_baseline" 2>&1)"
+    exit_code=$?
+    set -e
+
+    assert_ne "$exit_code" "0" \
+        "a symlinked Vitest path that escapes web root is fail-loud"
+    assert_contains "$output" "symlink-escape" \
+        "symlink escape failure names the offending baseline row"
+    assert_contains "$output" "RUNNER_ERROR" \
+        "a symlinked Vitest path escape is classified as a runner error"
+    assert_eq "$(wc -l < "$npx_invocations" | tr -d ' ')" "0" \
+        "escaped symlink is rejected before invoking Vitest"
 }
 
 test_invalid_arguments_exit_two() {
@@ -245,9 +370,14 @@ test_invalid_arguments_exit_two() {
 
 test_unsupported_runner_tokens_are_unparseable() {
     create_case unsupported_runner_tokens
+    install_cargo_mixed_inventory_shim 1 fixture
     add_verify_row \
         "unsupported-cargo-option" \
         "cd infra && cargo test -p api --doc" \
+        "1"
+    add_verify_row \
+        "unsupported-cargo-runner-option" \
+        "cd infra && cargo test -p api --test auth_admin operator_identity -- --ignored --nocapture --show-output" \
         "1"
     add_verify_row \
         "unsupported-vitest-option" \
@@ -258,10 +388,161 @@ test_unsupported_runner_tokens_are_unparseable() {
     assert_ne "$RUN_EXIT_CODE" "0" "unsupported runner tokens are fail-loud"
     assert_contains "$RUN_OUTPUT" "unsupported-cargo-option" \
         "unsupported Cargo syntax names its row"
+    assert_contains "$RUN_OUTPUT" "unsupported-cargo-runner-option" \
+        "unsupported post-separator Cargo syntax names its row"
     assert_contains "$RUN_OUTPUT" "unsupported-vitest-option" \
         "unsupported Vitest syntax names its row"
-    assert_contains "$RUN_OUTPUT" "SUMMARY found=2 verified=0 failed=2" \
+    assert_contains "$RUN_OUTPUT" "SUMMARY found=3 verified=0 failed=3" \
         "unsupported known runners remain in the denominator"
+    assert_eq "$(count_literal "ARGV_BEGIN" "$CASE_DIR/cargo_invocations")" "0" \
+        "unsupported Cargo syntax is rejected before invoking Cargo"
+}
+
+test_recorded_ignored_nocapture_cargo_shape_counts_admin_session_token_tests() {
+    local invocation_count invocation_args expected_args
+
+    create_case admin_session_token_cargo_shape
+    install_cargo_mixed_inventory_shim 25 admin_operator_identity_test
+    add_raw_verify_row \
+        "Admin session token shape" \
+        "\`cd infra && cargo test -p api --test auth_admin admin_operator_identity_test -- --ignored --nocapture\` (25 selected tests)"
+    run_case
+
+    invocation_count="$(count_literal "ARGV_BEGIN" "$CASE_DIR/cargo_invocations")"
+    invocation_args="$(cat "$CASE_DIR/cargo_invocations")"
+    expected_args="$(printf '%s\n' \
+        "ARGV_BEGIN" \
+        "test" \
+        "-p" \
+        "api" \
+        "--test" \
+        "auth_admin" \
+        "--" \
+        "--list" \
+        "ARGV_END")"
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "ignored/nocapture Cargo baseline row for admin session token shape verifies"
+    assert_contains "$RUN_OUTPUT" \
+        'RESULT control="Admin session token shape" runner=CARGO status=VERIFIED recorded=25 actual=25' \
+        "ignored/nocapture Cargo row reports the recorded selected-test count"
+    assert_eq "$invocation_count" "1" \
+        "ignored/nocapture Cargo row invokes Cargo exactly once"
+    assert_eq "$invocation_args" "$expected_args" \
+        "admin session token Cargo row uses the canonical inventory argv"
+}
+
+test_recorded_ignored_nocapture_cargo_shape_counts_operator_identity_tests() {
+    local invocation_count invocation_args expected_args
+
+    create_case operator_identity_cargo_shape
+    install_cargo_mixed_inventory_shim 25 operator_identity
+    add_raw_verify_row \
+        "Admin API authentication" \
+        "\`cd infra && cargo test -p api --test auth_admin operator_identity -- --ignored --nocapture\` (25 selected ignored DB tests)"
+    run_case
+
+    invocation_count="$(count_literal "ARGV_BEGIN" "$CASE_DIR/cargo_invocations")"
+    invocation_args="$(cat "$CASE_DIR/cargo_invocations")"
+    expected_args="$(printf '%s\n' \
+        "ARGV_BEGIN" \
+        "test" \
+        "-p" \
+        "api" \
+        "--test" \
+        "auth_admin" \
+        "--" \
+        "--list" \
+        "ARGV_END")"
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "ignored/nocapture Cargo baseline row for operator identity verifies"
+    assert_contains "$RUN_OUTPUT" \
+        'RESULT control="Admin API authentication" runner=CARGO status=VERIFIED recorded=25 actual=25' \
+        "operator identity Cargo row reports the recorded selected ignored DB test count"
+    assert_eq "$invocation_count" "1" \
+        "operator identity Cargo row invokes Cargo exactly once"
+    assert_eq "$invocation_args" "$expected_args" \
+        "operator identity Cargo row uses the canonical inventory argv"
+}
+
+test_recorded_ignored_nocapture_cargo_shape_counts_webhook_event_tests() {
+    local invocation_count invocation_args expected_args
+
+    create_case webhook_events_cargo_shape
+    install_cargo_mixed_inventory_shim 2 system_actor
+    add_raw_verify_row \
+        "Actor attribution" \
+        "\`cd infra && cargo test -p api --test auth_admin system_actor -- --ignored --nocapture\` (2 selected ignored DB tests)"
+    run_case
+
+    invocation_count="$(count_literal "ARGV_BEGIN" "$CASE_DIR/cargo_invocations")"
+    invocation_args="$(cat "$CASE_DIR/cargo_invocations")"
+    expected_args="$(printf '%s\n' \
+        "ARGV_BEGIN" \
+        "test" \
+        "-p" \
+        "api" \
+        "--test" \
+        "auth_admin" \
+        "--" \
+        "--list" \
+        "ARGV_END")"
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "ignored/nocapture Cargo baseline row for webhook events verifies"
+    assert_contains "$RUN_OUTPUT" \
+        'RESULT control="Actor attribution" runner=CARGO status=VERIFIED recorded=2 actual=2' \
+        "system actor Cargo row reports the recorded selected ignored DB test count"
+    assert_eq "$invocation_count" "1" \
+        "webhook events Cargo row invokes Cargo exactly once"
+    assert_eq "$invocation_args" "$expected_args" \
+        "webhook events Cargo row uses the canonical inventory argv"
+}
+
+test_recorded_ignored_nocapture_cargo_shape_reports_count_mismatch() {
+    create_case ignored_nocapture_cargo_count_mismatch
+    install_cargo_mixed_inventory_shim 25 operator_identity
+    add_raw_verify_row \
+        "Admin API authentication" \
+        "\`cd infra && cargo test -p api --test auth_admin operator_identity -- --ignored --nocapture\` (24 selected ignored DB tests)"
+    run_case
+
+    assert_ne "$RUN_EXIT_CODE" "0" \
+        "ignored/nocapture Cargo rows fail when the recorded count is stale"
+    assert_contains "$RUN_OUTPUT" \
+        'RESULT control="Admin API authentication" runner=CARGO status=COUNT_MISMATCH recorded=24 actual=25' \
+        "ignored/nocapture Cargo rows report stale counts as COUNT_MISMATCH"
+}
+
+test_recorded_multi_spec_vitest_shape_aggregates_total() {
+    local invocation_count invocation_args expected_args
+
+    create_case multi_spec_vitest_shape
+    install_npx_vitest_total_shim 80
+    add_verify_row \
+        "Admin session token shape" \
+        "cd web && npx vitest run src/lib/server/admin-session.test.ts src/routes/admin/admin-layout.test.ts src/routes/admin/login/admin-login.server.test.ts" \
+        "80"
+    run_case
+
+    invocation_count="$(count_literal "ARGV_BEGIN" "$CASE_DIR/npx_invocations")"
+    invocation_args="$(cat "$CASE_DIR/npx_invocations")"
+    expected_args="$(printf '%s\n' \
+        "ARGV_BEGIN" \
+        "--no-install" \
+        "vitest" \
+        "run" \
+        "$REPO_ROOT/web/src/lib/server/admin-session.test.ts" \
+        "$REPO_ROOT/web/src/routes/admin/admin-layout.test.ts" \
+        "$REPO_ROOT/web/src/routes/admin/login/admin-login.server.test.ts" \
+        "ARGV_END")"
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "multi-spec Vitest baseline row verifies"
+    assert_contains "$RUN_OUTPUT" \
+        'RESULT control="Admin session token shape" runner=VITEST status=VERIFIED recorded=80 actual=80' \
+        "multi-spec Vitest row aggregates the recorded total"
+    assert_eq "$invocation_count" "1" \
+        "multi-spec Vitest row invokes Vitest exactly once"
+    assert_eq "$invocation_args" "$expected_args" \
+        "multi-spec Vitest row forwards exact argv tokens"
 }
 
 test_cargo_inventory_is_cached_per_target() {
@@ -279,7 +560,7 @@ test_cargo_inventory_is_cached_per_target() {
         "1"
     run_case
 
-    invocation_count="$(wc -l < "$CASE_DIR/cargo_invocations" | tr -d ' ')"
+    invocation_count="$(count_literal "ARGV_BEGIN" "$CASE_DIR/cargo_invocations")"
     assert_eq "$RUN_EXIT_CODE" "0" "two filters over one Rust target both verify"
     assert_eq "$invocation_count" "1" \
         "two filters over one Rust target invoke Cargo exactly once"
@@ -387,8 +668,14 @@ test_matching_count_fixture_passes
 test_known_runner_without_count_is_unparseable
 test_known_runner_with_malformed_count_is_unparseable
 test_missing_vitest_file_is_runner_error
+test_vitest_symlink_escape_is_runner_error
 test_invalid_arguments_exit_two
 test_unsupported_runner_tokens_are_unparseable
+test_recorded_ignored_nocapture_cargo_shape_counts_admin_session_token_tests
+test_recorded_ignored_nocapture_cargo_shape_counts_operator_identity_tests
+test_recorded_ignored_nocapture_cargo_shape_counts_webhook_event_tests
+test_recorded_ignored_nocapture_cargo_shape_reports_count_mismatch
+test_recorded_multi_spec_vitest_shape_aggregates_total
 test_cargo_inventory_is_cached_per_target
 test_non_existent_rust_target_fails
 test_zero_test_selection_fails

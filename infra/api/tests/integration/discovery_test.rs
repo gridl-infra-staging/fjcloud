@@ -3,6 +3,7 @@ use crate::common::{
     MockVmInventoryRepo,
 };
 use api::models::vm_inventory::NewVmInventory;
+use api::repos::api_key_repo::{ApiKeyManagedKeyParams, ApiKeyRepo};
 use api::repos::tenant_repo::TenantRepo;
 use api::repos::vm_inventory_repo::VmInventoryRepo;
 use api::repos::{InMemoryIndexReplicaRepo, IndexReplicaRepo};
@@ -79,6 +80,32 @@ fn seed_api_key_value_with_scopes(
         key_prefix,
         scopes,
     );
+    api_key_repo
+}
+
+async fn create_managed_api_key(
+    customer_id: Uuid,
+    indexes: Vec<String>,
+) -> Arc<crate::common::MockApiKeyRepo> {
+    let api_key_repo = mock_api_key_repo();
+    api_key_repo
+        .create(
+            customer_id,
+            "discovery-key",
+            &hash_key(TEST_API_KEY),
+            TEST_API_KEY_PREFIX,
+            &["read".to_string(), "search".to_string()],
+            ApiKeyManagedKeyParams {
+                description: None,
+                indexes,
+                restrict_sources: Vec::new(),
+                expires_at: None,
+                max_hits_per_query: None,
+                max_queries_per_ip_per_hour: None,
+            },
+        )
+        .await
+        .unwrap();
     api_key_repo
 }
 
@@ -922,6 +949,165 @@ async fn discover_endpoint_returns_correct_vm_for_owned_index() {
     assert_eq!(body["vm"], "vm-discover.flapjack.foo");
     assert_eq!(body["flapjack_url"], "https://vm-discover.flapjack.foo");
     assert_eq!(body["ttl"], 300);
+}
+
+#[tokio::test]
+async fn discover_endpoint_allows_listed_index_and_conceals_disallowed_index() {
+    let customer_repo = mock_repo();
+    let deployment_repo = mock_deployment_repo();
+    let tenant_repo = Arc::new(MockTenantRepo::new());
+    let vm_repo = Arc::new(MockVmInventoryRepo::new());
+    let customer = customer_repo.seed("Acme", "acme@example.com");
+    let api_key_repo = create_managed_api_key(customer.id, vec!["products".to_string()]).await;
+
+    let deployment = deployment_repo.seed_provisioned(
+        customer.id,
+        "node-1",
+        "us-east-1",
+        "t4g.small",
+        "aws",
+        "running",
+        Some("https://legacy.flapjack.foo"),
+    );
+    tenant_repo.seed_deployment(
+        deployment.id,
+        "us-east-1",
+        Some("https://legacy.flapjack.foo"),
+        "healthy",
+        "running",
+    );
+    let products_vm = create_test_vm(&vm_repo, "vm-products.flapjack.foo").await;
+    let orders_vm = create_test_vm(&vm_repo, "vm-orders.flapjack.foo").await;
+    tenant_repo
+        .create(customer.id, "products", deployment.id)
+        .await
+        .unwrap();
+    tenant_repo
+        .set_vm_id(customer.id, "products", products_vm.id)
+        .await
+        .unwrap();
+    tenant_repo
+        .create(customer.id, "orders", deployment.id)
+        .await
+        .unwrap();
+    tenant_repo
+        .set_vm_id(customer.id, "orders", orders_vm.id)
+        .await
+        .unwrap();
+
+    let app = setup_discovery_app(
+        customer_repo,
+        deployment_repo,
+        tenant_repo,
+        vm_repo,
+        api_key_repo,
+    );
+
+    let allowed_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/v1/discover?index=products")
+                .header("authorization", format!("Bearer {TEST_API_KEY}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(allowed_response.status(), StatusCode::OK);
+    assert_eq!(
+        response_json(allowed_response).await,
+        serde_json::json!({
+            "vm": "vm-products.flapjack.foo",
+            "flapjack_url": "https://vm-products.flapjack.foo",
+            "ttl": 300,
+            "service_type": "flapjack"
+        })
+    );
+
+    let denied_response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/discover?index=orders")
+                .header("authorization", format!("Bearer {TEST_API_KEY}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(denied_response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(
+        response_json(denied_response).await,
+        serde_json::json!({"error": "index not found"})
+    );
+}
+
+#[tokio::test]
+async fn discover_endpoint_empty_index_allowlist_is_unrestricted() {
+    let customer_repo = mock_repo();
+    let deployment_repo = mock_deployment_repo();
+    let tenant_repo = Arc::new(MockTenantRepo::new());
+    let vm_repo = Arc::new(MockVmInventoryRepo::new());
+    let customer = customer_repo.seed("Acme", "acme@example.com");
+    let api_key_repo = create_managed_api_key(customer.id, Vec::new()).await;
+
+    let deployment = deployment_repo.seed_provisioned(
+        customer.id,
+        "node-1",
+        "us-east-1",
+        "t4g.small",
+        "aws",
+        "running",
+        Some("https://legacy.flapjack.foo"),
+    );
+    tenant_repo.seed_deployment(
+        deployment.id,
+        "us-east-1",
+        Some("https://legacy.flapjack.foo"),
+        "healthy",
+        "running",
+    );
+    let vm = create_test_vm(&vm_repo, "vm-unrestricted.flapjack.foo").await;
+    tenant_repo
+        .create(customer.id, "inventory", deployment.id)
+        .await
+        .unwrap();
+    tenant_repo
+        .set_vm_id(customer.id, "inventory", vm.id)
+        .await
+        .unwrap();
+
+    let app = setup_discovery_app(
+        customer_repo,
+        deployment_repo,
+        tenant_repo,
+        vm_repo,
+        api_key_repo,
+    );
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/discover?index=inventory")
+                .header("authorization", format!("Bearer {TEST_API_KEY}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response_json(response).await,
+        serde_json::json!({
+            "vm": "vm-unrestricted.flapjack.foo",
+            "flapjack_url": "https://vm-unrestricted.flapjack.foo",
+            "ttl": 300,
+            "service_type": "flapjack"
+        })
+    );
 }
 
 #[tokio::test]

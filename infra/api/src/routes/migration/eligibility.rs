@@ -11,7 +11,7 @@ use utoipa::ToSchema;
 use crate::auth::AuthenticatedTenant;
 use crate::errors::ApiError;
 use crate::models::algolia_import_job::{
-    validate_algolia_create_provider, AlgoliaImportDestinationKind,
+    validate_algolia_create_provider, AlgoliaImportDestinationKind, SourceImportProvider,
 };
 use crate::models::AlgoliaImportErrorCode;
 use crate::repos::{PgSourceMigrationJobRepo, SourceMigrationJobRepo};
@@ -19,7 +19,7 @@ use crate::state::AppState;
 
 use super::{
     map_eligibility_snapshot_error, migration_error, migration_unavailable,
-    sign_destination_eligibility, validate_source_provider, verify_provider_envelope,
+    sign_destination_eligibility, validate_adapter_source_provider, verify_provider_envelope,
     AlgoliaEligibilityPhase, DestinationEligibilityClaims, MigrationSourcePath,
     DESTINATION_ELIGIBILITY_DOMAIN, DESTINATION_ELIGIBILITY_TOKEN_TTL_SECONDS,
 };
@@ -89,9 +89,12 @@ impl fmt::Debug for AlgoliaDestinationEligibilityTargetRequest {
 
 #[utoipa::path(
     post,
-    path = "/migration/algolia/destination-eligibility",
+    path = "/migration/{source_provider}/destination-eligibility",
     operation_id = "check_algolia_destination_eligibility",
     tag = "Migration",
+    params(
+        ("source_provider" = SourceImportProvider, Path, description = "Source migration provider"),
+    ),
     request_body = AlgoliaDestinationEligibilityRequest,
     responses(
         (status = 200, description = "Signed destination-eligibility envelope for the requested phase", body = AlgoliaDestinationEligibilityResponse),
@@ -107,7 +110,7 @@ pub async fn check_destination_eligibility(
     Path(path): Path<MigrationSourcePath>,
     Json(request): Json<AlgoliaDestinationEligibilityRequest>,
 ) -> Result<Json<AlgoliaDestinationEligibilityResponse>, ApiError> {
-    validate_source_provider(path.source_provider.as_deref())?;
+    validate_adapter_source_provider(path.source_provider.as_deref())?;
     if !state.algolia_migration_enabled {
         return Err(migration_unavailable());
     }

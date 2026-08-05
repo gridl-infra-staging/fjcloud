@@ -98,8 +98,8 @@ test.describe('Account page', () => {
 
 		// Act: submit with wrong current password
 		await page.getByLabel('Current password').fill('definitely-wrong-password-999');
-		await page.getByLabel('New password', { exact: true }).fill('NewValidPass1!');
-		await page.getByLabel('Confirm new password').fill('NewValidPass1!');
+		await page.getByLabel('New password', { exact: true }).fill('NewValidPassword1!');
+		await page.getByLabel('Confirm new password').fill('NewValidPassword1!');
 		await page.getByRole('button', { name: 'Change password' }).click();
 
 		// Assert: error shown
@@ -111,8 +111,8 @@ test.describe('Account page', () => {
 		await expect(page.getByRole('heading', { name: 'Change Password' })).toBeVisible();
 
 		await page.getByLabel('Current password').fill(sharedFixtureUser.password);
-		await page.getByLabel('New password', { exact: true }).fill('NewValidPass1!');
-		await page.getByLabel('Confirm new password').fill('DifferentPass2@');
+		await page.getByLabel('New password', { exact: true }).fill('NewValidPassword1!');
+		await page.getByLabel('Confirm new password').fill('DifferentPassword2@');
 		await page.getByRole('button', { name: 'Change password' }).click();
 
 		await expect(page.getByRole('alert')).toBeVisible({ timeout: 5_000 });

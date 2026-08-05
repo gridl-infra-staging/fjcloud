@@ -19,7 +19,7 @@ import { test, expect } from '../../fixtures/fixtures';
 import {
 	gotoIndexDetailWithRetry,
 	SEARCH_PANEL_TEST_ID,
-	SEARCH_TAB_LABEL,
+	getIndexDetailSearchTab,
 	submitSearchPreviewQuery,
 	waitForSearchPreviewHitsToContain,
 	waitForSearchPreviewReady
@@ -156,7 +156,7 @@ test.describe('Fresh-user customer journey — onboard to first search hit', () 
 			// ---------------------------------------------------------------
 			// Step 6: Search tab — verify a real search hit
 			// ---------------------------------------------------------------
-			await page.getByRole('tab', { name: SEARCH_TAB_LABEL }).click();
+			await getIndexDetailSearchTab(page).click();
 			await expect(page.getByTestId(SEARCH_PANEL_TEST_ID)).toBeVisible({ timeout: 10_000 });
 
 			// Wait until the preview can actually generate a key for this

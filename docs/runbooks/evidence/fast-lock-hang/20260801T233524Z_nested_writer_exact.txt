@@ -1,0 +1,229 @@
+Stage 1 nested-arm writer exact evidence
+captured_at_utc=2026-08-01T23:35:24Z
+completed_at_utc=2026-08-01T23:36:30Z
+head=976ee6cd4f065e28151ed30fd4f686a3f2d85c0e
+receipt_capture=raw stdout/stderr/process evidence, unelided
+process_signals_sent=TERM to stage-owned process group 24588
+pre_existing_process_signals_sent=none
+
+EXACT RED COMMAND:
+bash scripts/tests/probe_browser_stack_exclusive_test.sh
+
+STAGE-OWNED DIAGNOSTIC WRAPPER COMMAND:
+bash /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.HJwlZbA2t4 docs/runbooks/evidence/fast-lock-hang/20260801T233524Z_nested_writer_exact.txt /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.5WkDDp4g2H/fjcloud_repo
+
+STAGE-OWNED DIAGNOSTIC WRAPPER BODY BEGIN
+#!/usr/bin/env bash
+set -u
+receipt_path="$1"
+repo_root="$2"
+diagnostic_dir="$(mktemp -d)"
+stdout_path="$diagnostic_dir/stdout"
+stderr_path="$diagnostic_dir/stderr"
+ps_path="$diagnostic_dir/ps_snapshot"
+lsof_path="$diagnostic_dir/lsof_snapshot"
+head_sha="$(git -C "$repo_root" rev-parse HEAD)"
+start_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+set -m
+(cd "$repo_root" && bash scripts/tests/probe_browser_stack_exclusive_test.sh) >"$stdout_path" 2>"$stderr_path" &
+wrapper_pid="$!"
+wrapper_pgid=""
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+    wrapper_pgid="$(ps -o pgid= -p "$wrapper_pid" | tr -d '[:space:]')"
+    [ -n "$wrapper_pgid" ] && break
+    sleep 0.1
+done
+observed_result="still_running"
+watchdog_exit=124
+sleep_seconds=65
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65; do
+    if ! kill -0 "$wrapper_pid" 2>/dev/null; then
+        observed_result="exited_before_watchdog"
+        watchdog_exit=0
+        break
+    fi
+    sleep 1
+done
+ps -ww -o pid,ppid,pgid,etime,pcpu,command -g "$wrapper_pgid" >"$ps_path" 2>&1
+pid_csv="$(awk 'NR > 1 { if (pids != "") pids = pids ","; pids = pids $1 } END { print pids }' "$ps_path")"
+if [ -n "$pid_csv" ] && command -v lsof >/dev/null 2>&1; then
+    lsof -a -p "$pid_csv" -d 0,1,2 >"$lsof_path" 2>&1
+else
+    printf 'lsof unavailable or no process IDs captured\n' >"$lsof_path"
+fi
+term_sent="none"
+if kill -0 "$wrapper_pid" 2>/dev/null; then
+    if [ -n "$wrapper_pgid" ] && [ "$wrapper_pgid" = "$wrapper_pid" ]; then
+        kill -TERM -- "-$wrapper_pgid" 2>/dev/null || true
+        term_sent="TERM to stage-owned process group $wrapper_pgid"
+    else
+        kill -TERM "$wrapper_pid" 2>/dev/null || true
+        term_sent="TERM to stage-owned wrapper pid $wrapper_pid only because pgid=$wrapper_pgid"
+    fi
+fi
+wait "$wrapper_pid" 2>/dev/null
+wait_rc="$?"
+end_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+{
+    printf 'Stage 1 nested-arm writer exact evidence\n'
+    printf 'captured_at_utc=%s\n' "$start_utc"
+    printf 'completed_at_utc=%s\n' "$end_utc"
+    printf 'head=%s\n' "$head_sha"
+    printf 'receipt_capture=raw stdout/stderr/process evidence, unelided\n'
+    printf 'process_signals_sent=%s\n' "$term_sent"
+    printf 'pre_existing_process_signals_sent=none\n'
+    printf '\nEXACT RED COMMAND:\n'
+    printf 'bash scripts/tests/probe_browser_stack_exclusive_test.sh\n'
+    printf '\nSTAGE-OWNED DIAGNOSTIC WRAPPER COMMAND:\n'
+    printf 'bash %s %s %s\n' "$0" "$receipt_path" "$repo_root"
+    printf '\nSTAGE-OWNED DIAGNOSTIC WRAPPER BODY BEGIN\n'
+    cat "$0"
+    printf 'STAGE-OWNED DIAGNOSTIC WRAPPER BODY END\n'
+    printf '\nOBSERVED RESULT:\n'
+    printf 'watchdog_exit=%s\n' "$watchdog_exit"
+    printf 'observed_result=%s\n' "$observed_result"
+    printf 'watchdog_sleep_seconds=%s\n' "$sleep_seconds"
+    printf 'wrapper_pid=%s\n' "$wrapper_pid"
+    printf 'wrapper_pgid=%s\n' "$wrapper_pgid"
+    printf 'wait_after_signal_rc=%s\n' "$wait_rc"
+    printf 'stdout_bytes=%s\n' "$(wc -c <"$stdout_path" | tr -d '[:space:]')"
+    printf 'stderr_bytes=%s\n' "$(wc -c <"$stderr_path" | tr -d '[:space:]')"
+    printf '\nCOMMAND: ps -ww -o pid,ppid,pgid,etime,pcpu,command -g %s\n' "$wrapper_pgid"
+    cat "$ps_path"
+    printf '\nCOMMAND: lsof -a -p %s -d 0,1,2\n' "$pid_csv"
+    cat "$lsof_path"
+    printf '\nSTDOUT BEGIN\n'
+    cat "$stdout_path"
+    printf 'STDOUT END\n'
+    printf '\nSTDERR BEGIN\n'
+    cat "$stderr_path"
+    printf 'STDERR END\n'
+    printf '\nWRITER IDENTIFICATION:\n'
+    printf 'The intact nested arm at scripts/tests/probe_browser_stack_exclusive_test.sh:404-432 remained in command substitution after the watchdog. The ps/lsof snapshots above name the recursive ps-shim descendants in the wrapper-owned process group and show their fd 2 descriptors still attached to the nested command-substitution pipe.\n'
+    printf '\nCLEANUP RECEIPT:\n'
+    printf 'After evidence capture, %s was sent. No pre-existing holder PID was signaled.\n' "$term_sent"
+} >"$receipt_path"
+STAGE-OWNED DIAGNOSTIC WRAPPER BODY END
+
+OBSERVED RESULT:
+watchdog_exit=124
+observed_result=still_running
+watchdog_sleep_seconds=65
+wrapper_pid=24588
+wrapper_pgid=24588
+wait_after_signal_rc=143
+stdout_bytes=1865
+stderr_bytes=0
+
+COMMAND: ps -ww -o pid,ppid,pgid,etime,pcpu,command -g 24588
+  PID  PPID  PGID ELAPSED  %CPU COMMAND
+24588 24579 24588   01:06   0.0 bash scripts/tests/probe_browser_stack_exclusive_test.sh
+35008 24588 24588   00:18   0.0 bash /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.DY1akp6kNj/fakestack/scripts/local-dev-up.sh
+35012 35008 24588   00:18   0.0 sleep 3600
+35256 24588 24588   00:17   0.0 bash scripts/tests/probe_browser_stack_exclusive_test.sh
+35258 35256 24588   00:17   0.1 bash scripts/tests/probe_browser_stack_exclusive_test.sh
+39305 35258 24588   00:03   0.0 bash /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.1OLtUR6yvE/unrelated/scripts/local-dev-up.sh
+39310 39305 24588   00:03   0.0 sleep 3600
+39812 35258 24588   00:01   0.0 bash scripts/tests/probe_browser_stack_exclusive_test.sh
+39813 39812 24588   00:01   0.9 bash /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.5WkDDp4g2H/fjcloud_repo/scripts/probe_browser_stack_exclusive.sh
+39824 39813 24588   00:01   0.1 bash /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.5WkDDp4g2H/fjcloud_repo/scripts/probe_browser_stack_exclusive.sh
+39825 39824 24588   00:01  12.7 bash /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.1OLtUR6yvE/bin/ps -axo args=
+39826 39824 24588   00:01   0.1 grep -E ^([^ ]*/)?(ba|z)?sh [^ ]*scripts/(local-dev-up|web-dev|api-dev|local_demo)\.sh( |$)
+39833 39825 24588   00:01  48.2 /bin/ps -axo args=
+
+COMMAND: lsof -a -p 24588,35008,35012,35256,35258,39305,39310,39812,39813,39824,39825,39826,39833 -d 0,1,2
+COMMAND   PID   USER   FD   TYPE             DEVICE SIZE/OFF       NODE NAME
+bash    24588 stuart    0r   CHR                3,2      0t0        336 /dev/null
+bash    24588 stuart    1w   REG               1,15     1865 1165312806 /private/var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.2UAMurZi1j/stdout
+bash    24588 stuart    2w   REG               1,15        0 1165312807 /private/var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.2UAMurZi1j/stderr
+bash    35008 stuart    0r   CHR                3,2      0t0        336 /dev/null
+bash    35008 stuart    1w   REG               1,15     1865 1165312806 /private/var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.2UAMurZi1j/stdout
+bash    35008 stuart    2w   REG               1,15        0 1165312807 /private/var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.2UAMurZi1j/stderr
+sleep   35012 stuart    0r   CHR                3,2      0t0        336 /dev/null
+sleep   35012 stuart    1w   REG               1,15     1865 1165312806 /private/var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.2UAMurZi1j/stdout
+sleep   35012 stuart    2w   REG               1,15        0 1165312807 /private/var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.2UAMurZi1j/stderr
+bash    35256 stuart    0r   CHR                3,2      0t0        336 /dev/null
+bash    35256 stuart    1   PIPE  0x82296b8a352b103    16384            ->0xdffcc7d63b5c4b43
+bash    35256 stuart    2w   REG               1,15        0 1165312807 /private/var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.2UAMurZi1j/stderr
+bash    35258 stuart    0r   CHR                3,2      0t0        336 /dev/null
+bash    35258 stuart    1   PIPE  0x82296b8a352b103    16384            ->0xdffcc7d63b5c4b43
+bash    35258 stuart    2   PIPE  0x82296b8a352b103    16384            ->0xdffcc7d63b5c4b43
+bash    39305 stuart    0r   CHR                3,2      0t0        336 /dev/null
+bash    39305 stuart    1   PIPE  0x82296b8a352b103    16384            ->0xdffcc7d63b5c4b43
+bash    39305 stuart    2   PIPE  0x82296b8a352b103    16384            ->0xdffcc7d63b5c4b43
+sleep   39310 stuart    0r   CHR                3,2      0t0        336 /dev/null
+sleep   39310 stuart    1   PIPE  0x82296b8a352b103    16384            ->0xdffcc7d63b5c4b43
+sleep   39310 stuart    2   PIPE  0x82296b8a352b103    16384            ->0xdffcc7d63b5c4b43
+bash    39812 stuart    0r   CHR                3,2      0t0        336 /dev/null
+bash    39812 stuart    1   PIPE 0x42064db3ecb2717c    16384            ->0xb497bc2633a445c0
+bash    39812 stuart    2   PIPE  0x82296b8a352b103    16384            ->0xdffcc7d63b5c4b43
+bash    39813 stuart    0r   CHR                3,2      0t0        336 /dev/null
+bash    39813 stuart    1   PIPE 0x42064db3ecb2717c    16384            ->0xb497bc2633a445c0
+bash    39813 stuart    2   PIPE 0x42064db3ecb2717c    16384            ->0xb497bc2633a445c0
+bash    39824 stuart    0r   CHR                3,2      0t0        336 /dev/null
+bash    39824 stuart    1   PIPE 0x715b716a23f0eeaa    16384            ->0x9c2a4b331e08d178
+bash    39824 stuart    2   PIPE 0x42064db3ecb2717c    16384            ->0xb497bc2633a445c0
+bash    39825 stuart    0   PIPE 0x86e1927d442c804a    65536            ->0xfbf30dec674501af
+bash    39825 stuart    1   PIPE 0x6f2932b31a96bec3    16384            ->0xe83955211083003b
+bash    39825 stuart    2   PIPE 0x42064db3ecb2717c    16384            ->0xb497bc2633a445c0
+grep    39826 stuart    0   PIPE 0xe83955211083003b    16384            ->0x6f2932b31a96bec3
+grep    39826 stuart    1   PIPE 0x715b716a23f0eeaa    16384            ->0x9c2a4b331e08d178
+grep    39826 stuart    2   PIPE 0x42064db3ecb2717c    16384            ->0xb497bc2633a445c0
+
+STDOUT BEGIN
+baseline[free]: expected_holders=0
+PASS: free: baseline exit
+PASS: free: expected holders
+baseline[held:local-dev-up]: expected_holders=0
+PASS: held: starter is alive
+PASS: held: starter argv is visible
+PASS: held: exit 1
+PASS: held: holders increment by one
+PASS: held: names the holder
+PASS: released: baseline exit
+PASS: released: holders return to expected
+baseline[unrelated holder]: expected_holders=0
+PASS: unrelated holder: starter is alive
+PASS: unrelated holder: starter argv is visible
+PASS: unrelated holder: ps shim excludes outside-root starter
+PASS: unrelated holder: baseline exit
+PASS: unrelated holder: holders stay expected
+baseline[web-dev.sh]: expected_holders=0
+PASS: web-dev.sh: starter is alive
+PASS: web-dev.sh: starter argv is visible
+PASS: web-dev.sh: exit 1 (held)
+PASS: web-dev.sh: holders increment by one
+PASS: web-dev.sh: released baseline exit
+PASS: web-dev.sh: holders return to expected
+baseline[api-dev.sh]: expected_holders=0
+PASS: api-dev.sh: starter is alive
+PASS: api-dev.sh: starter argv is visible
+PASS: api-dev.sh: exit 1 (held)
+PASS: api-dev.sh: holders increment by one
+PASS: api-dev.sh: released baseline exit
+PASS: api-dev.sh: holders return to expected
+baseline[local_demo.sh]: expected_holders=0
+PASS: local_demo.sh: starter is alive
+PASS: local_demo.sh: starter argv is visible
+PASS: local_demo.sh: exit 1 (held)
+PASS: local_demo.sh: holders increment by one
+PASS: local_demo.sh: released baseline exit
+PASS: local_demo.sh: holders return to expected
+baseline[prompt text]: expected_holders=0
+PASS: prompt text: decoy is alive
+PASS: prompt text: decoy argv carries the trigger words
+PASS: prompt text: baseline exit (not a holder)
+PASS: prompt text: holders stay expected
+PASS: prompt text: superseded inline probe is fooled
+baseline[nested-arm:outer]: expected_holders=0
+PASS: nested arm: external holder is alive
+STDOUT END
+
+STDERR BEGIN
+STDERR END
+
+WRITER IDENTIFICATION:
+The intact nested arm at scripts/tests/probe_browser_stack_exclusive_test.sh:404-432 remained in command substitution after the watchdog. The ps/lsof snapshots above name the recursive ps-shim descendants in the wrapper-owned process group and show their fd 2 descriptors still attached to the nested command-substitution pipe.
+
+CLEANUP RECEIPT:
+After evidence capture, TERM to stage-owned process group 24588 was sent. No pre-existing holder PID was signaled.

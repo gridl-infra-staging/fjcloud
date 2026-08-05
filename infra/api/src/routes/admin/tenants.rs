@@ -14,10 +14,12 @@ use crate::errors::ApiError;
 use crate::helpers::require_active_customer;
 use crate::models::{BillingPlan, Customer, InvoiceRow};
 use crate::repos::usage_repo::UsageSummary;
-use crate::repos::{CustomerHardDeleteKind, CustomerHardDeleteOutcome};
+use crate::repos::{
+    CustomerHardDeleteAuditPolicy, CustomerHardDeleteKind, CustomerHardDeleteOutcome,
+};
 use crate::routes::invoices::InvoiceListItem;
 use crate::services::audit_log::{
-    list_audit_log_for_target_tenant, write_audit_log, AuditLogRow, ACTION_CUSTOMER_HARD_ERASE,
+    list_audit_log_for_target_tenant, write_audit_log, AuditEntry, AuditLogRow,
     ACTION_CUSTOMER_REACTIVATED, ACTION_CUSTOMER_SUSPENDED, ACTION_QUOTAS_UPDATED,
     ACTION_STRIPE_SYNC, ACTION_TENANT_CREATED, ACTION_TENANT_DELETED, ACTION_TENANT_UPDATED,
 };
@@ -544,23 +546,16 @@ pub async fn suspend_customer(
         return Err(ApiError::BadRequest("customer is not active".into()));
     }
 
-    state.customer_repo.suspend(customer_id).await?;
-
-    if let Err(err) = write_audit_log(
-        &state.pool,
-        auth.operator_id,
-        ACTION_CUSTOMER_SUSPENDED,
-        Some(customer_id),
-        json!({}),
-    )
-    .await
-    {
-        tracing::error!(
-            error = %err,
-            customer_id = %customer_id,
-            "failed to write customer_suspended audit_log row"
-        );
-    }
+    let audit_entry = AuditEntry {
+        actor_id: auth.operator_id,
+        action: ACTION_CUSTOMER_SUSPENDED.to_owned(),
+        target_tenant_id: Some(customer_id),
+        metadata: json!({}),
+    };
+    state
+        .customer_repo
+        .suspend(customer_id, audit_entry)
+        .await?;
 
     Ok(message_response("customer suspended"))
 }
@@ -580,9 +575,8 @@ pub async fn suspend_customer(
 /// **Responses:**
 /// * `204 No Content` — erasure succeeded; customer PII and dependents were
 ///   removed while opaque Algolia reconciliation tombstones were retained.
-///   A target-free audit row with action `ACTION_CUSTOMER_HARD_ERASE` is
-///   written best-effort (a transient audit-write failure does NOT roll the
-///   erasure back, matching policy on the other admin write paths).
+///   A target-free `customer_hard_erase` audit receipt commits in the same
+///   transaction; an audit-write failure rolls the erasure back.
 /// * `404 Not Found` — no `customers` row matched (already erased).
 /// * `400 Bad Request` — customer is not in `deleted` status.
 /// * `409 Conflict` — customer still has open invoices.
@@ -591,12 +585,18 @@ pub async fn hard_erase_customer(
     State(state): State<AppState>,
     Path(customer_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let seal_scrub_work_count = match state
+    match state
         .customer_repo
-        .hard_delete(customer_id, CustomerHardDeleteKind::PrivacyErasure)
+        .hard_delete(
+            customer_id,
+            CustomerHardDeleteKind::PrivacyErasure,
+            CustomerHardDeleteAuditPolicy::Required {
+                operator_id: auth.operator_id,
+            },
+        )
         .await?
     {
-        CustomerHardDeleteOutcome::Erased { seal_scrub_work } => seal_scrub_work.len(),
+        CustomerHardDeleteOutcome::Erased { .. } => {}
         CustomerHardDeleteOutcome::NotFound => {
             return Err(ApiError::NotFound("customer not found".into()));
         }
@@ -605,23 +605,6 @@ pub async fn hard_erase_customer(
                 "customer must be soft-deleted before hard-erase".into(),
             ));
         }
-    };
-
-    if let Err(err) = write_audit_log(
-        &state.pool,
-        auth.operator_id,
-        ACTION_CUSTOMER_HARD_ERASE,
-        None,
-        json!({
-            "erased_algolia_job_count": seal_scrub_work_count,
-        }),
-    )
-    .await
-    {
-        tracing::error!(
-            error = %err,
-            "failed to write customer_hard_erase audit_log row"
-        );
     }
 
     Ok(StatusCode::NO_CONTENT)

@@ -262,6 +262,7 @@ fn spec_contains_configuration_proxy_operations() {
         ("/indexes/{name}/synonyms/{object_id}", "get"),
         ("/indexes/{name}/synonyms/{object_id}", "put"),
         ("/indexes/{name}/synonyms/{object_id}", "delete"),
+        ("/indexes/{name}/synonyms/clear", "post"),
         ("/indexes/{name}/dictionaries/languages", "get"),
         (
             "/indexes/{name}/dictionaries/{dictionary_name}/search",
@@ -273,6 +274,7 @@ fn spec_contains_configuration_proxy_operations() {
         ),
         ("/indexes/{name}/dictionaries/settings", "get"),
         ("/indexes/{name}/dictionaries/settings", "put"),
+        ("/indexes/{name}/suggestions/build", "post"),
     ];
     for (path, method) in config_ops {
         let pointer = format!("/paths/{}/{method}", path.replace('/', "~1"));
@@ -326,6 +328,7 @@ fn spec_contains_document_and_advanced_operations() {
         ("/indexes/{name}/suggestions", "put"),
         ("/indexes/{name}/suggestions", "delete"),
         ("/indexes/{name}/suggestions/status", "get"),
+        ("/indexes/{name}/suggestions/build", "post"),
     ];
     for (path, method) in ops {
         let pointer = format!("/paths/{}/{method}", path.replace('/', "~1"));
@@ -358,7 +361,7 @@ fn spec_contains_document_schemas() {
 fn spec_stage4_json_proxy_operations_declare_request_bodies() {
     let spec = crate::common::openapi_spec_json();
     let request_body_ops = ["/paths/~1indexes~1{name}~1settings/put/requestBody/content/application~1json/schema", "/paths/~1indexes~1{name}~1rules~1{object_id}/put/requestBody/content/application~1json/schema", "/paths/~1indexes~1{name}~1synonyms~1{object_id}/put/requestBody/content/application~1json/schema", "/paths/~1indexes~1{name}~1dictionaries~1{dictionary_name}~1search/post/requestBody/content/application~1json/schema", "/paths/~1indexes~1{name}~1dictionaries~1{dictionary_name}~1batch/post/requestBody/content/application~1json/schema", "/paths/~1indexes~1{name}~1dictionaries~1settings/put/requestBody/content/application~1json/schema", "/paths/~1indexes~1{name}~1personalization~1strategy/put/requestBody/content/application~1json/schema", "/paths/~1indexes~1{name}~1security~1sources/post/requestBody/content/application~1json/schema", "/paths/~1indexes~1{name}~1recommendations/post/requestBody/content/application~1json/schema", "/paths/~1indexes~1{name}~1chat/post/requestBody/content/application~1json/schema", "/paths/~1indexes~1{name}~1suggestions/put/requestBody/content/application~1json/schema"];
-    let response_body_ops = ["/paths/~1indexes~1{name}~1search/post/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1replicas/post/responses/201/content/application~1json/schema", "/paths/~1indexes~1{name}~1replicas/get/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1settings/get/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1settings/put/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1rules~1search/post/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1synonyms~1search/post/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1dictionaries~1languages/get/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1batch/post/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1personalization~1strategy/get/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1security~1sources/get/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1recommendations/post/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1chat/post/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1suggestions/get/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1suggestions~1status/get/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1restore-status/get/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1restore/post/responses/202/content/application~1json/schema"];
+    let response_body_ops = ["/paths/~1indexes~1{name}~1search/post/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1replicas/post/responses/201/content/application~1json/schema", "/paths/~1indexes~1{name}~1replicas/get/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1settings/get/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1settings/put/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1rules~1search/post/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1synonyms~1search/post/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1dictionaries~1languages/get/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1batch/post/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1personalization~1strategy/get/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1security~1sources/get/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1recommendations/post/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1chat/post/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1suggestions/get/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1suggestions~1status/get/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1suggestions~1build/post/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1restore-status/get/responses/200/content/application~1json/schema", "/paths/~1indexes~1{name}~1restore/post/responses/202/content/application~1json/schema"];
     for request_body_ptr in request_body_ops {
         assert!(
             spec.pointer(request_body_ptr).is_some(),
@@ -457,6 +460,7 @@ fn spec_stage4_proxy_operations_document_cold_and_not_ready_errors() {
         "/paths/~1indexes~1{name}~1suggestions/put",
         "/paths/~1indexes~1{name}~1suggestions/delete",
         "/paths/~1indexes~1{name}~1suggestions~1status/get",
+        "/paths/~1indexes~1{name}~1suggestions~1build/post",
     ];
 
     for operation_ptr in stage4_proxy_ops {
@@ -535,8 +539,8 @@ fn algolia_cloud_discovery_spec_contains_only_stage_1_through_5_paths() {
         "/indexes/{name}/events/debug",
         "/indexes/{name}/events",
         "/indexes/{name}/keys",
-        "/migration/algolia/availability",
-        "/migration/algolia/list-indexes",
+        "/migration/{source_provider}/availability",
+        "/migration/{source_provider}/list-indexes",
         "/pricing/compare",
         "/public/infrastructure",
     ];
@@ -567,5 +571,21 @@ fn spec_public_infrastructure_documents_runtime_error_contract() {
         spec.pointer("/paths/~1public~1infrastructure/get/responses/503")
             .is_none(),
         "public infrastructure must not advertise a 503 response it never returns"
+    );
+}
+
+#[test]
+fn spec_health_route_allows_anonymous_liveness_checks() {
+    let spec = crate::common::openapi_spec_json();
+    let security = spec
+        .pointer("/paths/~1health/get/security")
+        .and_then(|value| value.as_array())
+        .expect("public health operation must override document-wide bearer security");
+
+    assert!(
+        security.iter().any(|requirement| requirement
+            .as_object()
+            .is_some_and(|value| value.is_empty())),
+        "public health operation must include an anonymous security alternative"
     );
 }

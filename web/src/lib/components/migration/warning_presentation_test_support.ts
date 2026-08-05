@@ -5,6 +5,7 @@ import type { WarningGroupFixture } from './migration_test_fixtures';
 
 export {
 	publicWarnings,
+	warningGroupPresentation,
 	WARNING_GROUPS,
 	type WarningFixture,
 	type WarningGroupFixture

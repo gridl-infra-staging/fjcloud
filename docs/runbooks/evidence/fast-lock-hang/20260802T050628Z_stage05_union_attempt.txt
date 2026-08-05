@@ -1,0 +1,283 @@
+Stage 5 gate surface and union attempt evidence
+HEAD 128016f77cb61a4093bf2bec3a46867608da09c6
+clean_tree False
+
+$ validation_cache.check('bash scripts/local-ci.sh --gate test-reachability-contract', head=128016f77cb61a4093bf2bec3a46867608da09c6, clean_tree=False)
+CACHE MISS
+$ /usr/bin/time -p bash scripts/local-ci.sh --gate test-reachability-contract
+Running 1 gate(s): test-reachability-contract (sequential)
+Mode: fast  Max parallel: 8
+
+
+=== local-ci summary (wall 710s) ===
+GATE                STATUS   SECS  LOG
+----                ------   ----  ---
+test-reachability-contract  PASS      710  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/test-reachability-contract.log
+
+## Prod deploy drift (informational — does not affect exit code)
+Prod deploy drift:
+  dev_sha:            99262771479dc6b8c5aeb2c20403300854883b86
+  build_time:         2026-07-30T13:31:29Z (63h 46m ago)
+  commits_behind:     900
+  deployable_drift:   true (behind)
+  doc_only_ahead:     false
+  dev_main_sha:       c40d4abc1e05
+
+Totals: pass=1 fail=0 skip=0
+Result: PASS
+
+real 710.151
+user n/a
+sys n/a
+exit_code 0
+timeout False
+
+---
+$ validation_cache.check('bash scripts/local-ci.sh --gate check-sizes', head=128016f77cb61a4093bf2bec3a46867608da09c6, clean_tree=False)
+CACHE MISS
+$ /usr/bin/time -p bash scripts/local-ci.sh --gate check-sizes
+Running 1 gate(s): check-sizes
+Mode: fast  Max parallel: 8
+
+
+=== local-ci summary (wall 4s) ===
+GATE                STATUS   SECS  LOG
+----                ------   ----  ---
+check-sizes         PASS        4  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/check-sizes.log
+
+## Prod deploy drift (informational — does not affect exit code)
+Prod deploy drift:
+  dev_sha:            99262771479dc6b8c5aeb2c20403300854883b86
+  build_time:         2026-07-30T13:31:29Z (63h 46m ago)
+  commits_behind:     900
+  deployable_drift:   true (behind)
+  doc_only_ahead:     false
+  dev_main_sha:       c40d4abc1e05
+
+Totals: pass=1 fail=0 skip=0
+Result: PASS
+
+real 4.033
+user n/a
+sys n/a
+exit_code 0
+timeout False
+
+---
+
+PRE-UNION HOLDER SNAPSHOT
+$ ls /tmp/fjcloud_local_ci_fast_lock.*/holder
+fjcloud_local_ci_fast_lock.5e5413058df69456293836dac893cb3d0dfb6ee7/holder
+$ cat fjcloud_local_ci_fast_lock.5e5413058df69456293836dac893cb3d0dfb6ee7/holder (worktree sanitized to basename)
+pid=98847
+worktree_basename=jul30_pm_6_console_migration_preview_step
+started_at=1785635556
+$ ps -o pid,ppid,etime,command -p 98847
+  PID  PPID ELAPSED COMMAND
+exit_code 1
+
+---
+UNION ATTEMPT
+$ validation_cache.check('FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS=300 bash scripts/local-ci.sh --fast', head=128016f77cb61a4093bf2bec3a46867608da09c6, clean_tree=False)
+CACHE MISS
+$ /usr/bin/time -p FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS=300 bash scripts/local-ci.sh --fast
+reclaiming stale local-ci --fast lock held by dead PID 98847
+Running 42 gate(s): check-sizes script-exec-bits port-collision-diagnose compose-project mirror-sync-contract deploy-currency-check-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run source-pollution stripe-checks status-doc-consistency roadmap-v2-shape package-manager-consistency dirmap-merge-driver secret-scan dep-audit baseline-integrity web-audit evidence-secret-hygiene web-lint index-export-clientside-contract api-client-route-contract migration-test validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract usage-rollup-freshness-contract launch-evidence-freshness-contract claim-freshness-contract local-real-pipeline-contract local-multinode-migration-contract rc-wrapper-contract (sequential) local-schema-drift-contract (sequential) rust-lint (sequential) web-test (sequential) test-reachability-contract (sequential)
+Mode: fast  Max parallel: 8
+
+
+=== local-ci summary (wall 1292s) ===
+GATE                STATUS   SECS  LOG
+----                ------   ----  ---
+algolia-safety-probe-contract  PASS       83  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/algolia-safety-probe-contract.log
+api-client-route-contract  PASS        1  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/api-client-route-contract.log
+baseline-integrity  FAIL      350  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/baseline-integrity.log
+check-sizes         PASS        5  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/check-sizes.log
+claim-freshness-contract  PASS        4  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/claim-freshness-contract.log
+compose-project     PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/compose-project.log
+debbie-dry-run      PASS        3  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/debbie-dry-run.log
+dep-audit           PASS        2  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/dep-audit.log
+deploy-currency-check-contract  PASS      111  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/deploy-currency-check-contract.log
+dirmap-merge-driver  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/dirmap-merge-driver.log
+engine-exposure-probe-contract  PASS       20  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/engine-exposure-probe-contract.log
+evidence-secret-hygiene  PASS        9  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/evidence-secret-hygiene.log
+flapjack-ami-pointer-contract  PASS       74  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/flapjack-ami-pointer-contract.log
+fleet-dataplane-probe-contract  PASS        4  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/fleet-dataplane-probe-contract.log
+index-export-clientside-contract  PASS       32  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/index-export-clientside-contract.log
+launch-closeout     PASS        4  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/launch-closeout.log
+launch-evidence-freshness-contract  PASS        4  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/launch-evidence-freshness-contract.log
+local-multinode-migration-contract  PASS        7  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/local-multinode-migration-contract.log
+local-real-pipeline-contract  FAIL        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/local-real-pipeline-contract.log
+local-schema-drift-contract  PASS       21  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/local-schema-drift-contract.log
+migration-test      PASS        1  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/migration-test.log
+mirror-sync-contract  PASS      117  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/mirror-sync-contract.log
+package-manager-consistency  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/package-manager-consistency.log
+port-collision-diagnose  PASS       71  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/port-collision-diagnose.log
+publish-scripts-buildx  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/publish-scripts-buildx.log
+rc-wrapper-contract  PASS      111  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/rc-wrapper-contract.log
+roadmap-v2-shape    PASS        1  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/roadmap-v2-shape.log
+rust-lint           PASS      246  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/rust-lint.log
+script-exec-bits    PASS        1  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/script-exec-bits.log
+secret-scan         PASS        2  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/secret-scan.log
+ses-coverage-a1     PASS      134  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/ses-coverage-a1.log
+source-pollution    PASS       12  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/source-pollution.log
+status-doc-consistency  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/status-doc-consistency.log
+stripe-checks       PASS      107  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/stripe-checks.log
+test-reachability-contract  PASS      557  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/test-reachability-contract.log
+usage-rollup-freshness-contract  PASS      228  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/usage-rollup-freshness-contract.log
+validate-bootstrap-env-local  PASS        2  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/validate-bootstrap-env-local.log
+validate-bootstrap-parser  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/validate-bootstrap-parser.log
+wave3-phase-receipt  PASS        2  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/wave3-phase-receipt.log
+web-audit           PASS        2  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/web-audit.log
+web-lint            FAIL        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/web-lint.log
+web-test            FAIL        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/web-test.log
+
+=== SHADOW warnings ===
+
+--- launch-evidence-freshness-contract (4s) ---
+PASS: the closed baseline registry matches the live legacy corpus exactly
+PASS: a bundle outside the baseline is named as new corpus rot
+PASS: the new-rot failure names the offending bundle
+PASS: a bundle outside the baseline fails the gate
+PASS: a stale baseline line is named
+PASS: the stale-baseline failure names the stale entry
+PASS: a stale baseline entry fails the gate
+PASS: a one-day-old newest bundle exits with the expected status
+PASS: a one-day-old newest bundle names the exact freshness verdict
+PASS: a one-day-old newest bundle emits the freshness verdict as one complete line
+PASS: a sixty-three-day-old newest bundle exits with the expected status
+PASS: a sixty-three-day-old newest bundle names the exact freshness verdict
+PASS: a sixty-three-day-old newest bundle emits the freshness verdict as one complete line
+PASS: a bundle exactly at the fourteen-day bound exits with the expected status
+PASS: a bundle exactly at the fourteen-day bound names the exact freshness verdict
+PASS: a bundle exactly at the fourteen-day bound emits the freshness verdict as one complete line
+PASS: a section with no evidence bundles exits with the expected status
+PASS: a section with no evidence bundles names the exact freshness verdict
+PASS: a section with no evidence bundles emits the freshness verdict as one complete line
+PASS: the fixture omits the required evidence section directory
+PASS: an absent required evidence section exits with the expected status
+PASS: an absent required evidence section names the exact freshness verdict
+PASS: an absent required evidence section emits the freshness verdict as one complete line
+PASS: an unparseable evidence bundle exits with the expected status
+PASS: an unparseable evidence bundle names the exact freshness verdict
+PASS: an unparseable evidence bundle emits the freshness verdict as one complete line
+PASS: a valid bundle with a malformed sibling exits non-zero
+PASS: a malformed sibling does not replace the newest valid bundle verdict
+PASS: a malformed sibling emits a section-qualified diagnostic
+PASS: the summary counts malformed sibling names
+PASS: a newer incomplete HA refresh exits non-zero
+PASS: a newer incomplete HA refresh does not replace completed evidence
+PASS: a newer incomplete HA refresh emits a section-qualified diagnostic
+PASS: the summary counts rejected incomplete bundles
+PASS: an all-fresh corpus exits successfully
+PASS: the summary reports the exact all-fresh denominator
+PASS: an all-fresh corpus emits no diagnostics
+PASS: a stale-only corpus exits non-zero
+PASS: a stale-only corpus keeps integrity counters at zero
+PASS: a stale-only corpus emits no diagnostics
+PASS: a calendar-invalid timestamp exits with the expected status
+PASS: a calendar-invalid timestamp names the exact freshness verdict
+PASS: a calendar-invalid timestamp emits the freshness verdict as one complete line
+PASS: a future timestamp exits with the expected status
+PASS: a future timestamp names the exact freshness verdict
+PASS: a future timestamp emits the freshness verdict as one complete line
+PASS: an invalid max-age configuration exits with usage status
+PASS: an invalid max-age configuration emits no freshness verdict
+PASS: an invalid max-age configuration names the rejected input
+PASS: an invalid CLI shape exits with usage status
+PASS: an invalid CLI shape emits no freshness verdict
+PASS: an invalid CLI shape emits a usage diagnostic
+
+=== Results: 52 passed, 0 failed ===
+1. Email/SES delivery 20260722T204849Z_jul16_10am_s1_rerun age=10d FRESH
+2. Billing / Stripe / webhook 20260525T220959Z_TERMINUS age=68d STALE
+3. Security boundaries 20260526T154027Z_GREEN age=67d STALE
+4. Backup / restore + DB integrity 20260612T002802Z_current_main age=51d STALE
+5. HA / multi-tenant isolation 20260529T072151Z_GREEN age=64d STALE
+6. Cross-cutting full-stack 20260605T201644Z_paid_beta_rc_stage3_secret_selected age=57d STALE
+sections=6 fresh=1 stale=5 missing=0 missing_section=0 unparseable=0 malformed_names=4 rejected_bundles=14
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T092151Z_NONGREEN reason=missing_required_files files=soak_exit_code.txt
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T113011Z_NONGREEN reason=empty_required_files files=writes_attempted.count,visible_in_search_after.count,cross_tenant_leaks.count,noisy_neighbor_violations.count,fail_fast_during_restart_window.count
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T113108Z_NONGREEN reason=empty_required_files files=writes_attempted.count,visible_in_search_after.count,cross_tenant_leaks.count,noisy_neighbor_violations.count,fail_fast_during_restart_window.count
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T113146Z_NONGREEN reason=empty_required_files files=writes_attempted.count,visible_in_search_after.count,cross_tenant_leaks.count,noisy_neighbor_violations.count,fail_fast_during_restart_window.count
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T113225Z_NONGREEN reason=empty_required_files files=writes_attempted.count,visible_in_search_after.count,cross_tenant_leaks.count,noisy_neighbor_violations.count,fail_fast_during_restart_window.count
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T113837Z_NONGREEN reason=empty_required_files files=writes_attempted.count,visible_in_search_after.count,cross_tenant_leaks.count,noisy_neighbor_violations.count,fail_fast_during_restart_window.count
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T114611Z_NONGREEN reason=missing_required_files files=soak_exit_code.txt
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T122026Z_NONGREEN reason=empty_required_files files=writes_attempted.count,visible_in_search_after.count,cross_tenant_leaks.count,noisy_neighbor_violations.count,fail_fast_during_restart_window.count
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T122240Z_NONGREEN reason=missing_required_files files=soak_exit_code.txt
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T124913Z_NONGREEN reason=missing_required_files files=soak_exit_code.txt
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T125732Z_NONGREEN reason=missing_required_files files=soak_exit_code.txt
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T134807Z_NONGREEN reason=missing_required_files files=soak_exit_code.txt,writes_attempted.count,visible_in_search_after.count,cross_tenant_leaks.count,noisy_neighbor_violations.count,fail_fast_during_restart_window.count
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260528T134836Z_NONGREEN reason=empty_required_files files=writes_attempted.count,visible_in_search_after.count,cross_tenant_leaks.count,noisy_neighbor_violations.count,fail_fast_during_restart_window.count
+probe_launch_evidence_freshness: rejected bundle 5. HA / multi-tenant isolation/20260529T090621Z_NONGREEN reason=empty_required_files files=writes_attempted.count,visible_in_search_after.count,cross_tenant_leaks.count,noisy_neighbor_violations.count,fail_fast_during_restart_window.count
+probe_launch_evidence_freshness: malformed bundle 6. Cross-cutting full-stack/fjcloud_post_deploy_evidence_20260502T033932Z_76792 reason=malformed_name
+probe_launch_evidence_freshness: malformed bundle 6. Cross-cutting full-stack/fjcloud_post_deploy_evidence_20260502T040808Z_72856 reason=malformed_name
+probe_launch_evidence_freshness: malformed bundle 6. Cross-cutting full-stack/fjcloud_post_deploy_evidence_20260502T042049Z_3829 reason=malformed_name
+probe_launch_evidence_freshness: malformed bundle 6. Cross-cutting full-stack/fjcloud_post_deploy_evidence_20260502T043733Z_75473 reason=malformed_name
+OK: 18 legacy bundle(s) matched the closed baseline registry exactly
+SHADOW_WARN: launch evidence freshness probe found stale-but-well-formed evidence only; refresh owner remains open
+SHADOW_WARN: 4 malformed and 14 rejected legacy bundle(s) matched the closed baseline registry and were excluded, not shadowed
+
+=== FAIL tails ===
+
+--- baseline-integrity (350s) ---
+RESULT control="Password hashing (Argon2, per-password random salt)" runner=CARGO status=VERIFIED recorded=7 actual=7
+RESULT control="Per-customer login lockout" runner=CARGO status=VERIFIED recorded=8 actual=8
+RESULT control="Per-customer verify/reset lockout" runner=CARGO status=VERIFIED recorded=39 actual=39
+RESULT control="OAuth identity linkage" runner=CARGO status=VERIFIED recorded=25 actual=25
+RESULT control="Access cut-off on suspend / delete" runner=CARGO status=VERIFIED recorded=1 actual=1
+RESULT control="Customer session cookie flags" runner=VITEST status=RUNNER_ERROR recorded=4 actual=NA
+RESULT control="Admin session token shape" runner=VITEST status=RUNNER_ERROR recorded=80 actual=NA
+RESULT control="Admin session token shape" runner=CARGO status=VERIFIED recorded=25 actual=25
+RESULT control="Admin login rate limiting" runner=VITEST status=RUNNER_ERROR recorded=39 actual=NA
+RESULT control="Admin API authentication" runner=CARGO status=VERIFIED recorded=25 actual=25
+RESULT control="Per-operator admin identity" runner=CARGO status=VERIFIED recorded=25 actual=25
+RESULT control="API key storage (SHA-256, constant-time compare)" runner=CARGO status=VERIFIED recorded=22 actual=22
+RESULT control="API key scope vocabulary" runner=CARGO status=VERIFIED recorded=9 actual=9
+RESULT control="Cross-tenant isolation" runner=CARGO status=VERIFIED recorded=19 actual=19
+RESULT control="Cross-tenant isolation" runner=CARGO status=VERIFIED recorded=6 actual=6
+RESULT control="Actor attribution" runner=CARGO status=VERIFIED recorded=1 actual=1
+RESULT control="Actor attribution" runner=CARGO status=VERIFIED recorded=2 actual=2
+RESULT control="Durability of audit writes" runner=CARGO status=VERIFIED recorded=4 actual=4
+RESULT control="Durability of audit writes" runner=CARGO status=VERIFIED recorded=5 actual=5
+RESULT control="Audit survival across customer erasure" runner=CARGO status=VERIFIED recorded=20 actual=20
+RESULT control="Browser log sanitization" runner=VITEST status=RUNNER_ERROR recorded=29 actual=NA
+RESULT control="Customer engine endpoint scheme" runner=CARGO status=VERIFIED recorded=3 actual=3
+RESULT control="Stripe webhook signature verification" runner=CARGO status=VERIFIED recorded=15 actual=15
+RESULT control="API response security headers" runner=CARGO status=VERIFIED recorded=1 actual=1
+RESULT control="CORS origin policy" runner=CARGO status=VERIFIED recorded=4 actual=4
+RESULT control="Object storage encryption key required outside dev" runner=CARGO status=VERIFIED recorded=11 actual=11
+RESULT control="Cloud-init service/Caddy ordering" runner=CARGO status=VERIFIED recorded=1 actual=1
+SUMMARY found=27 verified=23 failed=4
+VERDICT: FAIL
+
+--- local-real-pipeline-contract (0s) ---
+ERROR: web/node_modules missing — run 'cd web && npm ci' first
+
+--- web-lint (0s) ---
+ERROR: web/node_modules missing — run 'cd web && npm ci' first
+
+--- web-test (0s) ---
+ERROR: web/node_modules has no npm install marker (.package-lock.json).
+       It is missing or was installed by another package manager.
+       Run 'cd web && rm -rf node_modules && npm ci'
+
+## Prod deploy drift (informational — does not affect exit code)
+Prod deploy drift:
+  dev_sha:            99262771479dc6b8c5aeb2c20403300854883b86
+  build_time:         2026-07-30T13:31:29Z (64h 9m ago)
+  commits_behind:     901
+  deployable_drift:   true (behind)
+  doc_only_ahead:     false
+  dev_main_sha:       23dd5a469a47
+
+Totals: pass=38 fail=4 skip=0
+Result: FAIL
+
+real 1292.725
+user n/a
+sys n/a
+exit_code 1
+timeout False
+reclaim_path dead-PID reclaim
+---

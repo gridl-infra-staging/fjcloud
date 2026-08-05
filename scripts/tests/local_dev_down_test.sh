@@ -33,6 +33,12 @@ setup_local_dev_runtime_state() {
 }
 
 restore_local_dev_runtime_state() {
+    # Reap first: every caller's RETURN trap is
+    # `restore_local_dev_runtime_state; rm -rf "$tmp_dir"`, and the fake service
+    # binaries live in that directory. Killing before the directory is removed keeps
+    # cleanup unconditional rather than contingent on the code under test having
+    # killed them, which is the exact failure these tests exist to detect.
+    reap_named_test_services
     LOCAL_DEV_TEST_REPO_ROOT=""
     LOCAL_DEV_COMPOSE_PROJECT_NAME=""
 }
@@ -46,13 +52,17 @@ run_local_dev_down() {
 create_local_dev_down_script_checkout() {
     local checkout_root="$1"
 
-    mkdir -p "$checkout_root/scripts/lib"
+    mkdir -p "$checkout_root/scripts/lib" "$checkout_root/web"
     cp "$REPO_ROOT/scripts/local-dev-down.sh" "$checkout_root/scripts/"
     cp "$REPO_ROOT/scripts/lib/process.sh" \
+        "$REPO_ROOT/scripts/lib/env.sh" \
+        "$REPO_ROOT/scripts/lib/db_url.sh" \
         "$REPO_ROOT/scripts/lib/compose_project.sh" \
         "$REPO_ROOT/scripts/lib/docker.sh" \
         "$REPO_ROOT/scripts/lib/local_source_providers.sh" \
+        "$REPO_ROOT/scripts/lib/playwright_port_plan.sh" \
         "$checkout_root/scripts/lib/"
+    cp "$REPO_ROOT/web/playwright.config.contract.ts" "$checkout_root/web/"
 }
 
 write_mock_script() {
@@ -85,14 +95,10 @@ test_kills_flapjack_via_pid_file() {
     local pid_dir="$LOCAL_DEV_TEST_REPO_ROOT/.local"
     mkdir -p "$pid_dir"
 
-    # Copy sleep binary as "flapjack" so ps comm= shows "flapjack"
-    cp "$(command -v sleep)" "$tmp_dir/flapjack"
-    (
-        nohup "$tmp_dir/flapjack" 300 >/dev/null 2>&1 &
-        echo $! > "$tmp_dir/flapjack_test.pid"
-    )
+    # Spawn a fake service whose ps comm= shows "flapjack", registered for reaping.
     local fj_pid
-    fj_pid=$(cat "$tmp_dir/flapjack_test.pid")
+    spawn_named_test_service "$tmp_dir" "flapjack"
+    fj_pid="$FJCLOUD_TEST_LAST_SPAWNED_PID"
     echo "$fj_pid" > "$pid_dir/flapjack.pid"
 
     # Mock docker
@@ -351,14 +357,10 @@ test_kills_running_metering_agent_via_pid_file() {
     local pid_dir="$LOCAL_DEV_TEST_REPO_ROOT/.local"
     mkdir -p "$pid_dir"
 
-    # Copy sleep binary as "metering-agent" so ps comm= matches the expected_cmd.
-    cp "$(command -v sleep)" "$tmp_dir/metering-agent"
-    (
-        nohup "$tmp_dir/metering-agent" 300 >/dev/null 2>&1 &
-        echo $! > "$tmp_dir/metering_test.pid"
-    )
+    # Spawn a fake service whose ps comm= matches the expected_cmd, registered for reaping.
     local agent_pid
-    agent_pid=$(cat "$tmp_dir/metering_test.pid")
+    spawn_named_test_service "$tmp_dir" "metering-agent"
+    agent_pid="$FJCLOUD_TEST_LAST_SPAWNED_PID"
     echo "$agent_pid" > "$pid_dir/metering-agent-us-east-1.pid"
 
     write_mock_script "$tmp_dir/docker" 'exit 0'
@@ -394,17 +396,11 @@ test_kills_local_demo_api_and_web_pid_files() {
     local pid_dir="$LOCAL_DEV_TEST_REPO_ROOT/.local"
     mkdir -p "$pid_dir"
 
-    cp "$(command -v sleep)" "$tmp_dir/fjcloud-api"
-    cp "$(command -v sleep)" "$tmp_dir/npm"
-    (
-        nohup "$tmp_dir/fjcloud-api" 300 >/dev/null 2>&1 &
-        echo $! > "$tmp_dir/api_test.pid"
-        nohup "$tmp_dir/npm" 300 >/dev/null 2>&1 &
-        echo $! > "$tmp_dir/web_test.pid"
-    )
     local api_pid web_pid
-    api_pid=$(cat "$tmp_dir/api_test.pid")
-    web_pid=$(cat "$tmp_dir/web_test.pid")
+    spawn_named_test_service "$tmp_dir" "fjcloud-api"
+    api_pid="$FJCLOUD_TEST_LAST_SPAWNED_PID"
+    spawn_named_test_service "$tmp_dir" "npm"
+    web_pid="$FJCLOUD_TEST_LAST_SPAWNED_PID"
     echo "$api_pid" > "$pid_dir/api.pid"
     echo "$web_pid" > "$pid_dir/web.pid"
 

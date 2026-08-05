@@ -9,6 +9,7 @@
 
 import { test, expect } from '../../fixtures/fixtures';
 import type { Locator, Page } from '@playwright/test';
+import type { QsBuildStatus, QsConfig } from '../../../src/lib/api/types';
 import { TOAST_DURATION_MS } from '../../../src/lib/toast_contract';
 import { buildRuleDescription } from '../../../src/lib/rules/ruleHelpers';
 import {
@@ -43,13 +44,110 @@ const SETTINGS_SUBTABS_SAVED_SETTINGS: SettingsSnapshot = {
 	displayedAttributes: ['title', 'description', 'thumbnail']
 };
 
+function stage5QsConfig(indexName: string, marker: string): QsConfig {
+	return {
+		indexName,
+		sourceIndices: [
+			{
+				indexName,
+				minHits: 5,
+				minLetters: 4,
+				facets: [],
+				generate: [],
+				analyticsTags: [],
+				replicas: false
+			}
+		],
+		languages: ['en'],
+		exclude: [marker],
+		allowSpecialCharacters: false,
+		enablePersonalization: false
+	};
+}
+
+type ReadQsStatusFn = (indexName: string) => Promise<QsBuildStatus | null>;
+
+type RenderedQsBuildStatus = {
+	runningText: string;
+	lastBuiltText: string;
+	lastSuccessfulBuiltText: string;
+	summary: string;
+};
+
+async function waitForIdleQsBuildStatus(
+	indexName: string,
+	getQsStatus: ReadQsStatusFn
+): Promise<QsBuildStatus> {
+	let idleStatus: QsBuildStatus | null = null;
+	await expect
+		.poll(
+			async () => {
+				const status = await getQsStatus(indexName);
+				if (status === null) {
+					return 'missing';
+				}
+				if (status.isRunning) {
+					return 'running';
+				}
+				idleStatus = status;
+				return 'idle';
+			},
+			{ timeout: 30_000 }
+		)
+		.toBe('idle');
+	if (idleStatus === null) {
+		throw new Error(`Query-suggestions build did not settle for ${indexName}`);
+	}
+	return idleStatus;
+}
+
+async function readRenderedQsBuildStatus(section: Locator): Promise<RenderedQsBuildStatus> {
+	const runningText = (await section.getByText(/Running:/).textContent())?.trim() ?? '';
+	const lastBuiltText = (await section.getByText(/Last built:/).textContent())?.trim() ?? '';
+	const lastSuccessfulBuiltText =
+		(await section.getByText(/Last successful build:/).textContent())?.trim() ?? '';
+	return {
+		runningText,
+		lastBuiltText,
+		lastSuccessfulBuiltText,
+		summary: [runningText, lastBuiltText, lastSuccessfulBuiltText].join(' | ')
+	};
+}
+
+function renderedTimestampValue(text: string, label: string): string | null {
+	const value = text.slice(label.length).trim();
+	return value === 'never' ? null : value;
+}
+
+function renderedLastBuiltAdvanced(
+	before: RenderedQsBuildStatus,
+	after: RenderedQsBuildStatus
+): boolean {
+	const beforeValue = renderedTimestampValue(before.lastBuiltText, 'Last built:');
+	const afterValue = renderedTimestampValue(after.lastBuiltText, 'Last built:');
+	if (afterValue === null) {
+		return false;
+	}
+	if (beforeValue === null) {
+		return true;
+	}
+	const beforeTime = Date.parse(beforeValue);
+	const afterTime = Date.parse(afterValue);
+	return Number.isFinite(beforeTime) && Number.isFinite(afterTime) && afterTime > beforeTime;
+}
+
 const SETTINGS_SUBTABS = [
-	['Search', 'settings-tab-search', 'settings-panel-search'],
-	['Ranking', 'settings-tab-ranking', 'settings-panel-ranking'],
-	['Language & Text', 'settings-tab-language-text', 'settings-panel-language-text'],
-	['Facets & Filters', 'settings-tab-facets-filters', 'settings-panel-facets-filters'],
-	['Display', 'settings-tab-display', 'settings-panel-display'],
-	['Advanced JSON', 'settings-tab-advanced-json', 'settings-panel-advanced-json']
+	['Search', 'Search settings', 'settings-tab-search', 'settings-panel-search'],
+	['Ranking', 'Ranking', 'settings-tab-ranking', 'settings-panel-ranking'],
+	['Language & Text', 'Language & Text', 'settings-tab-language-text', 'settings-panel-language-text'],
+	[
+		'Facets & Filters',
+		'Facets & Filters',
+		'settings-tab-facets-filters',
+		'settings-panel-facets-filters'
+	],
+	['Display', 'Display', 'settings-tab-display', 'settings-panel-display'],
+	['Advanced JSON', 'Advanced JSON', 'settings-tab-advanced-json', 'settings-panel-advanced-json']
 ] as const;
 
 function settingsJsonValue(section: Locator): Promise<SettingsSnapshot> {
@@ -63,11 +161,11 @@ async function expectSettingsJson(section: Locator, expected: SettingsSnapshot):
 	expect(await settingsJsonValue(section)).toMatchObject(expected);
 }
 
-async function openSettingsSubtab(section: Locator, name: string): Promise<Locator> {
-	const tab = section.getByRole('tab', { name, exact: true });
+async function openSettingsSubtab(section: Locator, accessibleName: string): Promise<Locator> {
+	const tab = section.getByRole('tab', { name: accessibleName, exact: true });
 	await tab.click();
 	await expect(tab).toHaveAttribute('aria-selected', 'true');
-	const panel = section.getByRole('tabpanel', { name, exact: true });
+	const panel = section.getByRole('tabpanel', { name: accessibleName, exact: true });
 	await expect(panel).toHaveAttribute('role', 'tabpanel');
 	await expect(panel).toBeVisible();
 	return panel;
@@ -80,20 +178,21 @@ async function expectSettingsSubtabWiring(
 	const tablist = section.getByRole('tablist', { name: 'Settings sections' });
 	await expect(tablist).toHaveCount(1);
 
-	for (const [tabName, tabId, panelId] of SETTINGS_SUBTABS) {
-		const tab = tablist.getByRole('tab', { name: tabName, exact: true });
+	for (const [tabLabel, accessibleName, tabId, panelId] of SETTINGS_SUBTABS) {
+		const tab = tablist.getByRole('tab', { name: accessibleName, exact: true });
 		await expect(tab).toBeVisible();
+		await expect(tab).toHaveText(tabLabel);
 		await expect(tab).toHaveAttribute('id', tabId);
 		await expect(tab).toHaveAttribute('aria-controls', panelId);
 		const panel = section.getByRole('tabpanel', {
-			name: tabName,
+			name: accessibleName,
 			exact: true,
 			includeHidden: true
 		});
 		await expect(panel).toHaveAttribute('role', 'tabpanel');
 		await expect(panel).toHaveAttribute('id', panelId);
 		await expect(panel).toHaveAttribute('aria-labelledby', tabId);
-		if (tabName === selectedTabName) {
+		if (accessibleName === selectedTabName) {
 			await expect(tab).toHaveAttribute('aria-selected', 'true');
 			await expect(panel).toBeVisible();
 		} else {
@@ -496,18 +595,55 @@ test.describe('Index detail tabs', () => {
 		await page.getByTestId('confirm-input').fill('CLEAR');
 		await expect(page.getByTestId('confirm-confirm-btn')).toBeEnabled();
 		await page.getByTestId('confirm-confirm-btn').click();
+		await expect(page.getByTestId('shared-toast-mount').getByText('Synonyms cleared.')).toBeVisible({
+			timeout: 10_000
+		});
+		await expect(section.getByRole('button', { name: 'Add Synonym' })).toBeVisible();
+		await expect(section.getByText('No synonyms yet')).toBeVisible();
+		await expect(section.getByTestId('synonym-count')).toHaveText('0');
+		await expect(section.getByText(retainedObjectId, { exact: true })).toHaveCount(0);
 		const postClearSearch = await searchSynonyms(indexName, '');
-		if (postClearSearch.nbHits === 0) {
-			await expect(section.getByRole('button', { name: 'Add Synonym' })).toBeVisible();
-			await expect(section.getByText('No synonyms yet')).toBeVisible();
-			await expect(section.getByTestId('synonym-count')).toHaveText('0');
-			expect(postClearSearch.hits).toEqual([]);
-		} else {
-			await expect(section.getByText(retainedObjectId, { exact: true })).toBeVisible();
-			await expect(section.getByTestId('synonym-count')).toHaveText('1');
-			await expect(section.getByText('unknown error')).toBeVisible();
-			expect(postClearSearch.nbHits).toBeGreaterThan(0);
-		}
+		expect(postClearSearch.nbHits).toBe(0);
+		expect(postClearSearch.hits).toEqual([]);
+	});
+
+	test('synonym clear-all button clears seeded synonyms through the real browser route', async ({
+		page,
+		seedIndex,
+		testRegion,
+		seedSynonym,
+		getSynonym
+	}) => {
+		const indexName = `e2e-syn-clear-all-${Date.now()}`;
+		const synonymObjectId = `syn-clear-all-${Date.now()}`;
+		await seedIndex(indexName, testRegion);
+		await seedSynonym(indexName, {
+			objectID: synonymObjectId,
+			type: 'synonym',
+			synonyms: ['sofa', 'couch']
+		});
+		await expect
+			.poll(async () => (await getSynonym(indexName, synonymObjectId))?.objectID ?? null)
+			.toBe(synonymObjectId);
+
+		await page.goto(`/console/indexes/${encodeURIComponent(indexName)}`);
+		await expect(page.getByRole('heading', { name: indexName })).toBeVisible({ timeout: 10_000 });
+		const section = await openIndexDetailTab(page, 'Synonyms', 'synonyms-section');
+		await assertSynonymsDataPathHealthy(section);
+		await expect(section.getByText(synonymObjectId, { exact: true })).toBeVisible();
+		await expect(section.getByTestId('synonym-count')).toHaveText('1');
+
+		await section.getByRole('button', { name: 'Clear All' }).click();
+		await expect(page.getByRole('heading', { name: 'Delete all synonyms' })).toBeVisible();
+		await page.getByLabel('Type "CLEAR" to confirm').fill('CLEAR');
+		await page.getByRole('button', { name: 'Delete All', exact: true }).click();
+
+		await expect(page.getByTestId('shared-toast-mount').getByText('Synonyms cleared.')).toBeVisible({
+			timeout: 10_000
+		});
+		await expect(section.getByText('No synonyms yet')).toBeVisible();
+		await expect(section.getByTestId('synonym-count')).toHaveText('0');
+		await expect(section.getByText(synonymObjectId, { exact: true })).toHaveCount(0);
 	});
 
 	test('Synonyms create dialog renders diner tokens from consumer context', async ({
@@ -580,7 +716,7 @@ test.describe('Index detail tabs', () => {
 		);
 		let section = await openIndexDetailTab(page, 'Settings', 'settings-section');
 
-		await expectSettingsSubtabWiring(section, 'Search');
+		await expectSettingsSubtabWiring(section, 'Search settings');
 		await expect(section.getByLabel('Searchable Attributes')).toHaveValue('title, description');
 		await expectSettingsJson(section, SETTINGS_SUBTABS_INITIAL_SETTINGS);
 
@@ -623,7 +759,7 @@ test.describe('Index detail tabs', () => {
 		await displayPanel.getByLabel('Displayed Attributes').fill('title, description, thumbnail');
 		await expectSettingsJson(section, SETTINGS_SUBTABS_SAVED_SETTINGS);
 
-		await openSettingsSubtab(section, 'Search');
+		await openSettingsSubtab(section, 'Search settings');
 		await expect(section.getByLabel('Searchable Attributes')).toHaveValue('title, description');
 		await openSettingsSubtab(section, 'Advanced JSON');
 		await expectSettingsJson(section, SETTINGS_SUBTABS_SAVED_SETTINGS);
@@ -633,7 +769,7 @@ test.describe('Index detail tabs', () => {
 		section = await openIndexDetailTab(page, 'Settings', 'settings-section', false);
 		await expectSettingsSubtabWiring(section, 'Advanced JSON');
 		await expectSettingsJson(section, SETTINGS_SUBTABS_SAVED_SETTINGS);
-		await openSettingsSubtab(section, 'Search');
+		await openSettingsSubtab(section, 'Search settings');
 		await expect(section.getByLabel('Searchable Attributes')).toHaveValue('title, description');
 		await expectSettingsJson(section, SETTINGS_SUBTABS_SAVED_SETTINGS);
 		await openSettingsSubtab(section, 'Facets & Filters');
@@ -662,8 +798,10 @@ test.describe('Index detail tabs', () => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		await page.goto(`/console/indexes/${encodeURIComponent(indexName)}?tab=settings`);
 		section = await openIndexDetailTab(page, 'Settings', 'settings-section', false);
-		await expectSettingsSubtabWiring(section, 'Search');
-		await expect(section.getByRole('tab', { name: 'Search', exact: true })).toBeVisible();
+		await expectSettingsSubtabWiring(section, 'Search settings');
+		const nestedSearchTab = section.getByRole('tab', { name: 'Search settings', exact: true });
+		await expect(nestedSearchTab).toBeVisible();
+		await expect(nestedSearchTab).toHaveText('Search');
 		await expect(section.getByRole('tab', { name: 'Ranking', exact: true })).toBeVisible();
 		await expect(section.getByRole('tab', { name: 'Language & Text', exact: true })).toBeVisible();
 		await expect(section.getByRole('tab', { name: 'Facets & Filters', exact: true })).toBeVisible();
@@ -891,7 +1029,7 @@ test.describe('Index detail tabs', () => {
 		await expect.poll(() => new URL(page.url()).searchParams.get('lang')).toBeTruthy();
 	});
 
-	test('Suggestions and Merchandising tabs open and preserve server-backed Rules data', async ({
+	test('Suggestions and Merchandising tabs open with server-backed Rules data', async ({
 		page,
 		seedIndex,
 		seedRules,
@@ -984,123 +1122,69 @@ test.describe('Index detail tabs', () => {
 			.inputValue();
 		expect(persistedConfigValue).toContain(configMarker);
 		await expect(suggestionsAfterReload.getByText('Build Status')).toBeVisible();
-		const lastBuiltBeforeRebuild = (
-			await suggestionsAfterReload.getByText(/Last built:/).textContent()
-		)?.trim();
-		const readEventRowCount = async (section: Awaited<ReturnType<typeof openIndexDetailTab>>) => {
-			const eventsTable = section.getByTestId('events-table');
-			if ((await eventsTable.count()) === 0) return 0;
-			const rowCountIncludingHeader = await eventsTable.getByRole('row').count();
-			return Math.max(0, rowCountIncludingHeader - 1);
-		};
-		const eventsBeforeRebuild = await openIndexDetailTab(page, 'Events', 'events-section');
-		const initialEventCount = await readEventRowCount(eventsBeforeRebuild);
-		await page.reload();
-		const suggestionsBeforeRebuild = await openIndexDetailTab(
-			page,
-			'Suggestions',
-			'suggestions-section'
+	});
+
+	test('suggestion rebuild button updates the seeded build status through the real browser route', async ({
+		page,
+		seedIndex,
+		seedQsConfig,
+		getQsConfig,
+		getQsStatus,
+		testRegion
+	}) => {
+		const indexName = `e2e-suggestion-rebuild-${Date.now()}`;
+		const configMarker = `stage5-suggestion-marker-${Date.now()}`;
+		await seedIndex(indexName, testRegion);
+		await seedQsConfig(indexName, stage5QsConfig(indexName, configMarker));
+		await expect
+			.poll(async () => (await getQsConfig(indexName))?.exclude.includes(configMarker) ?? false)
+			.toBe(true);
+		const idleStatusBeforeRebuild = await waitForIdleQsBuildStatus(indexName, getQsStatus);
+
+		await page.goto(`/console/indexes/${encodeURIComponent(indexName)}`);
+		await expect(page.getByRole('heading', { name: indexName })).toBeVisible({ timeout: 10_000 });
+		const suggestions = await openIndexDetailTab(page, 'Suggestions', 'suggestions-section');
+		await expect(suggestions.getByLabel('Query Suggestions JSON')).toHaveValue(
+			new RegExp(configMarker)
 		);
-		const rebuildRequest = page.waitForRequest(
-			(request) =>
-				request.method() === 'POST' &&
-				request.url().includes(`/console/indexes/${encodeURIComponent(indexName)}?/rebuildQsConfig`)
+		await expect(suggestions.getByText('Build Status')).toBeVisible();
+		const statusBeforeRebuild = await readRenderedQsBuildStatus(suggestions);
+		expect(statusBeforeRebuild.runningText).toBe('Running: no');
+		expect(statusBeforeRebuild.lastBuiltText).toBe(
+			`Last built: ${idleStatusBeforeRebuild.lastBuiltAt ?? 'never'}`
 		);
-		await expect(suggestionsBeforeRebuild.getByText(/Last built:/)).toBeVisible();
-		await suggestionsBeforeRebuild.getByRole('button', { name: 'Rebuild Suggestions' }).click();
-		await rebuildRequest;
+		expect(statusBeforeRebuild.lastSuccessfulBuiltText).toBe(
+			`Last successful build: ${idleStatusBeforeRebuild.lastSuccessfulBuiltAt ?? 'never'}`
+		);
+
+		await suggestions.getByRole('button', { name: 'Rebuild Suggestions' }).click();
 		const rebuildToast = page
 			.getByTestId('shared-toast-mount')
 			.getByText('Suggestions rebuild queued.');
-		const rebuildError = suggestionsBeforeRebuild.getByText(
-			/unknown error|Failed to queue suggestions rebuild|Not Found/i
-		);
+		await expect(rebuildToast).toBeVisible({ timeout: 10_000 });
 		await expect
 			.poll(
 				async () => {
-					if (await rebuildToast.isVisible().catch(() => false)) {
-						return 'Suggestions rebuild queued.';
+					await page.reload();
+					const refreshedSuggestions = await openIndexDetailTab(
+						page,
+						'Suggestions',
+						'suggestions-section',
+						false
+					);
+					await expect(refreshedSuggestions.getByText('Build Status')).toBeVisible();
+					const currentStatus = await readRenderedQsBuildStatus(refreshedSuggestions);
+					if (currentStatus.runningText === 'Running: yes') {
+						return 'running';
 					}
-					if (await rebuildError.isVisible().catch(() => false)) {
-						return (await rebuildError.textContent())?.trim() ?? '';
+					if (renderedLastBuiltAdvanced(statusBeforeRebuild, currentStatus)) {
+						return 'last-built-advanced';
 					}
-					return '';
+					return `unchanged: ${currentStatus.summary}`;
 				},
-				{ timeout: 10_000 }
+				{ timeout: 30_000 }
 			)
-			.toMatch(
-				/Suggestions rebuild queued\.|unknown error|Failed to queue suggestions rebuild|Not Found/i
-			);
-		const rebuildBannerText = (await rebuildToast.isVisible().catch(() => false))
-			? 'Suggestions rebuild queued.'
-			: ((await rebuildError.textContent())?.trim() ?? '');
-		await page.reload();
-		const suggestionsAfterRebuildReload = await openIndexDetailTab(
-			page,
-			'Suggestions',
-			'suggestions-section'
-		);
-		await expect(suggestionsAfterRebuildReload.getByText('Build Status')).toBeVisible();
-		const lastBuiltAfterRebuild = (
-			await suggestionsAfterRebuildReload.getByText(/Last built:/).textContent()
-		)?.trim();
-		expect(lastBuiltAfterRebuild).toBeTruthy();
-		expect(lastBuiltAfterRebuild).toContain('Last built:');
-
-		// Server-backed progression proof: fetch refreshed debug events via
-		// ?/refreshEvents after the rebuild trigger and assert the fetched event
-		// count increases (rebuild attempts generate backend debug entries).
-		const eventsAfterRebuild = await openIndexDetailTab(page, 'Events', 'events-section');
-		const refreshEventsRequest = page.waitForRequest(
-			(request) =>
-				request.method() === 'POST' &&
-				request.url().includes(`/console/indexes/${encodeURIComponent(indexName)}?/refreshEvents`)
-		);
-		await eventsAfterRebuild.getByRole('button', { name: 'Refresh' }).click();
-		await refreshEventsRequest;
-		const readRefreshedEventCount = async () => {
-			return readEventRowCount(eventsAfterRebuild);
-		};
-
-		if (rebuildBannerText.includes('Suggestions rebuild queued.')) {
-			await expect
-				.poll(readRefreshedEventCount, { timeout: 15_000 })
-				.toBeGreaterThan(initialEventCount);
-		} else {
-			expect(rebuildBannerText).toMatch(
-				/unknown error|Failed to queue suggestions rebuild|Not Found/i
-			);
-			await expect
-				.poll(readRefreshedEventCount, { timeout: 15_000 })
-				.toBeGreaterThanOrEqual(initialEventCount);
-		}
-
-		await page.reload();
-		const merchandising = await openIndexDetailTab(page, 'Merchandising', 'merchandising-section');
-		await expect(merchandising.getByRole('heading', { name: 'Merchandising hub' })).toBeVisible();
-		if (rebuildBannerText.includes('Suggestions rebuild queued.')) {
-			await expect
-				.poll(
-					async () => {
-						const refreshedRules = await searchRules(indexName, '', 0, 50);
-						return refreshedRules.hits.some((hit) => hit.objectID === ruleObjectID);
-					},
-					{ timeout: 15_000 }
-				)
-				.toBe(true);
-			const ruleRow = merchandising.getByTestId(`merchandising-rule-row-${ruleObjectID}`);
-			await expect(ruleRow).toBeVisible();
-			await expect(ruleRow).toContainText(ruleObjectID);
-			await expect(ruleRow).toContainText(buildRuleDescription(seededRule));
-		} else {
-			// Even when rebuild queueing fails (known missing build route), keep this
-			// non-vacuous by asserting a real server-backed Rules read path.
-			const refreshedRules = await searchRules(indexName, '', 0, 50);
-			expect(Array.isArray(refreshedRules.hits)).toBe(true);
-			await expect(
-				merchandising.getByRole('button', { name: '+ New rule', exact: true })
-			).toBeVisible();
-		}
+			.toMatch(/^(running|last-built-advanced)$/);
 	});
 
 	test('Synonyms tab lazy-mounts and shows empty state', async ({

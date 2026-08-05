@@ -92,7 +92,7 @@ append_curl_log_line() {
             printf 'timed out waiting for curl log lock: %s\n' "$LOG_LOCK_DIR" >&2
             return 1
         fi
-        sleep 0.01
+        /bin/sleep 0.01
     done
     trap 'rmdir "$LOG_LOCK_DIR"' RETURN
     printf '%s\n' "$line" >> "$LOG_PATH"

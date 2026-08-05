@@ -6,6 +6,9 @@ use crate::models::{
     AlgoliaImportTombstoneCleanupPhase, AlgoliaSealScrubWork,
 };
 use crate::repos::{CustomerHardDeleteKind, CustomerHardDeleteOutcome, RepoError};
+use crate::services::audit_log::{
+    customer_hard_erase_audit_entry, write_audit_log_tx, CustomerHardDeleteAuditPolicy,
+};
 
 #[derive(sqlx::FromRow)]
 struct SealScrubWorkRow {
@@ -22,6 +25,7 @@ pub(super) async fn hard_delete(
     pool: &PgPool,
     id: Uuid,
     kind: CustomerHardDeleteKind,
+    audit_policy: CustomerHardDeleteAuditPolicy,
 ) -> Result<CustomerHardDeleteOutcome, RepoError> {
     let mut tx = pool.begin().await.map_err(repo_error)?;
     let Some(status) = lock_customer_status(&mut tx, id).await? else {
@@ -53,6 +57,11 @@ pub(super) async fn hard_delete(
         .execute(&mut *tx)
         .await
         .map_err(repo_error)?;
+    if let Some(entry) = customer_hard_erase_audit_entry(audit_policy, seal_scrub_work.len()) {
+        write_audit_log_tx(&mut tx, &entry)
+            .await
+            .map_err(|error| RepoError::Other(error.to_string()))?;
+    }
     tx.commit().await.map_err(repo_error)?;
 
     Ok(CustomerHardDeleteOutcome::Erased { seal_scrub_work })

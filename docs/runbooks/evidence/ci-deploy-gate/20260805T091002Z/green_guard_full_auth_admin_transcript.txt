@@ -1,0 +1,474 @@
+# Stage 2 GREEN bounded guard transcript, captured contention shape, test binary
+utc_start=2026-08-05T09:26:12Z
+command=timeout 180 sudo systemd-run --scope -p AllowedCPUs=0-0 -p CPUQuota=30% ... /home/ubuntu/fjcloud_dev/infra/target/debug/deps/auth_admin-856e96dda8ebebbe --test-threads=32 --nocapture
+
+running 405 tests
+test admin_audit_view_test::audit_transactional_writer_commit_and_rollback ... ignored, requires DATABASE_URL
+test admin_audit_view_test::delete_admin_tenants_id_writes_tenant_deleted_audit_row ... ignored, requires DATABASE_URL
+test admin_audit_view_test::get_admin_customers_id_audit_returns_requested_customer_rows_newest_first ... ignored, requires DATABASE_URL
+test admin_audit_view_test::get_admin_customers_id_snapshot_returns_empty_snapshot_for_customer_without_data ... ignored, requires DATABASE_URL
+test admin_audit_view_test::get_admin_customers_id_snapshot_returns_seeded_customer_snapshot ... ignored, requires DATABASE_URL
+test admin_audit_view_test::get_admin_tenants_id_is_negative_control_without_audit_row ... ignored, requires DATABASE_URL
+test admin_audit_view_test::post_admin_customers_hard_erase_writes_customer_hard_erase_audit_row ... ignored, requires DATABASE_URL
+test admin_audit_view_test::post_admin_customers_reactivate_deleted_writes_no_audit_row ... ignored, requires DATABASE_URL
+test admin_audit_view_test::post_admin_customers_reactivate_writes_customer_reactivated_audit_row ... ignored, requires DATABASE_URL
+test admin_audit_view_test::post_admin_customers_suspend_writes_customer_suspended_audit_row ... ignored, requires DATABASE_URL
+test admin_audit_view_test::post_admin_customers_sync_stripe_writes_stripe_sync_audit_row ... ignored, requires DATABASE_URL
+test admin_audit_view_test::post_admin_tenants_writes_tenant_created_audit_row ... ignored, requires DATABASE_URL
+test admin_audit_view_test::post_admin_tokens_for_missing_customer_returns_not_found_without_audit_row ... ignored, requires DATABASE_URL
+test admin_audit_view_test::post_admin_tokens_for_suspended_customer_returns_forbidden_without_audit_row ... ignored, requires DATABASE_URL
+test admin_audit_view_test::post_admin_tokens_with_impersonation_purpose_writes_audit_row ... ignored, requires DATABASE_URL
+test admin_audit_view_test::post_admin_tokens_with_invalid_purpose_returns_bad_request_without_audit_row ... ignored, requires DATABASE_URL
+test admin_audit_view_test::put_admin_tenants_id_writes_tenant_updated_audit_row ... ignored, requires DATABASE_URL
+test admin_audit_view_test::put_admin_tenants_quotas_skips_audit_when_customer_has_no_tenant_rows ... ignored, requires DATABASE_URL
+test admin_audit_view_test::put_admin_tenants_quotas_writes_quotas_updated_audit_row ... ignored, requires DATABASE_URL
+test admin_audit_view_test::put_admin_tenants_rate_card_writes_rate_card_override_audit_row ... ignored, requires DATABASE_URL
+test admin_broadcast_test::dry_run_broadcast_writes_no_email_log_rows ... ignored, requires DATABASE_URL
+test admin_broadcast_test::live_broadcast_invalid_request_returns_400_without_success_body_or_invalid_log ... ignored, requires DATABASE_URL
+test admin_broadcast_test::live_broadcast_logs_one_success_row_per_recipient ... ignored, requires DATABASE_URL
+test admin_broadcast_test::live_broadcast_partial_failure_logs_failed_rows_and_continues ... ignored, requires DATABASE_URL
+test admin_broadcast_test::live_broadcast_suppressed_recipient_logs_suppressed_and_keeps_failure_count_for_real_failures ... ignored, requires DATABASE_URL
+test admin_cold_test::admin_cold_list_returns_snapshot_metadata ... ok
+test admin_deployments_test::admin_create_without_provision_flag_works_as_before ... ok
+test admin_operator_identity_test::admin_users_schema_contract ... ignored, requires DATABASE_URL
+test admin_cold_test::admin_cold_detail_returns_snapshot_detail ... ok
+test admin_deployments_test::health_check_nonexistent_deployment_returns_404 ... ok
+test admin_migrations_test::admin_migrations_get_rejects_invalid_status_filter ... ok
+test admin_deployments_test::admin_create_with_provision_true_triggers_provisioner ... ok
+test admin_deployments_test::fleet_endpoint_returns_all_active_deployments ... ok
+test admin_migrations_test::admin_migrations_post_rejects_cross_provider ... ok
+test admin_migrations_test::admin_migrations_post_rejects_already_migrating_index ... ok
+test admin_deployments_test::health_check_deployment_without_flapjack_url_returns_400 ... ok
+test admin_alerts_test::admin_alerts_returns_recent_alerts_in_desc_order_with_limit ... ok
+test admin_deployments_test::fleet_endpoint_excludes_terminated ... ok
+test admin_migrations_test::admin_migrations_post_rejects_ambiguous_index_name ... ok
+test admin_migrations_test::admin_migrations_post_rejects_inactive_source_vm ... ok
+test admin_migrations_test::admin_migrations_post_unknown_index_returns_404 ... ok
+test admin_migrations_test::admin_cross_provider_migration_succeeds ... ok
+test admin_broadcast_test::live_broadcast_html_only_request_keeps_empty_text_part ... ok
+test admin_cold_test::admin_cold_detail_not_found ... ok
+test admin_alerts_test::admin_alerts_severity_filter_returns_only_matching_alerts ... ok
+test admin_migrations_test::admin_migrations_get_returns_empty_list_by_default ... ok
+test admin_operator_identity_test::configured_admin_key_does_not_bypass_identity_when_admin_users_is_non_empty ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::configured_admin_key_seeds_bootstrap_operator_when_admin_users_is_empty ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::durable_admin_session_contract::durable_admin_session_current_returns_operator_identity_and_fails_closed ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::durable_admin_session_contract::durable_admin_session_expiry_cannot_be_overridden_by_requested_token_lifetime ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::durable_admin_session_contract::durable_admin_session_inactivity_timeout_is_enforced_at_request_boundary ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::durable_admin_session_contract::durable_admin_session_login_clamps_absolute_lifetime_to_24_hours ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::durable_admin_session_contract::durable_admin_session_omitted_lifetime_defaults_to_24_hours ... ignored, requires DATABASE_URL
+test admin_deployments_test::health_check_endpoint_updates_status ... ok
+test admin_migrations_test::admin_migrations_post_synchronous_success_returns_completed ... ok
+test admin_operator_identity_test::durable_admin_session_contract::durable_admin_session_preserves_operator_identity_and_rechecks_revocation ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::durable_admin_session_contract::durable_admin_session_rejects_malformed_and_ambiguous_credentials ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::durable_admin_session_contract::durable_admin_session_revoke_all_rejects_all_operator_sessions ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::durable_admin_session_contract::durable_admin_session_revoke_current_rejects_copied_session ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::durable_admin_session_contract::durable_admin_session_touches_activity_only_after_secret_validation ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::durable_admin_session_contract::durable_admin_sessions_schema_contract ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::post_admin_tokens_from_two_operators_writes_two_distinct_non_nil_actor_ids ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::post_admin_tokens_with_revoked_operator_credential_is_rejected_without_audit_row ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::post_admin_tokens_with_short_credential_prefix_fails_closed_without_audit_row ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::post_admin_tokens_with_unregistered_credential_is_rejected_without_audit_row ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::stage2_admin_auth_distinct_credentials_resolve_distinct_operators ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::stage2_admin_auth_prefix_collision_resolves_full_hash_match ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::stage2_admin_auth_registered_credential_resolves_operator ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::stage2_admin_auth_revoked_credential_is_rejected ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::stage2_admin_auth_short_credentials_are_rejected ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::stage2_admin_auth_unregistered_credential_is_rejected ... ignored, requires DATABASE_URL
+test admin_operator_identity_test::stage2_admin_bootstrap_is_idempotent_before_route_request ... ignored, requires DATABASE_URL
+test admin_token_audit_test::post_admin_tokens_audit_transactional_failure_returns_500_without_token_or_audit_row ... ignored, requires DATABASE_URL
+test admin_token_audit_test::post_admin_tokens_audit_transactional_success_persists_actor_target_and_token_authenticates ... ignored, requires DATABASE_URL
+test admin_token_audit_test::post_admin_tokens_impersonation_writes_one_attributed_audit_row ... ignored, requires DATABASE_URL
+test admin_token_audit_test::post_admin_tokens_without_purpose_still_writes_audit_row ... ignored, requires DATABASE_URL
+test admin_usage_audit_test::admin_usage_delete_rolls_back_when_audit_insert_fails ... ignored, requires DATABASE_URL
+test admin_usage_audit_test::admin_usage_mutations_record_operator_target_scope_and_count ... ignored, requires DATABASE_URL
+test admin_usage_audit_test::admin_usage_upsert_rolls_back_when_audit_insert_fails ... ignored, requires DATABASE_URL
+test admin_migrations_test::admin_migrations_post_rejects_same_source_and_destination_vm ... ok
+test admin_deployments_test::fleet_endpoint_requires_admin_auth ... ok
+test admin_migrations_test::admin_probe_recovery_seams_require_explicit_env_gate ... ok
+test admin_migrations_test::admin_cross_provider_migration_rejects_same_provider ... ok
+test admin_deployments_test::fail_provisioning_maps_absent_and_non_provisioning_rows ... ok
+test admin_vm_lifecycle_events_test::vm_lifecycle_events_requires_admin_key ... ok
+test admin_vm_kill_test::kill_vm_returns_404_for_nonexistent_vm ... ok
+test admin_providers_test::admin_providers_includes_configured_provider_with_zero_active_vms ... ok
+test admin_vm_orphans_test::orphan_report_route_requires_admin_auth ... ok
+test admin_vm_orphans_test::orphan_report_route_returns_source_denominators_without_mutation ... ok
+
+thread 'admin_broadcast_test::live_broadcast_capacity_guardrail_requires_bounded_concurrency' (16655) panicked at api/tests/integration/admin_broadcast_test.rs:91:5:
+broadcast to 55 measured staging recipients with 20ms/send took 2.915929028s; this exceeds the bounded-concurrency guardrail of 550ms
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test admin_providers_test::admin_providers_includes_unavailable_configured_provider_regions ... ok
+test admin_vm_lifecycle_events_test::vm_lifecycle_events_repository_failure_returns_error_not_empty_trail ... ok
+test admin_vm_lifecycle_events_test::vm_lifecycle_events_returns_chronological_json_without_cross_vm_leakage ... ok
+test admin_vm_host_metrics_test::admin_vm_host_metrics_returns_latest_sample_with_canonical_shape ... ok
+test admin_vm_lifecycle_events_test::vm_lifecycle_events_returns_404_for_unknown_vm ... ok
+test admin_vm_host_metrics_test::admin_vm_host_metrics_returns_404_for_unknown_vm ... ok
+test admin_vm_orphans_test::orphan_report_route_returns_indeterminate_report_on_source_failure ... ok
+test admin_vm_lifecycle_events_test::vm_lifecycle_events_returns_empty_array_for_known_vm_and_static_subroute_owns_path ... ok
+test admin_vm_kill_test::kill_vm_rejects_non_localhost_url ... ok
+test admin_vm_kill_test::kill_vm_requires_admin_auth ... ok
+test admin_vm_host_metrics_test::admin_vm_host_metrics_requires_admin_key ... ok
+test admin_vm_host_metrics_test::admin_vm_host_metrics_returns_null_for_existing_vm_without_samples ... ok
+test admin_vm_kill_test::list_vms_returns_all_active_vms ... ok
+test admin_providers_test::admin_providers_endpoint_returns_summary ... ok
+test admin_migrations_test::admin_probe_recovery_seams_drive_replicating_rollback_and_failure_cleanup ... ok
+test admin_vm_orphans_test::orphan_report_route_preserves_vm_detail_and_warm_floor_routes ... ok
+test admin_broadcast_test::live_broadcast_capacity_guardrail_requires_bounded_concurrency ... FAILED
+test admin_vms_test::admin_vms_warm_floor_test::warm_floor_ignores_canonical_inventory_row_without_running_provider_match ... ok
+test admin_vms_test::admin_vms_warm_floor_test::warm_floor_creates_one_shared_aws_vm_from_zero ... ok
+test admin_vms_test::admin_vms_warm_floor_test::warm_floor_concurrent_retry_at_one_does_not_call_provisioning ... ok
+test admin_vms_test::admin_vms_warm_floor_test::warm_floor_ignores_canonical_shared_vm_from_different_dns_domain ... ok
+test admin_vms_test::admin_vms_warm_floor_test::warm_floor_ignores_local_dev_bypass_and_returns_managed_shared_vm ... ok
+test admin_webhook_events_test::ses_suppression_webhooks_write_a_stable_ses_system_actor ... ignored, requires DATABASE_URL
+test admin_webhook_events_test::stripe_dispute_webhooks_write_a_stable_stripe_system_actor ... ignored, requires DATABASE_URL
+test api_key_auth_test::active_stage1_decision_matches_audited_verdict ... ok
+test api_key_auth_test::api_key_hourly_limit_non_positive_stored_value_fails_closed ... ok
+test api_key_auth_test::api_key_fj_live_extractor_rejects_when_decision_is_hard_cut_ok ... ok
+test api_key_auth_test::api_key_hourly_limit_reopens_at_one_hour_boundary ... ok
+test api_key_auth_test::api_key_hourly_limit_none_remains_unlimited ... ok
+test api_key_auth_test::api_key_hourly_limit_returns_retry_after_and_isolates_buckets ... ok
+test api_key_auth_test::deleted_customer_returns_401 ... ok
+test api_key_auth_test::empty_restrict_sources_stays_unrestricted ... ok
+test api_key_auth_test::bound_api_server_supplies_connect_info_for_restricted_key ... ok
+test api_key_auth_test::api_key_fj_live_extractor_accepts_when_decision_is_keep_legacy_accept ... ok
+test api_key_auth_test::expired_api_key_for_suspended_customer_returns_invalid_token_shape ... ok
+test api_key_auth_test::fjc_live_key_authenticates ... ok
+test api_key_auth_test::forwarded_header_inside_cidr_is_denied_even_when_proxy_trust_enabled ... ok
+test api_key_auth_test::future_expires_at_api_key_authenticates ... ok
+test api_key_auth_test::gridl_live_behavior_matches_stage1_decision_token ... ok
+test api_key_auth_test::gridl_live_extractor_rejects_when_decision_is_hard_cut_ok ... ok
+test api_key_auth_test::gridl_live_ignores_request_extension_override ... ok
+test api_key_auth_test::malformed_stored_cidr_fails_closed_without_panicking ... ok
+test api_key_auth_test::missing_auth_header_returns_401 ... ok
+test api_key_auth_test::non_fj_live_prefix_returns_401 ... ok
+test api_key_auth_test::null_expires_at_api_key_authenticates ... ok
+test api_key_auth_test::peer_inside_listed_cidr_authenticates ... ok
+test api_key_auth_test::api_key_legacy_fj_live_key_rejected_under_hard_cut ... ok
+test api_key_auth_test::invalid_key_returns_401 ... ok
+test api_key_auth_test::peer_outside_every_cidr_is_rejected_with_invalid_token_shape ... ok
+test admin_vms_test::get_admin_vms_returns_counts_and_health_contract ... ok
+test api_key_auth_test::expired_api_key_returns_invalid_token_shape ... ok
+test api_key_auth_test::last_used_at_updated ... ok
+test admin_vms_test::get_vm_detail_returns_404_for_unknown_vm ... ok
+test admin_vms_test::admin_vms_warm_floor_test::warm_floor_returns_service_unavailable_without_persisting_on_provision_failure ... ok
+test api_key_auth_test::scope_check_fails_returns_403 ... ok
+test api_key_auth_test::scope_check_passes ... ok
+test api_key_auth_test::short_key_returns_401 ... ok
+test api_key_auth_test::stage1_token_parser_accepts_hard_cut_literals ... ok
+test api_key_auth_test::suspended_customer_returns_403 ... ok
+test api_key_auth_test::unrecognized_prefix_returns_401 ... ok
+test api_key_auth_test::unresolvable_peer_with_restrict_sources_fails_closed ... ok
+test api_key_auth_test::valid_key_authenticates ... ok
+test api_key_auth_test::wrong_hash_returns_401 ... ok
+test auth_endpoints_test::customer_serialization_omits_sensitive_fields ... ok
+test admin_vms_test::get_vm_detail_ignores_stale_deployment_provider_vm_id ... ok
+test admin_vms_test::decommission_transitions_eligible_vm_through_atomic_repo_owner ... ok
+test api_key_auth_test::revoked_key_returns_401 ... ok
+test admin_vms_test::admin_vms_warm_floor_test::warm_floor_ignores_distractors_then_sequential_retry_reuses_created_vm ... ok
+test admin_vms_test::retirement_blockers_reports_eligible_active_vm ... ok
+test admin_vms_test::admin_vms_warm_floor_test::warm_floor_reuses_existing_canonical_shared_aws_vm_only ... ok
+test admin_webhook_events_test::admin_webhook_events_returns_400_for_missing_or_blank_stripe_event_id ... ok
+test admin_webhook_events_test::admin_webhook_events_returns_404_for_unknown_event_id ... ok
+test admin_webhook_events_test::admin_webhook_events_returns_seeded_row ... ok
+test admin_vms_test::get_vm_detail_returns_vm_with_tenant_breakdown ... ok
+test admin_webhook_events_test::admin_webhook_events_requires_admin_auth ... ok
+test auth_endpoints_test::forgot_password_deleted_customer_does_not_set_token ... ok
+test auth_endpoints_test::login_deleted_customer_returns_400 ... ok
+test auth_endpoints_test::forgot_password_for_unknown_email_returns_200 ... ok
+test auth_endpoints_test::login_rejects_password_exceeding_max_length ... ok
+test auth_endpoints_test::login_no_password_hash_returns_400 ... ok
+test auth_endpoints_test::login_nonexistent_email_returns_400 ... ok
+test admin_vms_test::retirement_operations_require_admin_auth ... ok
+test auth_endpoints_test::register_empty_name_returns_400 ... ok
+test auth_endpoints_test::register_empty_email_returns_400 ... ok
+test auth_endpoints_test::register_invalid_email_format_returns_400 ... ok
+test auth_endpoints_test::register_rejects_email_exceeding_max_length ... ok
+test auth_endpoints_test::register_rejects_domain_ending_with_dot ... ok
+test auth_endpoints_test::register_rejects_domain_starting_with_dot ... ok
+test auth_endpoints_test::register_rejects_name_exceeding_max_length ... ok
+test auth_endpoints_test::register_rejects_password_exceeding_max_length ... ok
+test admin_deployments_test::fail_provisioning_requires_admin_and_exact_fixed_body ... ok
+test auth_endpoints_test::register_short_password_returns_400 ... ok
+test admin_vms_test::admin_vms_warm_floor_test::warm_floor_rejects_invalid_requests_before_provisioning ... ok
+test admin_deployments_test::fail_provisioning_postgres_clears_transient_fields ... ok
+test auth_endpoints_test::resend_password_reset_unknown_email_returns_200_without_email_delivery ... ok
+test admin_vms_test::decommission_endpoint_handles_postgres_success_and_idempotency ... ok
+test admin_vms_test::decommission_endpoint_rejects_blocked_and_mismatched_postgres_rows ... ok
+test admin_deployments_test::fail_provisioning_postgres_race_reports_conflict_without_mutation ... ok
+test admin_vms_test::decommission_endpoint_reports_indeterminate_provider_lookup_and_preserves_later_resources ... ok
+test admin_vms_test::retirement_blockers_endpoint_maps_postgres_conflicts ... ok
+test admin_vms_test::retirement_blockers_endpoint_reports_postgres_reference_owners ... ok
+test auth_endpoints_test::resend_verification_missing_auth_returns_401 ... ok
+test auth_endpoints_test::resend_verification_invalid_auth_returns_401 ... ok
+test auth_endpoints_test::resend_verification_suspended_account_returns_403 ... ok
+test auth_endpoints_test::resend_verification_verified_account_returns_400 ... ok
+test admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins ... ok
+test admin_vms_test::decommission_endpoint_wins_concurrent_reference_publication_after_inventory_lock ... ok
+test auth_endpoints_test::reset_password_rejects_password_exceeding_max_length ... ok
+test auth_endpoints_test::reset_password_short_password_returns_400 ... ok
+test auth_endpoints_test::new_customer_defaults_to_free_plan ... ok
+test auth_endpoints_test::register_duplicate_email_returns_409 ... ok
+test auth_endpoints_test::register_accepts_password_at_max_length ... ok
+test auth_endpoints_test::register_force_email_failure_header_returns_503_in_local_zero_dependency_mode ... ok
+test auth_endpoints_test::forgot_password_normalizes_email_to_lowercase ... ok
+test auth_endpoints_test::forgot_password_first_delivery_failure_restores_empty_reset_state ... ok
+test auth_endpoints_test::forgot_password_sends_reset_email ... ok
+test auth_endpoints_test::register_password_hash_is_argon2 ... ok
+test auth_endpoints_test::forgot_password_retries_and_returns_200_when_email_delivery_fails ... ok
+test auth_endpoints_test::register_retries_verification_email_before_succeeding ... ok
+test auth_endpoints_test::verification_with_expired_token_returns_400 ... ok
+test auth_endpoints_test::verification_with_unknown_token_returns_400 ... ok
+test auth_endpoints_test::register_success_returns_201_with_jwt ... ok
+test auth_endpoints_test::register_sets_email_verify_token ... ok
+test auth_endpoints_test::register_trims_whitespace_from_name ... ok
+test auth_endpoints_test::resend_password_reset_rollback_error_returns_500 ... ok
+test auth_endpoints_test::resend_password_reset_delivery_failure_restores_state_and_returns_200 ... ok
+test auth_test::admin_missing_key_returns_401 ... ok
+test auth_test::admin_valid_key_returns_200 ... ok
+test auth_test::admin_wrong_key_returns_401 ... ok
+test auth_lockout_test::oauth_only_account_does_not_increment_login_lockout_state ... ok
+test auth_endpoints_test::resend_password_reset_rollback_failure_returns_500 ... ok
+test auth_test::tenant_deleted_customer_returns_401 ... ok
+test auth_test::tenant_expired_token_returns_401 ... ok
+test auth_test::tenant_malformed_token_returns_401 ... ok
+test auth_test::tenant_missing_auth_header_returns_401 ... ok
+test auth_test::tenant_non_bearer_scheme_returns_401 ... ok
+test auth_test::tenant_suspended_customer_returns_403 ... ok
+test auth_test::cors_preflight_returns_allow_origin ... ok
+test auth_test::tenant_non_uuid_sub_returns_401 ... ok
+test auth_test::tenant_unknown_customer_returns_401 ... ok
+test auth_test::tenant_valid_jwt_returns_customer_id ... ok
+test auth_test::tenant_wrong_secret_returns_401 ... ok
+test auth_test::token_issue_custom_expiry ... ok
+test auth_test::token_issue_audit_failure_returns_500_without_token ... ok
+test auth_test::token_issue_expiry_clamps_to_maximum ... ok
+test auth_endpoints_test::resend_password_reset_rotates_token_and_suppresses_cooldown_enumeration_signal ... ok
+test auth_test::token_issue_expiry_clamps_to_minimum ... ok
+test auth_test::token_issue_invalid_json_syntax_returns_400 ... ok
+test common::builders::tests::builder_threads_oauth_runtime_config_into_app_state ... ok
+test common::catalog_live_binding::tests::canonical_selection_and_target_characters_are_safe ... ok
+
+thread 'common::catalog_live_binding::tests::evidence_components_reject_record_delimiters_and_newlines' (17345) panicked at api/tests/common/catalog_live_binding.rs:427:5:
+test contains an unsafe evidence character
+
+thread 'common::catalog_live_binding::tests::evidence_components_reject_record_delimiters_and_newlines' (17345) panicked at api/tests/common/catalog_live_binding.rs:427:5:
+test contains an unsafe evidence character
+
+thread 'common::catalog_live_binding::tests::evidence_components_reject_record_delimiters_and_newlines' (17345) panicked at api/tests/common/catalog_live_binding.rs:427:5:
+test contains an unsafe evidence character
+
+thread 'common::catalog_live_binding::tests::evidence_components_reject_record_delimiters_and_newlines' (17345) panicked at api/tests/common/catalog_live_binding.rs:427:5:
+test contains an unsafe evidence character
+test auth_test::token_issue_missing_admin_key_returns_401 ... ok
+test common::catalog_live_binding::tests::evidence_components_reject_record_delimiters_and_newlines ... ok
+
+thread 'common::catalog_live_binding::tests::live_api_url_must_resolve_to_loopback_host' (17346) panicked at api/tests/common/catalog_live_binding.rs:311:5:
+ALGOLIA_IMPORT_CATALOG_LIVE_API_URL must be an HTTP(S) URL
+
+thread 'common::catalog_live_binding::tests::live_api_url_must_resolve_to_loopback_host' (17346) panicked at api/tests/common/catalog_live_binding.rs:321:5:
+ALGOLIA_IMPORT_CATALOG_LIVE_API_URL must stay on loopback so live probe credentials never leave the local stack
+
+thread 'common::catalog_live_binding::tests::live_api_url_must_resolve_to_loopback_host' (17346) panicked at api/tests/common/catalog_live_binding.rs:321:5:
+ALGOLIA_IMPORT_CATALOG_LIVE_API_URL must stay on loopback so live probe credentials never leave the local stack
+test common::catalog_live_binding::tests::live_api_url_must_resolve_to_loopback_host ... ok
+test auth_test::token_issue_valid_request_returns_200 ... ok
+test common::integration_helpers::tests::db_url_includes_port_without_user ... ok
+test common::integration_helpers::tests::db_url_prefers_explicit_url_env ... ok
+test common::integration_helpers::tests::endpoint_reachable_detects_closed_local_port ... ok
+test common::integration_helpers::tests::db_url_builds_from_discrete_env_vars_with_password ... ok
+test common::integration_helpers::tests::endpoint_reachable_rejects_invalid_url ... ok
+test common::integration_helpers::tests::integration_enabled_is_false_when_unset ... ok
+test common::integration_helpers::tests::integration_enabled_is_true_only_for_one ... ok
+test common::integration_helpers::tests::live_gate_enabled_is_false_for_non_one_values ... ok
+test common::integration_helpers::tests::live_gate_enabled_is_false_when_unset ... ok
+test common::integration_helpers::tests::live_gate_enabled_is_true_when_set_to_one ... ok
+test common::integration_helpers::tests::require_live_continues_when_condition_true_regardless_of_gate ... ok
+
+thread 'common::integration_helpers::tests::require_live_panics_when_gate_on_and_condition_false' (17376) panicked at api/tests/common/integration_helpers.rs:518:13:
+[BACKEND_LIVE_GATE] required precondition failed: STRIPE_TEST_SECRET_KEY not set
+test common::integration_helpers::tests::require_live_panics_when_gate_on_and_condition_false ... ok
+[skip] test precondition missing
+test common::integration_helpers::tests::require_live_skips_silently_when_gate_off_and_condition_false ... ok
+test auth_endpoints_test::login_allows_existing_subminimum_passwords has been running for over 60 seconds
+
+thread 'common::catalog_live_binding::tests::live_caller_key_must_belong_to_the_exact_fixture_selection' (17347) panicked at api/tests/common/catalog_live_binding.rs:253:10:
+catalog live caller key must belong to the exact source-built selection
+test common::catalog_live_binding::tests::live_caller_key_must_belong_to_the_exact_fixture_selection ... ok
+test auth_endpoints_test::login_normalizes_email_to_lowercase has been running for over 60 seconds
+test common::live_stripe_helpers::tests::contract_amount_multiplies_unit_amount_by_quantity ... ok
+test common::live_stripe_helpers::tests::expected_starter_amount_requires_positive_integer_env_value ... ok
+test common::live_stripe_helpers::tests::webhook_probe_query_accepts_fast_invoice_event_delivery ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_forces_failure_for_retries_exhausted_and_skips_delegate ... ok
+test auth_endpoints_test::login_success_returns_200_with_jwt has been running for over 60 seconds
+test common::mocks::failable_email_service_tests::failable_email_service_records_invalid_request_after_in_flight_attempts_start ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_tracks_recovered_after_failure_attempt_and_delegates ... ok
+test auth_endpoints_test::login_wrong_password_returns_400 has been running for over 60 seconds
+test common::mocks::failable_email_service_tests::failable_email_service_tracks_retry_scheduled_attempt_and_delegates ... ok
+test auth_test::token_issue_wrong_schema_returns_422 ... ok
+test common::poll::tests::predicate_can_be_fnmut ... ok
+test common::poll::tests::resolves_immediately_with_predicate_value ... ok
+test common::poll::tests::result_variant_returns_error_on_timeout ... ok
+test common::poll::tests::resolves_after_multiple_polls_with_real_sleep ... ok
+test common::poll::tests::result_variant_returns_value_when_predicate_hits ... ok
+test common::support::pg_schema_harness::tests::embedded_migration_versions_are_unique ... ok
+
+thread 'common::support::pg_schema_harness::tests::isolated_schema_name_rejects_non_identifier_prefixes' (17396) panicked at api/tests/common/support/pg_schema_harness.rs:214:5:
+schema_prefix must contain only ASCII letters, digits, or underscores
+test common::support::pg_schema_harness::tests::isolated_schema_name_rejects_non_identifier_prefixes ... ok
+test common::support::pg_schema_harness::tests::quote_pg_identifier_escapes_embedded_quotes ... ok
+test flapjack_proxy_security_sources_test::append_security_source_sends_post_with_body ... ok
+
+thread 'common::poll::tests::times_out_and_panics_with_name' (17394) panicked at api/tests/common/poll.rs:52:25:
+poll_until timed out: test3_must_appear_in_panic_message (after 50ms)
+test common::poll::tests::times_out_and_panics_with_name - should panic ... ok
+test flapjack_proxy_security_sources_test::delete_security_source_percent_encodes_cidr_slash ... ok
+test flapjack_proxy_security_sources_test::delete_security_source_sends_delete_to_encoded_path ... ok
+test flapjack_proxy_security_sources_test::get_security_sources_returns_upstream_response ... ok
+test garage_admin_client_test::reqwest_garage_admin_client_uses_v2_api_contract ... ok
+test auth_endpoints_test::register_normalizes_email_to_lowercase has been running for over 60 seconds
+bad id is: not-a-customer-id (expected: "cus_") for CustomerId
+test common::live_stripe_helpers::tests::attach_test_payment_method_reports_invalid_customer_id ... ok
+bad id is: not-a-customer-id (expected: "cus_") for CustomerId
+test common::live_stripe_helpers::tests::attach_declining_payment_method_reports_invalid_customer_id ... ok
+test internal_auth_test::cold_storage_usage_accepts_valid_key ... ok
+test auth_endpoints_test::register_returns_503_and_rolls_back_customer_when_email_delivery_fails has been running for over 60 seconds
+test internal_auth_test::cold_storage_usage_rejects_wrong_key ... ok
+test auth_endpoints_test::resend_verification_503_keeps_last_deliverable_token_and_allows_immediate_retry ... ok
+test internal_auth_test::cold_storage_usage_requires_internal_key ... ok
+test internal_auth_test::regions_accepts_valid_key ... ok
+test internal_auth_test::regions_rejects_wrong_key ... ok
+test internal_auth_test::regions_requires_internal_key ... ok
+test internal_auth_test::tenant_map_accepts_valid_key ... ok
+test auth_endpoints_test::resend_verification_email_for_unverified_customer ... ok
+test migration_052_auth_lockout_state_test::migration_052_is_present_in_compiled_set ... ok
+test internal_auth_test::tenant_map_rejects_when_internal_auth_not_configured ... ok
+test internal_auth_test::tenant_map_rejects_wrong_key ... ok
+test auth_endpoints_test::resend_verification_rollback_error_returns_500_instead_of_retryable_503 ... ok
+test internal_auth_test::tenant_map_requires_internal_key ... ok
+test auth_endpoints_test::resend_verification_rollback_failure_returns_500_instead_of_retryable_503 ... ok
+test oauth_start_routes_test::oauth_exchange_conflict_fallback_does_not_auto_link_unverified_local_customer ... ok
+test oauth_start_routes_test::oauth_exchange_does_not_auto_link_to_unverified_local_customer ... ok
+test oauth_start_routes_test::oauth_exchange_does_not_auto_link_unverified_google_email ... ok
+test auth_endpoints_test::resend_verification_returns_503_when_email_delivery_fails ... ok
+test oauth_start_routes_test::oauth_exchange_github_synthetic_conflict_does_not_auto_link_local_customer ... ok
+test oauth_start_routes_test::oauth_exchange_github_unverified_email_uses_synthetic_path ... ok
+test oauth_start_routes_test::oauth_exchange_github_user_emails_failure_returns_bad_gateway ... ok
+test auth_endpoints_test::reset_password_invalid_token_returns_400 ... ok
+test oauth_start_routes_test::oauth_exchange_github_verified_email_links_existing_customer ... ok
+test oauth_start_routes_test::oauth_exchange_happy_path_returns_token_and_customer_id ... ok
+test oauth_start_routes_test::oauth_exchange_rejects_deleted_customer_on_synthetic_email_path ... ok
+test oauth_start_routes_test::oauth_exchange_maps_link_not_found_to_deleted_customer_error ... ok
+test oauth_start_routes_test::oauth_exchange_rejects_deleted_customer_with_verified_google_email ... ok
+test oauth_start_routes_test::oauth_exchange_rejects_state_cookie_replayed_from_different_browser ... ok
+test oauth_start_routes_test::oauth_exchange_rejects_when_binding_cookie_mismatched ... ok
+test oauth_start_routes_test::oauth_exchange_returns_400_when_state_cookie_cannot_be_decrypted ... ok
+test oauth_start_routes_test::oauth_exchange_rejects_when_binding_cookie_missing ... ok
+test oauth_start_routes_test::oauth_exchange_returns_400_on_csrf_mismatch ... ok
+test oauth_start_routes_test::oauth_exchange_returns_400_when_state_cookie_missing ... ok
+test oauth_start_routes_test::oauth_exchange_returns_501_when_provider_not_configured ... ok
+test oauth_start_routes_test::oauth_exchange_surfaces_deterministic_provider_error_payload ... ok
+test reliability_security_test::test_sql_guard_allows_safe_patterns ... ok
+test reliability_security_test::test_sql_guard_detects_unsafe_patterns_in_fixture ... ok
+test oauth_start_routes_test::oauth_exchange_synthetic_conflict_still_409_for_active_customer ... ok
+test reliability_security_test::test_sql_guard_does_not_flag_plus_outside_query_expression ... ok
+test reliability_security_test::test_sql_guard_flags_plus_inside_query_expression ... ok
+test reliability_security_test::test_sql_guard_metering_agent_safe ... ok
+test oauth_start_routes_test::oauth_start_routes_redirect_when_provider_configured_with_expected_params ... ok
+test oauth_start_routes_test::oauth_start_routes_use_lax_non_secure_cookie_for_local_http_callbacks ... ok
+test oauth_start_routes_test::oauth_start_routes_return_501_when_provider_config_missing ... ok
+test oauth_start_routes_test::oauth_exchange_unverified_google_synthetic_conflict_does_not_auto_link_local_customer ... ok
+test security_test::admin_rate_limit_is_per_ip ... ok
+test security_test::auth_rate_limit_falls_back_to_unknown_when_no_ip_headers ... ok
+test reliability_security_test::test_sql_guard_safe_patterns_exist ... ok
+test security_test::admin_rate_limit_returns_429_after_threshold ... ok
+test auth_endpoints_test::login_allows_existing_subminimum_passwords ... ok
+test oauth_start_routes_test::oauth_status_reports_provider_availability_from_runtime_config ... ok
+test security_test::admin_rate_limit_sets_retry_after_header ... ok
+test auth_endpoints_test::login_normalizes_email_to_lowercase ... ok
+test auth_endpoints_test::login_wrong_password_returns_400 ... ok
+test auth_endpoints_test::login_success_returns_200_with_jwt ... ok
+test security_test::cors_allows_configured_origin ... ok
+test auth_endpoints_test::reset_password_with_expired_token_returns_400 ... ok
+test security_test::cors_defaults_allow_localhost_origin ... ok
+test auth_endpoints_test::signup_creates_unverified_customer ... ok
+test auth_endpoints_test::signup_sends_verification_email ... ok
+test auth_endpoints_test::unverified_customer_cannot_create_index ... ok
+test auth_endpoints_test::register_normalizes_email_to_lowercase ... ok
+test security_test::cors_rejects_unknown_origin ... ok
+test security_test::pricing_compare_is_public_no_auth_required ... ok
+test security_test::experiment_id_rejects_path_traversal ... ok
+test security_test::pricing_compare_not_affected_by_tenant_rate_limit ... ok
+test security_test::s3_auth_failures_include_security_headers ... ok
+test security_test::s3_rate_limit_enforces_retry_after_and_slowdown_payload ... ok
+test security_test::pricing_compare_rejects_get_method ... ok
+test auth_endpoints_test::verification_with_valid_token_marks_verified ... ok
+test security_test::pricing_compare_validation_error_does_not_leak_internals ... ok
+test security_test::rule_object_id_rejects_path_traversal ... ok
+test security_test::rule_object_id_rejects_query_injection ... ok
+test storage_s3_auth_test::authorization_header_without_spaces_after_commas_authenticates ... ok
+test auth_endpoints_test::register_returns_503_and_rolls_back_customer_when_email_delivery_fails ... ok
+test auth_lockout_test::login_prelocked_account_returns_429_with_retry_after ... ok
+test storage_s3_auth_test::canonical_query_params_sorted_correctly ... ok
+test storage_s3_auth_test::clock_skew_beyond_15_minutes_is_rejected ... ok
+test storage_s3_auth_test::credential_scope_must_match_request_date_and_s3_service ... ok
+test storage_s3_auth_test::date_header_without_x_amz_date_authenticates ... ok
+test storage_s3_auth_test::deleted_customer_returns_invalid_access_key_id ... ok
+test security_test::tenant_rate_limit_is_per_tenant ... ok
+test storage_s3_auth_test::header_whitespace_normalized ... ok
+test storage_s3_auth_test::host_must_be_in_signed_headers ... ok
+test storage_s3_auth_test::invalid_signature_is_rejected ... ok
+test storage_s3_auth_test::missing_content_sha256_header_is_rejected ... ok
+test storage_s3_auth_test::repeated_headers_comma_joined_in_order ... ok
+test storage_s3_auth_test::reserved_chars_in_path_and_query_are_uri_encoded ... ok
+test storage_s3_auth_test::revoked_key_is_rejected ... ok
+test security_test::tenant_rate_limit_returns_429_after_threshold ... ok
+test security_test::tenant_rate_limit_skips_unauthenticated_requests ... ok
+test storage_s3_auth_test::signed_headers_must_exist_in_request ... ok
+test storage_s3_auth_test::suspended_customer_is_rejected ... ok
+test security_test::tenant_rate_limit_sets_retry_after_header ... ok
+test storage_s3_auth_test::unknown_access_key_is_rejected ... ok
+test storage_s3_auth_test::unsigned_payload_accepted ... ok
+test storage_s3_auth_test::uri_path_not_normalized ... ok
+test storage_s3_auth_test::valid_signed_request_authenticates ... ok
+test auth_endpoints_test::verify_email_deleted_customer_returns_400 ... ok
+test migration_052_auth_lockout_state_test::auth_lockout_columns_schema_contract ... ok
+test auth_endpoints_test::verify_email_already_verified_returns_400 ... ok
+test auth_endpoints_test::reset_password_deleted_customer_returns_400 has been running for over 60 seconds
+test migration_048_oauth_identities_test::oauth_identities_schema_contract_is_enforced ... ok
+test auth_endpoints_test::reset_password_invalidates_old_password has been running for over 60 seconds
+test auth_endpoints_test::reset_password_deleted_customer_returns_400 ... ok
+test auth_endpoints_test::reset_password_token_consumed_after_use has been running for over 60 seconds
+test auth_lockout_test::lock_expiry_allows_login_again ... ok
+test auth_lockout_test::login_returns_500_if_lockout_reset_write_is_not_applied ... ok
+test auth_endpoints_test::reset_password_with_valid_token_succeeds has been running for over 60 seconds
+test auth_endpoints_test::reset_password_invalidates_old_password ... ok
+test auth_endpoints_test::reset_password_token_consumed_after_use ... ok
+test auth_lockout_test::login_five_failed_attempts_trigger_lockout has been running for over 60 seconds
+test auth_endpoints_test::reset_password_with_valid_token_succeeds ... ok
+test auth_lockout_test::login_success_clears_failed_login_counters_and_lockout has been running for over 60 seconds
+test security_test::auth_rate_limit_allows_only_admin_keyed_canary_register_bypass ... ok
+test security_test::auth_rate_limit_is_per_ip ... ok
+test security_test::auth_rate_limit_returns_429_after_threshold ... ok
+test security_test::auth_rate_limit_sets_retry_after_header ... ok
+test security_test::auth_rate_limit_uses_last_forwarded_ip ... ok
+test security_test::auth_rate_limit_uses_x_real_ip_when_forwarded_header_missing ... ok
+test security_test::auth_rate_limit_zero_rpm_is_clamped_to_one ... ok
+test security_test::pricing_compare_rate_limit_returns_429_after_threshold ... ok
+test security_test::resend_password_reset_rate_limit_sets_retry_after_header ... ok
+test auth_lockout_test::login_five_failed_attempts_trigger_lockout ... ok
+test auth_lockout_test::login_success_clears_failed_login_counters_and_lockout ... ok
+test security_test::reset_password_ip_rate_limit_no_per_customer_lockout ... ok
+test security_test::reset_password_rate_limit_sets_retry_after_header ... ok
+test security_test::verify_email_ip_rate_limit_no_per_customer_lockout ... ok
+test security_test::verify_email_rate_limit_sets_retry_after_header ... ok
+
+failures:
+
+failures:
+    admin_broadcast_test::live_broadcast_capacity_guardrail_requires_bounded_concurrency
+
+test result: FAILED. 345 passed; 1 failed; 59 ignored; 0 measured; 0 filtered out; finished in 126.84s
+
+exit=101
+wall_s=126
+named_guard_panics=0
+utc_end=2026-08-05T09:28:18Z

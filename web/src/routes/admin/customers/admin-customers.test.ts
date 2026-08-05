@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
+import { ADMIN_SESSION_COOKIE } from '$lib/server/admin-session';
 import {
-	ADMIN_SESSION_COOKIE,
-	clearAdminSessionsForTest,
-	createAdminSession
-} from '$lib/server/admin-session';
+	OPAQUE_DURABLE_SESSION_TOKEN,
+	adminSessionRouteEvent,
+	authenticatedRouteLoadContext as authenticatedDetailLoadContext
+} from '../admin_session_durable_test_support';
 import {
 	ACTIVE_DETAIL_FIXTURE,
 	DETAIL_FIXTURE,
@@ -33,63 +34,17 @@ vi.mock('$env/dynamic/private', () => ({
 
 beforeEach(() => {
 	process.env.ADMIN_KEY = 'test-admin-key';
-	clearAdminSessionsForTest();
 });
 
 afterEach(() => {
 	cleanup();
-	clearAdminSessionsForTest();
 	delete process.env.ADMIN_KEY;
 	vi.clearAllMocks();
 });
 
-function authenticatedDetailLoadContext(overrides: Record<string, unknown>) {
-	const adminSession = createAdminSession(3600);
-	return {
-		cookies: {
-			get: (name: string) => (name === ADMIN_SESSION_COOKIE ? adminSession.id : undefined)
-		},
-		...overrides
-	} as never;
-}
-
 describe('Admin customer detail', () => {
 	it('detail fixture omits legacy subscription field from tenant contract', () => {
 		expect(DETAIL_FIXTURE.tenant).not.toHaveProperty(LEGACY_SUBSCRIPTION_FIELD);
-	});
-
-	it('admin customers list route keeps stage-4 list affordance hooks', async () => {
-		const CustomersPage = (await import('./+page.svelte')).default;
-
-		render(CustomersPage, {
-			data: {
-				environment: 'test',
-				isAuthenticated: true,
-				customers: [
-					{
-						id: 'aaaaaaaa-0001-0000-0000-000000000001',
-						name: 'Acme Corp',
-						email: 'ops@acme.dev',
-						status: 'active',
-						billing_plan: 'shared',
-						index_count: 3,
-						last_accessed_at: '2026-04-20T12:00:00Z',
-						overdue_invoice_count: 0,
-						billing_health: 'green',
-						created_at: '2026-04-25T12:00:00Z',
-						updated_at: '2026-04-20T12:00:00Z'
-					}
-				]
-			}
-		});
-
-		expect(screen.getByTestId('customer-search')).toHaveAttribute(
-			'placeholder',
-			'Search name or email'
-		);
-		expect(screen.getByTestId('status-filter')).toHaveClass('border-[#f6c15b]');
-		expect(screen.getByTestId('customers-table')).toBeInTheDocument();
-		expect(screen.getByRole('columnheader', { name: /name/i })).toHaveAttribute('scope', 'col');
 	});
 
 	it('detail load returns 404 when the tenant is missing', async () => {
@@ -370,25 +325,23 @@ describe('Admin customer detail', () => {
 
 		let capturedUrl = '';
 		let capturedMethod = '';
-		const adminSession = createAdminSession(3600);
 
 		const request = new Request('http://localhost/admin/customers/aaaaaaaa-0002/reactivate', {
 			method: 'POST',
 			body: new URLSearchParams()
 		});
 
-		const result = await actions.reactivate({
-			request,
-			fetch: async (input: string | URL | Request, init?: RequestInit) => {
-				capturedUrl = typeof input === 'string' ? input : input.toString();
-				capturedMethod = init?.method ?? 'GET';
-				return new Response(JSON.stringify({ message: 'customer reactivated' }), { status: 200 });
-			},
-			params: { id: 'aaaaaaaa-0002-0000-0000-000000000002' },
-			cookies: {
-				get: (name: string) => (name === ADMIN_SESSION_COOKIE ? adminSession.id : undefined)
-			}
-		} as never);
+		const result = await actions.reactivate(
+			adminSessionRouteEvent({
+				request,
+				fetch: async (input: string | URL | Request, init?: RequestInit) => {
+					capturedUrl = typeof input === 'string' ? input : input.toString();
+					capturedMethod = init?.method ?? 'GET';
+					return new Response(JSON.stringify({ message: 'customer reactivated' }), { status: 200 });
+				},
+				params: { id: 'aaaaaaaa-0002-0000-0000-000000000002' }
+			}) as never
+		);
 
 		expect(capturedUrl).toContain(
 			'/admin/customers/aaaaaaaa-0002-0000-0000-000000000002/reactivate'
@@ -449,15 +402,17 @@ describe('Admin customer detail', () => {
 				actions: Awaited<typeof import('./[id]/+page.server')>['actions'],
 				fetchSpy: ReturnType<typeof vi.fn>
 			) =>
-				actions.reactivate({
-					request: new Request('http://localhost/admin/customers/aaaaaaaa-0002/reactivate', {
-						method: 'POST',
-						body: new URLSearchParams()
-					}),
-					fetch: fetchSpy,
-					params: { id: 'aaaaaaaa-0002-0000-0000-000000000002' },
-					cookies: { get: () => undefined }
-				} as never)
+				actions.reactivate(
+					adminSessionRouteEvent({
+						request: new Request('http://localhost/admin/customers/aaaaaaaa-0002/reactivate', {
+							method: 'POST',
+							body: new URLSearchParams()
+						}),
+						fetch: fetchSpy,
+						params: { id: 'aaaaaaaa-0002-0000-0000-000000000002' },
+						cookies: { get: () => undefined }
+					}) as never
+				)
 		},
 		{
 			name: 'updateQuotas',
@@ -465,15 +420,17 @@ describe('Admin customer detail', () => {
 				actions: Awaited<typeof import('./[id]/+page.server')>['actions'],
 				fetchSpy: ReturnType<typeof vi.fn>
 			) =>
-				actions.updateQuotas({
-					request: new Request('http://localhost/admin/customers/aaaaaaaa-0002/quotas', {
-						method: 'POST',
-						body: new URLSearchParams({ max_query_rps: '250' })
-					}),
-					fetch: fetchSpy,
-					params: { id: 'aaaaaaaa-0002-0000-0000-000000000002' },
-					cookies: { get: () => undefined }
-				} as never)
+				actions.updateQuotas(
+					adminSessionRouteEvent({
+						request: new Request('http://localhost/admin/customers/aaaaaaaa-0002/quotas', {
+							method: 'POST',
+							body: new URLSearchParams({ max_query_rps: '250' })
+						}),
+						fetch: fetchSpy,
+						params: { id: 'aaaaaaaa-0002-0000-0000-000000000002' },
+						cookies: { get: () => undefined }
+					}) as never
+				)
 		},
 		{
 			name: 'syncStripe',
@@ -481,15 +438,17 @@ describe('Admin customer detail', () => {
 				actions: Awaited<typeof import('./[id]/+page.server')>['actions'],
 				fetchSpy: ReturnType<typeof vi.fn>
 			) =>
-				actions.syncStripe({
-					request: new Request('http://localhost/admin/customers/aaaaaaaa-0002/sync-stripe', {
-						method: 'POST',
-						body: new URLSearchParams()
-					}),
-					fetch: fetchSpy,
-					params: { id: 'aaaaaaaa-0002-0000-0000-000000000002' },
-					cookies: { get: () => undefined }
-				} as never)
+				actions.syncStripe(
+					adminSessionRouteEvent({
+						request: new Request('http://localhost/admin/customers/aaaaaaaa-0002/sync-stripe', {
+							method: 'POST',
+							body: new URLSearchParams()
+						}),
+						fetch: fetchSpy,
+						params: { id: 'aaaaaaaa-0002-0000-0000-000000000002' },
+						cookies: { get: () => undefined }
+					}) as never
+				)
 		},
 		{
 			name: 'softDelete',
@@ -497,15 +456,17 @@ describe('Admin customer detail', () => {
 				actions: Awaited<typeof import('./[id]/+page.server')>['actions'],
 				fetchSpy: ReturnType<typeof vi.fn>
 			) =>
-				actions.softDelete({
-					request: new Request('http://localhost/admin/customers/aaaaaaaa-0002', {
-						method: 'POST',
-						body: new URLSearchParams()
-					}),
-					fetch: fetchSpy,
-					params: { id: 'aaaaaaaa-0002-0000-0000-000000000002' },
-					cookies: { get: () => undefined }
-				} as never)
+				actions.softDelete(
+					adminSessionRouteEvent({
+						request: new Request('http://localhost/admin/customers/aaaaaaaa-0002', {
+							method: 'POST',
+							body: new URLSearchParams()
+						}),
+						fetch: fetchSpy,
+						params: { id: 'aaaaaaaa-0002-0000-0000-000000000002' },
+						cookies: { get: () => undefined }
+					}) as never
+				)
 		},
 		{
 			name: 'terminateDeployment',
@@ -513,14 +474,16 @@ describe('Admin customer detail', () => {
 				actions: Awaited<typeof import('./[id]/+page.server')>['actions'],
 				fetchSpy: ReturnType<typeof vi.fn>
 			) =>
-				actions.terminateDeployment({
-					request: new Request('http://localhost/admin/customers/aaaaaaaa-0002/deployments', {
-						method: 'POST',
-						body: new URLSearchParams({ deployment_id: 'bbbbbbbb-0001-0000-0000-000000000001' })
-					}),
-					fetch: fetchSpy,
-					cookies: { get: () => undefined }
-				} as never)
+				actions.terminateDeployment(
+					adminSessionRouteEvent({
+						request: new Request('http://localhost/admin/customers/aaaaaaaa-0002/deployments', {
+							method: 'POST',
+							body: new URLSearchParams({ deployment_id: 'bbbbbbbb-0001-0000-0000-000000000001' })
+						}),
+						fetch: fetchSpy,
+						cookies: { get: () => undefined }
+					}) as never
+				)
 		}
 	])('%s action redirects to admin login when session is missing', async ({ invoke }) => {
 		const { actions } = await import('./[id]/+page.server');
@@ -629,8 +592,10 @@ describe('Admin customer detail', () => {
 
 		const url = new URL('http://localhost/admin/customers/' + CUSTOMER_ID);
 		const cookieStore = new Map<string, { value: string; options: Record<string, unknown> }>();
-		const adminSession = createAdminSession(3600);
-		cookieStore.set(ADMIN_SESSION_COOKIE, { value: adminSession.id, options: { path: '/admin' } });
+		cookieStore.set(ADMIN_SESSION_COOKIE, {
+			value: OPAQUE_DURABLE_SESSION_TOKEN,
+			options: { path: '/admin' }
+		});
 
 		const cookies = {
 			get: (name: string) => cookieStore.get(name)?.value,
@@ -641,21 +606,23 @@ describe('Admin customer detail', () => {
 		};
 
 		try {
-			await actions.impersonate({
-				request: new Request(url, { method: 'POST', body: new URLSearchParams() }),
-				fetch: async (input: string | URL | Request, init?: RequestInit) => {
-					capturedUrl = typeof input === 'string' ? input : input.toString();
-					capturedMethod = init?.method ?? 'GET';
-					capturedBody = String(init?.body ?? '');
-					return new Response(
-						JSON.stringify({ token: MINTED_TOKEN, expires_at: '2026-03-23T14:00:00Z' }),
-						{ status: 200 }
-					);
-				},
-				params: { id: CUSTOMER_ID },
-				url,
-				cookies
-			} as never);
+			await actions.impersonate(
+				adminSessionRouteEvent({
+					request: new Request(url, { method: 'POST', body: new URLSearchParams() }),
+					fetch: async (input: string | URL | Request, init?: RequestInit) => {
+						capturedUrl = typeof input === 'string' ? input : input.toString();
+						capturedMethod = init?.method ?? 'GET';
+						capturedBody = String(init?.body ?? '');
+						return new Response(
+							JSON.stringify({ token: MINTED_TOKEN, expires_at: '2026-03-23T14:00:00Z' }),
+							{ status: 200 }
+						);
+					},
+					params: { id: CUSTOMER_ID },
+					url,
+					cookies
+				}) as never
+			);
 			// redirect throws — should not reach here
 			expect.unreachable('Expected redirect to be thrown');
 		} catch (e: unknown) {
@@ -698,13 +665,15 @@ describe('Admin customer detail', () => {
 		};
 
 		try {
-			await actions.impersonate({
-				request: new Request(url, { method: 'POST', body: new URLSearchParams() }),
-				fetch: fetchSpy,
-				params: { id: CUSTOMER_ID },
-				url,
-				cookies
-			} as never);
+			await actions.impersonate(
+				adminSessionRouteEvent({
+					request: new Request(url, { method: 'POST', body: new URLSearchParams() }),
+					fetch: fetchSpy,
+					params: { id: CUSTOMER_ID },
+					url,
+					cookies
+				}) as never
+			);
 			expect.unreachable('Expected redirect to be thrown');
 		} catch (e: unknown) {
 			const err = e as { status: number; location: string };
@@ -715,31 +684,29 @@ describe('Admin customer detail', () => {
 		expect(fetchSpy).not.toHaveBeenCalled();
 	});
 
-	it('impersonate action returns fail when createToken errors', async () => {
+	it('impersonate action redirects to admin login when createToken loses authorization', async () => {
 		const { actions } = await import('./[id]/+page.server');
 
 		const CUSTOMER_ID = 'aaaaaaaa-0002-0000-0000-000000000002';
 		const url = new URL('http://localhost/admin/customers/' + CUSTOMER_ID);
-		const adminSession = createAdminSession(3600);
-
 		const cookies = {
-			get: (name: string) => (name === ADMIN_SESSION_COOKIE ? adminSession.id : undefined),
+			get: (name: string) =>
+				name === ADMIN_SESSION_COOKIE ? OPAQUE_DURABLE_SESSION_TOKEN : undefined,
 			set: () => {},
 			delete: () => {}
 		};
 
-		const result = await actions.impersonate({
-			request: new Request(url, { method: 'POST', body: new URLSearchParams() }),
-			fetch: async () => new Response('Unauthorized', { status: 401 }),
-			params: { id: CUSTOMER_ID },
-			url,
-			cookies
-		} as never);
-
-		expect(result).toBeDefined();
-		const data = (result as { data: { success: boolean; error: string } }).data;
-		expect(data.success).toBe(false);
-		expect(data.error).toBeTruthy();
+		await expect(
+			actions.impersonate(
+				adminSessionRouteEvent({
+					request: new Request(url, { method: 'POST', body: new URLSearchParams() }),
+					fetch: async () => new Response('Unauthorized', { status: 401 }),
+					params: { id: CUSTOMER_ID },
+					url,
+					cookies
+				}) as never
+			)
+		).rejects.toMatchObject({ status: 303, location: '/admin/login' });
 	});
 
 	it('active customer shows suspend and impersonate buttons, not reactivate', async () => {
@@ -773,23 +740,21 @@ describe('Admin customer detail', () => {
 
 		let capturedUrl = '';
 		let capturedMethod = '';
-		const adminSession = createAdminSession(3600);
 
-		const result = await actions.suspend({
-			request: new Request('http://localhost/admin/customers/aaaaaaaa-0001/suspend', {
-				method: 'POST',
-				body: new URLSearchParams()
-			}),
-			fetch: async (input: string | URL | Request, init?: RequestInit) => {
-				capturedUrl = typeof input === 'string' ? input : input.toString();
-				capturedMethod = init?.method ?? 'GET';
-				return new Response(JSON.stringify({ message: 'customer suspended' }), { status: 200 });
-			},
-			params: { id: 'aaaaaaaa-0001-0000-0000-000000000001' },
-			cookies: {
-				get: (name: string) => (name === ADMIN_SESSION_COOKIE ? adminSession.id : undefined)
-			}
-		} as never);
+		const result = await actions.suspend(
+			adminSessionRouteEvent({
+				request: new Request('http://localhost/admin/customers/aaaaaaaa-0001/suspend', {
+					method: 'POST',
+					body: new URLSearchParams()
+				}),
+				fetch: async (input: string | URL | Request, init?: RequestInit) => {
+					capturedUrl = typeof input === 'string' ? input : input.toString();
+					capturedMethod = init?.method ?? 'GET';
+					return new Response(JSON.stringify({ message: 'customer suspended' }), { status: 200 });
+				},
+				params: { id: 'aaaaaaaa-0001-0000-0000-000000000001' }
+			}) as never
+		);
 
 		expect(capturedUrl).toContain('/admin/customers/aaaaaaaa-0001-0000-0000-000000000001/suspend');
 		expect(capturedMethod).toBe('POST');
@@ -801,17 +766,19 @@ describe('Admin customer detail', () => {
 		const fetchSpy = vi.fn();
 
 		try {
-			await actions.suspend({
-				request: new Request('http://localhost/admin/customers/aaaaaaaa-0001/suspend', {
-					method: 'POST',
-					body: new URLSearchParams()
-				}),
-				fetch: fetchSpy,
-				params: { id: 'aaaaaaaa-0001-0000-0000-000000000001' },
-				cookies: {
-					get: () => undefined
-				}
-			} as never);
+			await actions.suspend(
+				adminSessionRouteEvent({
+					request: new Request('http://localhost/admin/customers/aaaaaaaa-0001/suspend', {
+						method: 'POST',
+						body: new URLSearchParams()
+					}),
+					fetch: fetchSpy,
+					params: { id: 'aaaaaaaa-0001-0000-0000-000000000001' },
+					cookies: {
+						get: () => undefined
+					}
+				}) as never
+			);
 			expect.unreachable('Expected redirect to be thrown');
 		} catch (e: unknown) {
 			const err = e as { status: number; location: string };
@@ -824,19 +791,17 @@ describe('Admin customer detail', () => {
 
 	it('suspend action returns fail on error', async () => {
 		const { actions } = await import('./[id]/+page.server');
-		const adminSession = createAdminSession(3600);
 
-		const result = await actions.suspend({
-			request: new Request('http://localhost/admin/customers/bad-id/suspend', {
-				method: 'POST',
-				body: new URLSearchParams()
-			}),
-			fetch: async () => new Response('Not Found', { status: 404 }),
-			params: { id: 'nonexistent-id' },
-			cookies: {
-				get: (name: string) => (name === ADMIN_SESSION_COOKIE ? adminSession.id : undefined)
-			}
-		} as never);
+		const result = await actions.suspend(
+			adminSessionRouteEvent({
+				request: new Request('http://localhost/admin/customers/bad-id/suspend', {
+					method: 'POST',
+					body: new URLSearchParams()
+				}),
+				fetch: async () => new Response('Not Found', { status: 404 }),
+				params: { id: 'nonexistent-id' }
+			}) as never
+		);
 
 		expect(result).toBeDefined();
 		const data = (result as { data: { success: boolean; error: string } }).data;

@@ -44,6 +44,7 @@ pub mod vm_inventory_repo;
 pub mod vm_lifecycle_event_repo;
 pub mod webhook_event_repo;
 
+pub use crate::services::audit_log::CustomerHardDeleteAuditPolicy;
 pub use algolia_import_job_repo::{
     clamp_algolia_import_job_list_limit, AlgoliaImportCancelDispatch, AlgoliaImportCancelOutcome,
     AlgoliaImportDispatchAdmission, AlgoliaImportDispatchAdmissionOutcome,

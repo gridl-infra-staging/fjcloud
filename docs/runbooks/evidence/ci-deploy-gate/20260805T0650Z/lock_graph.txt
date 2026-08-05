@@ -1,0 +1,110 @@
+Stage 1 — CI deploy-gate hang: live PostgreSQL lock graph + verdict
+Captured on Linux devbox fjcloud-devbox-fri (i-0d0e9aaa87c7a4005), x86_64, 16 vCPU,
+Ubuntu 24.04, postgres:16 (docker compose, default max_connections=100).
+DATABASE_URL=postgres://griddle:griddle_local@127.0.0.1:5432/fjcloud_test
+
+============================================================================
+PREMISE (re-derived from live systems 2026-08-05, not trusted from PURPOSE)
+============================================================================
+- Newest gridl-infra-staging/fjcloud CI/push run: id 30688467404, conclusion=failure,
+  headSha a60600178f13352c335ec11f548e7a3ce5eb4647, createdAt 2026-08-01T06:48:58Z.
+  Every row newer than this is a `schedule` event (Outside AWS Health / Nightly Stripe
+  Clock), NOT a push. The 2026-08-01 red push run is still the newest push.
+- api.staging.flapjack.foo/version -> dev_sha a384a42e..., 1582 commits behind origin/main.
+- api.flapjack.foo/version        -> dev_sha 99262771..., 1628 commits behind origin/main.
+- Decision gate: newest push NOT green AND both deployed SHAs stale => 2026-08-01 exit-124
+  premise HOLDS. Continue.
+
+============================================================================
+REPRODUCTION ATTEMPTS ON LINUX (the defect is invisible on macOS)
+============================================================================
+A. 16-core full workspace:  DATABASE_URL=... timeout 900 cargo test --workspace
+   -> EXIT=101 (NOT 124). Both named tests PASSED:
+        admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins ... ok
+        admin_vms_test::decommission_endpoint_wins_concurrent_reference_publication_after_inventory_lock ... ok
+      auth_admin binary: `test result: ok. 346 passed; 0 failed; 59 ignored ... 10.36s`.
+      The 101 is an unrelated, out-of-scope failure in the `platform` binary:
+        migration_routes_test::verify::verify_seeded_local_source_red_proof  (FAILED, 1 of 1678)
+        (verify_support.rs:240) — owned by FR-2 / infra/api/src/routes/migration/**, NOT this lane.
+B. 25x isolated, 4-core:  taskset -c 0-3 cargo test -p api --test auth_admin  (25 iterations)
+   -> 25/25 exit 0, named_ok=2 every iteration, 0 hangs. See loop_authadmin_4core.log.
+C. 4-core full workspace:  taskset -c 0-3 timeout 900 cargo test --workspace
+   -> Both named tests PASSED again ("... ok"); run still executing the long `platform`
+      binary at session cutoff (see handoff). No stall at the named tests.
+
+STUCK DETECTOR (backends blocked >6s = beyond the tests' intended 2s waits) ran the whole
+time across A/B/C and NEVER FIRED — stuck.log was never created. No lock wait ever exceeded
+the harness's own 2-second bounds.
+
+============================================================================
+THE LOCK GRAPH (live pg_stat_activity, 16-core run, full log: pg_samples_16core.log)
+============================================================================
+Representative sample at 2026-08-05 06:56:57 (the decommission<->publication race, live):
+
+  pid  | state  | wait_event_type | wait_event    | pg_blocking_pids | query
+  4677 | active | IO              | WALSync       | {}               | COMMIT
+  4678 | active | Lock            | transactionid | {4677}           | UPDATE customer_tenants SET vm_id = $1
+                                                                       WHERE customer_id = $2 AND tenant_id = $3
+
+  Direction: 4678 (the reference-publication task) waits on 4677 (the VM-retirement
+  transaction, which is COMMITting). 4677 waits on NOTHING ({}). This is a single
+  directional wait, NOT a cycle. It resolves the instant 4677 commits — exactly the
+  intended "inventory lock wins" ordering the test asserts. No back-edge exists: the
+  publication only ever touches customer_tenants; it never waits on vm_inventory.
+
+Also present (same sample) — a pure harness convoy of ~15 backends serialized on a shared
+advisory lock during parallel per-schema migration setup:
+
+  4526 SELECT pg_advisory_lock($1)  blocked_by {4522}
+  4530 SELECT pg_advisory_lock($1)  blocked_by {4522,4526}
+  ...  (chain continues 4560,4564,4568,4580,4598,4604,4617,4622,4640,4653,4657,4661)
+
+This convoy is created by many isolated test schemas each running migrations concurrently
+against one server and serializing on one advisory lock. Production migrates ONE database
+once; it never has this convoy. Every convoy member cleared in the next sample.
+
+============================================================================
+HANDLER SOURCE ANALYSIS (why no production cycle is possible)
+============================================================================
+decommission_vm  (infra/api/src/routes/admin/vms.rs:473)
+  -> PgVmInventoryRepo::decommission_if_unreferenced (infra/api/src/repos/pg_vm_inventory_repo.rs:188)
+     1. self.pool.begin()                              -- ONE connection, ONE transaction T
+     2. SELECT ... FROM vm_inventory WHERE id=$1 FOR UPDATE   (lock_vm_for_retirement :29)
+     3. SELECT ... FROM vm_inventory_reference_blockers($1)   (load_retirement_blockers :45)  -- reads customer_tenants
+     4. UPDATE vm_inventory SET status='decommissioned' WHERE id=$1 AND status='active'
+     5. COMMIT
+  The handler uses EXACTLY ONE connection for the whole operation. It never acquires a
+  second connection while holding the first. Therefore the test's route pool bound
+  pool_in_schema(schema, 1) (admin_vm_retirement_test_support.rs:186,:231) is SUFFICIENT
+  for the handler — the "single-connection pool starves the handler" hypothesis is FALSIFIED.
+  Lock order within T is linear (vm_inventory row, then customer_tenants read); the
+  concurrent publication takes only a customer_tenants row lock and never reaches back to
+  vm_inventory, so the two transactions cannot form a cycle. With an unbounded production
+  pool the same handler issues the same single-transaction, single-direction lock sequence.
+
+============================================================================
+VERDICT
+============================================================================
+TEST_HARNESS_ARTIFACT
+
+Support: the only serialization observed in the live lock graph is harness-manufactured
+(the per-schema advisory-lock migration convoy, the tests' own `LOCK TABLE customer_tenants
+IN ACCESS EXCLUSIVE` gate, and the single-connection micro-pools), never a cycle between
+statements the decommission handler itself issues. The handler runs a single transaction
+with a linear lock order and no back-edge (pids 4677/4678 above: one-way wait, resolves on
+commit), so with an unbounded production pool it cannot deadlock. The CI >60s stall is a
+contention/starvation property of dozens of schema-isolated micro-pools against one
+connection-capped, slower shared server — a harness bound production does not have.
+
+Stage 2 keys its fix location on this verdict: TEST_HARNESS_ARTIFACT ->
+infra/api/tests/common/admin_vm_retirement_test_support.rs (the harness), NOT
+infra/api/src/routes/admin/vms.rs (the handler).
+
+CAVEAT / PROXY BIAS (per stage step 4/5): the exit-124 >900s hang did NOT reproduce on this
+16-vCPU x86 devbox under any of runs A/B/C — the named tests passed every time and no lock
+wait ever crossed 6s. The CI specimen is a 4-vCPU GitHub-hosted runner. This verdict rests
+on (i) the live lock-graph wait direction above and (ii) the single-transaction handler
+source, using the CI log as the specimen and the contended local runs as proxy. Stage 2 must
+treat the CI log as the primary specimen and a deliberately contended local run as proxy,
+and its bounded-timeout guard (wrapping the helper body in tokio::time::timeout) is what will
+turn any residual harness starvation into a bounded, self-naming failure on every platform.

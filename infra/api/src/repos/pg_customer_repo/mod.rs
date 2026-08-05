@@ -21,6 +21,8 @@ use crate::repos::customer_repo::{
     ResendPasswordResetReservation, ResendVerificationOutcome, ResendVerificationReservation,
 };
 use crate::repos::error::RepoError;
+use crate::services::audit_log::AuditEntry;
+use crate::services::audit_log::CustomerHardDeleteAuditPolicy;
 
 pub struct PgCustomerRepo {
     pool: PgPool,
@@ -104,8 +106,9 @@ impl CustomerRepo for PgCustomerRepo {
         &self,
         id: Uuid,
         kind: CustomerHardDeleteKind,
+        audit_policy: CustomerHardDeleteAuditPolicy,
     ) -> Result<CustomerHardDeleteOutcome, RepoError> {
-        hard_delete::hard_delete(&self.pool, id, kind).await
+        hard_delete::hard_delete(&self.pool, id, kind, audit_policy).await
     }
 
     async fn set_email_verify_token(
@@ -297,8 +300,8 @@ impl CustomerRepo for PgCustomerRepo {
         billing::set_billing_plan(&self.pool, id, plan).await
     }
 
-    async fn suspend(&self, id: Uuid) -> Result<bool, RepoError> {
-        billing::suspend(&self.pool, id).await
+    async fn suspend(&self, id: Uuid, audit_entry: AuditEntry) -> Result<bool, RepoError> {
+        billing::suspend(&self.pool, id, audit_entry).await
     }
 
     async fn reactivate(&self, id: Uuid) -> Result<bool, RepoError> {

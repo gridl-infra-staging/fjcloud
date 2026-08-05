@@ -217,7 +217,13 @@ async fn suspended_customer_is_rejected() {
     let access_key = "gridl_s3_suspended123456ab";
     let secret_key = "wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY01";
     let (_key_id, customer_id) = h.insert_key_with_customer(access_key, secret_key).await;
-    h.customer_repo.suspend(customer_id).await.unwrap();
+    h.customer_repo
+        .suspend(
+            customer_id,
+            crate::common::customer_suspended_audit_entry(customer_id),
+        )
+        .await
+        .unwrap();
 
     let now = Utc::now();
     let amz_date = now.format("%Y%m%dT%H%M%SZ").to_string();

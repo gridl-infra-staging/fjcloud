@@ -228,6 +228,7 @@ require_single_line_env_value "DISCORD_WEBHOOK_URL" "$DISCORD_WEBHOOK_URL"
 
 # Write environment files and Flapjack's persisted admin key
 mkdir -p /etc/flapjack /etc/fjcloud /var/lib/flapjack/data
+chown flapjack:flapjack /var/lib/flapjack/data
 
 # Create secret-bearing env files with restrictive permissions from first write.
 (
@@ -333,6 +334,7 @@ mod tests {
         assert!(script.contains("printf '%s\\n' \"$API_KEY\" > /var/lib/flapjack/data/.admin_key"));
         assert!(script.contains("User=fjcloud"));
         assert!(script.contains("Group=fjcloud"));
+        assert!(script.contains("\nchown flapjack:flapjack /var/lib/flapjack/data\n"));
         assert!(script.contains("systemctl enable --now flapjack fj-metering-agent"));
         assert!(!script.contains("runtime-env.conf"));
         assert!(!script.contains("/etc/flapjack/metering-env"));

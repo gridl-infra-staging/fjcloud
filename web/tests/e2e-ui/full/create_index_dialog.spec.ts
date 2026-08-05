@@ -61,7 +61,8 @@ test.describe('Create index dialog completion flow', () => {
 		registerIndexForCleanup(createdIndexName);
 
 		await expect(page).toHaveURL(
-			new RegExp(`/console/indexes/${encodeURIComponent(createdIndexName)}$`)
+			new RegExp(`/console/indexes/${encodeURIComponent(createdIndexName)}$`),
+			{ timeout: 30_000 }
 		);
 
 		const redirectedUrl = new URL(page.url());

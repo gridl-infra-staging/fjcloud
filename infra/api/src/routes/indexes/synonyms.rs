@@ -169,6 +169,51 @@ pub async fn save_synonym(
     Ok(Json(result))
 }
 
+/// `POST /indexes/{name}/synonyms/clear` — clear all synonyms.
+///
+/// **Auth:** JWT (`AuthenticatedTenant`).
+/// Rejects cold/restoring indexes (503), then clears all synonyms from
+/// flapjack using the tenant-scoped UID.
+#[utoipa::path(
+    post,
+    path = "/indexes/{name}/synonyms/clear",
+    tag = "Configuration",
+    params(("name" = String, Path, description = "Index name")),
+    responses(
+        (status = 200, description = "Synonyms cleared", body = serde_json::Value),
+        (status = 400, description = "Bad request", body = ErrorResponse),
+        (status = 401, description = "Authentication required", body = ErrorResponse),
+        (status = 410, description = "Index is in cold storage", body = ErrorResponse),
+        (status = 503, description = "Index is restoring or endpoint not ready", body = ErrorResponse),
+        (status = 404, description = "Index not found", body = ErrorResponse),
+    )
+)]
+pub async fn clear_synonyms(
+    auth: AuthenticatedTenant,
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    let (_, target) = super::resolve_ready_index_target(
+        &state,
+        auth.customer_id,
+        &name,
+        super::IndexNotReadyBehavior::ServiceUnavailable,
+    )
+    .await?;
+
+    let result = state
+        .flapjack_proxy
+        .clear_synonyms(
+            &target.flapjack_url,
+            &target.node_id,
+            &target.region,
+            &target.flapjack_uid,
+        )
+        .await?;
+
+    Ok(Json(result))
+}
+
 /// `DELETE /indexes/{name}/synonyms/{object_id}` — delete a synonym.
 ///
 /// **Auth:** JWT (`AuthenticatedTenant`).

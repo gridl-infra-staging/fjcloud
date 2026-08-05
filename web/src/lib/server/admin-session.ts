@@ -1,13 +1,29 @@
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+/**
+ * Server-side boundary for durable admin sessions.
+ *
+ * `infra/api` is the single source of truth for admin credential validation,
+ * session validation, revocation, operator identity, and timeout enforcement.
+ * This module owns only the web side of that contract: the cookie name, the
+ * requested cookie lifetime, per-IP login throttling, and fail-closed wrappers
+ * around the durable session endpoints.
+ */
+import { redirect } from '@sveltejs/kit';
+import {
+	AdminClientError,
+	createAdminClientWithCredential,
+	type AdminClient
+} from '$lib/admin-client';
+import { ADMIN_SESSION_COOKIE } from '$lib/auth-session-contracts';
+import { resolveRequestApiBaseUrl } from '$lib/config';
 
-export const ADMIN_SESSION_COOKIE = 'admin_session_id';
+export { ADMIN_SESSION_COOKIE };
 export const DEFAULT_ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 8;
+// Mirrors the API's own absolute-lifetime cap. A cookie that outlives the
+// durable session would only buy a round trip that 401s and bounces back to
+// the login page, so the requested lifetime is clamped to the same ceiling.
+export const MAX_ADMIN_SESSION_ABSOLUTE_LIFETIME_SECONDS = 24 * 60 * 60;
 
-export interface AdminSession {
-	id: string;
-	createdAt: Date;
-	expiresAt: Date;
-}
+const ADMIN_LOGIN_ROUTE = '/admin/login';
 
 export function resolveAdminSessionMaxAgeSeconds(rawValue: string | undefined): number {
 	if (!rawValue) return DEFAULT_ADMIN_SESSION_MAX_AGE_SECONDS;
@@ -19,104 +35,148 @@ export function resolveAdminSessionMaxAgeSeconds(rawValue: string | undefined): 
 	if (!Number.isSafeInteger(parsed) || parsed <= 0) {
 		return DEFAULT_ADMIN_SESSION_MAX_AGE_SECONDS;
 	}
-	return parsed;
+	return Math.min(parsed, MAX_ADMIN_SESSION_ABSOLUTE_LIFETIME_SECONDS);
 }
 
-// HMAC token format: <expiry_epoch_seconds_hex>.<hmac_hex>
-// Self-validating — no server-side state needed across CF Workers isolates.
-function signToken(expiryEpochSeconds: number, signingKey: string): string {
-	const payload = expiryEpochSeconds.toString(16);
-	const mac = createHmac('sha256', signingKey).update(payload).digest('hex');
-	return `${payload}.${mac}`;
+/** The request-scoped pieces a durable session call needs from a SvelteKit event. */
+export interface AdminSessionRequestEvent {
+	fetch: typeof globalThis.fetch;
+	cookies: { get(name: string): string | undefined };
+	locals?: { apiBaseUrl?: string };
+	url?: URL;
 }
 
-function verifyToken(
-	token: string,
-	signingKey: string
-): { valid: true; expiresAt: Date } | { valid: false } {
-	const dotIndex = token.indexOf('.');
-	if (dotIndex === -1) return { valid: false };
-
-	const payload = token.substring(0, dotIndex);
-	const providedMac = token.substring(dotIndex + 1);
-
-	if (!payload || !providedMac) return { valid: false };
-
-	const expectedMac = createHmac('sha256', signingKey).update(payload).digest('hex');
-
-	if (providedMac.length !== expectedMac.length) return { valid: false };
-
-	const providedBuf = Buffer.from(providedMac, 'hex');
-	const expectedBuf = Buffer.from(expectedMac, 'hex');
-	if (providedBuf.length !== expectedBuf.length) return { valid: false };
-
-	if (!timingSafeEqual(providedBuf, expectedBuf)) return { valid: false };
-
-	const expiryEpoch = parseInt(payload, 16);
-	if (!Number.isFinite(expiryEpoch)) return { valid: false };
-
-	const expiresAt = new Date(expiryEpoch * 1000);
-	if (expiresAt.getTime() <= Date.now()) return { valid: false };
-
-	return { valid: true, expiresAt };
+export interface DurableAdminSessionIdentity {
+	operatorId: string;
 }
 
-export function createAdminSession(maxAgeSeconds: number, signingKey?: string): AdminSession {
-	const now = new Date();
-	const expiresAt = new Date(now.getTime() + maxAgeSeconds * 1000);
-	const expiryEpochSeconds = Math.floor(expiresAt.getTime() / 1000);
+/** An operator-authenticated request: identity plus a client bound to their session. */
+export interface AuthenticatedAdminSession extends DurableAdminSessionIdentity {
+	adminClient: AdminClient;
+}
 
-	let id: string;
-	if (signingKey) {
-		id = signToken(expiryEpochSeconds, signingKey);
-	} else {
-		id = crypto.randomUUID();
+export type CreateDurableAdminSessionResult =
+	| { ok: true; sessionToken: string }
+	| { ok: false; reason: 'invalid_credential' | 'unavailable' };
+
+function isAdminAuthenticationError(error: unknown): boolean {
+	return error instanceof AdminClientError && (error.status === 401 || error.status === 403);
+}
+
+/** Ends the browser session when a session-authenticated API call loses authorization. */
+export function redirectIfAdminSessionAuthError(error: unknown): void {
+	if (isAdminAuthenticationError(error)) {
+		redirect(303, ADMIN_LOGIN_ROUTE);
 	}
-
-	const session: AdminSession = { id, createdAt: now, expiresAt };
-	sessions.set(session.id, session);
-	return session;
 }
 
-const sessions = new Map<string, AdminSession>();
+function adminSessionClient(event: AdminSessionRequestEvent, sessionToken: string): AdminClient {
+	return createAdminClientWithCredential(
+		resolveRequestApiBaseUrl(event.locals, event.url),
+		{ kind: 'session', value: sessionToken },
+		event.fetch
+	);
+}
 
-export function getAdminSession(
-	sessionId: string | undefined,
-	signingKey?: string
-): AdminSession | null {
-	if (!sessionId) return null;
+/**
+ * Exchanges a submitted admin key for a durable session token. The key is
+ * never compared locally — the API decides whether it identifies an operator.
+ */
+export async function createDurableAdminSession(
+	event: AdminSessionRequestEvent,
+	submittedAdminKey: string,
+	maxAgeSeconds: number
+): Promise<CreateDurableAdminSessionResult> {
+	const client = createAdminClientWithCredential(
+		resolveRequestApiBaseUrl(event.locals, event.url),
+		{ kind: 'admin-key', value: submittedAdminKey },
+		event.fetch
+	);
 
-	// Try stateless HMAC verification first (works across CF Workers isolates)
-	if (signingKey && sessionId.includes('.')) {
-		const result = verifyToken(sessionId, signingKey);
-		if (result.valid) {
-			return { id: sessionId, createdAt: new Date(0), expiresAt: result.expiresAt };
-		}
+	try {
+		const { session_id } = await client.createSession(maxAgeSeconds);
+		return session_id
+			? { ok: true, sessionToken: session_id }
+			: { ok: false, reason: 'unavailable' };
+	} catch (error) {
+		return {
+			ok: false,
+			reason: isAdminAuthenticationError(error) ? 'invalid_credential' : 'unavailable'
+		};
+	}
+}
+
+/**
+ * Every non-2xx answer — malformed token, revoked session, idle timeout, API
+ * outage — resolves to null, because the web side cannot safely tell them
+ * apart and none of them mean "authenticated".
+ */
+async function readCurrentOperatorId(client: AdminClient): Promise<string | null> {
+	try {
+		const { operator_id } = await client.getCurrentSession();
+		return operator_id || null;
+	} catch {
 		return null;
 	}
-
-	// Fallback to in-memory map for local dev with UUID tokens
-	const session = sessions.get(sessionId);
-	if (!session) return null;
-	if (session.expiresAt.getTime() <= Date.now()) {
-		sessions.delete(sessionId);
-		return null;
-	}
-	return session;
 }
 
-export function revokeAdminSession(sessionId: string | undefined): void {
-	if (!sessionId) return;
-	sessions.delete(sessionId);
+/** Resolves a cookie value to the operator it belongs to, or null. */
+export async function validateDurableAdminSession(
+	event: AdminSessionRequestEvent,
+	sessionToken: string | undefined
+): Promise<DurableAdminSessionIdentity | null> {
+	if (!sessionToken) return null;
+
+	const operatorId = await readCurrentOperatorId(adminSessionClient(event, sessionToken));
+	return operatorId ? { operatorId } : null;
 }
 
-export function purgeExpiredAdminSessions(): void {
-	const now = Date.now();
-	for (const [id, session] of sessions.entries()) {
-		if (session.expiresAt.getTime() <= now) {
-			sessions.delete(id);
-		}
+/**
+ * Revocation is best-effort by design: an already-invalid session still has to
+ * end with the cookie cleared, so callers never have to branch on the outcome.
+ */
+export async function revokeCurrentDurableAdminSession(
+	event: AdminSessionRequestEvent,
+	sessionToken: string | undefined
+): Promise<void> {
+	if (!sessionToken) return;
+	await adminSessionClient(event, sessionToken)
+		.revokeCurrentSession()
+		.catch(() => undefined);
+}
+
+/** Revokes every session belonging to the operator who owns `sessionToken`. */
+export async function revokeAllDurableAdminSessions(
+	event: AdminSessionRequestEvent,
+	sessionToken: string | undefined
+): Promise<void> {
+	if (!sessionToken) return;
+	await adminSessionClient(event, sessionToken)
+		.revokeAllSessions()
+		.catch(() => undefined);
+}
+
+/**
+ * The guard every privileged admin load and action runs first. It redirects to
+ * the login page unless the request carries a live durable session, and hands
+ * back a client that authenticates as that operator — so admin API calls are
+ * attributable and revocable instead of riding a static server key.
+ */
+export async function requireDurableAdminSession(
+	event: AdminSessionRequestEvent
+): Promise<AuthenticatedAdminSession> {
+	const sessionToken = event.cookies.get(ADMIN_SESSION_COOKIE);
+	if (!sessionToken) {
+		redirect(303, ADMIN_LOGIN_ROUTE);
 	}
+
+	const adminClient = adminSessionClient(event, sessionToken);
+	const operatorId = await readCurrentOperatorId(adminClient);
+	if (!operatorId) {
+		redirect(303, ADMIN_LOGIN_ROUTE);
+	}
+
+	return { operatorId, adminClient };
 }
 
 // --- Admin login rate limiting ---
@@ -179,14 +239,4 @@ export function resetAdminLoginAttempts(ip: string): void {
 
 export function clearAdminLoginAttemptsForTest(): void {
 	loginAttempts.clear();
-}
-
-export function adminKeysMatch(expected: string, provided: string): boolean {
-	const expectedHash = createHash('sha256').update(expected).digest();
-	const providedHash = createHash('sha256').update(provided).digest();
-	return timingSafeEqual(expectedHash, providedHash);
-}
-
-export function clearAdminSessionsForTest(): void {
-	sessions.clear();
 }

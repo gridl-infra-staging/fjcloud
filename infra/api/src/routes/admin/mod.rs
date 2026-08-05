@@ -8,6 +8,7 @@ pub mod migrations;
 pub mod providers;
 pub mod rate_cards;
 pub mod replicas;
+pub mod sessions;
 pub mod tenants;
 pub mod tokens;
 pub mod usage;
@@ -23,6 +24,14 @@ use crate::state::AppState;
 pub fn admin_routes() -> Router<AppState> {
     Router::new()
         .route("/tokens", post(tokens::create_token))
+        .route(
+            "/sessions",
+            post(sessions::create_session).delete(sessions::revoke_all),
+        )
+        .route(
+            "/sessions/current",
+            get(sessions::get_current).delete(sessions::revoke_current),
+        )
         .route(
             "/tenants",
             get(tenants::list_tenants).post(tenants::create_tenant),
@@ -51,7 +60,12 @@ pub fn admin_routes() -> Router<AppState> {
         )
         .route("/fleet", get(deployments::list_fleet))
         .route("/providers", get(providers::list_providers))
-        .route("/tenants/:id/usage", get(usage::get_tenant_usage))
+        .route(
+            "/tenants/:id/usage",
+            get(usage::get_tenant_usage)
+                .post(usage::seed_tenant_usage)
+                .delete(usage::delete_tenant_usage),
+        )
         .route(
             "/tenants/:id/rate-card",
             get(rate_cards::get_rate_card).put(rate_cards::set_rate_override),

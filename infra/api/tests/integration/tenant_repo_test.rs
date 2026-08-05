@@ -142,6 +142,50 @@ async fn pg_tenant_bulk_lookup_matches_raw_per_vm_semantics() {
 }
 
 #[tokio::test]
+async fn pg_find_by_tenant_id_global_returns_summary_with_vm_id() {
+    let Some(db) =
+        crate::common::support::pg_schema_harness::connect_and_migrate("tenant_global_vm_id").await
+    else {
+        return;
+    };
+    let repo = PgTenantRepo::new(db.pool.clone());
+    let customer_id = Uuid::new_v4();
+    let vm_id = Uuid::new_v4();
+    let deployment_id = Uuid::new_v4();
+
+    crate::common::support::pg_schema_harness::insert_active_customer(&db.pool, customer_id, 1)
+        .await;
+    insert_vm_inventory(&db.pool, vm_id, "tenant-global-vm").await;
+    insert_deployment(
+        &db.pool,
+        deployment_id,
+        customer_id,
+        "tenant-global-running",
+        "running",
+        Some("http://tenant-global-running:7700"),
+    )
+    .await;
+    insert_tenant(&db.pool, customer_id, "global-idx", deployment_id, vm_id).await;
+
+    // The derived FromRow requires every summary column, including vm_id, to be
+    // present in the SELECT — a missing column returns ColumnNotFound, so this
+    // Some path fails outright if the global lookup drops vm_id.
+    let found = repo
+        .find_by_tenant_id_global("global-idx")
+        .await
+        .expect("global lookup must decode the summary row");
+    let summary = found.expect("inserted tenant must be found");
+    assert_eq!(summary.tenant_id, "global-idx");
+    assert_eq!(summary.customer_id, customer_id);
+    assert_eq!(summary.vm_id, Some(vm_id));
+    assert_eq!(summary.region, "us-east-1");
+    assert_eq!(
+        summary.flapjack_url.as_deref(),
+        Some("http://tenant-global-running:7700")
+    );
+}
+
+#[tokio::test]
 async fn create_inserts_and_returns_tenant() {
     let (repo, customer_id, deployment_id) = setup();
 

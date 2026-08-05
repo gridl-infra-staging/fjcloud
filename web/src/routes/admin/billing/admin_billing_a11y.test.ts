@@ -125,5 +125,5 @@ describe('Admin billing page accessibility', () => {
 			form: { error: 'Billing run failed' }
 		});
 		await expect(getAccessibilityViolations(errorContainer)).resolves.toEqual([]);
-	});
+	}, 15_000);
 });

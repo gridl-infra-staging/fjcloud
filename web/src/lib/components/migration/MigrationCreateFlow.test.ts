@@ -231,7 +231,7 @@ describe('MigrationCreateFlow - connect step', () => {
 	it('renders only the producer-selected replace arm when the replace capability is true', () => {
 		renderFlow(
 			vi.fn(),
-			{ cancel: false, resume: false, replace: true },
+			{ cancel: false, resume: false, replace: true, preview: false, verify: false },
 			ELIGIBLE_AWS_REPLACE_PROVIDER
 		);
 
@@ -252,6 +252,8 @@ describe('MigrationCreateFlow - connect step', () => {
 				cancel: true,
 				resume: true,
 				replace: false,
+				preview: false,
+				verify: false,
 				available: true
 			} as AlgoliaMigrationCapabilities,
 			ELIGIBLE_AWS_REPLACE_PROVIDER
@@ -267,7 +269,7 @@ describe('MigrationCreateFlow - connect step', () => {
 		const list = vi.fn().mockResolvedValue(listResponse([sourceIndex()]));
 		renderFlow(
 			list,
-			{ cancel: false, resume: false, replace: true },
+			{ cancel: false, resume: false, replace: true, preview: false, verify: false },
 			ELIGIBLE_AWS_REPLACE_PROVIDER
 		);
 

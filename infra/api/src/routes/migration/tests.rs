@@ -3,11 +3,19 @@ use super::*;
 mod compute_availability_tests {
     use super::*;
 
-    fn capabilities(cancel: bool, resume: bool, replace: bool) -> AlgoliaMigrationCapabilities {
+    fn capabilities(
+        cancel: bool,
+        preview: bool,
+        resume: bool,
+        replace: bool,
+        verify: bool,
+    ) -> AlgoliaMigrationCapabilities {
         AlgoliaMigrationCapabilities {
             cancel,
+            preview,
             resume,
             replace,
+            verify,
         }
     }
 
@@ -15,22 +23,25 @@ mod compute_availability_tests {
     fn available_when_flag_on_and_engine_supports_migration() {
         let response = compute_availability(
             true,
-            capabilities(true, false, true),
-            capabilities(true, false, true),
+            capabilities(true, true, false, true, true),
+            capabilities(true, true, false, true, true),
         );
 
         assert!(response.available);
         assert_eq!(response.reason, None);
         assert_eq!(response.message, "Algolia migration is available.");
-        assert_eq!(response.capabilities, capabilities(true, false, true));
+        assert_eq!(
+            response.capabilities,
+            capabilities(true, true, false, true, true)
+        );
     }
 
     #[test]
     fn unavailable_when_flag_off() {
         let response = compute_availability(
             false,
-            capabilities(true, false, true),
-            capabilities(true, false, true),
+            capabilities(true, true, false, true, true),
+            capabilities(true, true, false, true, true),
         );
 
         assert_eq!(
@@ -43,8 +54,8 @@ mod compute_availability_tests {
     fn unavailable_when_engine_does_not_support_cancel() {
         let response = compute_availability(
             true,
-            capabilities(true, false, true),
-            capabilities(false, false, true),
+            capabilities(true, true, false, true, true),
+            capabilities(false, true, false, true, true),
         );
 
         assert_eq!(
@@ -57,20 +68,51 @@ mod compute_availability_tests {
     fn replace_reflects_engine_support() {
         let response = compute_availability(
             true,
-            capabilities(true, false, true),
-            capabilities(true, false, false),
+            capabilities(true, true, false, true, true),
+            capabilities(true, true, false, false, true),
         );
 
         assert!(response.available);
-        assert_eq!(response.capabilities, capabilities(true, false, false));
+        assert_eq!(
+            response.capabilities,
+            capabilities(true, true, false, false, true)
+        );
+    }
+
+    /// The console only offers cutover verification where the backend can
+    /// actually serve it, so provider-scoped availability must publish
+    /// `verify` alongside the other lifecycle operations.
+    #[test]
+    fn verify_is_published_only_for_algolia_sources() {
+        let expectations = [
+            (SourceImportProvider::Algolia, true, true),
+            (SourceImportProvider::Meilisearch, false, true),
+            (SourceImportProvider::Typesense, false, false),
+        ];
+
+        for (provider, expected_verify, expected_preview) in expectations {
+            let response = compute_availability(
+                true,
+                capabilities::route_mounted_migration_capabilities(),
+                capabilities::engine_supported_migration_capabilities(provider),
+            );
+
+            assert!(response.available, "{} availability", provider.as_str());
+            assert_eq!(
+                response.capabilities,
+                capabilities(true, expected_preview, false, true, expected_verify),
+                "{} must publish its exact provider-scoped capability set",
+                provider.as_str()
+            );
+        }
     }
 
     #[test]
     fn resume_is_never_true_even_when_both_inputs_say_true() {
         let response = compute_availability(
             true,
-            capabilities(true, true, true),
-            capabilities(true, true, true),
+            capabilities(true, true, true, true, true),
+            capabilities(true, true, true, true, true),
         );
 
         assert!(response.available);
@@ -113,6 +155,29 @@ fn assert_migration_failure(error: ApiError, expected_status: StatusCode, expect
     let (status, message) = migration_failure(error);
     assert_eq!(status, expected_status);
     assert_eq!(message, expected_message);
+}
+
+#[test]
+fn serde_offending_field_extracts_labelled_field_names_by_value() {
+    let unknown = serde_json::from_str::<ListMeilisearchIndexesRequest>(
+        r#"{"endpoint":"https://meili.example","apiKey":"key","appId":"wrong"}"#,
+    )
+    .expect_err("unknown fields must produce a labelled serde error");
+    let missing = serde_json::from_str::<ListMeilisearchIndexesRequest>(
+        r#"{"endpoint":"https://meili.example"}"#,
+    )
+    .expect_err("missing fields must produce a labelled serde error");
+    let duplicate = serde_json::from_str::<ListMeilisearchIndexesRequest>(
+        r#"{"endpoint":"https://meili.example","apiKey":"key","apiKey":"again"}"#,
+    )
+    .expect_err("duplicate fields must produce a labelled serde error");
+
+    assert_eq!(serde_offending_field(&unknown), Some("appId".to_string()));
+    assert_eq!(serde_offending_field(&missing), Some("apiKey".to_string()));
+    assert_eq!(
+        serde_offending_field(&duplicate),
+        Some("apiKey".to_string())
+    );
 }
 
 #[test]

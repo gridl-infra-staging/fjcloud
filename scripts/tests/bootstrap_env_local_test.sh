@@ -237,7 +237,7 @@ test_preserves_non_placeholder_values() {
     db_url=$(grep '^DATABASE_URL=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2-)
     environment=$(grep '^ENVIRONMENT=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2-)
 
-    assert_eq "$db_url" "postgres://griddle:griddle_local@localhost:5432/fjcloud_dev" \
+    assert_eq "$db_url" "postgres://griddle:griddle_local@127.0.0.1:5432/fjcloud_dev" \
         "DATABASE_URL should be preserved from example template"
     assert_eq "$environment" "local" \
         "ENVIRONMENT should be preserved from example template"
@@ -374,7 +374,7 @@ API_URL=https://api.flapjack.foo
 STRIPE_SECRET_KEY=sk_test_a_legitimate_secret
 EOF
 
-    FJCLOUD_SECRET_FILE="$mock_secret" bash "$BOOTSTRAP_SCRIPT" >/dev/null 2>&1
+    FJCLOUD_SECRET_FILE="$mock_secret" bash "$BOOTSTRAP_SCRIPT" >/dev/null 2>&1 || true
 
     # The deny-listed key must NOT appear at all.
     local api_url_lines
@@ -406,7 +406,7 @@ test_denylist_admin_key_not_overridden() {
 ADMIN_KEY=this_value_must_not_win
 EOF
 
-    FJCLOUD_SECRET_FILE="$mock_secret" bash "$BOOTSTRAP_SCRIPT" >/dev/null 2>&1
+    FJCLOUD_SECRET_FILE="$mock_secret" bash "$BOOTSTRAP_SCRIPT" >/dev/null 2>&1 || true
 
     local admin_key
     admin_key=$(grep '^ADMIN_KEY=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2-)
@@ -436,14 +436,14 @@ test_denylist_database_url_not_overridden() {
 DATABASE_URL=postgres://fake:fake@prod.rds.example/prod_db
 EOF
 
-    FJCLOUD_SECRET_FILE="$mock_secret" bash "$BOOTSTRAP_SCRIPT" >/dev/null 2>&1
+    FJCLOUD_SECRET_FILE="$mock_secret" bash "$BOOTSTRAP_SCRIPT" >/dev/null 2>&1 || true
 
     local db_url
     db_url=$(grep '^DATABASE_URL=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2-)
 
-    # Denied secret value must NOT win — template's localhost default must remain.
-    assert_eq "$db_url" "postgres://griddle:griddle_local@localhost:5432/fjcloud_dev" \
-        "DATABASE_URL must keep the template localhost default even when secret source has a value (deny-list)"
+    # Denied secret value must NOT win — template's loopback default must remain.
+    assert_eq "$db_url" "postgres://griddle:griddle_local@127.0.0.1:5432/fjcloud_dev" \
+        "DATABASE_URL must keep the template loopback default even when secret source has a value (deny-list)"
 }
 
 # ---------------------------------------------------------------------------
@@ -492,16 +492,239 @@ test_secret_source_preserves_non_overlapping_values() {
     local mock_secret="$tmp_dir/minimal.env.secret"
     echo "FLAPJACK_ADMIN_KEY=from_secret" > "$mock_secret"
 
-    FJCLOUD_SECRET_FILE="$mock_secret" bash "$BOOTSTRAP_SCRIPT" >/dev/null 2>&1
+    FJCLOUD_SECRET_FILE="$mock_secret" bash "$BOOTSTRAP_SCRIPT" >/dev/null 2>&1 || true
 
     local db_url environment
     db_url=$(grep '^DATABASE_URL=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2-)
     environment=$(grep '^ENVIRONMENT=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2-)
 
-    assert_eq "$db_url" "postgres://griddle:griddle_local@localhost:5432/fjcloud_dev" \
+    assert_eq "$db_url" "postgres://griddle:griddle_local@127.0.0.1:5432/fjcloud_dev" \
         "DATABASE_URL should be preserved when secret source has unrelated keys"
     assert_eq "$environment" "local" \
         "ENVIRONMENT should be preserved when secret source has unrelated keys"
+}
+
+
+# ---------------------------------------------------------------------------
+# Test: _DEV-suffixed secrets supply the bare key the application reads
+# ---------------------------------------------------------------------------
+# The operator labels the local OAuth app GITHUB_OAUTH_CLIENT_ID_DEV so it stays
+# distinguishable from the _STAGING pair sitting beside it in the same file. The
+# application reads only the BARE name (infra/api/src/config.rs,
+# parse_optional_oauth_pair), so without this derivation the local API silently
+# starts with no OAuth configuration at all.
+test_dev_suffixed_secret_supplies_bare_key() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_env_file "'"$tmp_dir"'/.env.local.backup"; rm -rf "'"$tmp_dir"'"' RETURN
+    backup_repo_env_file "$tmp_dir/.env.local.backup" || true
+    rm -f "$REPO_ROOT/.env.local"
+
+    local mock_secret="$tmp_dir/mock.env.secret"
+    cat > "$mock_secret" <<'EOF'
+GITHUB_OAUTH_CLIENT_ID_DEV=dev_client_id_value
+GITHUB_OAUTH_CLIENT_SECRET_DEV=dev_client_secret_value
+EOF
+
+    FJCLOUD_SECRET_FILE="$mock_secret" bash "$BOOTSTRAP_SCRIPT" >/dev/null 2>&1 || true
+
+    local got_id got_secret
+    got_id=$(grep '^GITHUB_OAUTH_CLIENT_ID=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2- || true)
+    got_secret=$(grep '^GITHUB_OAUTH_CLIENT_SECRET=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2- || true)
+    assert_eq "$got_id" "dev_client_id_value" \
+        "GITHUB_OAUTH_CLIENT_ID_DEV should supply the bare GITHUB_OAUTH_CLIENT_ID"
+    assert_eq "$got_secret" "dev_client_secret_value" \
+        "GITHUB_OAUTH_CLIENT_SECRET_DEV should supply the bare GITHUB_OAUTH_CLIENT_SECRET"
+}
+
+# ---------------------------------------------------------------------------
+# Test: _STAGING-suffixed secrets must NOT supply the bare key
+# ---------------------------------------------------------------------------
+# The safety half, and the same failure family as
+# bugs/2026_05_22_local_demo_seeds_to_production.md: a value meant for a deployed
+# environment silently becoming the local default. If _STAGING aliased the bare
+# name, a local sign-in would authenticate against the staging OAuth app. Only
+# the _DEV suffix may feed local.
+test_staging_suffixed_secret_does_not_supply_bare_key() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_env_file "'"$tmp_dir"'/.env.local.backup"; rm -rf "'"$tmp_dir"'"' RETURN
+    backup_repo_env_file "$tmp_dir/.env.local.backup" || true
+    rm -f "$REPO_ROOT/.env.local"
+
+    local mock_secret="$tmp_dir/mock.env.secret"
+    cat > "$mock_secret" <<'EOF'
+GITHUB_OAUTH_CLIENT_ID_STAGING=staging_client_id_value
+GITHUB_OAUTH_CLIENT_SECRET_STAGING=staging_client_secret_value
+EOF
+
+    FJCLOUD_SECRET_FILE="$mock_secret" bash "$BOOTSTRAP_SCRIPT" >/dev/null 2>&1 || true
+
+    local bare
+    bare=$(grep '^GITHUB_OAUTH_CLIENT_ID=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2- || true)
+    assert_eq "$bare" "" \
+        "a _STAGING secret must never become the bare local key"
+}
+
+# ---------------------------------------------------------------------------
+# Test: an explicit bare key wins over the _DEV alias
+# ---------------------------------------------------------------------------
+# A derived value must never shadow one the operator stated outright, or a
+# deliberate override becomes impossible to express.
+test_explicit_bare_key_beats_dev_alias() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_env_file "'"$tmp_dir"'/.env.local.backup"; rm -rf "'"$tmp_dir"'"' RETURN
+    backup_repo_env_file "$tmp_dir/.env.local.backup" || true
+    rm -f "$REPO_ROOT/.env.local"
+
+    local mock_secret="$tmp_dir/mock.env.secret"
+    cat > "$mock_secret" <<'EOF'
+GITHUB_OAUTH_CLIENT_ID=explicit_bare_value
+GITHUB_OAUTH_CLIENT_ID_DEV=dev_alias_value
+EOF
+
+    FJCLOUD_SECRET_FILE="$mock_secret" bash "$BOOTSTRAP_SCRIPT" >/dev/null 2>&1 || true
+
+    # Assert the EFFECTIVE value, not the first matching line. A shell sourcing
+    # an env file takes the LAST assignment, so a duplicate emitted by the alias
+    # would override the explicit one at consumption time while a head -1 check
+    # still looked green. Sourcing is how load_env_file actually consumes this.
+    local effective occurrences
+    effective=$( set -a; . "$REPO_ROOT/.env.local" >/dev/null 2>&1; printf '%s' "${GITHUB_OAUTH_CLIENT_ID:-}" )
+    assert_eq "$effective" "explicit_bare_value" \
+        "the effective GITHUB_OAUTH_CLIENT_ID must be the explicit bare value"
+
+    # A duplicate key is a defect even when the ordering happens to favour the
+    # right value, because the ordering is incidental rather than guaranteed.
+    occurrences=$(grep -c '^GITHUB_OAUTH_CLIENT_ID=' "$REPO_ROOT/.env.local" || true)
+    assert_eq "$occurrences" "1" \
+        "GITHUB_OAUTH_CLIENT_ID must be emitted exactly once, not duplicated by the alias"
+}
+
+
+# ---------------------------------------------------------------------------
+# Test: the _DEV alias cannot bypass the local-env deny-list
+# ---------------------------------------------------------------------------
+# The deny-list exists because API_URL and ADMIN_KEY leaking from the secret
+# file made seed_local.sh write to production
+# (bugs/2026_05_22_local_demo_seeds_to_production.md). An alias that stripped
+# the suffix and emitted the bare name without re-checking the deny-list would
+# reopen that hole through a side door.
+test_dev_alias_cannot_bypass_denylist() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_env_file "'"$tmp_dir"'/.env.local.backup"; rm -rf "'"$tmp_dir"'"' RETURN
+    backup_repo_env_file "$tmp_dir/.env.local.backup" || true
+    rm -f "$REPO_ROOT/.env.local"
+
+    local mock_secret="$tmp_dir/mock.env.secret"
+    cat > "$mock_secret" <<'EOF'
+API_URL_DEV=https://api.flapjack.foo
+EOF
+
+    FJCLOUD_SECRET_FILE="$mock_secret" bash "$BOOTSTRAP_SCRIPT" >/dev/null 2>&1 || true
+
+    local api_url
+    api_url=$(grep '^API_URL=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2- || true)
+    assert_not_contains "$api_url" "api.flapjack.foo" \
+        "a _DEV alias must not deliver a deny-listed key such as API_URL"
+}
+
+
+# ---------------------------------------------------------------------------
+# Test: the operator's real secret-file format (export KEY=value) is parsed
+# ---------------------------------------------------------------------------
+# Every line of the real .secret/.env.secret is `export KEY=value`, because the
+# file is meant to be sourced (`set -a; source .secret/.env.secret; set +a` is
+# the documented usage in CLAUDE.md). This script had its own assignment regex
+# that only accepted bare KEY=value, so against the real file it parsed zero
+# keys and silently fell back to template defaults for everything.
+#
+# Every existing test here used bare-assignment fixtures, which is why a suite
+# this thorough stayed green over a script that could not read its own input.
+# The fixture below deliberately uses the format the operator actually has.
+test_export_prefixed_secret_lines_are_parsed() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_env_file "'"$tmp_dir"'/.env.local.backup"; rm -rf "'"$tmp_dir"'"' RETURN
+    backup_repo_env_file "$tmp_dir/.env.local.backup" || true
+    rm -f "$REPO_ROOT/.env.local"
+
+    local mock_secret="$tmp_dir/mock.env.secret"
+    cat > "$mock_secret" <<'EOF'
+export STRIPE_SECRET_KEY=sk_test_from_exported_line
+export GITHUB_OAUTH_CLIENT_ID_DEV=exported_dev_id
+EOF
+
+    FJCLOUD_SECRET_FILE="$mock_secret" bash "$BOOTSTRAP_SCRIPT" >/dev/null 2>&1 || true
+
+    local stripe_key oauth_id
+    stripe_key=$(grep '^STRIPE_SECRET_KEY=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2- || true)
+    oauth_id=$(grep '^GITHUB_OAUTH_CLIENT_ID=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2- || true)
+    assert_eq "$stripe_key" "sk_test_from_exported_line" \
+        "an export-prefixed secret line must flow into .env.local"
+    assert_eq "$oauth_id" "exported_dev_id" \
+        "the _DEV alias must work on export-prefixed lines too"
+
+    # The `export ` prefix must be stripped, not carried into the key name.
+    if grep -q '^export ' "$REPO_ROOT/.env.local"; then
+        fail ".env.local must not contain export-prefixed keys"
+    else
+        pass ".env.local carries bare KEY=value, with the export prefix stripped"
+    fi
+}
+
+
+# ---------------------------------------------------------------------------
+# Test: live infrastructure credentials never enter .env.local
+# ---------------------------------------------------------------------------
+# Fixing the export-prefix parse bug had a consequence worth pinning: the secret
+# file's keys genuinely started flowing, and it holds far more than app config —
+# static AWS IAM keys, a Cloudflare GLOBAL api key, a GitHub PAT, a live Stripe
+# restricted key. None of those have any local use; the local app talks to
+# docker-compose services. Scripts that do need them source
+# .secret/.env.secret directly, which is the documented pattern in CLAUDE.md.
+#
+# .env.local is gitignored, so this is not a mirror-leak path — but it is copied
+# by tooling that does not consult .gitignore, so the narrow fix is to keep the
+# credentials out of the file rather than to chase every copier.
+test_live_infrastructure_credentials_are_denied() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_env_file "'"$tmp_dir"'/.env.local.backup"; rm -rf "'"$tmp_dir"'"' RETURN
+    backup_repo_env_file "$tmp_dir/.env.local.backup" || true
+    rm -f "$REPO_ROOT/.env.local"
+
+    local mock_secret="$tmp_dir/mock.env.secret"
+    cat > "$mock_secret" <<'EOF'
+export AWS_ACCESS_KEY_ID=AKIAEXAMPLEDENIED001
+export AWS_SECRET_ACCESS_KEY=denied_secret_value
+export CLOUDFLARE_GLOBAL_API_KEY=denied_cf_global
+export GITHUB_PAT=denied_github_pat
+export PRIVACY_PRODUCTION_API_KEY=denied_privacy
+export STRIPE_SECRET_KEY_RESTRICTED_LIVE=rk_live_denied
+export STRIPE_SECRET_KEY=sk_test_allowed
+EOF
+
+    FJCLOUD_SECRET_FILE="$mock_secret" bash "$BOOTSTRAP_SCRIPT" >/dev/null 2>&1 || true
+
+    local denied
+    for denied in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY CLOUDFLARE_GLOBAL_API_KEY \
+                  GITHUB_PAT PRIVACY_PRODUCTION_API_KEY STRIPE_SECRET_KEY_RESTRICTED_LIVE; do
+        if grep -q "^${denied}=" "$REPO_ROOT/.env.local"; then
+            fail "$denied must never be written into .env.local"
+        else
+            pass "$denied is kept out of .env.local"
+        fi
+    done
+
+    # The mirror image: ordinary app config must still flow, or the deny rule
+    # has just broken local dev instead of protecting it.
+    local stripe
+    stripe=$(grep '^STRIPE_SECRET_KEY=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2- || true)
+    assert_eq "$stripe" "sk_test_allowed" \
+        "test-mode app config must still flow into .env.local"
 }
 
 # ---------------------------------------------------------------------------
@@ -523,6 +746,12 @@ test_denylist_admin_key_not_overridden
 test_denylist_database_url_not_overridden
 test_fallback_without_secret_source
 test_secret_source_preserves_non_overlapping_values
+test_dev_suffixed_secret_supplies_bare_key
+test_staging_suffixed_secret_does_not_supply_bare_key
+test_explicit_bare_key_beats_dev_alias
+test_dev_alias_cannot_bypass_denylist
+test_export_prefixed_secret_lines_are_parsed
+test_live_infrastructure_credentials_are_denied
 
 echo ""
 echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed"

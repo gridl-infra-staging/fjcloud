@@ -70,7 +70,7 @@ describe('Algolia import job detail presentation', () => {
 	it('keeps responsive action and field structures deterministic for narrow layouts', () => {
 		render(ImportJobDetail, {
 			job: publicImportJob({ status: 'copying_documents' }),
-			capabilities: { cancel: true, resume: false, replace: false },
+			capabilities: { cancel: true, resume: false, replace: false, preview: false, verify: false },
 			onCancelIntent: () => {}
 		});
 
@@ -228,7 +228,7 @@ describe('Algolia import job detail presentation', () => {
 				error: { code: 'invalid_credentials' },
 				legacyProducerMessage: producerMessage
 			} as Partial<PublicAlgoliaImportJob> & { legacyProducerMessage: string }),
-			capabilities: { cancel: false, resume: true, replace: false }
+			capabilities: { cancel: false, resume: true, replace: false, preview: false, verify: false }
 		});
 
 		expect(screen.getByTestId('migration-job-error')).toHaveTextContent(
@@ -247,7 +247,7 @@ describe('Algolia import job detail presentation', () => {
 				resumable: true,
 				error: { code: 'interrupted' }
 			}),
-			capabilities: { cancel: false, resume: true, replace: false }
+			capabilities: { cancel: false, resume: true, replace: false, preview: false, verify: false }
 		});
 
 		expect(screen.getByTestId('migration-job-disposition')).toHaveTextContent(
@@ -298,7 +298,7 @@ describe('Algolia import job detail presentation', () => {
 				message: 'Import workers are saturated.',
 				retryAfterSeconds: 90
 			},
-			capabilities: { cancel: false, resume: true, replace: false }
+			capabilities: { cancel: false, resume: true, replace: false, preview: false, verify: false }
 		});
 
 		const retryPanel = screen.getByTestId('migration-job-retry-panel');
@@ -371,7 +371,7 @@ describe('Algolia import job detail presentation', () => {
 	it('renders only the cancel arm when the cancel capability is true', () => {
 		render(ImportJobDetail, {
 			job: publicImportJob({ status: 'copying_documents' }),
-			capabilities: { cancel: true, resume: false, replace: false },
+			capabilities: { cancel: true, resume: false, replace: false, preview: false, verify: false },
 			onCancelIntent: () => {},
 			onResumeIntent: () => {}
 		});
@@ -388,7 +388,7 @@ describe('Algolia import job detail presentation', () => {
 				resumable: true,
 				publicationDisposition: 'unchanged'
 			}),
-			capabilities: { cancel: false, resume: true, replace: false },
+			capabilities: { cancel: false, resume: true, replace: false, preview: false, verify: false },
 			onCancelIntent: () => {},
 			onResumeIntent: () => {}
 		});
@@ -406,6 +406,8 @@ describe('Algolia import job detail presentation', () => {
 				cancel: false,
 				resume: false,
 				replace: true,
+				preview: false,
+				verify: false,
 				available: true
 			} as AlgoliaMigrationCapabilities,
 			onCancelIntent: () => {},
@@ -424,7 +426,13 @@ describe('Algolia import job detail presentation', () => {
 			const onCancelIntent = vi.fn();
 			render(ImportJobDetail, {
 				job: publicImportJob({ status }),
-				capabilities: { cancel: true, resume: false, replace: false },
+				capabilities: {
+					cancel: true,
+					resume: false,
+					replace: false,
+					preview: false,
+					verify: false
+				},
 				onCancelIntent
 			});
 
@@ -440,7 +448,7 @@ describe('Algolia import job detail presentation', () => {
 		const onCancelIntent = vi.fn();
 		render(ImportJobDetail, {
 			job: publicImportJob({ status: 'copying_documents' }),
-			capabilities: { cancel: true, resume: false, replace: false },
+			capabilities: { cancel: true, resume: false, replace: false, preview: false, verify: false },
 			onCancelIntent
 		});
 		const cancelButton = screen.getByRole('button', { name: /cancel import/i });
@@ -457,7 +465,7 @@ describe('Algolia import job detail presentation', () => {
 		const onCancelIntent = vi.fn();
 		const { rerender } = render(ImportJobDetail, {
 			job: publicImportJob({ id: 'job_first', status: 'copying_documents' }),
-			capabilities: { cancel: true, resume: false, replace: false },
+			capabilities: { cancel: true, resume: false, replace: false, preview: false, verify: false },
 			onCancelIntent
 		});
 
@@ -466,7 +474,7 @@ describe('Algolia import job detail presentation', () => {
 
 		await rerender({
 			job: publicImportJob({ id: 'job_second', status: 'copying_documents' }),
-			capabilities: { cancel: true, resume: false, replace: false },
+			capabilities: { cancel: true, resume: false, replace: false, preview: false, verify: false },
 			onCancelIntent
 		});
 
@@ -479,7 +487,7 @@ describe('Algolia import job detail presentation', () => {
 		const job = publicImportJob({ status: 'copying_documents' });
 		const props = {
 			job,
-			capabilities: { cancel: true, resume: false, replace: false },
+			capabilities: { cancel: true, resume: false, replace: false, preview: false, verify: false },
 			onCancelIntent
 		};
 		const { rerender } = render(ImportJobDetail, { ...props, reloading: false });
@@ -495,14 +503,14 @@ describe('Algolia import job detail presentation', () => {
 		const onCancelIntent = vi.fn();
 		const { rerender } = render(ImportJobDetail, {
 			job: publicImportJob({ status: 'copying_documents' }),
-			capabilities: { cancel: true, resume: false, replace: false },
+			capabilities: { cancel: true, resume: false, replace: false, preview: false, verify: false },
 			onCancelIntent
 		});
 
 		await fireEvent.click(screen.getByRole('button', { name: /cancel import/i }));
 		await rerender({
 			job: publicImportJob({ status: 'cancelling' }),
-			capabilities: { cancel: true, resume: false, replace: false },
+			capabilities: { cancel: true, resume: false, replace: false, preview: false, verify: false },
 			onCancelIntent
 		});
 		expect(screen.getByTestId('migration-job-status')).toHaveTextContent('Cancelling');
@@ -510,7 +518,7 @@ describe('Algolia import job detail presentation', () => {
 
 		await rerender({
 			job: publicImportJob({ status: 'completed', publicationDisposition: 'promoted' }),
-			capabilities: { cancel: true, resume: false, replace: false },
+			capabilities: { cancel: true, resume: false, replace: false, preview: false, verify: false },
 			onCancelIntent
 		});
 		expect(screen.getByTestId('migration-job-status')).toHaveTextContent('Completed');
@@ -527,7 +535,7 @@ describe('Algolia import job detail presentation', () => {
 				publicationDisposition: 'unchanged',
 				resumable: true
 			}),
-			capabilities: { cancel: true, resume: true, replace: false },
+			capabilities: { cancel: true, resume: true, replace: false, preview: false, verify: false },
 			onCancelIntent: () => {},
 			onResumeIntent: () => {}
 		});
@@ -560,7 +568,13 @@ describe('Algolia import job detail presentation', () => {
 					publicationDisposition: 'unchanged',
 					error: { code }
 				}),
-				capabilities: { cancel: false, resume: true, replace: false },
+				capabilities: {
+					cancel: false,
+					resume: true,
+					replace: false,
+					preview: false,
+					verify: false
+				},
 				onResumeIntent: () => {}
 			});
 
@@ -588,7 +602,7 @@ describe('Algolia import job detail presentation', () => {
 				resumeDeadline: '2026-07-19T18:30:00Z',
 				resumeProvenance: 'Deadline set by the migration engine at interruption.'
 			}),
-			capabilities: { cancel: false, resume: true, replace: false },
+			capabilities: { cancel: false, resume: true, replace: false, preview: false, verify: false },
 			onResumeIntent: () => {}
 		});
 
@@ -609,7 +623,7 @@ describe('Algolia import job detail presentation', () => {
 				resumeDeadline: null,
 				resumeProvenance: null
 			}),
-			capabilities: { cancel: false, resume: true, replace: false },
+			capabilities: { cancel: false, resume: true, replace: false, preview: false, verify: false },
 			onResumeIntent: () => {}
 		});
 
@@ -625,7 +639,7 @@ describe('Algolia import job detail presentation', () => {
 				publicationDisposition: 'unchanged',
 				error: { code: 'invalid_credentials' }
 			}),
-			capabilities: { cancel: false, resume: true, replace: false },
+			capabilities: { cancel: false, resume: true, replace: false, preview: false, verify: false },
 			onResumeIntent
 		});
 		const resumeButton = screen.getByRole('button', { name: /resume import/i });
@@ -651,7 +665,7 @@ describe('Algolia import job detail presentation', () => {
 		});
 		const props = {
 			job,
-			capabilities: { cancel: false, resume: true, replace: false },
+			capabilities: { cancel: false, resume: true, replace: false, preview: false, verify: false },
 			onResumeIntent
 		};
 		const { rerender } = render(ImportJobDetail, { ...props, reloading: false });
@@ -680,7 +694,7 @@ describe('Algolia import job detail presentation', () => {
 				publicationDisposition: 'unchanged',
 				error: { code: 'invalid_credentials' }
 			}),
-			capabilities: { cancel: false, resume: true, replace: false },
+			capabilities: { cancel: false, resume: true, replace: false, preview: false, verify: false },
 			onResumeIntent
 		});
 
@@ -719,7 +733,7 @@ describe('Algolia import job detail presentation', () => {
 				publicationDisposition: 'unchanged',
 				error: { code: 'not_resumable' }
 			}),
-			capabilities: { cancel: false, resume: true, replace: false },
+			capabilities: { cancel: false, resume: true, replace: false, preview: false, verify: false },
 			onResumeIntent: () => {}
 		});
 
@@ -755,7 +769,7 @@ describe('Algolia import job detail presentation', () => {
 					message: 'Migration starts are paused.',
 					retryAfterSeconds: null
 				},
-				capabilities: { cancel: true, resume: true, replace: false },
+				capabilities: { cancel: true, resume: true, replace: false, preview: false, verify: false },
 				onResumeIntent: () => {}
 			});
 
@@ -780,7 +794,7 @@ describe('Algolia import job detail presentation', () => {
 				message,
 				retryAfterSeconds: null
 			},
-			capabilities: { cancel: true, resume: true, replace: false },
+			capabilities: { cancel: true, resume: true, replace: false, preview: false, verify: false },
 			onCancelIntent: () => {}
 		});
 

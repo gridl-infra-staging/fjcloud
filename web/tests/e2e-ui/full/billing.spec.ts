@@ -11,52 +11,21 @@
 
 import { test, expect } from '../../fixtures/fixtures';
 import type { Page } from '@playwright/test';
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { once } from 'node:events';
 import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import net from 'node:net';
 import { SUPPORT_EMAIL } from '../../../src/lib/format';
 import {
-	DEFAULT_E2E_USER_EMAIL,
-	DEFAULT_E2E_USER_PASSWORD,
-	parseDotenvFile
-} from '../../../playwright.config.contract';
-
-type StartedProcess = {
-	child: ChildProcessWithoutNullStreams;
-	label: string;
-	output: string[];
-};
-type ProcessEnvOverrides = Record<string, string | undefined>;
-type ProcessCommand = {
-	command: string;
-	args: string[];
-};
-type UnconfiguredBillingStackStartContext = {
-	apiPort: number;
-	s3Port: number;
-	flapjackPort: number;
-	webPort: number;
-	apiUrl: string;
-	flapjackUrl: string;
-	webBaseUrl: string;
-	stackStateDir: string;
-};
-type UnconfiguredBillingStackCommandFactory = (
-	context: UnconfiguredBillingStackStartContext
-) => ProcessCommand;
-type UnconfiguredBillingStackStartOptions = {
-	stackCommand?: UnconfiguredBillingStackCommandFactory;
-	readinessTimeoutMs?: number;
-};
-
-const repoEnv = parseDotenvFile('../.env.local');
-const webEnv = parseDotenvFile('.env.local');
-const UNCONFIGURED_STACK_JWT_SECRET =
-	'stage4_unconfigured_billing_route_owner_proof_jwt_secret_0001';
-const UNCONFIGURED_STACK_ADMIN_KEY = 'stage4-unconfigured-admin-key';
+	type UnconfiguredBillingColdStartPhases,
+	UNCONFIGURED_BILLING_COLD_START_PHASES,
+	expectHttpUnavailable,
+	logIntoUnconfiguredBillingStack,
+	startUnconfiguredBillingStack,
+	unconfiguredBillingReadinessTiming,
+	unconfiguredBillingStackStartCommand,
+	unconfiguredStackOutput,
+	waitForHttpOk
+} from '../../fixtures/unconfigured_billing_stack';
 
 async function expectNoBillingPortalControls(page: Page) {
 	await expect(page.getByRole('button', { name: 'Manage billing' })).toHaveCount(0);
@@ -83,278 +52,6 @@ async function expectNoBillingPortalControls(page: Page) {
 async function expectBillingPortalControlRejected(page: Page, markup: string) {
 	await page.setContent(markup);
 	await expect(expectNoBillingPortalControls(page)).rejects.toThrow();
-}
-
-async function reservePort(): Promise<number> {
-	const server = net.createServer();
-	server.listen(0, '127.0.0.1');
-	await once(server, 'listening');
-	const address = server.address();
-	if (!address || typeof address === 'string') {
-		server.close();
-		throw new Error('Unable to reserve a loopback port for the billing proof stack');
-	}
-	const port = address.port;
-	server.close();
-	await once(server, 'close');
-	return port;
-}
-
-function sanitizedProcessOutput(started: StartedProcess): string {
-	return started.output.join('').slice(-3_000);
-}
-
-function unconfiguredStackOutput(processes: StartedProcess[]): string {
-	return processes
-		.map((started) => `--- ${started.label} ---\n${sanitizedProcessOutput(started)}`)
-		.join('\n');
-}
-
-async function waitForHttpOk(
-	url: string,
-	started: StartedProcess,
-	timeoutMs = 60_000
-): Promise<void> {
-	await expect(async () => {
-		if (started.child.exitCode !== null || started.child.signalCode !== null) {
-			throw new Error(
-				`${started.label} exited before readiness: exit=${started.child.exitCode} signal=${started.child.signalCode}\n${sanitizedProcessOutput(started)}`
-			);
-		}
-		const response = await fetch(url);
-		expect(response.ok, `${started.label} did not return 2xx at ${url}`).toBe(true);
-	}).toPass({
-		intervals: [1_000, 2_000, 3_000, 5_000],
-		timeout: timeoutMs
-	});
-}
-
-function processEnvWithOverrides(overrides: ProcessEnvOverrides): NodeJS.ProcessEnv {
-	const env = { ...process.env };
-	for (const [key, value] of Object.entries(overrides)) {
-		if (value === undefined) {
-			delete env[key];
-		} else {
-			env[key] = value;
-		}
-	}
-	return env;
-}
-
-function requiredRuntimeEnv(key: string, ...candidates: Array<string | undefined>): string {
-	const value = candidates.find((candidate) => candidate !== undefined && candidate.length > 0);
-	if (!value) {
-		throw new Error(`${key} is required for the unconfigured billing proof stack`);
-	}
-	return value;
-}
-
-function resolvedFixtureUserCredentials(): { email: string; password: string } {
-	return {
-		email:
-			process.env.E2E_USER_EMAIL ??
-			webEnv.E2E_USER_EMAIL ??
-			repoEnv.E2E_USER_EMAIL ??
-			process.env.SEED_USER_EMAIL ??
-			webEnv.SEED_USER_EMAIL ??
-			repoEnv.SEED_USER_EMAIL ??
-			DEFAULT_E2E_USER_EMAIL,
-		password:
-			process.env.E2E_USER_PASSWORD ??
-			webEnv.E2E_USER_PASSWORD ??
-			repoEnv.E2E_USER_PASSWORD ??
-			process.env.SEED_USER_PASSWORD ??
-			webEnv.SEED_USER_PASSWORD ??
-			repoEnv.SEED_USER_PASSWORD ??
-			DEFAULT_E2E_USER_PASSWORD
-	};
-}
-
-function startProcess(label: string, command: string, args: string[], env: ProcessEnvOverrides) {
-	const child = spawn(command, args, {
-		cwd: process.cwd(),
-		env: processEnvWithOverrides(env),
-		detached: true
-	});
-	const started: StartedProcess = {
-		child,
-		label,
-		output: []
-	};
-	const rememberOutput = (chunk: Buffer) => {
-		started.output.push(chunk.toString('utf8'));
-		started.output = started.output.slice(-80);
-	};
-	child.stdout.on('data', rememberOutput);
-	child.stderr.on('data', rememberOutput);
-	return started;
-}
-
-async function expectHttpUnavailable(url: string): Promise<void> {
-	await expect(async () => {
-		const response = await fetch(url).catch(() => null);
-		expect(response, `${url} should not keep serving after stack cleanup`).toBeNull();
-	}).toPass({
-		intervals: [100, 250, 500],
-		timeout: 5_000
-	});
-}
-
-function signalStartedProcessGroup(started: StartedProcess, signal: NodeJS.Signals): void {
-	const childPid = started.child.pid;
-	if (childPid === undefined) {
-		started.child.kill(signal);
-		return;
-	}
-	try {
-		process.kill(-childPid, signal);
-	} catch {
-		started.child.kill(signal);
-	}
-}
-
-function unconfiguredBillingStackStartCommand({
-	webPort
-}: UnconfiguredBillingStackStartContext): ProcessCommand {
-	return {
-		command: 'bash',
-		args: [
-			'../scripts/playwright_local_stack.sh',
-			'--force-api-restart',
-			'--host',
-			'127.0.0.1',
-			'--port',
-			String(webPort),
-			'--strictPort'
-		]
-	};
-}
-
-async function stopProcess(started: StartedProcess): Promise<void> {
-	if (started.child.exitCode !== null || started.child.signalCode !== null) {
-		signalStartedProcessGroup(started, 'SIGTERM');
-		await new Promise((resolve) => setTimeout(resolve, 250));
-		signalStartedProcessGroup(started, 'SIGKILL');
-		return;
-	}
-	signalStartedProcessGroup(started, 'SIGTERM');
-	await Promise.race([
-		once(started.child, 'exit'),
-		new Promise((resolve) => setTimeout(resolve, 10_000))
-	]);
-	if (started.child.exitCode === null && started.child.signalCode === null) {
-		signalStartedProcessGroup(started, 'SIGKILL');
-		await once(started.child, 'exit');
-	}
-}
-
-async function startUnconfiguredBillingStack(
-	options: UnconfiguredBillingStackStartOptions = {}
-): Promise<{
-	webBaseUrl: string;
-	processes: StartedProcess[];
-	cleanup: () => Promise<void>;
-}> {
-	const apiPort = await reservePort();
-	const s3Port = await reservePort();
-	const flapjackPort = await reservePort();
-	const webPort = await reservePort();
-	const stackStateDir = await mkdtemp(join(tmpdir(), 'fjcloud-billing-proof-'));
-	const apiUrl = `http://127.0.0.1:${apiPort}`;
-	const flapjackUrl = `http://127.0.0.1:${flapjackPort}`;
-	const webBaseUrl = `http://localhost:${webPort}`;
-	const startContext: UnconfiguredBillingStackStartContext = {
-		apiPort,
-		s3Port,
-		flapjackPort,
-		webPort,
-		apiUrl,
-		flapjackUrl,
-		webBaseUrl,
-		stackStateDir
-	};
-	const commonEnv = {
-		API_BASE_URL: apiUrl,
-		API_URL: apiUrl,
-		DATABASE_URL: requiredRuntimeEnv(
-			'DATABASE_URL',
-			process.env.DATABASE_URL,
-			webEnv.DATABASE_URL,
-			repoEnv.DATABASE_URL
-		),
-		JWT_SECRET: requiredRuntimeEnv(
-			'JWT_SECRET',
-			UNCONFIGURED_STACK_JWT_SECRET,
-			process.env.JWT_SECRET,
-			webEnv.JWT_SECRET,
-			repoEnv.JWT_SECRET
-		),
-		ADMIN_KEY: requiredRuntimeEnv(
-			'ADMIN_KEY',
-			UNCONFIGURED_STACK_ADMIN_KEY,
-			process.env.ADMIN_KEY,
-			process.env.E2E_ADMIN_KEY,
-			webEnv.ADMIN_KEY,
-			repoEnv.ADMIN_KEY
-		),
-		PLAYWRIGHT_API_PORT: String(apiPort),
-		PLAYWRIGHT_FLAPJACK_PORT: String(flapjackPort),
-		LISTEN_ADDR: `127.0.0.1:${apiPort}`,
-		S3_LISTEN_ADDR: `127.0.0.1:${s3Port}`,
-		FLAPJACK_URL: flapjackUrl,
-		LOCAL_DEV_FLAPJACK_URL: flapjackUrl,
-		PLAYWRIGHT_FLAPJACK_DATA_DIR: join(stackStateDir, 'flapjack-data'),
-		ENVIRONMENT: 'local',
-		SKIP_EMAIL_VERIFICATION: '1',
-		API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION: '1',
-		API_DEV_PID_FILE: join(stackStateDir, 'api.pid'),
-		NODE_SECRET_BACKEND: 'memory',
-		SES_FROM_ADDRESS: undefined,
-		SES_REGION: undefined,
-		SES_CONFIGURATION_SET: undefined,
-		STRIPE_LOCAL_MODE: '0',
-		STRIPE_SECRET_KEY: undefined,
-		STRIPE_TEST_SECRET_KEY: undefined,
-		STRIPE_PUBLISHABLE_KEY: undefined
-	} satisfies ProcessEnvOverrides;
-	const startedProcesses: StartedProcess[] = [];
-	const cleanup = async () => {
-		await Promise.all(startedProcesses.map(stopProcess));
-		await rm(stackStateDir, { recursive: true, force: true });
-	};
-	const readinessTimeoutMs = options.readinessTimeoutMs ?? 60_000;
-
-	try {
-		const stackCommand = (options.stackCommand ?? unconfiguredBillingStackStartCommand)(
-			startContext
-		);
-		const stack = startProcess(
-			'unconfigured billing local stack',
-			stackCommand.command,
-			stackCommand.args,
-			commonEnv
-		);
-		startedProcesses.push(stack);
-		await waitForHttpOk(`${webBaseUrl}/login`, stack, readinessTimeoutMs);
-
-		return {
-			webBaseUrl,
-			processes: [stack],
-			cleanup
-		};
-	} catch (error) {
-		await cleanup();
-		throw error;
-	}
-}
-
-async function logIntoUnconfiguredBillingStack(page: Page, webBaseUrl: string): Promise<void> {
-	const { email, password } = resolvedFixtureUserCredentials();
-	await page.goto(`${webBaseUrl}/login`);
-	await page.getByLabel('Email').fill(email);
-	await page.getByLabel('Password').fill(password);
-	await page.getByRole('button', { name: /log in/i }).click();
-	await expect(page).toHaveURL(/\/console/, { timeout: 20_000 });
 }
 
 test.describe('Billing page', () => {
@@ -427,6 +124,107 @@ test.describe('Billing page', () => {
 		});
 	});
 
+	test('unconfigured billing cold-start deadlines keep the outer waiter beyond the child', () => {
+		const phases = UNCONFIGURED_BILLING_COLD_START_PHASES;
+		const timing = unconfiguredBillingReadinessTiming();
+
+		// The outer budget is the sum of every child phase, not the child's API loop plus a margin.
+		expect(timing.derivedOuterReadinessTimeoutMs).toBe(
+			phases.preludeMs + phases.apiReadinessMs + phases.infrastructureSettleMs + phases.webBootMs
+		);
+		// The child's two env-owned budgets are pushed down from the same phase record.
+		expect(timing.apiReadyTimeoutSeconds).toBe(String(phases.apiReadinessMs / 1_000));
+		expect(timing.infrastructureSettleSeconds).toBe(String(phases.infrastructureSettleMs / 1_000));
+		// Every phase the child can spend time in has to be paid for, in the order it runs.
+		expect(timing.derivedOuterReadinessTimeoutMs).toBeGreaterThan(
+			phases.preludeMs + phases.apiReadinessMs
+		);
+		expect(timing.derivedOuterReadinessTimeoutMs).toBeGreaterThan(
+			phases.apiReadinessMs + phases.infrastructureSettleMs + phases.webBootMs
+		);
+		// The cleanup proofs below still inject a short deadline so they stay fast.
+		expect(unconfiguredBillingReadinessTiming(3_000).outerReadinessTimeoutMs).toBe(3_000);
+	});
+
+	test('unconfigured billing cold-start phases match the child script phase order', async () => {
+		const stackScript = await readFile('../scripts/playwright_local_stack.sh', 'utf8');
+		const preludeIndex = stackScript.indexOf('bash "$SCRIPT_DIR/local-dev-migrate.sh"');
+		const apiReadinessIndex = stackScript.indexOf('seq 1 "$API_START_TIMEOUT_SECONDS"');
+		const settleIndex = stackScript.indexOf('sleep "$PUBLIC_INFRASTRUCTURE_CACHE_SETTLE_SECONDS"');
+		const webBootIndex = stackScript.indexOf('bash "$SCRIPT_DIR/web-dev.sh"');
+
+		// Each phase modelled in UNCONFIGURED_BILLING_COLD_START_PHASES must still exist in the
+		// child, in this order. If the child grows or reorders a startup phase, the budget above
+		// is stale and this fails rather than resurfacing as an opaque outer-waiter timeout.
+		expect(preludeIndex).toBeGreaterThan(-1);
+		expect(apiReadinessIndex).toBeGreaterThan(preludeIndex);
+		expect(settleIndex).toBeGreaterThan(apiReadinessIndex);
+		expect(webBootIndex).toBeGreaterThan(settleIndex);
+	});
+
+	test('unconfigured billing outer waiter survives a prelude longer than the web-boot phase', async () => {
+		test.setTimeout(45_000);
+		// Scaled-down mirror of the real phase record. The fake stack binds later than every
+		// post-prelude phase combined, so the outer waiter only survives if `preludeMs` is
+		// actually part of the budget — the exact term the previous formula omitted.
+		const phases: UnconfiguredBillingColdStartPhases = {
+			preludeMs: 6_000,
+			apiReadinessMs: 1_000,
+			infrastructureSettleMs: 1_000,
+			webBootMs: 1_000
+		};
+		const bindDelayMs = 4_000;
+		expect(bindDelayMs).toBeGreaterThan(
+			phases.apiReadinessMs + phases.infrastructureSettleMs + phases.webBootMs
+		);
+
+		const stack = await startUnconfiguredBillingStack({
+			coldStartPhases: phases,
+			stackCommand: ({ webPort }) => ({
+				command: process.execPath,
+				args: [
+					'-e',
+					`
+const http = require('node:http');
+const port = Number(process.argv[1]);
+const bindDelayMs = Number(process.argv[2]);
+const server = http.createServer((request, response) => {
+	response.statusCode = request.url === '/login' ? 200 : 404;
+	response.end('ok');
+});
+setTimeout(() => server.listen(port, '127.0.0.1'), bindDelayMs);
+setTimeout(() => process.exit(0), bindDelayMs + 30000).unref();
+`,
+					String(webPort),
+					String(bindDelayMs)
+				]
+			})
+		});
+
+		await stack.cleanup();
+	});
+
+	test('unconfigured billing spawn failure rejects and removes temp state', async () => {
+		test.setTimeout(15_000);
+		let stackStateDir = '';
+
+		await expect(
+			startUnconfiguredBillingStack({
+				stackCommand: (context) => {
+					stackStateDir = context.stackStateDir;
+					return {
+						command: 'fjcloud-missing-billing-stack-command',
+						args: []
+					};
+				},
+				readinessTimeoutMs: 3_000
+			})
+		).rejects.toThrow(/spawn failed before readiness.*ENOENT/s);
+
+		expect(stackStateDir).not.toBe('');
+		await expect(access(stackStateDir)).rejects.toThrow();
+	});
+
 	test('unconfigured billing startup failure cleans up started processes and temp state', async () => {
 		test.setTimeout(45_000);
 		const proofDir = await mkdtemp(join(tmpdir(), 'fjcloud-billing-startup-cleanup-'));
@@ -450,6 +248,7 @@ const server = http.createServer((request, response) => {
 	response.statusCode = request.url === '/login' ? 503 : 404;
 	response.end('ok');
 });
+process.stdout.write('billing-startup-diagnostic');
 fs.writeFileSync(stackStateDirMarker, stackStateDir);
 process.on('SIGTERM', () => {
 	fs.writeFileSync(terminatedMarker, 'terminated');
@@ -469,7 +268,7 @@ setTimeout(() => {
 					}),
 					readinessTimeoutMs: 3_000
 				})
-			).rejects.toThrow(/unconfigured billing local stack/);
+			).rejects.toThrow(/billing-startup-diagnostic/);
 
 			await expect(async () => {
 				await expect(readFile(terminatedMarker, 'utf8')).resolves.toBe('terminated');
@@ -599,7 +398,10 @@ setTimeout(() => {
 	test('billing page renders unconfigured route-owned billing state without portal controls', async ({
 		page
 	}) => {
-		test.setTimeout(240_000);
+		// Must exceed the full cold-start budget plus the login and page-assertion budget, so a
+		// genuine startup failure expires at the outer waitForHttpOk (which attaches the child
+		// diagnostics) rather than at this test timeout (which would not name the child cause).
+		test.setTimeout(unconfiguredBillingReadinessTiming().derivedOuterReadinessTimeoutMs + 140_000);
 		const stack = await startUnconfiguredBillingStack();
 		try {
 			await logIntoUnconfiguredBillingStack(page, stack.webBaseUrl);

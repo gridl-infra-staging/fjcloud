@@ -22,6 +22,8 @@ vi.mock('$lib/server/api', () => ({
 import { actions, load } from './+page.server';
 
 const TEST_JWT_SECRET = 'jwt-secret-for-tests-1234567890';
+const VALID_PASSWORD = 'ValidPassword123!';
+const MULTIBYTE_SHORT_PASSWORD = '🔒🔒🔒';
 
 function b64UrlEncodeJson(value: Record<string, unknown>): string {
 	return Buffer.from(JSON.stringify(value))
@@ -50,13 +52,13 @@ function toFormData(entries: Record<string, string>): FormData {
 }
 
 function makeEvent(
-	data: Record<string, string>,
+	data: Record<string, string> | FormData,
 	setCookie = vi.fn(),
 	url = 'https://example.com/signup',
 	platform?: { env: Record<string, string> }
 ) {
 	return {
-		request: { formData: async () => toFormData(data) },
+		request: { formData: async () => (data instanceof FormData ? data : toFormData(data)) },
 		cookies: { set: setCookie },
 		url: new URL(url),
 		locals: { apiBaseUrl: 'http://127.0.0.1:3001' },
@@ -96,8 +98,8 @@ describe('Signup server action', () => {
 					{
 						name: 'New User',
 						email: 'user@example.com',
-						password: 'password123',
-						confirm_password: 'password123'
+						password: VALID_PASSWORD,
+						confirm_password: VALID_PASSWORD
 					},
 					setCookie,
 					undefined,
@@ -129,12 +131,35 @@ describe('Signup server action', () => {
 		);
 	});
 
-	it('fails with 400 for invalid email, short password, and mismatch', async () => {
+	it('fails with 400 without calling the API for file-valued password fields', async () => {
+		const data = toFormData({
+			name: 'Alice',
+			email: 'alice@example.com'
+		});
+		data.set('password', new Blob(['not-a-string']), 'password.txt');
+		data.set('confirm_password', new Blob(['not-a-string']), 'confirmation.txt');
+
+		const result = await actions.default(makeEvent(data));
+
+		expect(registerMock).not.toHaveBeenCalled();
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: {
+					errors: { password: 'Password is required' },
+					name: 'Alice',
+					email: 'alice@example.com'
+				}
+			})
+		);
+	});
+
+	it('fails with 400 for invalid email, multi-byte short password, and mismatch', async () => {
 		const result = await actions.default(
 			makeEvent({
 				name: 'Alice',
 				email: 'not-an-email',
-				password: 'short',
+				password: MULTIBYTE_SHORT_PASSWORD,
 				confirm_password: 'different'
 			})
 		);
@@ -144,7 +169,7 @@ describe('Signup server action', () => {
 				data: {
 					errors: {
 						email: 'Invalid email address',
-						password: 'Password must be at least 8 characters',
+						password: 'Password must be at least 15 characters',
 						confirm_password: 'Passwords do not match'
 					},
 					name: 'Alice',
@@ -165,8 +190,8 @@ describe('Signup server action', () => {
 					{
 						name: '  Alice Example  ',
 						email: '  ALICE@Example.COM  ',
-						password: 'password123',
-						confirm_password: 'password123'
+						password: VALID_PASSWORD,
+						confirm_password: VALID_PASSWORD
 					},
 					setCookie
 				)
@@ -176,7 +201,7 @@ describe('Signup server action', () => {
 		expect(registerMock).toHaveBeenCalledWith({
 			name: 'Alice Example',
 			email: 'alice@example.com',
-			password: 'password123'
+			password: VALID_PASSWORD
 		});
 		expect(setCookie).toHaveBeenCalledWith(
 			AUTH_COOKIE,
@@ -202,8 +227,8 @@ describe('Signup server action', () => {
 					{
 						name: 'Alice Example',
 						email: 'alice@example.com',
-						password: 'password123',
-						confirm_password: 'password123'
+						password: VALID_PASSWORD,
+						confirm_password: VALID_PASSWORD
 					},
 					setCookie,
 					'http://127.0.0.1:5173/signup'
@@ -227,8 +252,8 @@ describe('Signup server action', () => {
 			makeEvent({
 				name: 'Alice',
 				email: 'alice@example.com',
-				password: 'password123',
-				confirm_password: 'password123'
+				password: VALID_PASSWORD,
+				confirm_password: VALID_PASSWORD
 			})
 		);
 		expect(result).toEqual(
@@ -252,8 +277,8 @@ describe('Signup server action', () => {
 			makeEvent({
 				name: 'Alice',
 				email: 'alice@example.com',
-				password: 'password123',
-				confirm_password: 'password123'
+				password: VALID_PASSWORD,
+				confirm_password: VALID_PASSWORD
 			})
 		);
 		expect(result).toEqual(
@@ -262,6 +287,33 @@ describe('Signup server action', () => {
 				data: {
 					errors: {
 						form: 'Authentication service is unavailable. Please verify API_URL and try again.'
+					},
+					name: 'Alice',
+					email: 'alice@example.com'
+				}
+			})
+		);
+	});
+
+	it('keeps backend password validation on the password field', async () => {
+		registerMock.mockRejectedValue(
+			new ApiRequestError(400, 'password is too common; choose another password')
+		);
+
+		const result = await actions.default(
+			makeEvent({
+				name: 'Alice',
+				email: 'alice@example.com',
+				password: VALID_PASSWORD,
+				confirm_password: VALID_PASSWORD
+			})
+		);
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: {
+					errors: {
+						password: 'Password is too common; choose another password'
 					},
 					name: 'Alice',
 					email: 'alice@example.com'
@@ -279,8 +331,8 @@ describe('Signup server action', () => {
 				makeEvent({
 					name: 'Alice',
 					email: 'alice@example.com',
-					password: 'password123',
-					confirm_password: 'password123'
+					password: VALID_PASSWORD,
+					confirm_password: VALID_PASSWORD
 				})
 			)
 		).rejects.toMatchObject({ status: 303, location: '/console' });
@@ -288,7 +340,7 @@ describe('Signup server action', () => {
 		expect(registerMock).toHaveBeenCalledWith({
 			name: 'Alice',
 			email: 'alice@example.com',
-			password: 'password123'
+			password: VALID_PASSWORD
 		});
 	});
 
@@ -309,8 +361,8 @@ describe('Signup server action', () => {
 				{
 					name: 'Alice',
 					email: 'User@Example.COM',
-					password: 'password123',
-					confirm_password: 'password123'
+					password: VALID_PASSWORD,
+					confirm_password: VALID_PASSWORD
 				},
 				setCookie
 			)

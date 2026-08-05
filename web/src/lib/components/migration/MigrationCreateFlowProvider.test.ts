@@ -60,7 +60,8 @@ function migrationClient(listAlgoliaSourceIndexes = vi.fn()): MigrationFlowClien
 	return {
 		listAlgoliaSourceIndexes,
 		checkAlgoliaDestinationEligibility: vi.fn(),
-		createAlgoliaImportJob: vi.fn()
+		createAlgoliaImportJob: vi.fn(),
+		previewMigrationImport: vi.fn()
 	};
 }
 
@@ -198,7 +199,9 @@ describe('MigrationCreateFlow - provider gate', () => {
 		renderFlow(ELIGIBLE_AWS_REPLACE_PROVIDER, vi.fn(), {
 			cancel: false,
 			resume: false,
-			replace: true
+			replace: true,
+			preview: false,
+			verify: false
 		});
 
 		expect(screen.getByTestId('migration-provider-eligibility')).toHaveTextContent(
@@ -608,7 +611,9 @@ describe('MigrationCreateFlow - provider gate', () => {
 		const { rerender } = renderFlow(ELIGIBLE_AWS_REPLACE_PROVIDER, listAlgoliaSourceIndexes, {
 			cancel: false,
 			resume: false,
-			replace: true
+			replace: true,
+			preview: false,
+			verify: false
 		});
 
 		await fireEvent.input(screen.getByLabelText(/algolia application id/i), {
@@ -629,7 +634,7 @@ describe('MigrationCreateFlow - provider gate', () => {
 					name: 'replacement_target_changed'
 				}
 			},
-			capabilities: { cancel: false, resume: false, replace: true }
+			capabilities: { cancel: false, resume: false, replace: true, preview: false, verify: false }
 		});
 
 		expect(screen.getByLabelText(/algolia application id/i)).toHaveValue('');

@@ -1,0 +1,426 @@
+/**
+ * @module Nested local-stack harness for the unconfigured-billing route proof.
+ *
+ * `billing.spec.ts` proves the route-owned "Stripe unavailable" state against a real,
+ * separately-spawned local stack with every Stripe key unset. That needs process
+ * spawning, port reservation, cold-start budgeting, and process-group cleanup — none of
+ * which is a billing assertion, so it lives here and the spec keeps only its assertions.
+ */
+import { expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { once } from 'node:events';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import net from 'node:net';
+import {
+	DEFAULT_E2E_USER_EMAIL,
+	DEFAULT_E2E_USER_PASSWORD,
+	parseDotenvFile
+} from '../../playwright.config.contract';
+
+export type StartedProcess = {
+	child: ChildProcessWithoutNullStreams;
+	label: string;
+	output: string[];
+	spawnError: Error | null;
+};
+type ProcessEnvOverrides = Record<string, string | undefined>;
+export type ProcessCommand = {
+	command: string;
+	args: string[];
+};
+export type UnconfiguredBillingStackStartContext = {
+	apiPort: number;
+	s3Port: number;
+	flapjackPort: number;
+	webPort: number;
+	apiUrl: string;
+	flapjackUrl: string;
+	webBaseUrl: string;
+	stackStateDir: string;
+};
+type UnconfiguredBillingStackCommandFactory = (
+	context: UnconfiguredBillingStackStartContext
+) => ProcessCommand;
+export type UnconfiguredBillingStackStartOptions = {
+	stackCommand?: UnconfiguredBillingStackCommandFactory;
+	readinessTimeoutMs?: number;
+	coldStartPhases?: UnconfiguredBillingColdStartPhases;
+};
+/**
+ * Every wall-clock phase the child `scripts/playwright_local_stack.sh` walks through
+ * before `${webBaseUrl}/login` can answer. The outer `waitForHttpOk` starts counting
+ * the instant the wrapper is spawned, so its budget has to span all four — the child's
+ * own `PLAYWRIGHT_API_READY_TIMEOUT_SECONDS` countdown covers only the second one.
+ */
+export type UnconfiguredBillingColdStartPhases = {
+	/** Flapjack identity/boot plus `local-dev-migrate.sh`, run before the child arms any timer. */
+	preludeMs: number;
+	/** The child's own API health-poll loop (`playwright_local_stack.sh:16`). */
+	apiReadinessMs: number;
+	/** The child's post-API public-infrastructure cache settle sleep (`playwright_local_stack.sh:19`). */
+	infrastructureSettleMs: number;
+	/** `web-dev.sh` boot plus the first SvelteKit SSR compile of `/login`. */
+	webBootMs: number;
+};
+
+const repoEnv = parseDotenvFile('../.env.local');
+const webEnv = parseDotenvFile('.env.local');
+const UNCONFIGURED_STACK_JWT_SECRET =
+	'stage4_unconfigured_billing_route_owner_proof_jwt_secret_0001';
+const UNCONFIGURED_STACK_ADMIN_KEY = 'stage4-unconfigured-admin-key';
+/**
+ * Single owner of the nested cold-start budget. Each field is one phase of the child
+ * script, so the outer deadline is a stated sum rather than a guessed margin. An earlier
+ * formula budgeted only `apiReadinessMs` plus a flat 30s margin, which expired while the
+ * child was still legitimately inside its untimed prelude or its dev-server boot; the
+ * outer waiter must never be the first thing to give up, or the failure message blames a
+ * timeout instead of naming the real child cause.
+ */
+export const UNCONFIGURED_BILLING_COLD_START_PHASES: UnconfiguredBillingColdStartPhases = {
+	preludeMs: 120_000,
+	apiReadinessMs: 180_000,
+	infrastructureSettleMs: 11_000,
+	webBootMs: 90_000
+};
+
+export function unconfiguredBillingReadinessTiming(
+	readinessTimeoutMs?: number,
+	phases: UnconfiguredBillingColdStartPhases = UNCONFIGURED_BILLING_COLD_START_PHASES
+) {
+	const derivedOuterReadinessTimeoutMs =
+		phases.preludeMs + phases.apiReadinessMs + phases.infrastructureSettleMs + phases.webBootMs;
+	return {
+		// Both child-side budgets are pushed down as env overrides so the shell script's
+		// own defaults stay inert for this path and each value has exactly one live owner.
+		apiReadyTimeoutSeconds: String(phases.apiReadinessMs / 1_000),
+		infrastructureSettleSeconds: String(phases.infrastructureSettleMs / 1_000),
+		derivedOuterReadinessTimeoutMs,
+		outerReadinessTimeoutMs: readinessTimeoutMs ?? derivedOuterReadinessTimeoutMs
+	};
+}
+
+async function reservePort(): Promise<number> {
+	const server = net.createServer();
+	server.listen(0, '127.0.0.1');
+	await once(server, 'listening');
+	const address = server.address();
+	if (!address || typeof address === 'string') {
+		server.close();
+		throw new Error('Unable to reserve a loopback port for the billing proof stack');
+	}
+	const port = address.port;
+	server.close();
+	await once(server, 'close');
+	return port;
+}
+
+function sanitizedProcessOutput(started: StartedProcess): string {
+	return started.output.join('').slice(-3_000);
+}
+
+export function unconfiguredStackOutput(processes: StartedProcess[]): string {
+	return processes
+		.map((started) => `--- ${started.label} ---\n${sanitizedProcessOutput(started)}`)
+		.join('\n');
+}
+
+export async function waitForHttpOk(
+	url: string,
+	started: StartedProcess,
+	timeoutMs: number
+): Promise<void> {
+	try {
+		await expect(async () => {
+			if (started.spawnError !== null) {
+				throw new Error(
+					`${started.label} spawn failed before readiness: ${started.spawnError.message}`
+				);
+			}
+			if (started.child.exitCode !== null || started.child.signalCode !== null) {
+				throw new Error(
+					`${started.label} exited before readiness: exit=${started.child.exitCode} signal=${started.child.signalCode}`
+				);
+			}
+			const response = await fetch(url);
+			expect(response.ok, `${started.label} did not return 2xx at ${url}`).toBe(true);
+		}).toPass({
+			intervals: [1_000, 2_000, 3_000, 5_000],
+			timeout: timeoutMs
+		});
+	} catch (error) {
+		throw new Error(`${String(error)}\n\n${unconfiguredStackOutput([started])}`, { cause: error });
+	}
+}
+
+function processEnvWithOverrides(overrides: ProcessEnvOverrides): NodeJS.ProcessEnv {
+	const env = { ...process.env };
+	for (const [key, value] of Object.entries(overrides)) {
+		if (value === undefined) {
+			delete env[key];
+		} else {
+			env[key] = value;
+		}
+	}
+	return env;
+}
+
+function requiredRuntimeEnv(key: string, ...candidates: Array<string | undefined>): string {
+	const value = candidates.find((candidate) => candidate !== undefined && candidate.length > 0);
+	if (!value) {
+		throw new Error(`${key} is required for the unconfigured billing proof stack`);
+	}
+	return value;
+}
+
+function resolvedFixtureUserCredentials(): { email: string; password: string } {
+	return {
+		email:
+			process.env.E2E_USER_EMAIL ??
+			webEnv.E2E_USER_EMAIL ??
+			repoEnv.E2E_USER_EMAIL ??
+			process.env.SEED_USER_EMAIL ??
+			webEnv.SEED_USER_EMAIL ??
+			repoEnv.SEED_USER_EMAIL ??
+			DEFAULT_E2E_USER_EMAIL,
+		password:
+			process.env.E2E_USER_PASSWORD ??
+			webEnv.E2E_USER_PASSWORD ??
+			repoEnv.E2E_USER_PASSWORD ??
+			process.env.SEED_USER_PASSWORD ??
+			webEnv.SEED_USER_PASSWORD ??
+			repoEnv.SEED_USER_PASSWORD ??
+			DEFAULT_E2E_USER_PASSWORD
+	};
+}
+
+function startProcess(label: string, command: ProcessCommand, env: ProcessEnvOverrides) {
+	const child = spawn(command.command, command.args, {
+		cwd: process.cwd(),
+		env: processEnvWithOverrides(env),
+		detached: true
+	});
+	const started: StartedProcess = {
+		child,
+		label,
+		output: [],
+		spawnError: null
+	};
+	const rememberOutput = (chunk: Buffer | string) => {
+		started.output.push(chunk.toString());
+		started.output = started.output.slice(-80);
+	};
+	child.stdout.on('data', rememberOutput);
+	child.stderr.on('data', rememberOutput);
+	child.on('error', (error) => {
+		started.spawnError = error;
+		rememberOutput(`spawn error: ${error.message}\n`);
+	});
+	return started;
+}
+
+export async function expectHttpUnavailable(url: string): Promise<void> {
+	await expect(async () => {
+		const response = await fetch(url).catch(() => null);
+		expect(response, `${url} should not keep serving after stack cleanup`).toBeNull();
+	}).toPass({
+		intervals: [100, 250, 500],
+		timeout: 5_000
+	});
+}
+
+function signalStartedProcessGroup(started: StartedProcess, signal: NodeJS.Signals): void {
+	const childPid = started.child.pid;
+	if (childPid === undefined) {
+		started.child.kill(signal);
+		return;
+	}
+	try {
+		process.kill(-childPid, signal);
+	} catch {
+		started.child.kill(signal);
+	}
+}
+
+export function unconfiguredBillingStackStartCommand({
+	webPort
+}: UnconfiguredBillingStackStartContext): ProcessCommand {
+	return {
+		command: 'bash',
+		args: [
+			'../scripts/playwright_local_stack.sh',
+			'--force-api-restart',
+			'--host',
+			'127.0.0.1',
+			'--port',
+			String(webPort),
+			'--strictPort'
+		]
+	};
+}
+
+async function stopProcess(started: StartedProcess): Promise<void> {
+	if (started.spawnError !== null) return;
+	if (started.child.exitCode !== null || started.child.signalCode !== null) {
+		signalStartedProcessGroup(started, 'SIGTERM');
+		await new Promise((resolve) => setTimeout(resolve, 250));
+		signalStartedProcessGroup(started, 'SIGKILL');
+		return;
+	}
+	signalStartedProcessGroup(started, 'SIGTERM');
+	await Promise.race([
+		once(started.child, 'exit'),
+		new Promise((resolve) => setTimeout(resolve, 10_000))
+	]);
+	if (started.child.exitCode === null && started.child.signalCode === null) {
+		signalStartedProcessGroup(started, 'SIGKILL');
+		await once(started.child, 'exit');
+	}
+}
+
+async function createUnconfiguredBillingStackStartContext(): Promise<UnconfiguredBillingStackStartContext> {
+	const apiPort = await reservePort();
+	const s3Port = await reservePort();
+	const flapjackPort = await reservePort();
+	const webPort = await reservePort();
+	const stackStateDir = await mkdtemp(join(tmpdir(), 'fjcloud-billing-proof-'));
+	const apiUrl = `http://127.0.0.1:${apiPort}`;
+	const flapjackUrl = `http://127.0.0.1:${flapjackPort}`;
+
+	return {
+		apiPort,
+		s3Port,
+		flapjackPort,
+		webPort,
+		apiUrl,
+		flapjackUrl,
+		webBaseUrl: `http://localhost:${webPort}`,
+		stackStateDir
+	};
+}
+
+function unconfiguredBillingRuntimeCredentials() {
+	return {
+		DATABASE_URL: requiredRuntimeEnv(
+			'DATABASE_URL',
+			process.env.DATABASE_URL,
+			webEnv.DATABASE_URL,
+			repoEnv.DATABASE_URL
+		),
+		JWT_SECRET: requiredRuntimeEnv(
+			'JWT_SECRET',
+			UNCONFIGURED_STACK_JWT_SECRET,
+			process.env.JWT_SECRET,
+			webEnv.JWT_SECRET,
+			repoEnv.JWT_SECRET
+		),
+		// The ambient key must win, and the stack-owned constant is only a last resort.
+		// This nested stack shares the main stack's DATABASE_URL, and
+		// `playwright_local_stack.sh:reconcile_playwright_bootstrap_admin_user` repoints
+		// the single `admin_users` row at whatever ADMIN_KEY it is handed. A stack-owned
+		// key therefore outlives this fixture — nothing restores the row on cleanup — and
+		// 401s every later admin-authenticated test in the run.
+		ADMIN_KEY: requiredRuntimeEnv(
+			'ADMIN_KEY',
+			process.env.ADMIN_KEY,
+			process.env.E2E_ADMIN_KEY,
+			webEnv.ADMIN_KEY,
+			repoEnv.ADMIN_KEY,
+			UNCONFIGURED_STACK_ADMIN_KEY
+		)
+	};
+}
+
+function unconfiguredBillingStackEnvironment(
+	context: UnconfiguredBillingStackStartContext,
+	readinessTiming: ReturnType<typeof unconfiguredBillingReadinessTiming>
+): ProcessEnvOverrides {
+	return {
+		...unconfiguredBillingRuntimeCredentials(),
+		API_BASE_URL: context.apiUrl,
+		API_URL: context.apiUrl,
+		PLAYWRIGHT_API_PORT: String(context.apiPort),
+		PLAYWRIGHT_API_READY_TIMEOUT_SECONDS: readinessTiming.apiReadyTimeoutSeconds,
+		PLAYWRIGHT_PUBLIC_INFRASTRUCTURE_CACHE_SETTLE_SECONDS:
+			readinessTiming.infrastructureSettleSeconds,
+		PLAYWRIGHT_FLAPJACK_PORT: String(context.flapjackPort),
+		LISTEN_ADDR: `127.0.0.1:${context.apiPort}`,
+		S3_LISTEN_ADDR: `127.0.0.1:${context.s3Port}`,
+		FLAPJACK_URL: context.flapjackUrl,
+		LOCAL_DEV_FLAPJACK_URL: context.flapjackUrl,
+		PLAYWRIGHT_FLAPJACK_DATA_DIR: join(context.stackStateDir, 'flapjack-data'),
+		ENVIRONMENT: 'local',
+		SKIP_EMAIL_VERIFICATION: '1',
+		API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION: '1',
+		API_DEV_PID_FILE: join(context.stackStateDir, 'api.pid'),
+		NODE_SECRET_BACKEND: 'memory',
+		SES_FROM_ADDRESS: undefined,
+		SES_REGION: undefined,
+		SES_CONFIGURATION_SET: undefined,
+		STRIPE_LOCAL_MODE: '0',
+		STRIPE_SECRET_KEY: undefined,
+		STRIPE_TEST_SECRET_KEY: undefined,
+		STRIPE_PUBLISHABLE_KEY: undefined
+	};
+}
+
+export async function startUnconfiguredBillingStack(
+	options: UnconfiguredBillingStackStartOptions = {}
+): Promise<{
+	webBaseUrl: string;
+	processes: StartedProcess[];
+	cleanup: () => Promise<void>;
+}> {
+	const startContext = await createUnconfiguredBillingStackStartContext();
+	const startedProcesses: StartedProcess[] = [];
+	const cleanup = async () => {
+		await Promise.all(startedProcesses.map(stopProcess));
+		await rm(startContext.stackStateDir, { recursive: true, force: true });
+	};
+	try {
+		const readinessTiming = unconfiguredBillingReadinessTiming(
+			options.readinessTimeoutMs,
+			options.coldStartPhases
+		);
+		const commonEnv = unconfiguredBillingStackEnvironment(startContext, readinessTiming);
+		const stackCommand = (options.stackCommand ?? unconfiguredBillingStackStartCommand)(
+			startContext
+		);
+		const stack = startProcess('unconfigured billing local stack', stackCommand, commonEnv);
+		startedProcesses.push(stack);
+		await waitForHttpOk(
+			`${startContext.webBaseUrl}/login`,
+			stack,
+			readinessTiming.outerReadinessTimeoutMs
+		);
+
+		return {
+			webBaseUrl: startContext.webBaseUrl,
+			processes: [stack],
+			cleanup
+		};
+	} catch (error) {
+		await cleanup();
+		throw error;
+	}
+}
+
+/** Internals exposed for unit tests only — see `unconfigured_billing_stack.test.ts`. */
+export const __unconfiguredBillingTestSeams = {
+	UNCONFIGURED_STACK_ADMIN_KEY,
+	unconfiguredBillingRuntimeCredentials
+};
+
+export async function logIntoUnconfiguredBillingStack(
+	page: Page,
+	webBaseUrl: string
+): Promise<void> {
+	const { email, password } = resolvedFixtureUserCredentials();
+	await page.goto(`${webBaseUrl}/login`);
+	await page.getByLabel('Email').fill(email);
+	await page.getByLabel('Password').fill(password);
+	await page.getByRole('button', { name: /log in/i }).click();
+	await expect(page).toHaveURL(/\/console/, { timeout: 20_000 });
+}

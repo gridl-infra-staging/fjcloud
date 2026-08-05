@@ -29,6 +29,23 @@ register_tmp_path() {
     TMP_PATHS+=("$1")
 }
 
+# Writes the one code fact hosted_adapter_expectation reads, so a scratch root is
+# a complete stand-in for the repo rather than one that fail-closes on a missing
+# file. `arm` is the literal the match arm should carry: true, false, or anything
+# else to exercise the indeterminate path.
+write_scratch_provider_rs() {
+    local root="$1" arm="${2:-true}"
+    mkdir -p "$root/infra/api/src/models/algolia_import_job"
+    printf '%s\n' \
+        'pub(crate) fn has_adapter(self) -> bool {' \
+        '    match self {' \
+        '        Self::Algolia => true,' \
+        "        Self::Meilisearch | Self::Typesense => ${arm}," \
+        '    }' \
+        '}' \
+        > "$root/infra/api/src/models/algolia_import_job/provider.rs"
+}
+
 create_scratch_guide_root() {
     local owner_parent="${1:-}"
 
@@ -37,6 +54,7 @@ create_scratch_guide_root() {
     mkdir -p \
         "$SCRATCH_GUIDE_ROOT/docs/getting-started" \
         "$SCRATCH_GUIDE_ROOT/web/src/routes/console/migrate"
+    write_scratch_provider_rs "$SCRATCH_GUIDE_ROOT" true
     if [ -n "$owner_parent" ]; then
         mkdir -p "$SCRATCH_GUIDE_ROOT/$owner_parent"
     fi
@@ -75,6 +93,38 @@ assert_contract_markers() {
     done
 }
 
+# The hosted-provider adapter boundary, read from the code that owns it rather
+# than pinned as a literal.
+#
+# This used to be three hardcoded markers asserting the guides said adapter
+# support "returns `false`" and that the providers "cannot discover or preview".
+# FC-5 (merge `3fd4098e7`) flipped `has_adapter` to `true` for both hosted
+# providers and correctly rewrote both guides to match — and this guard went red
+# on the honest documentation update while the code change that caused it went
+# entirely unguarded. That is backwards: a doc-contract test exists to catch a
+# guide that has drifted from the code, not a guide that has caught up with it.
+#
+# Deriving the expectation makes it fail in the direction that matters — code
+# moves, guide does not — and makes it impossible for the guide to satisfy the
+# guard by asserting something the code contradicts.
+hosted_adapter_expectation() {
+    local provider="$1"
+    local provider_file="$REPO_ROOT/infra/api/src/models/algolia_import_job/provider.rs"
+
+    # `has_adapter`'s match arms are the single owner of adapter admission.
+    if grep -qE 'Self::Meilisearch \| Self::Typesense => true' "$provider_file"; then
+        printf '`SourceImportProvider::has_adapter` returns `true` for `%s`' "$provider"
+    elif grep -qE 'Self::Meilisearch \| Self::Typesense => false' "$provider_file"; then
+        printf '`SourceImportProvider::has_adapter` returns `false`'
+    else
+        # Fail closed. An unrecognised arm shape means this helper cannot tell
+        # what the code says, and guessing either way would let the guides drift
+        # behind a green test.
+        fail "cannot read the hosted adapter arm from $provider_file; update hosted_adapter_expectation"
+        printf '__INDETERMINATE_HOSTED_ADAPTER_ARM__'
+    fi
+}
+
 assert_provider_boundary_contracts() {
     assert_contract_markers \
         "$REPO_ROOT/docs/getting-started/migrating_from_algolia.md" \
@@ -84,15 +134,13 @@ assert_provider_boundary_contracts() {
     assert_contract_markers \
         "$REPO_ROOT/docs/getting-started/migrating_from_meilisearch.md" \
         "Meilisearch guide" \
-        '`SourceImportProvider::has_adapter` returns `false`' \
-        'fail JSON extraction before `validate_source_provider` runs' \
-        "cannot discover or preview"
+        "$(hosted_adapter_expectation meilisearch)" \
+        'Self-hosted and loopback sources are refused'
     assert_contract_markers \
         "$REPO_ROOT/docs/getting-started/migrating_from_typesense.md" \
         "Typesense guide" \
-        '`SourceImportProvider::has_adapter` returns `false`' \
-        'fail JSON extraction before `validate_source_provider` runs' \
-        "cannot discover or preview"
+        "$(hosted_adapter_expectation typesense)" \
+        'Self-hosted and loopback sources are refused'
     assert_contract_markers \
         "$REPO_ROOT/deliverables/stage_01_provider_migration_research_closeout.md" \
         "Stage 1 research closeout" \
@@ -110,14 +158,14 @@ run_missing_provider_boundary_copy_mutation() {
         'fails closed' \
         'capabilities force `resume` to `false`' \
         > "$scratch/docs/getting-started/migrating_from_algolia.md"
+    # Meilisearch deliberately omits the self-hosted/loopback boundary line; that
+    # omission is what this mutation proves the guard catches.
     printf '%s\n' \
-        '`SourceImportProvider::has_adapter` returns `false`' \
-        'cannot discover or preview' \
+        '`SourceImportProvider::has_adapter` returns `true` for `meilisearch`' \
         > "$scratch/docs/getting-started/migrating_from_meilisearch.md"
     printf '%s\n' \
-        '`SourceImportProvider::has_adapter` returns `false`' \
-        'fail JSON extraction before `validate_source_provider` runs' \
-        'cannot discover or preview' \
+        '`SourceImportProvider::has_adapter` returns `true` for `typesense`' \
+        'Self-hosted and loopback sources are refused' \
         > "$scratch/docs/getting-started/migrating_from_typesense.md"
     printf '%s\n' \
         'can fail JSON extraction before `validate_source_provider` runs' \
@@ -134,10 +182,50 @@ run_missing_provider_boundary_copy_mutation() {
     )" || mutation_exit=$?
 
     assert_ne "$mutation_exit" "0" \
-        "removing hosted-provider extraction warning fails coverage"
+        "removing the hosted-provider endpoint boundary fails coverage"
     assert_contains "$output" \
-        'Meilisearch guide preserves required boundary copy: fail JSON extraction before `validate_source_provider` runs' \
-        "missing hosted-provider extraction warning is reported"
+        'Meilisearch guide preserves required boundary copy: Self-hosted and loopback sources are refused' \
+        "missing hosted-provider endpoint boundary is reported"
+}
+
+run_missing_provider_guide_mutation() {
+    local missing_provider="$1"
+    local scratch output mutation_exit
+
+    create_scratch_guide_root
+    scratch="$SCRATCH_GUIDE_ROOT"
+    mkdir -p "$scratch/deliverables"
+    printf '%s\n' \
+        'fails closed' \
+        'capabilities force `resume` to `false`' \
+        > "$scratch/docs/getting-started/migrating_from_algolia.md"
+    printf '%s\n' \
+        '`SourceImportProvider::has_adapter` returns `true` for `meilisearch`' \
+        'Self-hosted and loopback sources are refused' \
+        > "$scratch/docs/getting-started/migrating_from_meilisearch.md"
+    printf '%s\n' \
+        '`SourceImportProvider::has_adapter` returns `true` for `typesense`' \
+        'Self-hosted and loopback sources are refused' \
+        > "$scratch/docs/getting-started/migrating_from_typesense.md"
+    printf '%s\n' \
+        'can fail JSON extraction before `validate_source_provider` runs' \
+        'does not show the exact source provider' \
+        'ROADMAP CORRECTION REQUIRED: hosted-provider error sequencing' \
+        > "$scratch/deliverables/stage_01_provider_migration_research_closeout.md"
+    rm -f "$scratch/docs/getting-started/migrating_from_${missing_provider}.md"
+
+    mutation_exit=0
+    output="$(
+        FJCLOUD_PROVIDER_GUIDE_MUTATION_CHILD=1 \
+            FJCLOUD_REPO_ROOT="$scratch" \
+            bash "$TEST_SCRIPT" 2>&1
+    )" || mutation_exit=$?
+
+    assert_ne "$mutation_exit" "0" \
+        "missing provider guide fails coverage: $missing_provider"
+    assert_contains "$output" \
+        "missing required provider guide: $missing_provider" \
+        "missing provider guide is reported by provider name: $missing_provider"
 }
 
 run_missing_backticked_owner_mutation() {
@@ -239,7 +327,93 @@ if [ "${FJCLOUD_PROVIDER_GUIDE_SEMANTIC_ONLY:-0}" = "1" ]; then
     exit $?
 fi
 
+# Two mutations the previous hardcoded markers could not express at all, because a
+# literal string cannot notice that the code disagrees with it.
+
+# Code says the hosted providers have no adapter; the guides still say they do.
+# This is the exact drift direction FC-5 created and nothing caught.
+run_hosted_adapter_code_doc_drift_mutation() {
+    local scratch output mutation_exit
+    create_scratch_guide_root
+    scratch="$SCRATCH_GUIDE_ROOT"
+    mkdir -p "$scratch/deliverables"
+    write_scratch_provider_rs "$scratch" false
+    printf '%s\n' \
+        'fails closed' \
+        'capabilities force `resume` to `false`' \
+        > "$scratch/docs/getting-started/migrating_from_algolia.md"
+    printf '%s\n' \
+        '`SourceImportProvider::has_adapter` returns `true` for `meilisearch`' \
+        'Self-hosted and loopback sources are refused' \
+        > "$scratch/docs/getting-started/migrating_from_meilisearch.md"
+    printf '%s\n' \
+        '`SourceImportProvider::has_adapter` returns `true` for `typesense`' \
+        'Self-hosted and loopback sources are refused' \
+        > "$scratch/docs/getting-started/migrating_from_typesense.md"
+    printf '%s\n' \
+        'can fail JSON extraction before `validate_source_provider` runs' \
+        'does not show the exact source provider' \
+        'ROADMAP CORRECTION REQUIRED: hosted-provider error sequencing' \
+        > "$scratch/deliverables/stage_01_provider_migration_research_closeout.md"
+
+    mutation_exit=0
+    output="$(
+        FJCLOUD_PROVIDER_GUIDE_SEMANTIC_ONLY=1 \
+            FJCLOUD_PROVIDER_GUIDE_MUTATION_CHILD=1 \
+            FJCLOUD_REPO_ROOT="$scratch" \
+            bash "$TEST_SCRIPT" 2>&1
+    )" || mutation_exit=$?
+
+    assert_ne "$mutation_exit" "0" \
+        "a guide claiming adapter support the code denies fails coverage"
+    assert_contains "$output" \
+        'preserves required boundary copy: `SourceImportProvider::has_adapter` returns `false`' \
+        "the code-derived expectation, not the guide text, drives the assertion"
+}
+
+# The match arm is unreadable. The helper must refuse rather than default to a
+# verdict, per the no-guard-that-cannot-fail rule.
+run_hosted_adapter_indeterminate_arm_mutation() {
+    local scratch output mutation_exit
+    create_scratch_guide_root
+    scratch="$SCRATCH_GUIDE_ROOT"
+    mkdir -p "$scratch/deliverables"
+    write_scratch_provider_rs "$scratch" 'matches!(self, Self::Algolia)'
+    printf '%s\n' \
+        'fails closed' \
+        'capabilities force `resume` to `false`' \
+        > "$scratch/docs/getting-started/migrating_from_algolia.md"
+    printf '%s\n' \
+        '`SourceImportProvider::has_adapter` returns `true` for `meilisearch`' \
+        'Self-hosted and loopback sources are refused' \
+        > "$scratch/docs/getting-started/migrating_from_meilisearch.md"
+    printf '%s\n' \
+        '`SourceImportProvider::has_adapter` returns `true` for `typesense`' \
+        'Self-hosted and loopback sources are refused' \
+        > "$scratch/docs/getting-started/migrating_from_typesense.md"
+    printf '%s\n' \
+        'can fail JSON extraction before `validate_source_provider` runs' \
+        'does not show the exact source provider' \
+        'ROADMAP CORRECTION REQUIRED: hosted-provider error sequencing' \
+        > "$scratch/deliverables/stage_01_provider_migration_research_closeout.md"
+
+    mutation_exit=0
+    output="$(
+        FJCLOUD_PROVIDER_GUIDE_SEMANTIC_ONLY=1 \
+            FJCLOUD_PROVIDER_GUIDE_MUTATION_CHILD=1 \
+            FJCLOUD_REPO_ROOT="$scratch" \
+            bash "$TEST_SCRIPT" 2>&1
+    )" || mutation_exit=$?
+
+    assert_ne "$mutation_exit" "0" \
+        "an unreadable adapter arm fails closed instead of assuming a verdict"
+    assert_contains "$output" \
+        'cannot read the hosted adapter arm' \
+        "the indeterminate arm is named rather than silently treated as supported"
+}
+
 if [ "${FJCLOUD_PROVIDER_GUIDE_MUTATION_CHILD:-0}" != "1" ]; then
+    run_missing_provider_guide_mutation "meilisearch"
     run_missing_backticked_owner_mutation "README.md" "."
     run_missing_backticked_owner_mutation \
         "web/src/routes/provider-migration-fixture/+page.svelte" \
@@ -248,6 +422,8 @@ if [ "${FJCLOUD_PROVIDER_GUIDE_MUTATION_CHILD:-0}" != "1" ]; then
     run_ordinary_dotted_literal_specimen
     run_missing_console_route_mutation
     run_missing_provider_boundary_copy_mutation
+    run_hosted_adapter_code_doc_drift_mutation
+    run_hosted_adapter_indeterminate_arm_mutation
     assert_provider_boundary_contracts
 fi
 

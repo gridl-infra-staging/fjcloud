@@ -3,7 +3,10 @@ import { screen, within } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
 import { TOAST_DURATION_MS } from '$lib/toast_contract';
 import {
+	DEFAULT_SEARCH_SETTINGS_URL_CASES,
+	SETTINGS_DEEP_LINK_CASES,
 	expectJsonDraftToMatch,
+	expectNestedSearchSettingsTabWiring,
 	expectSingleSettingsForm,
 	expectSettingsSubtabOwnership,
 	getActiveSettingsPanel,
@@ -29,29 +32,18 @@ afterEach(() => {
 });
 
 describe('Index detail page — Settings', () => {
-	it.each([
-		['missing', '/console/indexes/products?tab=settings'],
-		['empty', '/console/indexes/products?tab=settings&settingsTab='],
-		['invalid', '/console/indexes/products?tab=settings&settingsTab=unknown']
-	])('defaults to Search settings when settingsTab is %s', async (_label, url) => {
+	it.each(DEFAULT_SEARCH_SETTINGS_URL_CASES)('defaults to Search settings when settingsTab is %s', async (_label, url) => {
 		setPageUrl(url);
 		renderPage();
 
 		expect(getParentSettingsTab()).toHaveAttribute('aria-selected', 'true');
-		expect(getSettingsSubtab('Search')).toHaveAttribute('aria-selected', 'true');
+		expect(getSettingsSubtab('Search settings')).toHaveAttribute('aria-selected', 'true');
 		const panel = getActiveSettingsPanel();
-		expect(panel).toHaveAccessibleName('Search');
+		expect(panel).toHaveAccessibleName('Search settings');
 		expect(within(panel).getByLabelText(/searchable attributes/i)).toBeInTheDocument();
 	});
 
-	it.each([
-		['search', 'Search', /searchable attributes/i],
-		['ranking', 'Ranking', /ranking rules/i],
-		['advanced-json', 'Advanced JSON', /settings json/i],
-		['language-text', 'Language & Text', /query-language editing is not available/i],
-		['facets-filters', 'Facets & Filters', /filterable attributes/i],
-		['display', 'Display', /displayed attributes/i]
-	])(
+	it.each(SETTINGS_DEEP_LINK_CASES)(
 		'deep-links to settingsTab=%s while keeping the parent Settings tab selected',
 		async (settingsTab, expectedTab, expectedPanelContent) => {
 			setPageUrl(`/console/indexes/products?tab=settings&settingsTab=${settingsTab}`);
@@ -90,13 +82,20 @@ describe('Index detail page — Settings', () => {
 		expectSettingsSubtabOwnership('Ranking');
 	});
 
+	it('gives the nested Search settings tab a distinct accessible name and coherent wiring', async () => {
+		setPageUrl('/console/indexes/products?tab=settings&settingsTab=search');
+		renderPage();
+
+		await expectNestedSearchSettingsTabWiring();
+	});
+
 	it('supports Arrow, Home, and End keyboard navigation across Settings subtabs', async () => {
 		setPageUrl('/console/indexes/products?tab=settings&settingsTab=search');
 		renderPage();
 
 		await openSettingsTab();
 
-		const searchTab = getSettingsSubtab('Search');
+		const searchTab = getSettingsSubtab('Search settings');
 		searchTab.focus();
 		await fireEvent.keyDown(searchTab, { key: 'ArrowRight' });
 		expect(getSettingsSubtab('Ranking')).toHaveFocus();
@@ -107,10 +106,10 @@ describe('Index detail page — Settings', () => {
 		expect(getSettingsSubtab('Advanced JSON')).toHaveAttribute('aria-controls');
 
 		await fireEvent.keyDown(getSettingsSubtab('Advanced JSON'), { key: 'Home' });
-		expect(getSettingsSubtab('Search')).toHaveFocus();
-		expect(getSettingsSubtab('Search')).toHaveAttribute('aria-controls');
+		expect(getSettingsSubtab('Search settings')).toHaveFocus();
+		expect(getSettingsSubtab('Search settings')).toHaveAttribute('aria-controls');
 
-		await fireEvent.keyDown(getSettingsSubtab('Search'), { key: 'ArrowLeft' });
+		await fireEvent.keyDown(getSettingsSubtab('Search settings'), { key: 'ArrowLeft' });
 		expect(getSettingsSubtab('Advanced JSON')).toHaveFocus();
 		expect(getSettingsSubtab('Advanced JSON')).toHaveAttribute('aria-controls');
 	});
@@ -396,7 +395,7 @@ describe('Index detail page — Settings', () => {
 
 		await openSettingsTab();
 		await fireEvent.input(getSettingsTextarea(), { target: { value: 'NOT VALID JSON' } });
-		await fireEvent.click(getSettingsSubtab('Search'));
+		await fireEvent.click(getSettingsSubtab('Search settings'));
 		await fireEvent.input(screen.getByLabelText(/searchable attributes/i), {
 			target: { value: 'title,sku' }
 		});
@@ -622,7 +621,7 @@ describe('Index detail page — Settings', () => {
 
 		await fireEvent.click(screen.getByRole('button', { name: /reset/i }));
 		expect(getSettingsTextarea().value).toBe(JSON.stringify(initialSettings, null, 2));
-		await fireEvent.click(getSettingsSubtab('Search'));
+		await fireEvent.click(getSettingsSubtab('Search settings'));
 		expect(screen.queryByRole('button', { name: /reset/i })).not.toBeInTheDocument();
 	});
 

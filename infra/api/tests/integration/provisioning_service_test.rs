@@ -425,7 +425,13 @@ async fn provision_creates_deployment_with_provisioning_status() {
 async fn provision_fails_for_suspended_customer() {
     let (svc, customer_repo, _deploy_repo, _vm, _dns, _ssm) = default_service();
     let customer = customer_repo.seed("Test Co", "test@example.com");
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     let result = svc
         .provision_deployment(customer.id, "us-east-1", "t4g.small", "aws")

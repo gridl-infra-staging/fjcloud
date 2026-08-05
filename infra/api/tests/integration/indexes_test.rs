@@ -6088,6 +6088,42 @@ async fn delete_synonym_removes_it() {
     assert_eq!(search_body["nbHits"], 0);
 }
 
+#[tokio::test]
+async fn clear_synonyms_posts_to_static_clear_route() {
+    let (app, jwt, http_client, customer_id) = setup_ready_index("products").await;
+
+    let upstream_response = json!({"taskID": 12, "deletedAt": "2026-02-25T02:00:00Z"});
+    http_client.push_json_response(200, upstream_response.clone());
+
+    let clear_resp = app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .uri("/indexes/products/synonyms/clear")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let (clear_status, clear_body) = response_json(clear_resp).await;
+    assert_eq!(clear_status, StatusCode::OK);
+    assert_eq!(clear_body, upstream_response);
+
+    let requests = http_client.take_requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].method, reqwest::Method::POST);
+    assert_eq!(
+        requests[0].url,
+        format!(
+            "https://vm-test.flapjack.foo/1/indexes/{}/synonyms/clear",
+            test_flapjack_uid(customer_id, "products")
+        )
+    );
+    assert_eq!(requests[0].json_body, None);
+}
+
 // ---------------------------------------------------------------------------
 // S5-4. cross-tenant isolation for synonyms
 // ---------------------------------------------------------------------------
@@ -6355,6 +6391,42 @@ async fn get_qs_status_returns_build_status() {
             test_flapjack_uid(customer_id, "products")
         )
     );
+}
+
+#[tokio::test]
+async fn qs_build_posts_to_static_build_route() {
+    let (app, jwt, http_client, customer_id) = setup_ready_index("products").await;
+
+    let build_response = json!({"taskID": 27, "status": "queued"});
+    http_client.push_json_response(200, build_response.clone());
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .uri("/indexes/products/suggestions/build")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let (status, body) = response_json(resp).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body, build_response);
+
+    let requests = http_client.take_requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].method, reqwest::Method::POST);
+    assert_eq!(
+        requests[0].url,
+        format!(
+            "https://vm-test.flapjack.foo/1/configs/{}/build",
+            test_flapjack_uid(customer_id, "products")
+        )
+    );
+    assert_eq!(requests[0].json_body, None);
 }
 
 // ---------------------------------------------------------------------------

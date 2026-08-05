@@ -1,0 +1,42 @@
+Stage 1 reachability timeout RED receipt
+captured_at_utc=2026-08-01T23:11:33Z
+head=83ba2e378c22dc07a9438484e6663ea52f14ecff
+production_source_modified=no
+
+RUN 1 EXACT COMMAND:
+bash scripts/tests/local_ci_reachability_timeout_test.sh
+
+RUN 1 RESULT:
+exit_status=1
+wall_clock_seconds=2.764
+PASS: the non-terminating fixture reaches the real suite runner
+FAIL: run_reachability_suite honors the configured one-second bound without test-watchdog intervention (expected='0' actual='1')
+FAIL: timed-out suite must write a distinguishable non-zero receipt (actual='missing')
+PASS: failure output names the exact timed-out suite
+FAIL: failure output classifies expiry as a timeout rather than a generic failure (expected substring 'timed out' in '--- FAILING hermetic suite: scripts/tests/fixture_never_exits_test.sh (exit 1) ---')
+reachability timeout specimen: watchdog_fired=1 harness_rc=143 suite_rc=missing
+
+=== Results: 2 passed, 3 failed ===
+
+RUN 2 EXACT COMMAND:
+bash scripts/tests/local_ci_reachability_timeout_test.sh
+
+RUN 2 RESULT:
+exit_status=1
+wall_clock_seconds=3.177
+PASS: the non-terminating fixture reaches the real suite runner
+FAIL: run_reachability_suite honors the configured one-second bound without test-watchdog intervention (expected='0' actual='1')
+FAIL: timed-out suite must write a distinguishable non-zero receipt (actual='missing')
+FAIL: failure output classifies expiry as a timeout rather than a generic failure (expected substring 'timed out' in '--- FAILING hermetic suite: scripts/tests/fixture_never_exits_test.sh (exit 1) ---')
+PASS: failure output names the exact timed-out suite
+reachability timeout specimen: watchdog_fired=1 harness_rc=143 suite_rc=missing
+
+=== Results: 2 passed, 3 failed ===
+
+INTERPRETATION:
+Both bounded runs reached the extracted current-owner runner. In both, the
+configured FJCLOUD_REACHABILITY_SUITE_TIMEOUT_SECONDS=1 had no effect: the
+test-owned 2.5-second watchdog had to interrupt the harness, no suite .rc was
+written, and the extracted production failure loop rendered a generic exit 1
+instead of naming a timeout. The stable RED result proves all three missing
+parts of the future contract without invoking local-ci.sh --fast.

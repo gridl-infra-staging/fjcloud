@@ -4,18 +4,9 @@
  * Red proof for the dashboard usage chart label-overlap boundary.
  */
 
-import { test, expect } from '../../fixtures/fixtures';
+import { test, expect, type SvgTextBox } from '../../fixtures/fixtures';
 
-type LabelBox = {
-	index: number;
-	text: string;
-	left: number;
-	top: number;
-	right: number;
-	bottom: number;
-	width: number;
-	height: number;
-};
+type LabelBox = SvgTextBox;
 
 type LabelOverlap = {
 	first: LabelBox;
@@ -74,7 +65,8 @@ function fixtureLabelBox(overrides: Partial<LabelBox>): LabelBox {
 test.describe('Console daily usage chart', () => {
 	test('row 6 @p0_coverage daily usage chart labels do not overlap at dashboard breakpoints', async ({
 		page,
-		seedMetricsSearchableIndex
+		seedDashboardUsage,
+		readVisibleSvgTextBoxes
 	}) => {
 		test.setTimeout(120_000);
 
@@ -88,15 +80,14 @@ test.describe('Console daily usage chart', () => {
 			hasPositiveIntersection(fixtureLabelBox({}), fixtureLabelBox({ left: 9, right: 19 }))
 		).toBe(true);
 
-		const indexName = `usage-chart-${Date.now()}`;
-		await seedMetricsSearchableIndex(indexName);
+		const { month } = await seedDashboardUsage(`usage-chart-${Date.now()}`);
 
 		for (const viewport of [
 			{ width: 768, height: 900 },
 			{ width: 1280, height: 900 }
 		]) {
 			await page.setViewportSize(viewport);
-			await page.goto('/console');
+			await page.goto(`/console?month=${month}`);
 
 			const usageChart = page.getByTestId('usage-chart');
 			await expect(usageChart, `usage chart is absent at ${viewport.width}px`).toBeVisible({
@@ -106,26 +97,7 @@ test.describe('Console daily usage chart', () => {
 			const chartSvgs = usageChart.locator('svg');
 			await expect(chartSvgs, `usage chart has no SVG at ${viewport.width}px`).not.toHaveCount(0);
 
-			const labels = await chartSvgs.evaluateAll((svgs) => {
-				const textNodes = Array.from(
-					new Set(svgs.flatMap((svg) => Array.from(svg.querySelectorAll('text'))))
-				);
-				return textNodes
-					.map((node, index) => {
-						const rect = node.getBoundingClientRect();
-						return {
-							index,
-							text: (node.textContent ?? '').trim(),
-							left: rect.left,
-							top: rect.top,
-							right: rect.right,
-							bottom: rect.bottom,
-							width: rect.width,
-							height: rect.height
-						};
-					})
-					.filter((box) => box.text.length > 0 && box.width > 0 && box.height > 0);
-			});
+			const labels = await readVisibleSvgTextBoxes(chartSvgs);
 
 			expect(
 				labels.length,

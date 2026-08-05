@@ -1,16 +1,12 @@
 /**
  */
-import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { createAdminClient } from '$lib/admin-client';
 import type { AdminTenant } from '$lib/admin-client';
 import { retryTransientAdminApiRequest } from '$lib/server/transient-api-retry';
 import {
-	ADMIN_SESSION_COOKIE,
-	getAdminSession,
-	purgeExpiredAdminSessions
+	redirectIfAdminSessionAuthError,
+	requireDurableAdminSession
 } from '$lib/server/admin-session';
-import { privateEnvValue, type RuntimeEnv } from '$lib/server/runtime-env';
 
 export interface AdminCustomerListItem extends Omit<AdminTenant, 'index_count'> {
 	index_count: number | null;
@@ -19,21 +15,6 @@ export interface AdminCustomerListItem extends Omit<AdminTenant, 'index_count'> 
 export type AdminCustomersPageData = {
 	customers: AdminCustomerListItem[] | null;
 };
-
-type AdminCookieReader = { get(name: string): string | undefined };
-
-function requireAdminSession(cookies: AdminCookieReader, runtimeEnv?: RuntimeEnv): void {
-	purgeExpiredAdminSessions();
-
-	if (
-		!getAdminSession(
-			cookies.get(ADMIN_SESSION_COOKIE),
-			privateEnvValue('ADMIN_KEY', { env: runtimeEnv })
-		)
-	) {
-		redirect(303, '/admin/login');
-	}
-}
 
 function toCustomerListItem(tenant: AdminTenant): AdminCustomerListItem {
 	return {
@@ -51,19 +32,17 @@ function toCustomerListItem(tenant: AdminTenant): AdminCustomerListItem {
 	};
 }
 
-export const load: PageServerLoad = async ({ fetch, depends, cookies, platform }) => {
-	depends('admin:customers:list');
-	requireAdminSession(cookies, platform?.env);
-
-	const client = createAdminClient(undefined, platform?.env);
-	client.setFetch(fetch);
+export const load: PageServerLoad = async (event) => {
+	event.depends('admin:customers:list');
+	const { adminClient: client } = await requireDurableAdminSession(event);
 
 	try {
 		const tenants = await retryTransientAdminApiRequest(() => client.getTenants());
 		const customers = tenants.map(toCustomerListItem);
 
 		return { customers } satisfies AdminCustomersPageData;
-	} catch {
+	} catch (error) {
+		redirectIfAdminSessionAuthError(error);
 		return { customers: null } satisfies AdminCustomersPageData;
 	}
 };

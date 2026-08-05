@@ -10,6 +10,8 @@
 #   docker compose down -v             # stop and remove data volumes
 #
 # See docs/runbooks/local-dev.md for full instructions.
+# local-dev-up.sh exports worktree-derived host ports before invoking Compose.
+# The fallbacks below preserve direct `docker compose` compatibility.
 
 services:
   postgres:
@@ -19,7 +21,7 @@ services:
       POSTGRES_USER: griddle
       POSTGRES_PASSWORD: griddle_local
     ports:
-      - "${LOCAL_DB_PORT:-5432}:5432"
+      - "127.0.0.1:${LOCAL_DB_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./infra/migrations:/migrations:ro
@@ -68,7 +70,7 @@ services:
       MEILI_ENV: development
       MEILI_MASTER_KEY: "${MEILI_MASTER_KEY:-local-source-provider-key}"
     ports:
-      - "127.0.0.1:${LOCAL_MEILISEARCH_PORT:-7700}:7700"
+      - "127.0.0.1:${LOCAL_MEILISEARCH_PORT:-7710}:7700"
     tmpfs:
       - /meili_data
     healthcheck:

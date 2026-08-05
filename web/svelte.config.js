@@ -1,5 +1,44 @@
 import adapter from '@sveltejs/adapter-cloudflare';
 
+const LOCAL_CONNECT_SOURCES = /** @type {const} */ (['http://localhost:*', 'http://127.0.0.1:*']);
+const DEPLOYED_CONNECT_SOURCES = /** @type {const} */ ([
+	'https://api.flapjack.foo',
+	'https://api.staging.flapjack.foo',
+	'https://api.stripe.com'
+]);
+
+/**
+ * @returns {NonNullable<NonNullable<NonNullable<import('@sveltejs/kit').Config['kit']>['csp']>['directives']>}
+ */
+export function createDocumentCspDirectives(nodeEnvironment = process.env.NODE_ENV) {
+	return {
+		'base-uri': ['none'],
+		// OAuth status checks use isolated loopback API ports only in local/test servers. Deployed
+		// documents use the canonical API hosts, while Stripe.js contacts Stripe's API directly.
+		'connect-src': [
+			'self',
+			...(nodeEnvironment === 'production' ? [] : LOCAL_CONNECT_SOURCES),
+			...DEPLOYED_CONNECT_SOURCES
+		],
+		'default-src': ['self'],
+		'font-src': ['self'],
+		'form-action': ['self'],
+		'frame-ancestors': ['none'],
+		// Stripe.js hosts Elements frames on js.stripe.com and card authentication on hooks.stripe.com.
+		'frame-src': ['https://*.js.stripe.com', 'https://js.stripe.com', 'https://hooks.stripe.com'],
+		// DocumentCard accepts customer-selected HTTPS image URLs in addition to bundled images.
+		'img-src': ['self', 'https:'],
+		'object-src': ['none'],
+		// @stripe/stripe-js loads its maintained runtime directly from js.stripe.com.
+		'script-src': ['self', 'https://*.js.stripe.com', 'https://js.stripe.com'],
+		'style-src': ['self'],
+		// Width indicators and the search dialog use narrowly scoped element style attributes.
+		'style-src-attr': ['unsafe-inline']
+	};
+}
+
+const DOCUMENT_CSP_DIRECTIVES = createDocumentCspDirectives();
+
 // Pages-with-Functions adapter. Output goes to `.svelte-kit/cloudflare/`
 // and contains a `_worker.js/` directory (the SSR Worker entry) plus all
 // static assets, ready for `wrangler pages deploy` or for Cloudflare Pages'
@@ -28,6 +67,10 @@ const config = {
 				exclude: ['<all>']
 			}
 		}),
+		csp: {
+			mode: 'auto',
+			directives: DOCUMENT_CSP_DIRECTIVES
+		},
 		prerender: {
 			// Prerender ONLY the marketing/legal pages that are safe to bake at
 			// build time. Everything else (signup, login, dashboard, api/*) is

@@ -29,6 +29,7 @@ mod settings;
 mod suggestions;
 mod synonyms;
 
+pub use migration::SourceIndexDiscoveryRequest;
 pub use sensitive_request::SensitiveFlapjackHttpRequest;
 
 /// Default time-to-live for cached admin keys. On cache miss, the key is fetched

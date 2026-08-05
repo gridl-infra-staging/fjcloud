@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
+	import { PASSWORD_MIN_LENGTH, passwordMinimumLengthError } from '$lib/auth/password-policy';
 	import PasswordInput from '$lib/components/PasswordInput.svelte';
 
 	let { form } = $props();
@@ -10,6 +11,15 @@
 			password?: string;
 			confirm_password?: string;
 		}
+	);
+
+	// Client affordance mirroring the shared code-point minimum. Native `minlength`
+	// counts UTF-16 units, so it would accept e.g. eight emoji; this counts code
+	// points and blocks submission until the value clears the minimum. The Rust
+	// API validate_password remains the security boundary.
+	let password = $state('');
+	const clientPasswordError = $derived(
+		password.length > 0 ? passwordMinimumLengthError(password) : null
 	);
 
 	function recoveryAction(formData: unknown): string | null {
@@ -71,9 +81,10 @@
 					id="password"
 					name="password"
 					label="New Password"
+					bind:value={password}
 					required
-					minlength="8"
-					error={errors.password}
+					minlength={PASSWORD_MIN_LENGTH}
+					error={clientPasswordError ?? errors.password}
 					surface="neutral"
 				/>
 
@@ -82,14 +93,15 @@
 					name="confirm_password"
 					label="Confirm New Password"
 					required
-					minlength="8"
+					minlength={PASSWORD_MIN_LENGTH}
 					error={errors.confirm_password}
 					surface="neutral"
 				/>
 
 				<button
 					type="submit"
-					class="w-full rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+					disabled={!!clientPasswordError}
+					class="w-full rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
 				>
 					Reset Password
 				</button>

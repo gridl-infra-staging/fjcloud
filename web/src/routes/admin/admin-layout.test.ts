@@ -19,65 +19,38 @@ import { load as adminLayoutLoad } from './+layout.server';
 import { actions as loginActions } from './login/+page.server';
 import { actions as logoutActions } from './logout/+page.server';
 import {
+	ADMIN_TEST_LOCALS,
+	DurableAdminSessionApi,
+	OPAQUE_DURABLE_SESSION_TOKEN,
+	REGISTERED_ADMIN_KEY,
+	REQUESTED_SESSION_MAX_AGE_SECONDS,
+	MockCookies,
+	authenticatedAdminCookies,
+	durableSessionFetchMock
+} from './admin_session_durable_test_support';
+import {
 	ADMIN_SESSION_COOKIE,
 	DEFAULT_ADMIN_SESSION_MAX_AGE_SECONDS,
-	clearAdminSessionsForTest,
 	clearAdminLoginAttemptsForTest,
-	createAdminSession,
-	getAdminSession,
 	checkAdminLoginRateLimit,
 	DEFAULT_ADMIN_LOGIN_MAX_ATTEMPTS,
 	DEFAULT_ADMIN_LOGIN_LOCKOUT_SECONDS,
 	resolveAdminSessionMaxAgeSeconds
 } from '$lib/server/admin-session';
 
-type CookieOptions = {
-	path?: string;
-	httpOnly?: boolean;
-	secure?: boolean;
-	sameSite?: 'lax' | 'strict' | 'none';
-	maxAge?: number;
-};
-
-class MockCookies {
-	private store = new Map<string, string>();
-	readonly setCalls: Array<{ name: string; value: string; options: CookieOptions }> = [];
-	readonly deleteCalls: Array<{ name: string; options: CookieOptions }> = [];
-
-	constructor(initial: Record<string, string> = {}) {
-		for (const [name, value] of Object.entries(initial)) {
-			this.store.set(name, value);
-		}
-	}
-
-	get(name: string): string | undefined {
-		return this.store.get(name);
-	}
-
-	set(name: string, value: string, options: CookieOptions): void {
-		this.store.set(name, value);
-		this.setCalls.push({ name, value, options });
-	}
-
-	delete(name: string, options: CookieOptions): void {
-		this.store.delete(name);
-		this.deleteCalls.push({ name, options });
-	}
-}
-
 beforeEach(() => {
-	process.env.ADMIN_KEY = 'top-secret-admin-key';
+	process.env.ADMIN_KEY = REGISTERED_ADMIN_KEY;
 	delete process.env.ENVIRONMENT;
-	clearAdminSessionsForTest();
+	delete process.env.ADMIN_SESSION_MAX_AGE_SECONDS;
 	clearAdminLoginAttemptsForTest();
 });
 
 afterEach(() => {
 	cleanup();
-	clearAdminSessionsForTest();
 	clearAdminLoginAttemptsForTest();
 	delete process.env.ADMIN_KEY;
 	delete process.env.ENVIRONMENT;
+	delete process.env.ADMIN_SESSION_MAX_AGE_SECONDS;
 });
 
 describe('Admin layout and auth', () => {
@@ -120,45 +93,108 @@ describe('Admin layout and auth', () => {
 		});
 	});
 
-	it('authenticated user at /admin/login redirects to /admin/fleet', async () => {
-		const session = createAdminSession(3600);
-		const cookies = new MockCookies({ [ADMIN_SESSION_COOKIE]: session.id });
+	it('authenticated durable API session at /admin/login redirects to /admin/fleet', async () => {
+		const api = new DurableAdminSessionApi();
+		const cookies = authenticatedAdminCookies();
 
 		await expect(
 			adminLayoutLoad({
 				cookies,
-				url: new URL('http://localhost/admin/login')
+				url: new URL('http://localhost/admin/login'),
+				locals: ADMIN_TEST_LOCALS,
+				fetch: api.fetch
 			} as never)
 		).rejects.toMatchObject({
 			status: 303,
 			location: '/admin/fleet'
 		});
+		expect(api.fetch).toHaveBeenCalledTimes(1);
 	});
 
-	it('authenticated user at /admin redirects to /admin/fleet', async () => {
-		const session = createAdminSession(3600);
-		const cookies = new MockCookies({ [ADMIN_SESSION_COOKIE]: session.id });
+	it('authenticated durable API session at /admin redirects to /admin/fleet', async () => {
+		const api = new DurableAdminSessionApi();
+		const cookies = authenticatedAdminCookies();
 
 		await expect(
 			adminLayoutLoad({
 				cookies,
-				url: new URL('http://localhost/admin')
+				url: new URL('http://localhost/admin'),
+				locals: ADMIN_TEST_LOCALS,
+				fetch: api.fetch
 			} as never)
 		).rejects.toMatchObject({
 			status: 303,
 			location: '/admin/fleet'
 		});
+		expect(api.fetch).toHaveBeenCalledTimes(1);
 	});
 
-	it('expired session redirects to login', async () => {
-		// Create a session that's already expired.
-		const session = createAdminSession(-1);
-		const cookies = new MockCookies({ [ADMIN_SESSION_COOKIE]: session.id });
+	it('expired durable API session redirects to login', async () => {
+		const api = new DurableAdminSessionApi();
+		api.revokeSession();
+		const cookies = authenticatedAdminCookies();
 
 		await expect(
 			adminLayoutLoad({
 				cookies,
-				url: new URL('http://localhost/admin/fleet')
+				url: new URL('http://localhost/admin/fleet'),
+				locals: ADMIN_TEST_LOCALS,
+				fetch: api.fetch
+			} as never)
+		).rejects.toMatchObject({
+			status: 303,
+			location: '/admin/login'
+		});
+		expect(api.fetch).toHaveBeenCalledTimes(1);
+	});
+
+	it('layout server returns isAuthenticated without leaking session id', async () => {
+		process.env.ENVIRONMENT = 'staging';
+		const api = new DurableAdminSessionApi();
+		const cookies = authenticatedAdminCookies();
+
+		const result = await adminLayoutLoad({
+			cookies,
+			url: new URL('http://localhost/admin/fleet'),
+			locals: ADMIN_TEST_LOCALS,
+			fetch: api.fetch
+		} as never);
+
+		expect(result!.isAuthenticated).toBe(true);
+		expect(result!.environment).toBe('staging');
+		// Session ID must NOT be in the returned data (httpOnly cookie only)
+		expect(result).not.toHaveProperty('adminSession');
+		expect(JSON.stringify(result)).not.toContain(OPAQUE_DURABLE_SESSION_TOKEN);
+	});
+
+	it('layout server reads Cloudflare platform environment for durable sessions', async () => {
+		delete process.env.ADMIN_KEY;
+		const api = new DurableAdminSessionApi();
+		const cookies = authenticatedAdminCookies();
+
+		const result = await adminLayoutLoad({
+			cookies,
+			url: new URL('https://cloud.staging.flapjack.foo/admin/fleet'),
+			platform: { env: { ADMIN_KEY: 'platform-admin-key', ENVIRONMENT: 'staging' } },
+			locals: ADMIN_TEST_LOCALS,
+			fetch: api.fetch
+		} as never);
+
+		expect(result!.isAuthenticated).toBe(true);
+		expect(result!.environment).toBe('staging');
+	});
+
+	it('redirects a revoked durable API cookie to login', async () => {
+		const api = new DurableAdminSessionApi();
+		api.revokeSession();
+		const cookies = authenticatedAdminCookies();
+
+		await expect(
+			adminLayoutLoad({
+				cookies,
+				url: new URL('http://localhost/admin/fleet'),
+				locals: ADMIN_TEST_LOCALS,
+				fetch: api.fetch
 			} as never)
 		).rejects.toMatchObject({
 			status: 303,
@@ -166,50 +202,126 @@ describe('Admin layout and auth', () => {
 		});
 	});
 
-	it('layout server returns isAuthenticated without leaking session id', async () => {
-		process.env.ENVIRONMENT = 'staging';
-		const session = createAdminSession(3600);
-		const cookies = new MockCookies({ [ADMIN_SESSION_COOKIE]: session.id });
+	it('redirects copied durable API cookies on /admin after durable session state is gone', async () => {
+		const api = new DurableAdminSessionApi();
+		api.removeSession();
+		const cookies = authenticatedAdminCookies();
 
-		const result = await adminLayoutLoad({
-			cookies,
-			url: new URL('http://localhost/admin/fleet')
-		} as never);
-
-		expect(result!.isAuthenticated).toBe(true);
-		expect(result!.environment).toBe('staging');
-		// Session ID must NOT be in the returned data (httpOnly cookie only)
-		expect(result).not.toHaveProperty('adminSession');
-		expect(JSON.stringify(result)).not.toContain(session.id);
+		await expect(
+			adminLayoutLoad({
+				cookies,
+				url: new URL('http://localhost/admin'),
+				locals: ADMIN_TEST_LOCALS,
+				fetch: api.fetch
+			} as never)
+		).rejects.toMatchObject({
+			status: 303,
+			location: '/admin/login'
+		});
 	});
 
-	it('layout server verifies Cloudflare platform ADMIN_KEY sessions', async () => {
-		delete process.env.ADMIN_KEY;
-		const session = createAdminSession(3600, 'platform-admin-key');
-		const cookies = new MockCookies({ [ADMIN_SESSION_COOKIE]: session.id });
+	it('redirects copied durable API cookies on /admin/fleet after durable session state is gone', async () => {
+		const api = new DurableAdminSessionApi();
+		api.removeSession();
+		const cookies = authenticatedAdminCookies();
 
-		const result = await adminLayoutLoad({
-			cookies,
-			url: new URL('https://cloud.staging.flapjack.foo/admin/fleet'),
-			platform: { env: { ADMIN_KEY: 'platform-admin-key', ENVIRONMENT: 'staging' } }
-		} as never);
-
-		expect(result!.isAuthenticated).toBe(true);
-		expect(result!.environment).toBe('staging');
+		await expect(
+			adminLayoutLoad({
+				cookies,
+				url: new URL('http://localhost/admin/fleet'),
+				locals: ADMIN_TEST_LOCALS,
+				fetch: api.fetch
+			} as never)
+		).rejects.toMatchObject({
+			status: 303,
+			location: '/admin/login'
+		});
 	});
 
-	it('admin login validates key and creates secure session cookie for https', async () => {
+	it('accepts the opaque API-issued session on the admin layout through durable validation', async () => {
+		const api = new DurableAdminSessionApi();
+		const cookies = authenticatedAdminCookies();
+		const result = await adminLayoutLoad({
+			cookies,
+			url: new URL('https://localhost/admin/fleet'),
+			locals: ADMIN_TEST_LOCALS,
+			fetch: api.fetch
+		} as never);
+		expect(result!.isAuthenticated).toBe(true);
+		const [input, init] = api.fetch.mock.calls.at(-1)!;
+		const validationRequest = input instanceof Request ? input : new Request(input, init);
+		expect(validationRequest.method).toBe('GET');
+		expect(validationRequest.url).toBe('https://api.test/admin/sessions/current');
+		expect(validationRequest.headers.get('x-admin-session')).toBe(OPAQUE_DURABLE_SESSION_TOKEN);
+	});
+
+	it('redirects an API-issued session missing from durable state on /admin', async () => {
+		const api = new DurableAdminSessionApi();
+		const cookies = authenticatedAdminCookies();
+		api.removeSession();
+		await expect(
+			adminLayoutLoad({
+				cookies,
+				url: new URL('https://localhost/admin'),
+				locals: ADMIN_TEST_LOCALS,
+				fetch: api.fetch
+			} as never)
+		).rejects.toMatchObject({ status: 303, location: '/admin/login' });
+		expect(api.fetch).toHaveBeenCalledTimes(1);
+	});
+
+	it('redirects a durably revoked API-issued session on /admin/fleet', async () => {
+		const api = new DurableAdminSessionApi();
+		const cookies = authenticatedAdminCookies();
+		api.revokeSession();
+		await expect(
+			adminLayoutLoad({
+				cookies,
+				url: new URL('https://localhost/admin/fleet'),
+				locals: ADMIN_TEST_LOCALS,
+				fetch: api.fetch
+			} as never)
+		).rejects.toMatchObject({ status: 303, location: '/admin/login' });
+		expect(api.fetch).toHaveBeenCalledTimes(1);
+	});
+
+	it('durably revokes the API-issued current session before deleting its cookie on logout', async () => {
+		const operationLog: string[] = [];
+		const api = new DurableAdminSessionApi(operationLog);
+		const cookies = new MockCookies(
+			{ [ADMIN_SESSION_COOKIE]: OPAQUE_DURABLE_SESSION_TOKEN },
+			operationLog
+		);
+		await expect(
+			logoutActions.default({
+				cookies,
+				locals: ADMIN_TEST_LOCALS,
+				fetch: api.fetch
+			} as never)
+		).rejects.toMatchObject({ status: 303, location: '/admin/login' });
+		expect(operationLog).toEqual(['api-revoke', 'cookie-delete']);
+		const [input, init] = api.fetch.mock.calls.at(-1)!;
+		const revokeRequest = input instanceof Request ? input : new Request(input, init);
+		expect(revokeRequest.method).toBe('DELETE');
+		expect(revokeRequest.url).toBe('https://api.test/admin/sessions/current');
+		expect(revokeRequest.headers.get('x-admin-session')).toBe(OPAQUE_DURABLE_SESSION_TOKEN);
+	});
+
+	it('admin login validates key and creates secure durable session cookie for https', async () => {
 		const cookies = new MockCookies();
+		const fetch = durableSessionFetchMock();
 		const request = new Request('https://localhost/admin/login', {
 			method: 'POST',
-			body: new URLSearchParams({ admin_key: 'top-secret-admin-key' })
+			body: new URLSearchParams({ admin_key: REGISTERED_ADMIN_KEY })
 		});
 
 		await expect(
 			loginActions.default({
 				request,
 				cookies,
-				url: new URL('https://localhost/admin/login')
+				url: new URL('https://localhost/admin/login'),
+				locals: ADMIN_TEST_LOCALS,
+				fetch
 			} as never)
 		).rejects.toMatchObject({
 			status: 303,
@@ -223,16 +335,17 @@ describe('Admin layout and auth', () => {
 		expect(setCall.options.secure).toBe(true);
 		expect(setCall.options.sameSite).toBe('lax');
 		expect(setCall.options.path).toBe('/admin');
-		expect(setCall.options.maxAge).toBe(60 * 60 * 8);
-		expect(getAdminSession(setCall.value)).not.toBeNull();
+		expect(setCall.options.maxAge).toBe(REQUESTED_SESSION_MAX_AGE_SECONDS);
+		expect(setCall.value).toBe(OPAQUE_DURABLE_SESSION_TOKEN);
 	});
 
-	it('admin login accepts ADMIN_KEY from Cloudflare platform env', async () => {
+	it('admin login reads ADMIN_SESSION_MAX_AGE_SECONDS from Cloudflare platform env', async () => {
 		delete process.env.ADMIN_KEY;
 		const cookies = new MockCookies();
+		const api = new DurableAdminSessionApi();
 		const request = new Request('https://cloud.staging.flapjack.foo/admin/login', {
 			method: 'POST',
-			body: new URLSearchParams({ admin_key: 'platform-admin-key' })
+			body: new URLSearchParams({ admin_key: REGISTERED_ADMIN_KEY })
 		});
 
 		await expect(
@@ -240,7 +353,9 @@ describe('Admin layout and auth', () => {
 				request,
 				cookies,
 				url: new URL('https://cloud.staging.flapjack.foo/admin/login'),
-				platform: { env: { ADMIN_KEY: 'platform-admin-key' } }
+				platform: { env: { ADMIN_SESSION_MAX_AGE_SECONDS: '3600' } },
+				locals: ADMIN_TEST_LOCALS,
+				fetch: api.fetch
 			} as never)
 		).rejects.toMatchObject({
 			status: 303,
@@ -248,21 +363,29 @@ describe('Admin layout and auth', () => {
 		});
 
 		expect(cookies.setCalls).toHaveLength(1);
-		expect(getAdminSession(cookies.setCalls[0].value, 'platform-admin-key')).not.toBeNull();
+		expect(cookies.setCalls[0].value).toBe(OPAQUE_DURABLE_SESSION_TOKEN);
+		// The platform-configured lifetime governs both the API request and the cookie.
+		expect(cookies.setCalls[0].options.maxAge).toBe(3600);
+		const [input, init] = api.fetch.mock.calls[0];
+		const apiRequest = input instanceof Request ? input : new Request(input, init);
+		await expect(apiRequest.clone().json()).resolves.toEqual({ max_age_seconds: 3600 });
 	});
 
 	it('admin login uses a non-secure session cookie for local http', async () => {
 		const cookies = new MockCookies();
+		const fetch = durableSessionFetchMock();
 		const request = new Request('http://localhost/admin/login', {
 			method: 'POST',
-			body: new URLSearchParams({ admin_key: 'top-secret-admin-key' })
+			body: new URLSearchParams({ admin_key: REGISTERED_ADMIN_KEY })
 		});
 
 		await expect(
 			loginActions.default({
 				request,
 				cookies,
-				url: new URL('http://localhost/admin/login')
+				url: new URL('http://localhost/admin/login'),
+				locals: ADMIN_TEST_LOCALS,
+				fetch
 			} as never)
 		).rejects.toMatchObject({
 			status: 303,
@@ -272,9 +395,10 @@ describe('Admin layout and auth', () => {
 		expect(cookies.setCalls).toHaveLength(1);
 		expect(cookies.setCalls[0].options.secure).toBe(false);
 		expect(cookies.setCalls[0].options.path).toBe('/admin');
+		expect(cookies.setCalls[0].value).toBe(OPAQUE_DURABLE_SESSION_TOKEN);
 	});
 
-	it('incorrect admin key returns an error without creating a session', async () => {
+	it('a key the API rejects returns 401 without creating a session cookie', async () => {
 		const cookies = new MockCookies();
 		const request = new Request('http://localhost/admin/login', {
 			method: 'POST',
@@ -283,7 +407,10 @@ describe('Admin layout and auth', () => {
 
 		const result = await loginActions.default({
 			request,
-			cookies
+			cookies,
+			url: new URL('http://localhost/admin/login'),
+			locals: ADMIN_TEST_LOCALS,
+			fetch: durableSessionFetchMock()
 		} as never);
 
 		expect(result.status).toBe(401);
@@ -308,43 +435,48 @@ describe('Admin layout and auth', () => {
 		expect(cookies.setCalls).toHaveLength(0);
 	});
 
-	it('missing ADMIN_KEY env var returns 500 configuration error', async () => {
-		delete process.env.ADMIN_KEY;
+	it('an unavailable session API returns 502 rather than a credential error', async () => {
 		const cookies = new MockCookies();
+		const api = new DurableAdminSessionApi();
+		api.failCreateWithServerError();
 		const request = new Request('http://localhost/admin/login', {
 			method: 'POST',
-			body: new URLSearchParams({ admin_key: 'some-key' })
+			body: new URLSearchParams({ admin_key: REGISTERED_ADMIN_KEY })
 		});
 
 		const result = await loginActions.default({
 			request,
-			cookies
+			cookies,
+			url: new URL('http://localhost/admin/login'),
+			locals: ADMIN_TEST_LOCALS,
+			fetch: api.fetch
 		} as never);
 
-		expect(result.status).toBe(500);
-		expect(result.data.errors.form).toBe('Admin authentication is not configured');
+		expect(result.status).toBe(502);
+		expect(result.data.errors.form).toBe('Admin authentication is temporarily unavailable');
 		expect(cookies.setCalls).toHaveLength(0);
 	});
 
-	it('logout revokes session and deletes cookie', async () => {
-		const session = createAdminSession(3600);
-		const cookies = new MockCookies({ [ADMIN_SESSION_COOKIE]: session.id });
-
-		// Verify session exists before logout
-		expect(getAdminSession(session.id)).not.toBeNull();
+	it('logout deletes cookie after durable revoke rejects the current session', async () => {
+		const operationLog: string[] = [];
+		const api = new DurableAdminSessionApi(operationLog);
+		const cookies = new MockCookies(
+			{ [ADMIN_SESSION_COOKIE]: OPAQUE_DURABLE_SESSION_TOKEN },
+			operationLog
+		);
 
 		await expect(
 			logoutActions.default({
-				cookies
+				cookies,
+				locals: ADMIN_TEST_LOCALS,
+				fetch: api.fetch
 			} as never)
 		).rejects.toMatchObject({
 			status: 303,
 			location: '/admin/login'
 		});
 
-		// Session should be revoked
-		expect(getAdminSession(session.id)).toBeNull();
-		// Cookie should be deleted
+		expect(operationLog).toEqual(['api-revoke', 'cookie-delete']);
 		expect(cookies.deleteCalls).toHaveLength(1);
 		expect(cookies.deleteCalls[0].name).toBe(ADMIN_SESSION_COOKIE);
 		expect(cookies.deleteCalls[0].options.path).toBe('/admin');
@@ -421,7 +553,7 @@ describe('Admin login rate limiting', () => {
 		const request = new Request('http://localhost/admin/login', {
 			method: 'POST',
 			headers: { 'x-forwarded-for': ip },
-			body: new URLSearchParams({ admin_key: 'top-secret-admin-key' })
+			body: new URLSearchParams({ admin_key: REGISTERED_ADMIN_KEY })
 		});
 
 		// Successful login should redirect (not blocked)
@@ -430,7 +562,9 @@ describe('Admin login rate limiting', () => {
 				request,
 				cookies,
 				url: new URL('http://localhost/admin/login'),
-				getClientAddress: () => ip
+				getClientAddress: () => ip,
+				locals: ADMIN_TEST_LOCALS,
+				fetch: durableSessionFetchMock()
 			} as never)
 		).rejects.toMatchObject({
 			status: 303,
@@ -459,7 +593,10 @@ describe('Admin login rate limiting', () => {
 		const result = await loginActions.default({
 			request,
 			cookies,
-			getClientAddress: () => '198.51.100.10'
+			url: new URL('http://localhost/admin/login'),
+			getClientAddress: () => '198.51.100.10',
+			locals: ADMIN_TEST_LOCALS,
+			fetch: durableSessionFetchMock()
 		} as never);
 
 		expect(result.status).toBe(401);

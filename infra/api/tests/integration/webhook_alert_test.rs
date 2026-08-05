@@ -5,6 +5,7 @@ use api::repos::CustomerRepo;
 use api::services::alerting::{
     Alert, AlertError, AlertRecord, AlertService, AlertSeverity, MockAlertService,
 };
+use api::services::audit_log::{ACTION_CUSTOMER_SUSPENDED, STRIPE_SYSTEM_ACTOR_ID};
 use api::services::email::{EmailService, MockEmailService};
 use async_trait::async_trait;
 use axum::http::StatusCode;
@@ -274,6 +275,54 @@ async fn payment_failed_exhausted_retries_sends_critical_alert() {
 }
 
 #[tokio::test]
+async fn payment_failed_exhausted_retries_records_stripe_system_suspend_audit_entry() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let alert_service = Arc::new(MockAlertService::new());
+    let customer = customer_repo.seed("Acme", "acme@example.com");
+
+    let invoice = seed_draft_invoice(&invoice_repo, customer.id);
+    invoice_repo.finalize(invoice.id).await.unwrap();
+    invoice_repo
+        .set_stripe_fields(
+            invoice.id,
+            "in_stripe_exhausted_audit",
+            "https://stripe.com/inv/exhausted-audit",
+            None,
+        )
+        .await
+        .unwrap();
+
+    let app = test_app_with_alert_service(
+        Arc::clone(&customer_repo),
+        Arc::clone(&invoice_repo),
+        Arc::clone(&alert_service) as Arc<dyn AlertService>,
+    );
+
+    let payload = r#"{"id":"evt_fail_audit","type":"invoice.payment_failed","data":{"object":{"id":"in_stripe_exhausted_audit","next_payment_attempt":null,"attempt_count":4}}}"#;
+    let resp = app.oneshot(webhook_request(payload)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let audit_entries = customer_repo.suspend_audit_entries();
+    assert_eq!(audit_entries.len(), 1, "expected one suspend audit handoff");
+    let audit_entry = &audit_entries[0];
+    assert_eq!(audit_entry.actor_id, STRIPE_SYSTEM_ACTOR_ID);
+    assert_eq!(audit_entry.action, ACTION_CUSTOMER_SUSPENDED);
+    assert_eq!(audit_entry.target_tenant_id, Some(customer.id));
+    assert_eq!(audit_entry.metadata["actor_type"], "system");
+    assert_eq!(audit_entry.metadata["system"], "stripe");
+    assert_eq!(
+        audit_entry.metadata["invoice_id"],
+        serde_json::Value::String(invoice.id.to_string())
+    );
+    assert_eq!(
+        audit_entry.metadata["stripe_invoice_id"],
+        serde_json::Value::String("in_stripe_exhausted_audit".to_string())
+    );
+    assert_eq!(audit_entry.metadata["attempt_count"], 4);
+}
+
+#[tokio::test]
 async fn payment_succeeded_after_failed_invoice_sends_recovery_info_alert() {
     let customer_repo = mock_repo();
     let invoice_repo = mock_invoice_repo();
@@ -292,7 +341,13 @@ async fn payment_succeeded_after_failed_invoice_sends_recovery_info_alert() {
         .await
         .unwrap();
     invoice_repo.mark_failed(invoice.id).await.unwrap();
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     let app = test_app_with_alert_service(
         Arc::clone(&customer_repo),
@@ -390,7 +445,13 @@ async fn payment_succeeded_replay_is_idempotent() {
         .await
         .unwrap();
     invoice_repo.mark_failed(invoice.id).await.unwrap();
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     let app = test_app_with_alert_service(
         Arc::clone(&customer_repo),
@@ -445,7 +506,13 @@ async fn payment_recovery_succeeds_even_when_reactivate_fails() {
         .await
         .unwrap();
     invoice_repo.mark_failed(invoice.id).await.unwrap();
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     // Inject failure into reactivate
     *customer_repo.should_fail_reactivate.lock().unwrap() = true;
@@ -548,7 +615,13 @@ async fn payment_succeeded_recovery_alert_failure_is_swallowed() {
         .await
         .unwrap();
     invoice_repo.mark_failed(invoice.id).await.unwrap();
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     let app = test_app_with_alert_service(
         Arc::clone(&customer_repo),

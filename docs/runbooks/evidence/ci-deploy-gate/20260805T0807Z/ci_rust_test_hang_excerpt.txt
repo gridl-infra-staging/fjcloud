@@ -1,0 +1,13 @@
+CI rust-test job 91338784969 (run 30688467404, gridl-infra-staging/fjcloud)
+Fetched live 2026-08-05 via: gh run view -R gridl-infra-staging/fjcloud --job 91338784969 --log
+Job step timing (gh run view --json jobs): step 'Run rust tests' 06:55:20 -> 07:10:20 = 900s exactly,
+then 'List full test inventory (names hung tests when the step above times out)' fired. Exit 124 = timeout(1) SIGTERM.
+----------------------------------------------------------------------------------------------------
+rust-test  UNKNOWN STEP  2026-08-01T06:55:20.7101331Z ##[group]Run timeout 900 cargo test --workspace
+rust-test  UNKNOWN STEP  2026-08-01T06:55:20.7101958Z ^[[36;1mtimeout 900 cargo test --workspace^[[0m
+rust-test  UNKNOWN STEP  2026-08-01T06:55:21.1918772Z running 24 tests
+rust-test  UNKNOWN STEP  2026-08-01T06:55:21.2575787Z running 896 tests
+rust-test  UNKNOWN STEP  2026-08-01T06:55:28.5663576Z running 371 tests
+rust-test  UNKNOWN STEP  2026-08-01T06:56:30.9361823Z test admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins has been running for over 60 seconds
+rust-test  UNKNOWN STEP  2026-08-01T06:56:31.1212188Z test admin_vms_test::decommission_endpoint_wins_concurrent_reference_publication_after_inventory_lock has been running for over 60 seconds
+rust-test  UNKNOWN STEP  2026-08-01T07:10:20.7378875Z ##[error]Process completed with exit code 124.

@@ -1,5 +1,23 @@
 #!/usr/bin/env bash
-# Shadow-mode classifier for screen-spec claim freshness and repo-local doc links.
+# Classifier for recorded-claim freshness and repo-local doc links.
+#
+# Two corpora, deliberately different, and separately named in the summary:
+#   claim_roots  docs/screen_specs/*.md plus the canonical root docs. Lines
+#                carrying an `Evidence:` marker are classified here.
+#   link_roots   docs/**/*.md plus the canonical root docs. Markdown links are
+#                resolved here.
+#
+# Keeping those two labels apart is load-bearing, not cosmetic. The summary used
+# to print a single `markdown_roots=` line — the LINK corpus — directly above the
+# claim counters, and a later reader reasonably concluded that claims in
+# ROADMAP.md were being checked. They were not, and a plan was written against
+# that misreading.
+#
+# Exit policy: fail closed ONLY on exactly-decidable states — a cited repo-local
+# path that does not exist, and a cross-repo claim that records no re-derive
+# command. Token contradictions stay reporting-only because the absence/presence
+# token extraction is heuristic, and a heuristic that can block every lane on a
+# misparse gets switched off within a week.
 
 set -uo pipefail
 
@@ -72,6 +90,85 @@ LOCAL_PATH_PREFIXES = (
     ".github/",
 )
 
+# Sibling development repositories in this workspace, excluding fjcloud_dev
+# itself. A claim naming one of these is about code that is not in this worktree
+# at all: fjcloud's migration feature calls an engine that lives in
+# flapjack_dev, and an agent here cannot run its tests, import it, or edit it.
+#
+# Before these were classified, such a claim produced no diagnostic whatsoever —
+# its target failed the repo-local prefix test above and was dropped — so "I
+# could not check this" was indistinguishable from "this is fine". That is the
+# defect this list exists to close, not a stylistic preference.
+#
+# Matched by exact name rather than a `\w+_dev` pattern on purpose: `local_dev`
+# occurs 23 times in these documents as an ordinary identifier, so a structural
+# pattern would invent cross-repo claims that do not exist.
+#
+# Scoped to the repos fjcloud actually coordinates with, NOT every checkout in
+# the workspace. Two reasons, and the second is the binding one:
+#   1. Only these appear in the claim corpus. The other workspace repos are
+#      unrelated products; a fjcloud screen spec or launch doc has no occasion
+#      to assert anything about them.
+#   2. scripts/ is on the .debbie.toml sync whitelist, so this file publishes
+#      verbatim to two PUBLIC mirrors. Listing unrelated private project names
+#      here would disclose them for no functional gain.
+#
+# DRIFT: a repo missing from this tuple is silently un-classified, which
+# reproduces the original defect for that repo. When fjcloud takes a real
+# dependency on another repo, add it here — and check first whether its name is
+# already public, per reason 2.
+SIBLING_REPOS = (
+    "flapjack_dev",
+    "mike_dev",
+)
+
+# First words that mark a backticked span as a runnable re-derive command rather
+# than a path or a prose fragment.
+#
+# This RECOGNISES commands; it never runs them. Executing a command embedded in a
+# document would be arbitrary code execution driven by the doc tree, and would
+# break the guarantee that this probe never reads outside the repo root (see the
+# escaping-target test). The repo's precedent is the same: probe_baseline_integrity.sh
+# executes only two whitelisted invocation prefixes, never free-form shell.
+RE_DERIVE_COMMAND_HEADS = (
+    "git",
+    "grep",
+    "rg",
+    "ls",
+    "cat",
+    "sed",
+    "awk",
+    "head",
+    "tail",
+    "wc",
+    "diff",
+    "test",
+    "find",
+    "jq",
+    "python3",
+    "bash",
+    "sh",
+    "cargo",
+    "npx",
+    "npm",
+    "aws",
+    "curl",
+    "cd",
+    "make",
+)
+
+# Heads from the list above that are also ordinary English or the first word of
+# pasted tool output. For these, and only these, a flag is required before the
+# span counts as an invocation.
+#
+# Measured on this repo's docs: `test result: ok. 894 passed; 0 failed; ...` is
+# cargo's summary line and appears 34 times, while `test -f` / `test -s` /
+# `test -x` appear 26+ times as genuine commands — so `test` can be neither
+# dropped nor accepted unconditionally. `make sure ...` is the same hazard in
+# prose form. Without this the classifier would accept quoted OUTPUT as though
+# it were a re-derivable PROOF, which is the precise failure it exists to stop.
+AMBIGUOUS_COMMAND_HEADS = ("test", "make")
+
 
 @dataclass(frozen=True)
 class ClaimDiagnostic:
@@ -143,7 +240,11 @@ def evidence_clause(line: str) -> str | None:
 
 def is_path_like(value: str) -> bool:
     value = strip_line_suffix(value.strip().strip("`"))
-    if not value or value.startswith(("http://", "https://", "flapjack_dev/")):
+    # Sibling-repo paths used to be named here explicitly, which read as though
+    # they were being handled. They were not: the LOCAL_PATH_PREFIXES test below
+    # already rejects them, silently. Cross-repo targets are now classified by
+    # cross_repo_claim_diagnostics() instead of vanishing here.
+    if not value or value.startswith(("http://", "https://")):
         return False
     if not value.startswith(LOCAL_PATH_PREFIXES):
         return False
@@ -332,15 +433,91 @@ def presence_claim_diagnostics(
     return diagnostics
 
 
+def cross_repos_named(clause: str) -> tuple[str, ...]:
+    """Sibling repositories named anywhere in an Evidence clause.
+
+    Word-boundary matched so a longer identifier that merely contains a repo
+    name does not count, and de-duplicated so a clause naming one repo twice
+    yields one diagnostic rather than two.
+    """
+    found = [
+        repo
+        for repo in SIBLING_REPOS
+        if re.search(rf"\b{re.escape(repo)}\b", clause)
+    ]
+    return tuple(dict.fromkeys(found))
+
+
+def has_re_derive_command(clause: str) -> bool:
+    """True when the clause records something a reader could actually run.
+
+    A command is a test: a machine can execute it today and get true or false.
+    A date records only when somebody believed something, and a prose assertion
+    records nothing checkable at all. Only backticked spans count, because that
+    is how every existing Evidence: clause in this repo writes a command.
+
+    Single-line, like the rest of this classifier: the clause is whatever follows
+    `Evidence:` on one line. A cross-repo claim whose command sits on the NEXT
+    line reads as unproven and fails. That is deliberate rather than a gap worth
+    closing with multi-line parsing — the command belongs beside the claim it
+    proves — but it is the most likely surprise when this gate first goes red.
+    """
+    for value in backtick_values(clause):
+        parts = value.strip().split()
+        if not parts or parts[0] not in RE_DERIVE_COMMAND_HEADS:
+            continue
+        if parts[0] in AMBIGUOUS_COMMAND_HEADS:
+            # Require a flag, which separates `test -f path` from cargo's
+            # `test result: ok. ...` and `make -C dir` from "make sure ...".
+            if not any(token.startswith("-") for token in parts[1:]):
+                continue
+        return True
+    return False
+
+
+def cross_repo_claim_diagnostics(source: str, clause: str) -> list[ClaimDiagnostic]:
+    """Classify a claim about a repository this worktree does not contain.
+
+    Two outcomes, and the difference between them is the whole point:
+
+      unverifiable_here — the claim records a re-derive command. Nobody can run
+        it *here*, but somebody in the right locality can, so it is reported and
+        allowed. Reported rather than passed silently, because an unverifiable
+        claim that quietly means "fine" is a guard that cannot fail.
+
+      unproven — the claim records no command. It cannot be checked here, and it
+        cannot be checked anywhere else either, by anyone, ever. That is a
+        rumour wearing the clothes of a measurement, and it fails closed.
+    """
+    repos = cross_repos_named(clause)
+    if not repos:
+        return []
+    if has_re_derive_command(clause):
+        result = "unverifiable_here"
+        reason = "cross-repo claim carries a re-derive command; run it in that repo"
+    else:
+        result = "unproven"
+        reason = "cross-repo claim records no re-derive command"
+    return [
+        ClaimDiagnostic(source, "cross-repo", result, repo, (), reason)
+        for repo in repos
+    ]
+
+
 def classify_claim(repo_root: Path, rel_path: Path, line_no: int, line: str, previous_line: str) -> list[ClaimDiagnostic]:
     clause = evidence_clause(line)
     if clause is None:
         return []
     source = f"{rel_path.as_posix()}:{line_no}"
+    # A claim can reach across repos and still cite something local — "our
+    # fixture mirrors flapjack's schema" is both. Record the cross-repo half
+    # first and carry it through whichever branch the repo-local half takes, so
+    # neither half can mask the other.
+    cross_repo = cross_repo_claim_diagnostics(source, clause)
     targets_raw = target_values_for_claim(clause)
     escaped_targets = [raw for raw in targets_raw if claim_target_escapes_repo(repo_root, raw)]
     if escaped_targets:
-        return [
+        return cross_repo + [
             ClaimDiagnostic(
                 source,
                 "dead-path",
@@ -357,8 +534,13 @@ def classify_claim(repo_root: Path, rel_path: Path, line_no: int, line: str, pre
 
     absence = bool(re.search(r"\bno matches?\b|\bno [A-Za-z0-9_.-]+\.spec\.ts file\b|\bno `?setInterval`?\b|never auto-polls", clause + " " + previous_line, re.I))
     if missing_targets:
-        return dead_claim_diagnostics(source, missing_targets, repo_root)
+        return cross_repo + dead_claim_diagnostics(source, missing_targets, repo_root)
     if not local_targets:
+        # A cross-repo record means the claim is not unparsed prose: it is a
+        # claim about a surface this worktree does not contain, which is a
+        # different and more actionable thing to be told.
+        if cross_repo:
+            return cross_repo
         return [
             ClaimDiagnostic(
                 source,
@@ -375,13 +557,13 @@ def classify_claim(repo_root: Path, rel_path: Path, line_no: int, line: str, pre
         if not tokens and re.search(r"\bno `?setInterval`?\b|never auto-polls", previous_line, re.I):
             tokens = ("setInterval",)
         if not tokens:
-            return [
+            return cross_repo + [
                 ClaimDiagnostic(source, "prose", "unparsed", "-", (), "absence claim has no explicit token")
             ]
-        return absence_claim_diagnostics(source, local_targets, tokens)
+        return cross_repo + absence_claim_diagnostics(source, local_targets, tokens)
 
     tokens = presence_tokens(clause) if len(local_targets) == 1 else ()
-    return presence_claim_diagnostics(source, local_targets, tokens)
+    return cross_repo + presence_claim_diagnostics(source, local_targets, tokens)
 
 
 def legacy_direct_claims(repo_root: Path, rel_path: Path, lines: list[str]) -> list[ClaimDiagnostic]:
@@ -417,6 +599,35 @@ def legacy_direct_claims(repo_root: Path, rel_path: Path, lines: list[str]) -> l
             )
         )
     return diagnostics
+
+
+def claim_sources(repo_root: Path) -> list[Path]:
+    """The CLAIM corpus: screen specs plus the canonical root documents.
+
+    Deliberately narrower than the link corpus. ROADMAP.md and LAUNCH.md are
+    here because CLAUDE.md tells every agent they are canonical — an unchecked
+    claim in one of them is read and acted on repo-wide.
+
+    Dated, append-only trees are deliberately absent: docs/runbooks/evidence/**,
+    docs/audits/**, docs/live-state/** and chats/**. Adding chats/icg was
+    measured against the real tree and produced 8 findings of which 7 were false
+    — archived lane checklists cite `docs/.../<UTC>/` template paths, which are
+    instructions for where a lane should WRITE evidence, not assertions that a
+    path already exists. Those documents are also history: their claims were
+    true when written, and rewriting them to satisfy a gate would be falsifying
+    a record rather than fixing a defect.
+    """
+    specs_dir = repo_root / "docs" / "screen_specs"
+    paths = [
+        path
+        for path in sorted(specs_dir.glob("*.md"))
+        if path.name not in SPEC_SKIP
+    ]
+    for rel in MARKDOWN_ROOT_FILES:
+        path = repo_root / rel
+        if path.is_file():
+            paths.append(path)
+    return paths
 
 
 def markdown_sources(repo_root: Path) -> list[Path]:
@@ -457,6 +668,14 @@ def classify_link(repo_root: Path, md_path: Path, line_no: int, raw_target: str)
         return None
     parsed = urlparse(raw)
     if parsed.scheme in {"http", "https", "mailto"} or raw.startswith("#") or not raw:
+        return None
+    # `~/...` is a home-directory pointer — the shared scrai globals tree lives
+    # there — not a repo-relative link. Resolving it against the citing
+    # document's directory invented `docs/<dir>/~/.matt/...` and reported a dead
+    # pointer for a path that was never in this repo. Two such false positives
+    # were live on main, and false dead links are precisely the noise that has
+    # to be absent before this probe can gate anything.
+    if raw.startswith("~"):
         return None
     no_fragment = raw.split("#", 1)[0]
     if not no_fragment:
@@ -521,7 +740,14 @@ def collect_link_diagnostics(
 def print_claim_diagnostics(claim_diagnostics: list[ClaimDiagnostic]) -> None:
     for diagnostic in claim_diagnostics:
         token_text = "|".join(diagnostic.tokens) if diagnostic.tokens else "-"
-        prefix = "WARN" if diagnostic.result in {"contradicted", "dead_claim_path", "unparsed"} else "CLAIM"
+        # `unproven` is a fail-closed state and reads as WARN. `unverifiable_here`
+        # is not a defect — the claim did its job by recording a command someone
+        # elsewhere can run — so it stays a plain CLAIM record.
+        prefix = (
+            "WARN"
+            if diagnostic.result in {"contradicted", "dead_claim_path", "unparsed", "unproven"}
+            else "CLAIM"
+        )
         print(
             f"{prefix}: {diagnostic.source} class={diagnostic.class_name} "
             f"result={diagnostic.result} target={diagnostic.target} "
@@ -549,25 +775,32 @@ def print_summary(
     dead_claim_paths = [d for d in claim_diagnostics if d.result == "dead_claim_path"]
     unparsed = [d for d in claim_diagnostics if d.result == "unparsed"]
     holds = [d for d in claim_diagnostics if d.result == "holds"]
+    unverifiable_here = [d for d in claim_diagnostics if d.result == "unverifiable_here"]
+    unproven = [d for d in claim_diagnostics if d.result == "unproven"]
     clean_links = [d for d in links if d.class_name == "clean"]
     missing_evidence = [d for d in links if d.class_name == "missing_evidence"]
     moved_pointers = [d for d in links if d.class_name == "moved_pointer"]
 
-    print("markdown_roots=docs/**/*.md,LAUNCH.md,ROADMAP.md,PROJECT_OVERVIEW.md,README.md")
+    # Both denominators are named. A single label above two different counters
+    # is how a reader ends up believing the wrong corpus was scanned.
+    print("claim_roots=docs/screen_specs/*.md,LAUNCH.md,ROADMAP.md,PROJECT_OVERVIEW.md,README.md")
+    print("link_roots=docs/**/*.md,LAUNCH.md,ROADMAP.md,PROJECT_OVERVIEW.md,README.md")
     print(f"markdown_files_scanned={markdown_file_count}")
-    print(f"screen_spec_evidence_lines={evidence_lines}")
-    print(f"screen_spec_recheckable_lines={len({d.source for d in recheckable})}")
-    print(f"screen_spec_atomic_predicates={len(recheckable)}")
-    print(f"screen_spec_holds={len(holds)}")
-    print(f"screen_spec_contradictions={len(contradictions)}")
-    print(f"screen_spec_unparsed_lines={len({d.source for d in unparsed})}")
-    print(f"screen_spec_dead_claim_paths={len(dead_claim_paths)}")
+    print(f"claim_evidence_lines={evidence_lines}")
+    print(f"claim_recheckable_lines={len({d.source for d in recheckable})}")
+    print(f"claim_atomic_predicates={len(recheckable)}")
+    print(f"claim_holds={len(holds)}")
+    print(f"claim_contradictions={len(contradictions)}")
+    print(f"claim_unparsed_lines={len({d.source for d in unparsed})}")
+    print(f"claim_dead_claim_paths={len(dead_claim_paths)}")
+    print(f"claim_cross_repo_unverifiable_here={len(unverifiable_here)}")
+    print(f"claim_cross_repo_unproven={len(unproven)}")
     print(f"links_total={len(links)}")
     print(f"links_clean={len(clean_links)}")
     print(f"links_dead={len(moved_pointers) + len(missing_evidence)}")
     print(f"ordinary_dead_links={len(moved_pointers)}")
     print(f"missing_evidence_links={len(missing_evidence)}")
-    print("OK: screen-spec freshness probe completed in shadow mode")
+    print("OK: claim freshness probe completed")
 
 
 def main() -> int:
@@ -578,16 +811,16 @@ def main() -> int:
     if not specs_dir.is_dir():
         fail("docs/screen_specs is not present")
 
-    spec_files = [path for path in sorted(specs_dir.glob("*.md")) if path.name not in SPEC_SKIP]
+    spec_files = claim_sources(repo_root)
     if not spec_files:
-        fail("screen-spec corpus is empty")
+        fail("claim corpus is empty")
 
     evidence_lines, claim_diagnostics = collect_claim_diagnostics(repo_root, spec_files)
     if evidence_lines == 0:
-        fail("screen-spec evidence corpus is empty")
+        fail("claim evidence corpus is empty")
     recheckable = [d for d in claim_diagnostics if d.class_name.startswith("recheckable-")]
     if not recheckable:
-        fail("zero parsed recheckable screen-spec claims")
+        fail("zero parsed recheckable claims")
 
     markdown_paths = markdown_sources(repo_root)
     links = collect_link_diagnostics(repo_root, markdown_paths)
@@ -595,9 +828,17 @@ def main() -> int:
     print_link_diagnostics(links)
     print_summary(evidence_lines, claim_diagnostics, links, len(markdown_paths))
 
+    # Fail closed only on the exactly-decidable states. A cited path either
+    # exists or it does not; a clause either records a runnable command or it
+    # does not. Contradictions are reported but not fatal, because the token
+    # extraction that produces them is heuristic and a misparse must never be
+    # able to block every lane.
     dead_claim_paths = [d for d in claim_diagnostics if d.result == "dead_claim_path"]
     if dead_claim_paths:
-        fail("screen-spec claim target resolution failed")
+        fail("claim target resolution failed")
+    unproven = [d for d in claim_diagnostics if d.result == "unproven"]
+    if unproven:
+        fail("cross-repo claims recorded without a re-derive command")
     return 0
 
 

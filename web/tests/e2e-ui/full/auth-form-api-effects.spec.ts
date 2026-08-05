@@ -72,7 +72,11 @@ test.describe('Signup page API effects', () => {
 		const duplicateEmail = `duplicate-signup-${Date.now()}@e2e.griddle.test`;
 		await createUser(duplicateEmail, 'TestPassword123!', 'Existing Signup User');
 
-		const formAlert = await submitDuplicateSignupWithRetry(page, duplicateEmail, 'validpassword1');
+		const formAlert = await submitDuplicateSignupWithRetry(
+			page,
+			duplicateEmail,
+			'ValidPassword123!'
+		);
 		await expect(formAlert).toContainText(
 			'We could not create your account. Please check your details and try again.'
 		);

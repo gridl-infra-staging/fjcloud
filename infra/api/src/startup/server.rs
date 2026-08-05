@@ -3,6 +3,11 @@ use crate::state::AppState;
 
 use super::VM_AUTOREPAIR_TASK_NAME;
 
+use axum::Router;
+use std::future::Future;
+use std::net::SocketAddr;
+use tokio::net::TcpListener;
+
 /// Handles returned by background-task startup for shutdown coordination.
 pub struct BackgroundHandles {
     pub named_handles: Vec<(&'static str, tokio::task::JoinHandle<()>)>,
@@ -37,8 +42,8 @@ pub async fn serve(
 ) -> anyhow::Result<()> {
     let s3_app = crate::router::build_s3_router(state.clone(), cfg);
     let app = crate::router::build_router(state);
-    let listener = tokio::net::TcpListener::bind(&cfg.listen_addr).await?;
-    let s3_listener = tokio::net::TcpListener::bind(&cfg.s3_listen_addr).await?;
+    let listener = TcpListener::bind(&cfg.listen_addr).await?;
+    let s3_listener = TcpListener::bind(&cfg.s3_listen_addr).await?;
     tracing::info!("API listening on {}", cfg.listen_addr);
     tracing::info!("S3 API listening on {}", cfg.s3_listen_addr);
 
@@ -49,9 +54,7 @@ pub async fn serve(
             .await
     });
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal(shutdown_tx))
-        .await?;
+    serve_api_router(listener, app, shutdown_signal(shutdown_tx)).await?;
 
     match s3_server_handle.await {
         Ok(Ok(())) => {}
@@ -68,6 +71,24 @@ pub async fn serve(
     let _ = handles.access_tracker_handle.await;
 
     Ok(())
+}
+
+/// Serve the main API router with transport peer metadata attached to each request.
+///
+/// `ApiKeyAuth` uses `ConnectInfo<SocketAddr>` as the only source trusted for
+/// `restrict_sources`, so production serving and TCP-bound tests must share
+/// this boundary.
+pub async fn serve_api_router(
+    listener: TcpListener,
+    app: Router,
+    shutdown: impl Future<Output = ()> + Send + 'static,
+) -> std::io::Result<()> {
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown)
+    .await
 }
 
 async fn shutdown_signal(shutdown_tx: tokio::sync::watch::Sender<bool>) {

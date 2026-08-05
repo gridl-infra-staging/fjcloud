@@ -1,5 +1,4 @@
 import type { Actions, PageServerLoad } from './$types';
-import { createAdminClient } from '$lib/admin-client';
 import type {
 	AdminClient,
 	AdminFleetDeployment,
@@ -8,6 +7,10 @@ import type {
 	VmInventoryItem
 } from '$lib/admin-client';
 import { fail } from '@sveltejs/kit';
+import {
+	redirectIfAdminSessionAuthError,
+	requireDurableAdminSession
+} from '$lib/server/admin-session';
 
 const VM_ID_PATTERN = /^[A-Za-z0-9-]+$/;
 
@@ -30,17 +33,19 @@ async function loadHostMetricsByVmId(
 ): Promise<Record<string, VmHostMetricsResponse | null>> {
 	const entries = await Promise.all(
 		vms.map(async (vm) => {
-			const metrics = await client.getVmHostMetrics(vm.id).catch(() => null);
+			const metrics = await client.getVmHostMetrics(vm.id).catch((error) => {
+				redirectIfAdminSessionAuthError(error);
+				return null;
+			});
 			return [vm.id, metrics?.vm_id === vm.id ? metrics : null];
 		})
 	);
 	return Object.fromEntries(entries);
 }
 
-export const load: PageServerLoad = async ({ fetch, depends, platform }) => {
-	depends('admin:fleet');
-	const client = createAdminClient(undefined, platform?.env);
-	client.setFetch(fetch);
+export const load: PageServerLoad = async (event) => {
+	event.depends('admin:fleet');
+	const { adminClient: client } = await requireDurableAdminSession(event);
 
 	// Fetch fleet, VMs, and replica placement independently so one failure
 	// doesn't hide the others. Availability flags distinguish failed requests
@@ -49,15 +54,24 @@ export const load: PageServerLoad = async ({ fetch, depends, platform }) => {
 		client
 			.getFleet()
 			.then((fleet) => ({ fleet, available: true }))
-			.catch(() => ({ fleet: [] as AdminFleetDeployment[], available: false })),
+			.catch((error) => {
+				redirectIfAdminSessionAuthError(error);
+				return { fleet: [] as AdminFleetDeployment[], available: false };
+			}),
 		client
 			.listVms()
 			.then((vms) => ({ vms, available: true }))
-			.catch(() => ({ vms: [] as VmInventoryItem[], available: false })),
+			.catch((error) => {
+				redirectIfAdminSessionAuthError(error);
+				return { vms: [] as VmInventoryItem[], available: false };
+			}),
 		client
 			.getReplicas()
 			.then((replicas) => ({ replicas, available: true }))
-			.catch(() => ({ replicas: [] as AdminReplicaEntry[], available: false }))
+			.catch((error) => {
+				redirectIfAdminSessionAuthError(error);
+				return { replicas: [] as AdminReplicaEntry[], available: false };
+			})
 	]);
 	const hostMetricsByVmId = vmResult.available
 		? await loadHostMetricsByVmId(client, vmResult.vms)
@@ -75,11 +89,13 @@ export const load: PageServerLoad = async ({ fetch, depends, platform }) => {
 };
 
 // Server action for killing a local VM's Flapjack process.
-// The Kill button POSTs here with the VM ID in FormData. This keeps the
-// ADMIN_KEY on the server side — it's never exposed to the browser.
+// The Kill button POSTs here with the VM ID in FormData. The operator's
+// durable session stays on the server — it's never exposed to the browser.
 export const actions: Actions = {
-	killVm: async ({ request, fetch, platform }) => {
-		const data = await request.formData();
+	killVm: async (event) => {
+		const { adminClient: client } = await requireDurableAdminSession(event);
+
+		const data = await event.request.formData();
 		const vmId = data.get('vmId');
 		if (!vmId || typeof vmId !== 'string') {
 			return fail(400, { error: 'Missing vmId' });
@@ -88,9 +104,10 @@ export const actions: Actions = {
 			return fail(400, { error: 'Invalid vmId' });
 		}
 
-		const client = createAdminClient(undefined, platform?.env);
-		client.setFetch(fetch);
-		const vms = await client.listVms().catch(() => null);
+		const vms = await client.listVms().catch((error) => {
+			redirectIfAdminSessionAuthError(error);
+			return null;
+		});
 		if (!vms) {
 			return fail(503, { error: 'VM inventory unavailable' });
 		}
@@ -103,6 +120,7 @@ export const actions: Actions = {
 			const result = await client.killVm(vmId);
 			return { success: true, region: result.region, port: result.port };
 		} catch (err) {
+			redirectIfAdminSessionAuthError(err);
 			const message = err instanceof Error ? err.message : 'Failed to kill VM';
 			return fail(500, { error: message });
 		}

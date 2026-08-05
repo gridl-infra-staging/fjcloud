@@ -1,0 +1,142 @@
+#cloud-config
+# First-boot provisioning for the fjcloud LOCAL-phase devbox.
+#
+# Installs exactly what docker-compose.yml and the Rust/Node build need to run
+# the browser suite and scripts/local-ci.sh --fast, and nothing else.
+#
+# NO CLOUD PROVIDER CLI IS INSTALLED HERE, ON PURPOSE. The box is launched with
+# no IAM instance profile (see provision_devbox.sh), so it holds no credentials;
+# shipping a cloud CLI onto it would be dead weight today and an invitation to
+# put credentials on it tomorrow. scripts/tests/devbox_provision_test.sh fails
+# if one appears in this file.
+#
+# NO SECRETS BELONG IN THIS FILE. It is passed as EC2 user-data, which is
+# readable by anything that can reach IMDS on the instance, and scripts/ is
+# published to the public mirror per .debbie.toml. Secrets are copied over SSH
+# after boot instead.
+
+package_update: true
+
+packages:
+  # Version control — the devbox clones the repo over SSH.
+  - git
+  # Container runtime for docker-compose.yml (postgres, seaweedfs, mailpit,
+  # meilisearch, typesense). Ubuntu 24.04 ships compose as a docker plugin.
+  - docker.io
+  - docker-compose-v2
+  # Rust builds link against these; libpq in particular is what the Playwright
+  # stack needs to reach postgres, and a missing libpq-dev has already cost this
+  # repo a browser-suite outage.
+  - build-essential
+  - pkg-config
+  - libssl-dev
+  - libpq-dev
+  # psql and pg_isready. scripts/playwright_local_stack.sh shells out to psql to
+  # apply migrations and assert DB state, and a missing client does not fail at
+  # provision time — it surfaces much later as a Playwright webServer that will
+  # not start, which reads like a Playwright fault rather than a missing package.
+  - postgresql-client
+  # NOTE: Node is deliberately NOT installed from apt here. Ubuntu 24.04 ships
+  # Node 18 and .nvmrc pins 22; the runcmd below installs the pinned major from
+  # NodeSource. Listing `nodejs` here would let apt win the resolution and leave
+  # the box on 18, which the Cloudflare adapter dependency chain rejects.
+  - curl
+  - ca-certificates
+  - gnupg
+  # Playwright's headless Chromium system dependencies. The t64 suffixes are
+  # required on Ubuntu 24.04 (noble): the 64-bit time_t transition renamed
+  # these and the un-suffixed names no longer resolve, which fails the whole
+  # apt stage. Verified against a live noble box, not inferred.
+  - libnss3
+  - libatk1.0-0t64
+  - libatk-bridge2.0-0t64
+  - libcups2t64
+  - libdrm2
+  - libxkbcommon0
+  - libxcomposite1
+  - libxdamage1
+  - libxfixes3
+  - libxrandr2
+  - libgbm1
+  - libasound2t64
+
+write_files:
+  # Idle auto-stop. Without this an unattended devbox bills compute around the
+  # clock; a forgotten box costs far more than the runs it was created for.
+  # `poweroff` on an EC2 instance whose InstanceInitiatedShutdownBehavior is the
+  # default ("stop") STOPS it — compute billing ends, the EBS volume and all its
+  # provisioning survive, and provision_devbox.sh restarts it in seconds.
+  - path: /usr/local/bin/fjcloud-devbox-idle-stop
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      # Stop the devbox once it has been idle for THRESHOLD consecutive checks.
+      # Idle means: nobody logged in over SSH AND the 5-minute load average is
+      # below LOAD_CEILING. Both conditions are required — a long cargo build
+      # with no attached session must NOT be mistaken for an idle box.
+      set -euo pipefail
+      THRESHOLD=3          # consecutive idle checks before stopping
+      LOAD_CEILING=0.5     # 5-min load average below which the box counts idle
+      COUNTER=/var/lib/fjcloud-devbox-idle-count
+
+      sessions="$(who | wc -l)"
+      load5="$(awk '{print $2}' /proc/loadavg)"
+
+      # awk returns 1 (false) when the load is at or above the ceiling, which is
+      # exactly the "busy" case; `if` reads more clearly than juggling $?.
+      if [ "$sessions" -eq 0 ] && awk -v l="$load5" -v c="$LOAD_CEILING" 'BEGIN{exit !(l<c)}'; then
+          count=$(( $(cat "$COUNTER" 2>/dev/null || echo 0) + 1 ))
+          echo "$count" > "$COUNTER"
+          if [ "$count" -ge "$THRESHOLD" ]; then
+              logger -t fjcloud-devbox "idle for $count checks; stopping instance"
+              systemctl poweroff
+          fi
+      else
+          # Any activity resets the streak, so a box in intermittent use is
+          # never stopped out from under its operator.
+          echo 0 > "$COUNTER"
+      fi
+
+  - path: /etc/systemd/system/fjcloud-devbox-idle-stop.service
+    content: |
+      [Unit]
+      Description=Stop the fjcloud devbox when it has gone idle
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/fjcloud-devbox-idle-stop
+
+  - path: /etc/systemd/system/fjcloud-devbox-idle-stop.timer
+    content: |
+      [Unit]
+      Description=Periodic idle check for the fjcloud devbox
+      [Timer]
+      # First check well after boot so first-boot provisioning (package install,
+      # rustup, cargo fetch) is never counted as idle time.
+      OnBootSec=30min
+      OnUnitActiveSec=10min
+      [Install]
+      WantedBy=timers.target
+
+runcmd:
+  # Let the default login user drive containers without sudo. The group change
+  # only takes effect on the next login, which is fine — nothing in this file
+  # runs as that user.
+  - [ systemctl, enable, --now, docker ]
+  - [ usermod, -aG, docker, ubuntu ]
+  # Writing the unit files is not enough — an unenabled timer never fires and
+  # the cost ceiling silently would not exist.
+  - [ sh, -c, "systemctl daemon-reload && systemctl enable --now fjcloud-devbox-idle-stop.timer" ]
+  # Node from NodeSource, pinned to the major in .nvmrc (22). Kept in runcmd
+  # rather than packages: because it needs the NodeSource apt repo registered
+  # first. scripts/tests/devbox_provision_test.sh reads .nvmrc and fails if this
+  # drifts from it.
+  - [ sh, -c, "curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs" ]
+  # Rust via rustup rather than the distro package: the repo pins a toolchain,
+  # and Ubuntu's packaged rustc lags far enough behind to fail the build.
+  - [ sh, -c, "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | su ubuntu -c 'sh -s -- -y --no-modify-path'" ]
+  # Marker file. Anything that SSHes in should wait for this rather than racing
+  # first boot — a half-provisioned box fails tests in ways that look like real
+  # product defects, which is the most expensive kind of false signal here.
+  - [ touch, /var/lib/cloud/fjcloud-devbox-ready ]
+
+final_message: "fjcloud devbox ready after $UPTIME seconds"

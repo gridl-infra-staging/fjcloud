@@ -8,7 +8,8 @@ import { test, expect } from '../../fixtures/fixtures';
 import {
 	assertMigrationFixtureSatisfied,
 	installMigrationConsoleFlowFixture,
-	WARNING_DETAIL_GROUPS
+	WARNING_DETAIL_GROUPS,
+	type MigrationConsoleFlowFixture
 } from './migration_console_flow_fixture';
 import type { Page } from '@playwright/test';
 import type { SourceProvider } from '../../../src/lib/api/types';
@@ -17,6 +18,7 @@ const PROVIDERS = [
 	{
 		sourceProvider: 'algolia',
 		label: 'Algolia',
+		previewSupported: true,
 		identityLabel: 'Algolia Application ID',
 		absentLabels: [
 			'Meilisearch host URL',
@@ -28,6 +30,7 @@ const PROVIDERS = [
 	{
 		sourceProvider: 'meilisearch',
 		label: 'Meilisearch',
+		previewSupported: true,
 		identityLabel: 'Meilisearch host URL',
 		absentLabels: [
 			'Algolia Application ID',
@@ -39,6 +42,7 @@ const PROVIDERS = [
 	{
 		sourceProvider: 'typesense',
 		label: 'Typesense',
+		previewSupported: false,
 		identityLabel: 'Typesense host URL',
 		absentLabels: [
 			'Algolia Application ID',
@@ -50,12 +54,74 @@ const PROVIDERS = [
 ] satisfies Array<{
 	sourceProvider: SourceProvider;
 	label: string;
+	previewSupported: boolean;
 	identityLabel: string;
 	absentLabels: string[];
 }>;
 
+const PREVIEW_UNAVAILABLE_COPY =
+	'Preview is not available for the selected source. The migration can still run, and compatibility warnings appear once the job starts.';
+
+type ProviderJourney = (typeof PROVIDERS)[number];
+
+async function finishProviderJourney(
+	page: Page,
+	provider: ProviderJourney,
+	fixture: MigrationConsoleFlowFixture
+): Promise<void> {
+	if (provider.previewSupported) {
+		await expect(page.getByRole('button', { name: 'Preview import' })).toBeVisible();
+		await expect(page.getByText(PREVIEW_UNAVAILABLE_COPY)).toHaveCount(0);
+		await page.getByRole('button', { name: 'Preview import' }).click();
+		await expect(page.getByTestId('migration-preview-counts')).toHaveText(
+			'3 source indexes · 42 records'
+		);
+		await expect(page.getByTestId('migration-preview-clean')).toHaveText(
+			'No compatibility issues found'
+		);
+	} else {
+		await expect(page.getByText(PREVIEW_UNAVAILABLE_COPY)).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Preview import' })).toHaveCount(0);
+	}
+
+	await page.clock.install();
+	await Promise.all([
+		page.waitForURL(
+			new RegExp(`/console/migrate/${fixture.jobId}\\?source_provider=${provider.sourceProvider}$`)
+		),
+		page.getByRole('button', { name: 'Start import' }).click()
+	]);
+
+	await expect(page.getByText(provider.sourceProvider, { exact: true })).toBeVisible();
+	await expect(page.getByText('Queued')).toBeVisible();
+	await expect(page.getByText('Waiting to start')).toBeVisible();
+
+	await page.clock.fastForward(4000);
+	await expect(page.getByText('Copying documents')).toBeVisible();
+	await expect(page.getByText('Copying records')).toBeVisible();
+
+	await page.clock.fastForward(4000);
+	await expect(page.getByText('Verifying', { exact: true })).toBeVisible();
+	await expect(page.getByText('Verifying imported data')).toBeVisible();
+
+	await page.clock.fastForward(4000);
+	await expect(page.getByText('Completed', { exact: true })).toBeVisible();
+	await expect(page.getByText('Import complete')).toBeVisible();
+	await expect(page.getByText('13 imported · 17 expected · 4 rejected')).toBeVisible();
+	await expect(page.getByTestId('migration-summary-settings')).toHaveText('Settings: Applied');
+	await expect(page.getByTestId('migration-summary-synonyms')).toHaveText('Synonyms: 3 imported');
+	await expect(page.getByTestId('migration-summary-rules')).toHaveText('Rules: 6 imported');
+	await assertNoResumeCapability(page);
+	await assertMigrationFixtureSatisfied(fixture, {
+		checked: true,
+		create: true,
+		jobLoads: true,
+		preview: provider.previewSupported
+	});
+}
+
 for (const provider of PROVIDERS) {
-	test(`available migration create flow starts a ${provider.label} import and renders retained job progress`, async ({
+	test(`available migration create flow handles ${provider.label} preview support and retained job progress`, async ({
 		page
 	}) => {
 		const fixture = await installMigrationConsoleFlowFixture(page, {
@@ -101,7 +167,7 @@ for (const provider of PROVIDERS) {
 		await expect(page.getByLabel('Destination index name')).toHaveValue('source_products');
 
 		await page.getByRole('button', { name: 'Check destination eligibility' }).click();
-		await expect(page.getByRole('heading', { name: 'Review import' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Review import', exact: true })).toBeVisible();
 		await expect(page.getByText('source_products in us-east-1')).toBeVisible();
 		await expect(
 			page.getByText(
@@ -110,37 +176,7 @@ for (const provider of PROVIDERS) {
 		).toBeVisible();
 		await expect(page.getByText('Imports available')).toBeVisible();
 
-		await page.clock.install();
-		await Promise.all([
-			page.waitForURL(
-				new RegExp(
-					`/console/migrate/${fixture.jobId}\\?source_provider=${provider.sourceProvider}$`
-				)
-			),
-			page.getByRole('button', { name: 'Start import' }).click()
-		]);
-
-		await expect(page.getByText(provider.sourceProvider, { exact: true })).toBeVisible();
-		await expect(page.getByText('Queued')).toBeVisible();
-		await expect(page.getByText('Waiting to start')).toBeVisible();
-
-		await page.clock.fastForward(4000);
-		await expect(page.getByText('Copying documents')).toBeVisible();
-		await expect(page.getByText('Copying records')).toBeVisible();
-
-		await page.clock.fastForward(4000);
-		await expect(page.getByText('Verifying', { exact: true })).toBeVisible();
-		await expect(page.getByText('Verifying imported data')).toBeVisible();
-
-		await page.clock.fastForward(4000);
-		await expect(page.getByText('Completed', { exact: true })).toBeVisible();
-		await expect(page.getByText('Import complete')).toBeVisible();
-		await expect(page.getByText('13 imported · 17 expected · 4 rejected')).toBeVisible();
-		await expect(page.getByTestId('migration-summary-settings')).toHaveText('Settings: Applied');
-		await expect(page.getByTestId('migration-summary-synonyms')).toHaveText('Synonyms: 3 imported');
-		await expect(page.getByTestId('migration-summary-rules')).toHaveText('Rules: 6 imported');
-		await assertNoResumeCapability(page);
-		await assertMigrationFixtureSatisfied(fixture, { create: true, jobLoads: true });
+		await finishProviderJourney(page, provider, fixture);
 	});
 }
 
@@ -247,7 +283,14 @@ test('available retained job detail renders every compatibility warning', async 
 
 async function assertNoResumeCapability(page: Page) {
 	await expect(page.getByRole('button', { name: 'Resume import' })).toHaveCount(0);
-	await expect(page.getByLabel('Algolia API key')).toHaveCount(0);
+	// Resuming would re-render the source connection form, so assert that form is absent
+	// rather than matching its credential label page-wide. On a completed Algolia job the
+	// cutover verification panel renders its own "Algolia API key" input — a separate,
+	// legitimate feature (verification is Algolia-only, see
+	// infra/api/src/routes/migration/capabilities.rs:36) that a page-wide label match
+	// would wrongly read as a resume affordance. Meilisearch and Typesense keep the label
+	// assertion because nothing else on the page uses those labels.
+	await expect(page.getByTestId('migration-algolia-connection')).toHaveCount(0);
 	await expect(page.getByLabel('Meilisearch API key')).toHaveCount(0);
 	await expect(page.getByLabel('Typesense API key')).toHaveCount(0);
 	await expect(page.getByText(/^Resume before /)).toHaveCount(0);

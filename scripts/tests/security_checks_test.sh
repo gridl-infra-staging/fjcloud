@@ -910,13 +910,48 @@ test_local_ci_security_gate_rosters_and_execution_root() {
         "security-suite has a dispatch arm"
 }
 
-# The tracked fixture pins lodash@4.17.20, affected by GHSA-35jh-r3h4-6jhm.
-# npm's live advisory response is validated separately; this contract keeps the
-# local-ci dispatch and fixture-root behavior hermetic.
-test_local_ci_web_audit_uses_fixture_root_and_preserves_failure() {
+# --- web-audit named-advisory exception mechanism ---------------------------
+# gate_web_audit now makes TWO npm invocations and delegates classification to
+# scripts/lib/npm_audit_exceptions.py: a production-only reachability guard
+# (--omit=dev, empty policy) that runs first, then the full-tree audit filtered
+# through the committed web/npm_audit_exceptions.txt. These arms drive the real
+# gate against the tracked fixture web root with a mocked npm that serves a
+# caller-chosen JSON payload for each invocation.
+
+# Real-shaped npm audit v2 payloads (severity + via[] objects/strings + a
+# metadata cross-check block), matched to the live 2026-08-04 web/ shape.
+WEB_AUDIT_CLEAN_PROD='{"vulnerabilities":{},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":0,"total":0}}}'
+# undici high with the five committed GHSA ids; miniflare/wrangler moderate
+# string edges — the live dev-only shape the exception list is written for.
+WEB_AUDIT_EXCEPTED_FULL='{"vulnerabilities":{"undici":{"severity":"high","via":[{"url":"https://github.com/advisories/GHSA-8xcm-r25x-g524"},{"url":"https://github.com/advisories/GHSA-4cwx-7wf7-3272"},{"url":"https://github.com/advisories/GHSA-m8rv-5g2x-5cg5"},{"url":"https://github.com/advisories/GHSA-jr45-8vmc-qm54"},{"url":"https://github.com/advisories/GHSA-v3r7-h72x-cjcm"}]},"miniflare":{"severity":"moderate","via":["undici"]},"wrangler":{"severity":"moderate","via":["miniflare"]}},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":2,"high":1,"critical":0,"total":3}}}'
+# A high advisory whose GHSA is NOT on the exception list — must block.
+WEB_AUDIT_UNLISTED_FULL='{"vulnerabilities":{"foo":{"severity":"high","via":[{"url":"https://github.com/advisories/GHSA-zzzz-zzzz-zzzz"}]}},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":1,"critical":0,"total":1}}}'
+# A high entry whose via[] is only strings resolving to a package with no
+# advisory id anywhere — no extractable GHSA, so it can never be excepted.
+WEB_AUDIT_STRVIA_FULL='{"vulnerabilities":{"foo":{"severity":"high","via":["bar"]},"bar":{"severity":"moderate","via":["baz"]}},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":1,"high":1,"critical":0,"total":2}}}'
+# Schema drift: no `vulnerabilities` key at all (distinct from clean `{}`).
+WEB_AUDIT_DRIFT_FULL='{"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":0,"total":0}}}'
+# A high advisory present in the PRODUCTION (--omit=dev) tree. It carries a
+# committed GHSA on purpose: the production guard uses an empty policy, so an
+# excepted advisory reaching production must still fail.
+WEB_AUDIT_HIGH_PROD='{"vulnerabilities":{"undici":{"severity":"high","via":[{"url":"https://github.com/advisories/GHSA-8xcm-r25x-g524"}]}},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":1,"critical":0,"total":1}}}'
+
+WEB_AUDIT_OUTPUT=""
+WEB_AUDIT_EXIT=0
+
+# Drive `bash scripts/local-ci.sh --gate web-audit` against the tracked fixture
+# web root with an npm mock that serves $1 for the full-tree invocation and $2
+# for the --omit=dev invocation, rejecting any other argv. Results land in
+# WEB_AUDIT_OUTPUT / WEB_AUDIT_EXIT.
+run_web_audit_gate() {
+    local full_json="$1" prod_json="$2"
+    local full_status="${3:-1}" prod_status="${4:-0}"
     local tmpdir fixture_root
     tmpdir="$(mktemp -d)"
     fixture_root="$REPO_ROOT/scripts/reliability/fixtures/security/web_audit_vulnerable"
+
+    printf '%s' "$full_json" > "$tmpdir/full.json"
+    printf '%s' "$prod_json" > "$tmpdir/prod.json"
 
     cat > "$tmpdir/npm" <<'MOCK'
 #!/usr/bin/env bash
@@ -924,40 +959,135 @@ if [ "$PWD" != "$EXPECTED_WEB_AUDIT_ROOT" ]; then
     echo "fake npm: wrong working directory: $PWD" >&2
     exit 91
 fi
-if [ "$#" -ne 3 ] \
-    || [ "$1" != "audit" ] \
-    || [ "$2" != "--audit-level=high" ] \
-    || [ "$3" != "--package-lock-only" ]; then
-    echo "fake npm: wrong arguments: $*" >&2
-    exit 92
+# Full dependency-tree audit: audit --audit-level=high --package-lock-only --json
+if [ "$#" -eq 4 ] \
+    && [ "$1" = "audit" ] && [ "$2" = "--audit-level=high" ] \
+    && [ "$3" = "--package-lock-only" ] && [ "$4" = "--json" ]; then
+    cat "$MOCK_FULL_REPORT"
+    exit "$MOCK_FULL_STATUS"
 fi
-echo "lodash command injection advisory GHSA-35jh-r3h4-6jhm"
-exit 1
+# Production-only audit: ... --omit=dev --json
+if [ "$#" -eq 5 ] \
+    && [ "$1" = "audit" ] && [ "$2" = "--audit-level=high" ] \
+    && [ "$3" = "--package-lock-only" ] && [ "$4" = "--omit=dev" ] \
+    && [ "$5" = "--json" ]; then
+    cat "$MOCK_PROD_REPORT"
+    exit "$MOCK_PROD_STATUS"
+fi
+echo "fake npm: wrong arguments: $*" >&2
+exit 92
 MOCK
     chmod +x "$tmpdir/npm"
 
-    local output exit_code=0
-    output="$(
+    WEB_AUDIT_EXIT=0
+    WEB_AUDIT_OUTPUT="$(
         EXPECTED_WEB_AUDIT_ROOT="$fixture_root" \
         FJCLOUD_WEB_AUDIT_ROOT="$fixture_root" \
+        MOCK_FULL_REPORT="$tmpdir/full.json" \
+        MOCK_PROD_REPORT="$tmpdir/prod.json" \
+        MOCK_FULL_STATUS="$full_status" \
+        MOCK_PROD_STATUS="$prod_status" \
         PATH="$tmpdir:$PATH" \
         bash "$REPO_ROOT/scripts/local-ci.sh" --gate web-audit 2>&1
-    )" || exit_code=$?
+    )" || WEB_AUDIT_EXIT=$?
 
     rm -rf "$tmpdir"
+}
 
-    assert_eq "$exit_code" "1" "web-audit should preserve npm advisory failure status"
-    assert_contains "$output" "lodash command injection advisory GHSA-35jh-r3h4-6jhm" \
-        "web-audit should preserve npm advisory output"
-    assert_contains "$output" "web-audit" "web-audit failure should be named in local-ci output"
-    assert_contains "$output" "FAIL" "web-audit advisory should be reported as a failed gate"
-    assert_not_contains "$output" "did not match any known gate" \
+# LOAD-BEARING ARM 1: an excepted high GHSA in via[] lets the gate pass. This
+# reads the REAL committed web/npm_audit_exceptions.txt, so it also proves the
+# committed policy actually covers the five undici advisories.
+test_web_audit_excepted_advisory_passes() {
+    run_web_audit_gate "$WEB_AUDIT_EXCEPTED_FULL" "$WEB_AUDIT_CLEAN_PROD"
+    assert_eq "$WEB_AUDIT_EXIT" "0" "an excepted high GHSA in via[] should let web-audit pass"
+    assert_contains "$WEB_AUDIT_OUTPUT" "PASS" "excepted web-audit should report a passing gate"
+    assert_not_contains "$WEB_AUDIT_OUTPUT" "FAIL" "excepted web-audit should not report a failure"
+}
+
+# LOAD-BEARING ARM 2 (the reason this lane exists): an unlisted high GHSA still
+# fails the gate and names the blocking advisory id in the summary output.
+test_web_audit_unlisted_advisory_fails_and_names_it() {
+    run_web_audit_gate "$WEB_AUDIT_UNLISTED_FULL" "$WEB_AUDIT_CLEAN_PROD"
+    assert_eq "$WEB_AUDIT_EXIT" "1" "an unlisted high GHSA should fail web-audit"
+    assert_contains "$WEB_AUDIT_OUTPUT" "GHSA-zzzz-zzzz-zzzz" \
+        "web-audit should name the blocking unlisted advisory in its output"
+    assert_contains "$WEB_AUDIT_OUTPUT" "FAIL" "an unlisted advisory should be a failed gate"
+}
+
+# FAIL-CLOSED ARM: unparsable audit JSON must fail the gate, never pass.
+test_web_audit_unparsable_report_fails_closed() {
+    run_web_audit_gate 'not valid json at all' "$WEB_AUDIT_CLEAN_PROD"
+    assert_eq "$WEB_AUDIT_EXIT" "1" "unparsable audit JSON should fail web-audit closed"
+    assert_contains "$WEB_AUDIT_OUTPUT" "FAIL" "unparsable audit should be a failed gate"
+}
+
+# FAIL-CLOSED ARM: a report missing the `vulnerabilities` key entirely (schema
+# drift, distinct from a clean `"vulnerabilities": {}`) must fail closed.
+test_web_audit_schema_drift_fails_closed() {
+    run_web_audit_gate "$WEB_AUDIT_DRIFT_FULL" "$WEB_AUDIT_CLEAN_PROD"
+    assert_eq "$WEB_AUDIT_EXIT" "1" "a report with no vulnerabilities key should fail web-audit closed"
+    assert_contains "$WEB_AUDIT_OUTPUT" "FAIL" "schema drift should be a failed gate"
+}
+
+# FAIL-CLOSED ARM: a high entry whose via[] holds only strings and yields no
+# GHSA id must block — an advisory with no extractable id can never be on the
+# exception list and must not vanish.
+test_web_audit_stringonly_via_high_blocks() {
+    run_web_audit_gate "$WEB_AUDIT_STRVIA_FULL" "$WEB_AUDIT_CLEAN_PROD"
+    assert_eq "$WEB_AUDIT_EXIT" "1" "a high entry with no extractable GHSA id must block"
+    assert_contains "$WEB_AUDIT_OUTPUT" "FAIL" "a no-extractable-id high entry should be a failed gate"
+}
+
+# GUARD RED PATH: the full-tree report is fully excepted, but a high advisory
+# reaches PRODUCTION (--omit=dev). The gate must still fail, attributed to the
+# production audit — proving the exception list can never cover a production dep.
+test_local_ci_web_audit_production_guard_blocks_high_advisory() {
+    run_web_audit_gate "$WEB_AUDIT_EXCEPTED_FULL" "$WEB_AUDIT_HIGH_PROD"
+    assert_eq "$WEB_AUDIT_EXIT" "1" \
+        "a high production advisory must fail web-audit even when excepted in the full tree"
+    assert_contains "$WEB_AUDIT_OUTPUT" "production" \
+        "the failure must be attributed to the production audit, not exception filtering"
+    assert_contains "$WEB_AUDIT_OUTPUT" "FAIL" "the production guard failure should be a failed gate"
+}
+
+test_local_ci_web_audit_rejects_unexpected_npm_exit_statuses() {
+    run_web_audit_gate "$WEB_AUDIT_CLEAN_PROD" "$WEB_AUDIT_CLEAN_PROD" 1 2
+    assert_eq "$WEB_AUDIT_EXIT" "1" \
+        "an unexpected production npm audit exit status must fail web-audit"
+    assert_contains "$WEB_AUDIT_OUTPUT" "unexpected status 2" \
+        "production audit operational failure should name the unexpected status"
+    assert_contains "$WEB_AUDIT_OUTPUT" "production" \
+        "production audit operational failure should be attributed to the production audit"
+
+    run_web_audit_gate "$WEB_AUDIT_CLEAN_PROD" "$WEB_AUDIT_CLEAN_PROD" 2 0
+    assert_eq "$WEB_AUDIT_EXIT" "1" \
+        "an unexpected full-tree npm audit exit status must fail web-audit"
+    assert_contains "$WEB_AUDIT_OUTPUT" "unexpected status 2" \
+        "full-tree audit operational failure should name the unexpected status"
+    assert_contains "$WEB_AUDIT_OUTPUT" "full dependency" \
+        "full-tree audit operational failure should be attributed to the full dependency audit"
+}
+
+# The gate captures npm stdout to a temp file and classifies it, so raw npm
+# output no longer reaches the summary; the preserved failure now surfaces as
+# the blocking GHSA id the classifier names. The tracked fixture root is
+# exercised via EXPECTED_WEB_AUDIT_ROOT in the npm mock (wrong cwd -> exit 91),
+# and the precondition-message arms must stay absent under the new gate.
+test_local_ci_web_audit_uses_fixture_root_and_preserves_failure() {
+    run_web_audit_gate "$WEB_AUDIT_UNLISTED_FULL" "$WEB_AUDIT_CLEAN_PROD"
+
+    assert_eq "$WEB_AUDIT_EXIT" "1" "web-audit should preserve an advisory failure status"
+    assert_contains "$WEB_AUDIT_OUTPUT" "GHSA-zzzz-zzzz-zzzz" \
+        "web-audit should preserve the failure as the blocking advisory the classifier names"
+    assert_contains "$WEB_AUDIT_OUTPUT" "web-audit" "web-audit failure should be named in local-ci output"
+    assert_contains "$WEB_AUDIT_OUTPUT" "FAIL" "web-audit advisory should be reported as a failed gate"
+    assert_not_contains "$WEB_AUDIT_OUTPUT" "did not match any known gate" \
         "web-audit should be registered as a known local-ci gate"
-    assert_not_contains "$output" "package.json" \
+    assert_not_contains "$WEB_AUDIT_OUTPUT" "package.json" \
         "tracked web-audit fixture should satisfy the manifest precondition"
-    assert_not_contains "$output" "package-lock.json" \
+    assert_not_contains "$WEB_AUDIT_OUTPUT" "package-lock.json" \
         "tracked web-audit fixture should satisfy the lockfile precondition"
-    assert_not_contains "$output" "node_modules" \
+    assert_not_contains "$WEB_AUDIT_OUTPUT" "node_modules" \
         "web-audit should not require installed node_modules"
 }
 
@@ -1422,6 +1552,185 @@ PY
     rm -f "$tmp"
 }
 
+# Known-answer unit arms for scripts/lib/npm_audit_exceptions.py invoked
+# directly, mirroring test_cvss_severity_script_known_answers. These pin the
+# classifier's blocking rule independently of the shell gate wiring: verdict on
+# stdout, blocking ids on stderr, exit 2 on unreadable/schema-drifted input.
+test_npm_audit_exceptions_script_known_answers() {
+    local script="$REPO_ROOT/scripts/lib/npm_audit_exceptions.py"
+    local tmp exc
+    tmp="$(mktemp)"
+    exc="$(mktemp)"
+    printf '%s\n' '# committed-style exception list' \
+        'GHSA-8xcm-r25x-g524' 'GHSA-4cwx-7wf7-3272' 'GHSA-m8rv-5g2x-5cg5' \
+        'GHSA-jr45-8vmc-qm54' 'GHSA-v3r7-h72x-cjcm' > "$exc"
+
+    local out err_out ec
+
+    # Every implicated GHSA on the list -> pass.
+    printf '%s' '{"vulnerabilities":{"undici":{"severity":"high","via":[{"url":"https://github.com/advisories/GHSA-8xcm-r25x-g524"},{"url":"https://github.com/advisories/GHSA-4cwx-7wf7-3272"},{"url":"https://github.com/advisories/GHSA-m8rv-5g2x-5cg5"},{"url":"https://github.com/advisories/GHSA-jr45-8vmc-qm54"},{"url":"https://github.com/advisories/GHSA-v3r7-h72x-cjcm"}]},"miniflare":{"severity":"moderate","via":["undici"]}},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":1,"high":1,"critical":0,"total":2}}}' > "$tmp"
+    out="$(python3 "$script" "$tmp" "$exc" 2>/dev/null)"
+    assert_eq "$out" "pass" "a high entry whose every GHSA is excepted should pass"
+
+    # One implicated GHSA off the list -> fail, named.
+    printf '%s' '{"vulnerabilities":{"foo":{"severity":"high","via":[{"url":"https://github.com/advisories/GHSA-8xcm-r25x-g524"},{"url":"https://github.com/advisories/GHSA-zzzz-zzzz-zzzz"}]}},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":1,"critical":0,"total":1}}}' > "$tmp"
+    out="$(python3 "$script" "$tmp" "$exc" 2>/dev/null)"
+    err_out="$(python3 "$script" "$tmp" "$exc" 2>&1 >/dev/null)"
+    assert_eq "$out" "fail" "one uncovered GHSA in a high entry should fail"
+    assert_contains "$err_out" "GHSA-zzzz-zzzz-zzzz" "the uncovered GHSA should be named on stderr"
+    assert_not_contains "$err_out" "GHSA-8xcm-r25x-g524" "the covered GHSA should not be named as blocking"
+
+    # A critical entry with an unlisted GHSA -> fail.
+    printf '%s' '{"vulnerabilities":{"foo":{"severity":"critical","via":[{"url":"https://github.com/advisories/GHSA-crit-crit-crit"}]}},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":1,"total":1}}}' > "$tmp"
+    out="$(python3 "$script" "$tmp" "$exc" 2>/dev/null)"
+    assert_eq "$out" "fail" "an unlisted critical advisory should fail"
+
+    # A high entry whose via[] is only strings -> no extractable id -> fail.
+    printf '%s' '{"vulnerabilities":{"foo":{"severity":"high","via":["bar"]},"bar":{"severity":"moderate","via":["baz"]}},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":1,"high":1,"critical":0,"total":2}}}' > "$tmp"
+    out="$(python3 "$script" "$tmp" "$exc" 2>/dev/null)"
+    err_out="$(python3 "$script" "$tmp" "$exc" 2>&1 >/dev/null)"
+    assert_eq "$out" "fail" "a high entry with no extractable GHSA id should fail"
+    assert_contains "$err_out" "foo" "the unresolvable high entry should be named by package"
+
+    # A high entry with an empty via[] -> no id -> fail, named (no-advisory-id).
+    printf '%s' '{"vulnerabilities":{"foo":{"severity":"high","via":[]}},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":1,"critical":0,"total":1}}}' > "$tmp"
+    out="$(python3 "$script" "$tmp" "$exc" 2>/dev/null)"
+    err_out="$(python3 "$script" "$tmp" "$exc" 2>&1 >/dev/null)"
+    assert_eq "$out" "fail" "a high entry with an empty via[] should fail"
+    assert_contains "$err_out" "no-advisory-id" "an empty-via high entry should be named as having no advisory id"
+
+    # Moderate-only findings are below the blocking band -> pass, even unlisted.
+    printf '%s' '{"vulnerabilities":{"foo":{"severity":"moderate","via":[{"url":"https://github.com/advisories/GHSA-mod0-mod0-mod0"}]}},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":1,"high":0,"critical":0,"total":1}}}' > "$tmp"
+    out="$(python3 "$script" "$tmp" "$exc" 2>/dev/null)"
+    assert_eq "$out" "pass" "a moderate-only unlisted advisory should not block"
+
+    # A clean, explicitly-empty report -> pass.
+    printf '%s' '{"vulnerabilities":{},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":0,"total":0}}}' > "$tmp"
+    out="$(python3 "$script" "$tmp" "$exc" 2>/dev/null)"
+    assert_eq "$out" "pass" "a clean empty report should pass"
+
+    # The `vulnerabilities` object entirely gone -> exit 2, fail closed.
+    printf '%s' '{"metadata":{"vulnerabilities":{"high":0,"critical":0}}}' > "$tmp"
+    ec=0
+    out="$(python3 "$script" "$tmp" "$exc" 2>/dev/null)" || ec=$?
+    assert_eq "$ec" "2" "a report with no vulnerabilities object should exit 2"
+    assert_eq "$out" "parse_error" "a report with no vulnerabilities object should not yield a verdict"
+
+    # Enumerated high+critical disagrees with metadata -> schema drift, exit 2.
+    printf '%s' '{"vulnerabilities":{"foo":{"severity":"high","via":[{"url":"https://github.com/advisories/GHSA-8xcm-r25x-g524"}]}},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":0,"total":0}}}' > "$tmp"
+    ec=0
+    out="$(python3 "$script" "$tmp" "$exc" 2>/dev/null)" || ec=$?
+    assert_eq "$ec" "2" "a high entry uncounted by metadata should exit 2"
+    assert_eq "$out" "parse_error" "a metadata cross-check mismatch should not yield a verdict"
+
+    # A negative metadata count must never cancel a positive one: an aggregate
+    # of high=-1 + critical=1 equals the zero enumerated entries of an empty
+    # report, so without a non-negative check the cross-check agrees and a
+    # report that itself claims one critical vulnerability passes.
+    printf '%s' '{"vulnerabilities":{},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":-1,"critical":1,"total":0}}}' > "$tmp"
+    ec=0
+    out="$(python3 "$script" "$tmp" "$exc" 2>/dev/null)" || ec=$?
+    err_out="$(python3 "$script" "$tmp" "$exc" 2>&1 >/dev/null)" || true
+    assert_eq "$ec" "2" "a negative metadata count cancelling a positive one should exit 2"
+    assert_eq "$out" "parse_error" "cross-band count cancellation should not yield a verdict"
+    assert_contains "$err_out" "high" "the negative metadata band should be named on stderr"
+
+    # The same rejection applies to a lone negative count with nothing to cancel.
+    printf '%s' '{"vulnerabilities":{},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":-1,"total":0}}}' > "$tmp"
+    ec=0
+    out="$(python3 "$script" "$tmp" "$exc" 2>/dev/null)" || ec=$?
+    err_out="$(python3 "$script" "$tmp" "$exc" 2>&1 >/dev/null)" || true
+    assert_eq "$ec" "2" "a negative critical count should exit 2 on its own"
+    assert_contains "$err_out" "critical" "the negative critical band should be named on stderr"
+
+    # Unparsable JSON -> exit 2.
+    printf '%s' 'not json at all' > "$tmp"
+    ec=0
+    out="$(python3 "$script" "$tmp" "$exc" 2>/dev/null)" || ec=$?
+    assert_eq "$ec" "2" "an unparsable report should exit 2 (caller fails closed)"
+    assert_eq "$out" "parse_error" "an unparsable report should not yield a verdict"
+
+    # Invalid UTF-8 must not be discarded into an apparently valid report.
+    python3 - "$tmp" <<'PY'
+import sys
+from pathlib import Path
+
+Path(sys.argv[1]).write_bytes(
+    b'{"vulnerabilities":{},"metadata":{"vulnerabilities":{"high":0,"critical":0}}}\xff'
+)
+PY
+    ec=0
+    out="$(python3 "$script" "$tmp" "$exc" 2>/dev/null)" || ec=$?
+    assert_eq "$ec" "2" "invalid UTF-8 audit evidence should exit 2, not be decoded lossily"
+    assert_eq "$out" "parse_error" "invalid UTF-8 audit evidence should not yield a verdict"
+
+    # An unreadable exception list -> exit 2, fail closed (never treat as empty).
+    printf '%s' '{"vulnerabilities":{},"metadata":{"vulnerabilities":{"high":0,"critical":0}}}' > "$tmp"
+    ec=0
+    out="$(python3 "$script" "$tmp" "$tmp.does-not-exist" 2>/dev/null)" || ec=$?
+    assert_eq "$ec" "2" "an unreadable exception list should exit 2, not be treated as empty"
+    assert_eq "$out" "parse_error" "an unreadable exception list should not yield a verdict"
+
+    # A severity outside npm's closed set is undecidable, not "below the
+    # blocking band": the metadata cross-check cannot catch it either, since an
+    # unrecognised band is counted nowhere. It must exit 2, never pass.
+    printf '%s' '{"vulnerabilities":{"foo":{"severity":"severe","via":[{"url":"https://github.com/advisories/GHSA-zzzz-zzzz-zzzz"}]}},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":0,"total":1}}}' > "$tmp"
+    ec=0
+    out="$(python3 "$script" "$tmp" "$exc" 2>/dev/null)" || ec=$?
+    err_out="$(python3 "$script" "$tmp" "$exc" 2>&1 >/dev/null)" || true
+    assert_eq "$ec" "2" "an unrecognised severity band should exit 2, not be treated as non-blocking"
+    assert_eq "$out" "parse_error" "an unrecognised severity band should not yield a verdict"
+    assert_contains "$err_out" "severe" "the unrecognised severity value should be named on stderr"
+
+    # A `via` cycle must not let the unresolved edge disappear beside a readable
+    # excepted advisory: foo's chain reaches bar, which points back at foo.
+    printf '%s' '{"vulnerabilities":{"foo":{"severity":"high","via":[{"url":"https://github.com/advisories/GHSA-8xcm-r25x-g524"},"bar"]},"bar":{"severity":"moderate","via":["foo"]}},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":1,"high":1,"critical":0,"total":2}}}' > "$tmp"
+    out="$(python3 "$script" "$tmp" "$exc" 2>/dev/null)"
+    err_out="$(python3 "$script" "$tmp" "$exc" 2>&1 >/dev/null)"
+    assert_eq "$out" "fail" "a cyclic via edge beside an excepted GHSA should still block"
+    assert_contains "$err_out" "foo" "the entry whose chain contains the cycle should be named"
+
+    # ...but a diamond (the same package reached by two distinct paths) is NOT a
+    # cycle, and must still resolve to its real, excepted advisory id.
+    printf '%s' '{"vulnerabilities":{"top":{"severity":"high","via":["b","c"]},"b":{"severity":"moderate","via":["d"]},"c":{"severity":"moderate","via":["d"]},"d":{"severity":"moderate","via":[{"url":"https://github.com/advisories/GHSA-8xcm-r25x-g524"}]}},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":3,"high":1,"critical":0,"total":4}}}' > "$tmp"
+    out="$(python3 "$script" "$tmp" "$exc" 2>/dev/null)"
+    assert_eq "$out" "pass" "a re-converging (diamond) via chain should resolve, not read as a cycle"
+
+    # The policy file authorises NAMED advisories only. A non-GHSA value —
+    # including an internal classifier token such as `unresolved:foo` — must
+    # fail the whole classification closed, never except an unnamed advisory.
+    local bad_exc
+    bad_exc="$(mktemp)"
+    # `foo` names a package absent from the report, so its only implicated token
+    # is the internal `unresolved:missing` label. Were the policy file to accept
+    # that label, an advisory with no extractable id would be excepted outright.
+    printf '%s\n' '# malformed policy' 'GHSA-8xcm-r25x-g524' 'unresolved:missing' > "$bad_exc"
+    printf '%s' '{"vulnerabilities":{"foo":{"severity":"high","via":["missing"]}},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":1,"critical":0,"total":1}}}' > "$tmp"
+    ec=0
+    out="$(python3 "$script" "$tmp" "$bad_exc" 2>/dev/null)" || ec=$?
+    err_out="$(python3 "$script" "$tmp" "$bad_exc" 2>&1 >/dev/null)" || true
+    assert_eq "$ec" "2" "an internal token in the policy file should exit 2, not except an unnamed advisory"
+    assert_eq "$out" "parse_error" "a malformed policy line should not yield a verdict"
+    assert_contains "$err_out" "unresolved:missing" "the malformed policy value should be named on stderr"
+
+    # A lookalike that is not a full GHSA id is malformed too (no substring match).
+    printf '%s\n' 'see GHSA-8xcm-r25x-g524 for details' > "$bad_exc"
+    printf '%s' '{"vulnerabilities":{},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":0,"total":0}}}' > "$tmp"
+    ec=0
+    out="$(python3 "$script" "$tmp" "$bad_exc" 2>/dev/null)" || ec=$?
+    assert_eq "$ec" "2" "a policy line that merely contains a GHSA id should exit 2"
+    assert_eq "$out" "parse_error" "a partially-matching policy line should not yield a verdict"
+
+    # The committed policy itself must satisfy that validator.
+    printf '%s' '{"vulnerabilities":{},"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":0,"total":0}}}' > "$tmp"
+    ec=0
+    out="$(python3 "$script" "$tmp" "$REPO_ROOT/web/npm_audit_exceptions.txt" 2>/dev/null)" || ec=$?
+    assert_eq "$ec" "0" "the committed web/npm_audit_exceptions.txt should parse cleanly"
+    assert_eq "$out" "pass" "the committed policy against a clean report should pass"
+
+    rm -f "$tmp" "$exc" "$bad_exc"
+}
+
 echo "=== security_checks.sh tests ==="
 echo ""
 echo "--- check_secret_scan tests ---"
@@ -1478,11 +1787,19 @@ test_run_security_suite_all_pass_when_dep_audit_present
 test_run_security_suite_blocking_skip_reports_fail_status
 test_security_suite_summary_script_known_answers
 test_cvss_severity_script_known_answers
+test_npm_audit_exceptions_script_known_answers
 echo ""
 echo "--- consolidation contract tests ---"
 test_tracked_security_checks_has_single_owner
 test_local_ci_known_gates_include_security_gates
 test_local_ci_security_gate_rosters_and_execution_root
+test_web_audit_excepted_advisory_passes
+test_web_audit_unlisted_advisory_fails_and_names_it
+test_web_audit_unparsable_report_fails_closed
+test_web_audit_schema_drift_fails_closed
+test_web_audit_stringonly_via_high_blocks
+test_local_ci_web_audit_production_guard_blocks_high_advisory
+test_local_ci_web_audit_rejects_unexpected_npm_exit_statuses
 test_local_ci_web_audit_uses_fixture_root_and_preserves_failure
 echo ""
 echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="

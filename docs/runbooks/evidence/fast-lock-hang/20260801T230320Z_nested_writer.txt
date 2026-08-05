@@ -1,0 +1,67 @@
+Stage 1 nested-arm writer evidence
+captured_at_utc=2026-08-01T23:03:20Z
+head=83ba2e378c22dc07a9438484e6663ea52f14ecff
+process_signals_sent=TERM to stage-owned process group 88393 only
+pre_existing_process_signals_sent=none
+
+EXACT RED COMMAND:
+bash scripts/tests/probe_browser_stack_exclusive_test.sh
+
+STAGE-OWNED DIAGNOSTIC WRAPPER:
+set -m
+bash scripts/tests/probe_browser_stack_exclusive_test.sh >"$diagnostic_dir/stdout" 2>"$diagnostic_dir/stderr" &
+wrapper_pid=$!
+wrapper_pgid="$(ps -o pgid= -p "$wrapper_pid" | tr -d '[:space:]')"
+# Require wrapper_pgid == wrapper_pid, poll for 45 seconds, capture the exact
+# process group and selected open descriptors, then TERM only -$wrapper_pgid.
+
+OBSERVED RESULT:
+watchdog_exit=124
+observed_elapsed_seconds=48
+wrapper_pid=88393
+wrapper_pgid=88393
+stdout_last_result=PASS: local_demo observes the test-owned starter
+stderr_bytes=0
+
+COMMAND: ps -o pid,ppid,pgid,etime,pcpu,command -g 88393
+  PID  PPID  PGID ELAPSED  %CPU COMMAND
+ 2590 88393 88393   00:31   0.0 bash .../local_demo.sh
+ 2592  2590 88393   00:31   0.0 sleep 3600
+ 2991 88393 88393   00:26   0.0 bash scripts/tests/probe_browser_stack_exclusive_test.sh
+ 2992  2991 88393   00:26   0.0 bash .../scripts/probe_browser_stack_exclusive.sh
+ 3373  2992 88393   00:00   0.0 bash .../scripts/probe_browser_stack_exclusive.sh
+ 3376  3373 88393   00:00   0.0 bash .../bin/ps -axo args=
+ 3377  3373 88393   00:00   0.0 grep -v .../fakestack/scripts/local-dev-up.sh
+ 3382  3376 88393   00:00   0.0 /bin/bash .../bin/ps -axo args=
+ 3385  3382 88393   00:00   0.0 /bin/ps -axo args=
+88393 85253 88393   00:47   0.0 bash scripts/tests/probe_browser_stack_exclusive_test.sh
+
+COMMAND: lsof -a -p 2991,3376,3382 -d 1,2
+COMMAND PID  FD TYPE DEVICE SIZE/OFF NODE NAME
+bash   2991   1w FIFO  0,14      0t0      0 0x58da6f4caa9ed185
+bash   2991   2w REG    1,7        0      0 <diagnostic stderr>
+bash   3376   1w FIFO  0,14      0t0      0 0x31ec983f9807ed0e
+bash   3376   2w FIFO  0,14      0t0      0 0x58da6f4caa9ed185
+bash   3382   1w FIFO  0,14      0t0      0 0x31ec983f9807ed0e
+bash   3382   2w FIFO  0,14      0t0      0 0x58da6f4caa9ed185
+
+WRITER IDENTIFICATION:
+The intact nested arm at scripts/tests/probe_browser_stack_exclusive_test.sh:404-432
+re-executes the suite inside command substitution. The nested child resolves
+SYSTEM_PS after PATH already contains the outer test's ps shim. That makes the
+inner shim's REAL_PS name the outer shim instead of the host ps binary. PID 3376
+is that recursive outer-shim descendant; PID 3382 is its next recursion. Their
+fd 2 is the same pipe as nested suite PID 2991 fd 1, so the command substitution
+cannot observe EOF while the recursive shim chain remains alive.
+
+CLEANUP RECEIPT:
+After evidence capture, TERM was sent only to process group 88393, whose leader
+was started by this diagnostic wrapper. The group exited after TERM; KILL was
+not used. The pre-existing holder PID 51132 and its descendants were not
+signaled.
+
+SHORT RECEIPT FOR GREEN VERIFICATION:
+failing_command=bash scripts/tests/probe_browser_stack_exclusive_test.sh
+symptom=the intact nested pre-existing-holder command substitution exceeded 45 seconds
+live_wedge_evidence=docs/runbooks/evidence/fast-lock-hang/20260801T230107Z_live_wedge.txt
+nested_writer_evidence=docs/runbooks/evidence/fast-lock-hang/20260801T230320Z_nested_writer.txt

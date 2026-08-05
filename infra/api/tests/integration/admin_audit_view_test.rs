@@ -7,10 +7,10 @@
 use api::models::RateCardRow;
 use api::repos::{CustomerRepo, InvoiceRepo, TenantRepo};
 use api::services::audit_log::{
-    ACTION_CUSTOMER_HARD_ERASE, ACTION_CUSTOMER_REACTIVATED, ACTION_CUSTOMER_SUSPENDED,
-    ACTION_IMPERSONATION_TOKEN_CREATED, ACTION_QUOTAS_UPDATED, ACTION_RATE_CARD_OVERRIDE,
-    ACTION_SES_COMPLAINT_SUPPRESSED, ACTION_STRIPE_SYNC, ACTION_TENANT_CREATED,
-    ACTION_TENANT_DELETED, ACTION_TENANT_UPDATED, SES_SYSTEM_ACTOR_ID,
+    write_audit_log_tx, AuditEntry, ACTION_CUSTOMER_HARD_ERASE, ACTION_CUSTOMER_REACTIVATED,
+    ACTION_CUSTOMER_SUSPENDED, ACTION_IMPERSONATION_TOKEN_CREATED, ACTION_QUOTAS_UPDATED,
+    ACTION_RATE_CARD_OVERRIDE, ACTION_SES_COMPLAINT_SUPPRESSED, ACTION_STRIPE_SYNC,
+    ACTION_TENANT_CREATED, ACTION_TENANT_DELETED, ACTION_TENANT_UPDATED, SES_SYSTEM_ACTOR_ID,
 };
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
@@ -21,12 +21,66 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 use crate::common::admin_audit_test_support::{
-    admin_token_request_with_key, app_with_live_audit_pool, audit_row_count,
-    audit_row_count_for_target, cleanup_target,
-    connect_shared_public_and_migrate as connect_and_migrate, latest_actor_id, latest_metadata,
-    register_operator, response_json, revoke_operator,
+    admin_token_request_with_key, app_with_live_audit_pool, app_with_pg_customer_repo,
+    audit_row_count, audit_row_count_for_target, cleanup_target, connect_isolated_and_migrate,
+    connect_shared_public_and_migrate as connect_and_migrate, create_active_customer,
+    create_soft_deleted_customer, latest_actor_id, latest_metadata, register_operator,
+    response_json, revoke_operator,
 };
 use crate::common::catalog_live_binding::CatalogLiveBinding;
+
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn audit_transactional_writer_commit_and_rollback() {
+    let db = connect_isolated_and_migrate("audit_transactional_writer").await;
+    let entry = AuditEntry {
+        actor_id: Uuid::new_v4(),
+        action: ACTION_CUSTOMER_SUSPENDED.to_owned(),
+        target_tenant_id: Some(Uuid::new_v4()),
+        metadata: serde_json::json!({
+            "reason": "payment overdue",
+            "source": "transactional writer contract"
+        }),
+    };
+
+    let mut rollback_tx = db.pool.begin().await.expect("begin rollback transaction");
+    write_audit_log_tx(&mut rollback_tx, &entry)
+        .await
+        .expect("write audit row before rollback");
+    rollback_tx.rollback().await.expect("rollback transaction");
+
+    let rolled_back_count =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*)::BIGINT FROM audit_log WHERE actor_id = $1")
+            .bind(entry.actor_id)
+            .fetch_one(&db.pool)
+            .await
+            .expect("count rolled-back audit rows");
+    assert_eq!(rolled_back_count, 0);
+
+    let mut commit_tx = db.pool.begin().await.expect("begin commit transaction");
+    write_audit_log_tx(&mut commit_tx, &entry)
+        .await
+        .expect("write audit row before commit");
+    commit_tx.commit().await.expect("commit transaction");
+
+    let committed_rows = sqlx::query_as::<_, (Uuid, String, Option<Uuid>, serde_json::Value)>(
+        "SELECT actor_id, action, target_tenant_id, metadata \
+         FROM audit_log WHERE actor_id = $1",
+    )
+    .bind(entry.actor_id)
+    .fetch_all(&db.pool)
+    .await
+    .expect("fetch committed audit rows");
+    assert_eq!(
+        committed_rows,
+        vec![(
+            entry.actor_id,
+            entry.action.clone(),
+            entry.target_tenant_id,
+            entry.metadata.clone(),
+        )]
+    );
+}
 
 fn sample_rate_card() -> RateCardRow {
     RateCardRow {
@@ -353,30 +407,17 @@ async fn post_admin_customers_sync_stripe_writes_stripe_sync_audit_row() {
 #[tokio::test]
 #[ignore = "requires DATABASE_URL"]
 async fn post_admin_customers_suspend_writes_customer_suspended_audit_row() {
-    let Some(pool) = connect_and_migrate().await else {
-        return;
-    };
+    let db = connect_isolated_and_migrate("audit_view_suspend_customer").await;
     let (operator_id, admin_credential) =
-        register_operator(&pool, &format!("suspend-{}@example.com", Uuid::new_v4())).await;
-
-    let customer_repo = crate::common::mock_repo();
-    let customer = customer_repo.seed("Suspend User", "suspend-user@example.com");
-
-    let app = app_with_live_audit_pool(
-        pool.clone(),
-        customer_repo,
-        crate::common::mock_tenant_repo(),
-        crate::common::mock_rate_card_repo(),
-        crate::common::mock_stripe_service(),
-        crate::common::mock_usage_repo(),
-        crate::common::mock_invoice_repo(),
-    );
+        register_operator(&db.pool, &format!("suspend-{}@example.com", Uuid::new_v4())).await;
+    let customer_id = create_active_customer(&db.pool, "Audit View Suspend User").await;
+    let app = app_with_pg_customer_repo(db.pool.clone());
 
     let resp = app
         .oneshot(
             Request::builder()
                 .method(Method::POST)
-                .uri(format!("/admin/customers/{}/suspend", customer.id))
+                .uri(format!("/admin/customers/{customer_id}/suspend"))
                 .header("x-admin-key", admin_credential)
                 .body(Body::empty())
                 .unwrap(),
@@ -388,16 +429,13 @@ async fn post_admin_customers_suspend_writes_customer_suspended_audit_row() {
     assert_eq!(status, StatusCode::OK);
 
     assert_eq!(
-        audit_row_count(&pool, ACTION_CUSTOMER_SUSPENDED, customer.id).await,
+        audit_row_count(&db.pool, ACTION_CUSTOMER_SUSPENDED, customer_id).await,
         1
     );
     assert_eq!(
-        latest_actor_id(&pool, ACTION_CUSTOMER_SUSPENDED, customer.id).await,
+        latest_actor_id(&db.pool, ACTION_CUSTOMER_SUSPENDED, customer_id).await,
         operator_id
     );
-
-    cleanup_target(&pool, customer.id).await;
-    revoke_operator(&pool, operator_id).await;
 }
 
 #[tokio::test]
@@ -413,7 +451,10 @@ async fn post_admin_customers_reactivate_writes_customer_reactivated_audit_row()
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed("Reactivate User", "reactivate-user@example.com");
     customer_repo
-        .suspend(customer.id)
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
         .await
         .expect("suspend seeded customer");
 
@@ -479,7 +520,10 @@ async fn post_admin_customers_reactivate_deleted_writes_no_audit_row() {
         "suspended-reactivate@example.com",
     );
     customer_repo
-        .suspend(suspended.id)
+        .suspend(
+            suspended.id,
+            crate::common::customer_suspended_audit_entry(suspended.id),
+        )
         .await
         .expect("suspend control customer");
 
@@ -894,7 +938,10 @@ async fn post_admin_tokens_for_suspended_customer_returns_forbidden_without_audi
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed("Suspended Target", "suspended-target@example.com");
     customer_repo
-        .suspend(customer.id)
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
         .await
         .expect("suspend seeded customer");
 
@@ -1367,30 +1414,20 @@ async fn get_admin_customers_id_snapshot_returns_empty_snapshot_for_customer_wit
 #[tokio::test]
 #[ignore = "requires DATABASE_URL"]
 async fn post_admin_customers_hard_erase_writes_customer_hard_erase_audit_row() {
-    let Some(pool) = connect_and_migrate().await else {
-        return;
-    };
-    let (operator_id, admin_credential) =
-        register_operator(&pool, &format!("hard-erase-{}@example.com", Uuid::new_v4())).await;
-
-    let customer_repo = crate::common::mock_repo();
-    let customer = customer_repo.seed_deleted("Hard Erase Audit", "hard-erase-audit@example.com");
-
-    let app = app_with_live_audit_pool(
-        pool.clone(),
-        customer_repo,
-        crate::common::mock_tenant_repo(),
-        crate::common::mock_rate_card_repo(),
-        crate::common::mock_stripe_service(),
-        crate::common::mock_usage_repo(),
-        crate::common::mock_invoice_repo(),
-    );
+    let db = connect_isolated_and_migrate("audit_view_hard_erase_customer").await;
+    let (operator_id, admin_credential) = register_operator(
+        &db.pool,
+        &format!("hard-erase-{}@example.com", Uuid::new_v4()),
+    )
+    .await;
+    let customer_id = create_soft_deleted_customer(&db.pool, "Hard Erase Audit").await;
+    let app = app_with_pg_customer_repo(db.pool.clone());
 
     let resp = app
         .oneshot(
             Request::builder()
                 .method(Method::POST)
-                .uri(format!("/admin/customers/{}/hard-erase", customer.id))
+                .uri(format!("/admin/customers/{customer_id}/hard-erase"))
                 .header("x-admin-key", admin_credential)
                 .body(Body::empty())
                 .unwrap(),
@@ -1406,7 +1443,7 @@ async fn post_admin_customers_hard_erase_writes_customer_hard_erase_audit_row() 
          WHERE action = $1 ORDER BY created_at DESC LIMIT 1",
     )
     .bind(ACTION_CUSTOMER_HARD_ERASE)
-    .fetch_one(&pool)
+    .fetch_one(&db.pool)
     .await
     .expect("fetch privacy-safe hard-erasure audit row");
     assert_eq!(actor_id, operator_id);
@@ -1416,13 +1453,5 @@ async fn post_admin_customers_hard_erase_writes_customer_hard_erase_audit_row() 
     );
     assert_eq!(metadata, serde_json::json!({"erased_algolia_job_count": 0}));
     let serialized = metadata.to_string();
-    assert!(!serialized.contains("hard-erase-audit@example.com"));
-    assert!(!serialized.contains(&customer.id.to_string()));
-
-    sqlx::query("DELETE FROM audit_log WHERE action = $1 AND target_tenant_id IS NULL")
-        .bind(ACTION_CUSTOMER_HARD_ERASE)
-        .execute(&pool)
-        .await
-        .ok();
-    revoke_operator(&pool, operator_id).await;
+    assert!(!serialized.contains(&customer_id.to_string()));
 }

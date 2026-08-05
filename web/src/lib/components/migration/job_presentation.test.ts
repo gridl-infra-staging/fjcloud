@@ -669,7 +669,9 @@ describe('Algolia import job presentation seam', () => {
 			describeAlgoliaImportJobActions(running, undefined, {
 				cancel: true,
 				resume: false,
-				replace: false
+				replace: false,
+				preview: false,
+				verify: false
 			})
 		).toMatchObject({
 			canCancel: true,
@@ -679,7 +681,9 @@ describe('Algolia import job presentation seam', () => {
 			describeAlgoliaImportJobActions(resumableFailure, undefined, {
 				cancel: false,
 				resume: true,
-				replace: false
+				replace: false,
+				preview: false,
+				verify: false
 			})
 		).toMatchObject({
 			canCancel: false,
@@ -689,7 +693,9 @@ describe('Algolia import job presentation seam', () => {
 			describeAlgoliaImportJobActions(running, undefined, {
 				cancel: false,
 				resume: false,
-				replace: true
+				replace: true,
+				preview: false,
+				verify: false
 			})
 		).toMatchObject({
 			canCancel: false,
@@ -713,7 +719,7 @@ describe('Algolia import job presentation seam', () => {
 						error: { code }
 					}),
 					undefined,
-					{ cancel: false, resume: true, replace: false }
+					{ cancel: false, resume: true, replace: false, preview: false, verify: false }
 				)
 			).toMatchObject({
 				canResume: true,
@@ -735,7 +741,7 @@ describe('Algolia import job presentation seam', () => {
 					error: { code: 'invalid_credentials' }
 				}),
 				undefined,
-				{ cancel: false, resume: true, replace: false }
+				{ cancel: false, resume: true, replace: false, preview: false, verify: false }
 			)
 		).toMatchObject({
 			canResume: true,
@@ -754,7 +760,7 @@ describe('Algolia import job presentation seam', () => {
 					error: { code: 'not_resumable' }
 				}),
 				undefined,
-				{ cancel: false, resume: true, replace: false }
+				{ cancel: false, resume: true, replace: false, preview: false, verify: false }
 			)
 		).toMatchObject({
 			canResume: false,
@@ -781,7 +787,7 @@ describe('Algolia import job presentation seam', () => {
 						message: 'Migration starts are paused.',
 						retryAfterSeconds: null
 					},
-					{ cancel: true, resume: true, replace: false }
+					{ cancel: true, resume: true, replace: false, preview: false, verify: false }
 				)
 			).toMatchObject({
 				canCancel: false,

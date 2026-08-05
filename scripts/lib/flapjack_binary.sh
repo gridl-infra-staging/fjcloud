@@ -17,6 +17,7 @@
 
 # Canonical fjcloud engine dependency. Runtime checks and CI artifact
 # acquisition consume this value instead of carrying version literals.
+# shellcheck disable=SC2034
 FJCLOUD_FLAPJACK_VERSION="1.0.10"
 FJCLOUD_FLAPJACK_BUILD_PACKAGE="flapjack-server"
 FJCLOUD_FLAPJACK_LEGACY_RELEASE_SHA256="a3af301593a3dfddd2925011a46bc7d561c5ce607692733cae6740e04949207a"
@@ -274,12 +275,39 @@ flapjack_source_lock_path_for_receipt() {
     printf '%s.lock\n' "$receipt_path"
 }
 
+flapjack_source_lock_owner_is_running() {
+    local lock_path="$1" owner_pid
+    [ -f "$lock_path/pid" ] || return 1
+    owner_pid="$(tr -d '[:space:]' < "$lock_path/pid")"
+    [[ "$owner_pid" =~ ^[0-9]+$ ]] || return 1
+    kill -0 "$owner_pid" 2>/dev/null
+}
+
+flapjack_source_lock_owner_is_publishing() {
+    local lock_path="$1"
+    [ ! -f "$lock_path/pid" ] || return 1
+    sleep "${FLAPJACK_SOURCE_PIDLESS_LOCK_GRACE_SECONDS:-0.1}"
+    flapjack_source_lock_owner_is_running "$lock_path"
+}
+
+discard_stale_flapjack_source_lock() {
+    local lock_path="$1" stale_lock_path
+    flapjack_source_lock_owner_is_running "$lock_path" && return 1
+    flapjack_source_lock_owner_is_publishing "$lock_path" && return 1
+    stale_lock_path="${lock_path}.stale.$$"
+    mv "$lock_path" "$stale_lock_path" 2>/dev/null || return 1
+    rm -rf "$stale_lock_path"
+}
+
 acquire_flapjack_source_lock() {
     local lock_path="$1"
     local timeout_seconds="${FLAPJACK_SOURCE_LOCK_TIMEOUT_SECONDS:-120}"
     local start_epoch now_epoch
     start_epoch="$(date +%s)"
     while ! mkdir "$lock_path" 2>/dev/null; do
+        if discard_stale_flapjack_source_lock "$lock_path"; then
+            continue
+        fi
         now_epoch="$(date +%s)"
         if [ $((now_epoch - start_epoch)) -ge "$timeout_seconds" ]; then
             printf 'Timed out waiting for Flapjack source build lock: %s\n' "$lock_path" >&2
@@ -308,7 +336,7 @@ flapjack_source_dirty_bit() {
 flapjack_source_digest() {
     local source_root="$1"
     (
-        cd "$source_root"
+        cd "$source_root" || exit 1
         git rev-parse HEAD 2>/dev/null || printf 'nogit\n'
         git status --porcelain=v1 --untracked-files=all 2>/dev/null || true
         git diff --binary HEAD 2>/dev/null || true

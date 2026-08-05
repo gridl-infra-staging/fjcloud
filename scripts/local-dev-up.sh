@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # local-dev-up.sh — Start the local development environment.
 #
-# Starts Docker Compose Postgres, runs migrations, starts Flapjack on port 7700,
+# Starts Docker Compose Postgres, runs migrations, starts Flapjack,
 # and prints instructions for starting the API and web processes manually.
 #
 # Prerequisites: docker, curl, .env.local at repo root.
@@ -30,14 +30,14 @@ source "$SCRIPT_DIR/lib/compose_project.sh"
 source "$SCRIPT_DIR/lib/docker.sh"
 # shellcheck source=lib/local_source_providers.sh
 source "$SCRIPT_DIR/lib/local_source_providers.sh"
+# shellcheck source=lib/playwright_port_plan.sh
+source "$SCRIPT_DIR/lib/playwright_port_plan.sh"
 
 # Each worktree gets its own docker compose project namespace so a second
 # worktree's `docker compose up` cannot clobber the first worktree's
 # containers (and its postgres volume). See scripts/lib/compose_project.sh
 # for the resolution rules and operator override path.
 export COMPOSE_PROJECT_NAME="$(resolve_compose_project_name "$REPO_ROOT")"
-
-FLAPJACK_PORT="${FLAPJACK_PORT:-7700}"
 
 PID_DIR="$REPO_ROOT/.local"
 FLAPJACK_PID="$PID_DIR/flapjack.pid"
@@ -48,6 +48,55 @@ log() { echo "[local-dev-up] $*"; }
 die() {
     echo "[local-dev-up] ERROR: $*" >&2
     exit 1
+}
+
+# Fail fast when two services this run would start are configured onto one host
+# port. Without this the collision surfaces late and misleadingly: whichever
+# service binds first wins, and the second one's own check_port_available
+# reports a bare "port N is already in use" that never names the override that
+# took it. An operator reading that diagnostic cannot tell a co-resident
+# worktree's stack from their own misconfiguration, which is the difference
+# between "wait" and "edit one variable".
+#
+# Takes LABEL=PORT pairs. Empty ports are skipped so callers can pass
+# conditionally-started services without branching at the call site.
+assert_no_host_port_collisions() {
+    local pair label port seen_label
+    local -a seen_labels=() seen_ports=()
+    local i
+
+    for pair in "$@"; do
+        label="${pair%%=*}"
+        port="${pair#*=}"
+        [ -n "$port" ] || continue
+
+        i=0
+        while [ "$i" -lt "${#seen_ports[@]}" ]; do
+            if [ "${seen_ports[$i]}" = "$port" ]; then
+                seen_label="${seen_labels[$i]}"
+                die "host port $port is claimed by both $seen_label and $label; point one of them at a free port (for example $label=$((port + 10))) so both services can run at once"
+            fi
+            i=$((i + 1))
+        done
+
+        seen_labels+=("$label")
+        seen_ports+=("$port")
+    done
+}
+
+# Collect the flapjack ports this run would bind, as LABEL=PORT pairs, so the
+# collision guard sees multi-region layouts and not just the single default.
+flapjack_configured_port_pairs() {
+    local region_port region port
+    if [ "${FLAPJACK_SINGLE_INSTANCE:-}" = "1" ] || [ -z "${FLAPJACK_REGIONS:-}" ]; then
+        printf 'FLAPJACK_PORT=%s\n' "$FLAPJACK_PORT"
+        return
+    fi
+    for region_port in $FLAPJACK_REGIONS; do
+        region="${region_port%%:*}"
+        port="${region_port##*:}"
+        printf 'FLAPJACK_REGIONS[%s]=%s\n' "$region" "$port"
+    done
 }
 
 wait_until_success() {
@@ -197,6 +246,19 @@ require_database_url_part() {
     printf '%s\n' "$value"
 }
 
+database_url_host_is_loopback() {
+    local host="$1"
+
+    case "$host" in
+        localhost|127.0.0.1|::1|'[::1]')
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 ensure_postgres_volume_matches_env() {
     local db_user="$1"
     local db_password="$2"
@@ -252,6 +314,15 @@ FLAPJACK_DEV_DIR="$(resolve_default_flapjack_dev_dir)"
 
 [ -n "${DATABASE_URL:-}" ] \
     || die "DATABASE_URL is required in .env.local"
+
+DB_HOST="$(require_database_url_part db_url_host "DATABASE_URL must include a hostname")"
+database_url_host_is_loopback "$DB_HOST" \
+    || die "DATABASE_URL host must be loopback for local-dev-up (got ${DB_HOST})"
+require_database_url_part db_url_port "DATABASE_URL must include a valid port" >/dev/null
+
+playwright_apply_manual_stack_port_defaults "$SCRIPT_DIR/.." "$REPO_ROOT" \
+    || die "failed to derive the manual-stack port plan from web/playwright.config.contract.ts"
+
 if [ -n "${FLAPJACK_ADMIN_KEY:-}" ]; then
     FLAPJACK_ADMIN_KEY_SUMMARY="explicit override set"
 else
@@ -265,6 +336,31 @@ DB_NAME="$(require_database_url_part db_url_database "DATABASE_URL must include 
 DB_HOST="$(require_database_url_part db_url_host "DATABASE_URL must include a hostname")"
 DB_PORT="$(require_database_url_part db_url_port "DATABASE_URL must include a valid port")"
 
+# Run before local-dev-down.sh and before any container or process starts, so a
+# misconfigured run costs a diagnostic rather than a half-started stack the
+# operator then has to tear down by hand. Source-provider ports are included
+# only when their compose profile is on, because that is the only case in which
+# this script binds them.
+declare -a HOST_PORT_PAIRS=()
+while IFS= read -r flapjack_pair; do
+    [ -n "$flapjack_pair" ] && HOST_PORT_PAIRS+=("$flapjack_pair")
+done <<EOF_FLAPJACK_PORTS
+$(flapjack_configured_port_pairs)
+EOF_FLAPJACK_PORTS
+HOST_PORT_PAIRS+=(
+    "LOCAL_DB_PORT=$DB_PORT"
+    "LOCAL_S3_PORT=$LOCAL_S3_PORT"
+    "LOCAL_MAILPIT_UI_PORT=$LOCAL_MAILPIT_UI_PORT"
+    "LOCAL_SMTP_PORT=$LOCAL_SMTP_PORT"
+)
+if source_provider_profile_enabled; then
+    HOST_PORT_PAIRS+=(
+        "LOCAL_MEILISEARCH_PORT=$LOCAL_MEILISEARCH_PORT"
+        "LOCAL_TYPESENSE_PORT=$LOCAL_TYPESENSE_PORT"
+    )
+fi
+assert_no_host_port_collisions "${HOST_PORT_PAIRS[@]}"
+
 # ---------------------------------------------------------------------------
 # 2. Clean stale state
 # ---------------------------------------------------------------------------
@@ -274,6 +370,12 @@ mkdir -p "$PID_DIR"
 # ---------------------------------------------------------------------------
 # 3. Start Postgres via Docker Compose
 # ---------------------------------------------------------------------------
+# Step 2 stopped this stack's own Postgres, so a listener still holding the
+# DATABASE_URL port is a foreign server. Without this check compose leaves the
+# port to that server and every later probe — readiness, migrations, row counts
+# — reports healthy against a database fjcloud does not own.
+check_port_available "$DB_PORT" "postgres from DATABASE_URL" \
+    || die "port $DB_PORT is already in use (needed for postgres from DATABASE_URL); free it or point DATABASE_URL at an unused port so local queries cannot reach a foreign database"
 start_postgres_service
 if ! wait_for_postgres_server; then
     die "Postgres failed to become ready after 30s"
@@ -291,7 +393,7 @@ SEAWEEDFS_HEALTHY=0
 MAILPIT_HEALTHY=0
 SOURCE_PROVIDERS_HEALTHY=0
 
-local_s3_port="${LOCAL_S3_PORT:-8333}"
+local_s3_port="$LOCAL_S3_PORT"
 if start_seaweedfs_service "$local_s3_port" 15; then
     SEAWEEDFS_HEALTHY=1
     # SeaweedFS now runs with a deterministic local S3 identity. Bucket creation
@@ -300,13 +402,15 @@ if start_seaweedfs_service "$local_s3_port" 15; then
     log "S3 endpoint reachable at http://localhost:${local_s3_port}"
 fi
 
-if start_optional_service "mailpit" "http://localhost:${LOCAL_MAILPIT_UI_PORT:-8025}/api/v1/info" 15; then
+if start_optional_service "mailpit" "http://localhost:${LOCAL_MAILPIT_UI_PORT}/api/v1/info" 15; then
     MAILPIT_HEALTHY=1
 fi
 
 if source_provider_profile_enabled; then
-    local_meilisearch_port="${LOCAL_MEILISEARCH_PORT:-7700}"
-    local_typesense_port="${LOCAL_TYPESENSE_PORT:-8108}"
+    # Resolved and collision-checked at the top of this script; do not
+    # re-default here or the guard and the bind would disagree.
+    local_meilisearch_port="$LOCAL_MEILISEARCH_PORT"
+    local_typesense_port="$LOCAL_TYPESENSE_PORT"
     if start_source_provider_services \
         "$local_meilisearch_port" \
         "$local_typesense_port" \
@@ -414,14 +518,14 @@ if [ -n "$FLAPJACK_STARTED_REGIONS" ]; then
 fi
 # Show SeaweedFS/Mailpit only when health checks passed during startup.
 if [ "$SEAWEEDFS_HEALTHY" = "1" ]; then
-    log "  SeaweedFS S3:   http://localhost:${LOCAL_S3_PORT:-8333}"
+    log "  SeaweedFS S3:   http://localhost:${LOCAL_S3_PORT}"
 fi
 if [ "$MAILPIT_HEALTHY" = "1" ]; then
-    log "  Mailpit UI:     http://localhost:${LOCAL_MAILPIT_UI_PORT:-8025}"
+    log "  Mailpit UI:     http://localhost:${LOCAL_MAILPIT_UI_PORT}"
 fi
 if [ "$SOURCE_PROVIDERS_HEALTHY" = "1" ]; then
-    log "  Meilisearch:    http://localhost:${LOCAL_MEILISEARCH_PORT:-7700}"
-    log "  Typesense:      http://localhost:${LOCAL_TYPESENSE_PORT:-8108}"
+    log "  Meilisearch:    http://localhost:${LOCAL_MEILISEARCH_PORT}"
+    log "  Typesense:      http://localhost:${LOCAL_TYPESENSE_PORT}"
 fi
 log "  Admin key:      (${FLAPJACK_ADMIN_KEY_SUMMARY})"
 log "  Database:       $(redact_db_url "$DATABASE_URL")"

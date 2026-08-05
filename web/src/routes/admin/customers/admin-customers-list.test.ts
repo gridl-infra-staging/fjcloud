@@ -4,11 +4,7 @@ import { fireEvent } from '@testing-library/dom';
 import type { AdminCustomerListItem } from './+page.server';
 import { load } from './+page.server';
 import { adminBadgeColor } from '$lib/format';
-import {
-	ADMIN_SESSION_COOKIE,
-	clearAdminSessionsForTest,
-	createAdminSession
-} from '$lib/server/admin-session';
+import { adminSessionRouteEvent } from '../admin_session_durable_test_support';
 
 const applyActionMock = vi.fn();
 const invalidateMock = vi.fn();
@@ -172,13 +168,11 @@ async function getEnhanceResultHandler(actionName: 'suspend' | 'impersonate') {
 
 beforeEach(() => {
 	process.env.ADMIN_KEY = 'test-admin-key';
-	clearAdminSessionsForTest();
 	enhanceCalls.length = 0;
 });
 
 afterEach(() => {
 	cleanup();
-	clearAdminSessionsForTest();
 	delete process.env.ADMIN_KEY;
 	vi.useRealTimers();
 	applyActionMock.mockReset();
@@ -186,24 +180,26 @@ afterEach(() => {
 	vi.clearAllMocks();
 });
 
-function authenticatedListLoadContext(overrides: Record<string, unknown>) {
-	const adminSession = createAdminSession(3600);
-	return {
-		cookies: {
-			get: (name: string) => (name === ADMIN_SESSION_COOKIE ? adminSession.id : undefined)
-		},
-		...overrides
-	} as never;
+function authenticatedListLoadContext(
+	overrides: {
+		fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+	} & Record<string, unknown>
+) {
+	return adminSessionRouteEvent(overrides) as never;
 }
 
 describe('Admin customers list', () => {
 	it('load redirects to admin login when the session is missing', async () => {
 		await expect(
-			load({
-				fetch: async () => new Response(JSON.stringify([]), { status: 200 }),
-				depends: vi.fn(),
-				cookies: { get: () => undefined }
-			} as never)
+			load(
+				adminSessionRouteEvent(
+					{
+						fetch: async () => new Response(JSON.stringify([]), { status: 200 }),
+						depends: vi.fn()
+					},
+					'revoked'
+				) as never
+			)
 		).rejects.toMatchObject({
 			status: 303,
 			location: '/admin/login'

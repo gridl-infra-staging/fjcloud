@@ -28,6 +28,16 @@ pub struct MigrationErrorResponse {
     pub code: AlgoliaImportErrorCode,
 }
 
+/// Retained job listing can reject either the source-provider path parameter
+/// with a coded migration error or the signed page cursor with the shared
+/// legacy error envelope.
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[serde(untagged)]
+pub enum RetainedListErrorResponse {
+    Error(ErrorResponse),
+    Migration(MigrationErrorResponse),
+}
+
 #[derive(Debug)]
 pub enum ApiError {
     NotFound(String),

@@ -106,6 +106,26 @@ db_url_port() {
     printf '%s\n' "$port"
 }
 
+db_url_with_port() {
+    local db_url="$1" port="$2"
+    local scheme remainder userinfo="" hostport host suffix
+
+    db_url_port_is_valid "$port" || return 1
+    scheme="${db_url%%://*}"
+    [ "$scheme" != "$db_url" ] || return 1
+    remainder="${db_url#*://}"
+    if [ "$remainder" != "${remainder#*@}" ]; then
+        userinfo="${remainder%%@*}@"
+        remainder="${remainder#*@}"
+    fi
+    hostport="${remainder%%/*}"
+    [ -n "$hostport" ] || return 1
+    host="$(db_url_host "$db_url")" || return 1
+    suffix="${remainder#"$hostport"}"
+
+    printf '%s://%s%s:%s%s\n' "$scheme" "$userinfo" "$host" "$port" "$suffix"
+}
+
 require_db_url_part() {
     local db_url="$1"
     local extractor="$2"

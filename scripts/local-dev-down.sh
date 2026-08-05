@@ -15,12 +15,18 @@ REPO_ROOT="${FJCLOUD_REPO_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
 # shellcheck source=lib/process.sh
 source "$SCRIPT_DIR/lib/process.sh"
+# shellcheck source=lib/env.sh
+source "$SCRIPT_DIR/lib/env.sh"
+# shellcheck source=lib/db_url.sh
+source "$SCRIPT_DIR/lib/db_url.sh"
 # shellcheck source=lib/compose_project.sh
 source "$SCRIPT_DIR/lib/compose_project.sh"
 # shellcheck source=lib/docker.sh
 source "$SCRIPT_DIR/lib/docker.sh"
 # shellcheck source=lib/local_source_providers.sh
 source "$SCRIPT_DIR/lib/local_source_providers.sh"
+# shellcheck source=lib/playwright_port_plan.sh
+source "$SCRIPT_DIR/lib/playwright_port_plan.sh"
 
 PID_DIR="$REPO_ROOT/.local"
 
@@ -30,6 +36,9 @@ log() { echo "[local-dev-down] $*"; }
 # otherwise `docker compose down` would target the wrong project (default
 # basename) and leave the worktree's containers running.
 export COMPOSE_PROJECT_NAME="$(resolve_compose_project_name "$REPO_ROOT")"
+load_env_file "$REPO_ROOT/.env.local"
+playwright_apply_manual_stack_port_defaults "$SCRIPT_DIR/.." "$REPO_ROOT" \
+    || { log "failed to resolve the worktree port environment"; exit 1; }
 source_provider_configure_paths "$REPO_ROOT"
 
 # ---------------------------------------------------------------------------

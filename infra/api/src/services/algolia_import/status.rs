@@ -21,6 +21,12 @@ pub struct AsyncMigrationStatusResponse {
     pub target_index: Option<String>,
     pub topology: Option<MigrationTopology>,
     pub warnings: Option<Vec<AlgoliaImportWarning>>,
+    // Engine resume metadata. fjcloud does not drive resumable migrations yet,
+    // but the wire struct denies unknown fields, so these must be declared or
+    // every status poll against an engine that emits them fails to decode.
+    pub operation: Option<String>,
+    pub resumable: Option<bool>,
+    pub resume_handle: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -49,6 +55,14 @@ struct AsyncMigrationStatusWire {
     topology: Option<MigrationTopology>,
     #[serde(default)]
     warnings: WireOutcomeField<Vec<AlgoliaImportWarning>>,
+    // Not outcome fields: the engine publishes these on running statuses too,
+    // so they carry no terminal-completeness obligation.
+    #[serde(default)]
+    operation: Option<String>,
+    #[serde(default)]
+    resumable: Option<bool>,
+    #[serde(default)]
+    resume_handle: Option<String>,
 }
 
 impl TryFrom<AsyncMigrationStatusWire> for AsyncMigrationStatusResponse {
@@ -110,6 +124,9 @@ impl TryFrom<AsyncMigrationStatusWire> for AsyncMigrationStatusResponse {
             target_index: wire.target_index,
             topology: wire.topology,
             warnings: wire.warnings.into_option(),
+            operation: wire.operation,
+            resumable: wire.resumable,
+            resume_handle: wire.resume_handle,
         })
     }
 }

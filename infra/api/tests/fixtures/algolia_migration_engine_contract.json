@@ -1,13 +1,13 @@
 {
-  "pinned_engine_sha": "c55740abf97b3fb702dc9f892771344f59034700",
+  "pinned_engine_sha": "8c3c096c96fd100f36b6e0c428fdaab028386ead",
   "openapi_artifacts": [
     {
       "path": "engine/docs2/openapi.json",
-      "sha256": "0814cd64b8083e4d58f6444c0a95b94467069cc76d6db105c4a5e1014e1ba5f8"
+      "sha256": "c6772c5fafee508dadd6570c09b815e062a021337d96344ca12a1603046538fb"
     },
     {
       "path": "engine/demo-dualclient/public/openapi.json",
-      "sha256": "0814cd64b8083e4d58f6444c0a95b94467069cc76d6db105c4a5e1014e1ba5f8"
+      "sha256": "c6772c5fafee508dadd6570c09b815e062a021337d96344ca12a1603046538fb"
     }
   ],
   "routes": {
@@ -26,6 +26,10 @@
     "acknowledge": {
       "method": "POST",
       "path": "/1/migrations/{source_provider}/{job_id}/acknowledge"
+    },
+    "preview": {
+      "method": "POST",
+      "path": "/1/migrations/{source_provider}/preview"
     }
   },
   "required_runtime_routes": {
@@ -186,6 +190,9 @@
     "optional_fields": [
       "exportProgress",
       "objectsImported",
+      "operation",
+      "resumable",
+      "resumeHandle",
       "rulesImported",
       "settingsApplied",
       "synonymsImported",
@@ -315,19 +322,209 @@
       "submit": "/1/migrations/algolia",
       "status": "/1/migrations/algolia/{job_id}",
       "cancel": "/1/migrations/algolia/{job_id}/cancel",
-      "acknowledge": "/1/migrations/algolia/{job_id}/acknowledge"
+      "acknowledge": "/1/migrations/algolia/{job_id}/acknowledge",
+      "preview": "/1/migrations/algolia/preview"
     },
     "meilisearch": {
       "submit": "/1/migrations/meilisearch",
       "status": "/1/migrations/meilisearch/{job_id}",
       "cancel": "/1/migrations/meilisearch/{job_id}/cancel",
-      "acknowledge": "/1/migrations/meilisearch/{job_id}/acknowledge"
+      "acknowledge": "/1/migrations/meilisearch/{job_id}/acknowledge",
+      "preview": "/1/migrations/meilisearch/preview"
     },
     "typesense": {
       "submit": "/1/migrations/typesense",
       "status": "/1/migrations/typesense/{job_id}",
       "cancel": "/1/migrations/typesense/{job_id}/cancel",
-      "acknowledge": "/1/migrations/typesense/{job_id}/acknowledge"
+      "acknowledge": "/1/migrations/typesense/{job_id}/acknowledge",
+      "preview": "/1/migrations/typesense/preview"
+    }
+  },
+  "preview": {
+    "runtime_preview_support": {
+      "algolia": true,
+      "meilisearch": true,
+      "typesense": false
+    },
+    "request_schema_refs": {
+      "algolia": "#/components/schemas/MigrateFromAlgoliaRequest",
+      "meilisearch": "#/components/schemas/MigrateFromMeilisearchRequest",
+      "typesense": "#/components/schemas/MigrateFromAlgoliaRequest"
+    },
+    "request_fields": {
+      "algolia": {
+        "required_fields": [
+          "apiKey",
+          "appId",
+          "sourceIndex"
+        ],
+        "optional_fields": [
+          "overwrite",
+          "targetIndex"
+        ]
+      },
+      "meilisearch": {
+        "required_fields": [
+          "apiKey",
+          "endpoint",
+          "sourceIndex"
+        ],
+        "optional_fields": [
+          "overwrite",
+          "targetIndex"
+        ]
+      },
+      "typesense": {
+        "required_fields": [
+          "apiKey",
+          "appId",
+          "sourceIndex"
+        ],
+        "optional_fields": [
+          "overwrite",
+          "targetIndex"
+        ]
+      }
+    },
+    "response": {
+      "required_fields": [
+        "report",
+        "sourceCounts"
+      ],
+      "optional_fields": [],
+      "report_ref": "#/components/schemas/MigrationPreviewReport",
+      "source_counts_ref": "#/components/schemas/MigrationPreviewSourceCounts"
+    },
+    "source_counts": {
+      "required_fields": [
+        "indexes",
+        "records"
+      ],
+      "optional_fields": [],
+      "field_types": {
+        "indexes": [
+          "integer"
+        ],
+        "records": [
+          "integer"
+        ]
+      }
+    },
+    "report": {
+      "required_fields": [
+        "entries",
+        "summary"
+      ],
+      "optional_fields": [
+        "reportDigest"
+      ],
+      "entries": {
+        "type": "array",
+        "items_ref": "#/components/schemas/MigrationPreviewReportEntry"
+      },
+      "summary_ref": "#/components/schemas/MigrationPreviewReportSummary",
+      "reportDigest": {
+        "type": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "report_summary": {
+      "required_fields": [
+        "hardRejections",
+        "scopeGaps",
+        "totalEntries",
+        "warnings"
+      ],
+      "optional_fields": [],
+      "field_types": {
+        "hardRejections": [
+          "integer"
+        ],
+        "scopeGaps": [
+          "integer"
+        ],
+        "totalEntries": [
+          "integer"
+        ],
+        "warnings": [
+          "integer"
+        ]
+      }
+    },
+    "report_entry": {
+      "required_fields": [
+        "code",
+        "jsonPath",
+        "resource",
+        "severity"
+      ],
+      "optional_fields": [
+        "itemIndex",
+        "pageIndex"
+      ],
+      "field_types": {
+        "itemIndex": [
+          "integer",
+          "null"
+        ],
+        "jsonPath": [
+          "string"
+        ],
+        "pageIndex": [
+          "integer",
+          "null"
+        ]
+      },
+      "refs": {
+        "code": "#/components/schemas/ReportCode",
+        "resource": "#/components/schemas/ReportResource",
+        "severity": "#/components/schemas/ReportSeverity"
+      }
+    },
+    "enums": {
+      "code": [
+        "ProductNotMigrated",
+        "PersistedNoBehaviorSetting",
+        "ReadOnlySourceField",
+        "ReplicaTopologyNotMigrated",
+        "UnsupportedSourceField",
+        "UnsupportedRuleSchema",
+        "UnsupportedSynonymSchema",
+        "InvalidObjectId",
+        "DuplicateObjectId",
+        "MalformedSettingsPayload",
+        "MalformedDocumentPayload",
+        "MalformedRulePayload",
+        "MalformedSynonymPayload",
+        "ReplicaUnknownRankingToken",
+        "ReplicaExhaustiveSortApproximated",
+        "ReplicaPrimaryRelevancyStrictnessDropped",
+        "ReplicaRelevancyStrictnessSemanticMismatch",
+        "ReplicaMatchingCriticalFieldDiverges",
+        "MeilisearchDocumentOrderNotContractual",
+        "MeilisearchSearchPaginationNotExportBound",
+        "MeilisearchSettingNotMigrated",
+        "MeilisearchSettingValueNormalized",
+        "TypesenseSettingNotMigrated"
+      ],
+      "resource": [
+        "Analytics",
+        "ApiKeys",
+        "Document",
+        "Events",
+        "Experiments",
+        "Recommend",
+        "Rule",
+        "Settings",
+        "Synonym"
+      ],
+      "severity": [
+        "ScopeGap",
+        "Warning",
+        "HardRejection"
+      ]
     }
   }
 }

@@ -15,6 +15,7 @@ import { REMOTE_TARGET_OPT_IN_ENV } from '../../../playwright.config.contract';
 import {
 	SEARCH_PANEL_TEST_ID,
 	SEARCH_TAB_LABEL,
+	getIndexDetailSearchTab,
 	submitSearchPreviewQuery,
 	waitForSearchPreviewHitsToContain,
 	waitForSearchPreviewReady
@@ -292,7 +293,7 @@ async function createIndexThroughConsole(params: {
 	});
 	await expect(page.getByText('Index ready — try Search')).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'Open Search' })).toHaveCount(0);
-	await expect(page.getByRole('tab', { name: SEARCH_TAB_LABEL })).toBeVisible();
+	await expect(getIndexDetailSearchTab(page)).toBeVisible();
 }
 
 async function uploadFiveAlgoliaRecords(page: Page): Promise<void> {
@@ -329,7 +330,7 @@ async function assertAdjacentCustomerSurfaces(params: {
 	const { page, email, password, loginAs } = params;
 	await gotoProtectedRoute({ page, path: '/console/migrate', email, password, loginAs });
 	await expect(
-		page.getByRole('heading', { name: 'Migrate from Algolia', exact: true })
+		page.getByRole('heading', { name: 'Migrate search data', exact: true })
 	).toBeVisible();
 	// This journey only proves the refugee sees a coherent explanation here. The
 	// fail-closed contract (no create flow, no credential inputs, no import CTAs)

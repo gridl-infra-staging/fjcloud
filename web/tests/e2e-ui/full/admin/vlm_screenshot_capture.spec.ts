@@ -3,10 +3,9 @@
  *
  * Reuses the admin storage state produced by
  * `web/tests/fixtures/admin.auth.setup.ts` (loaded automatically by the
- * `chromium:admin` project). We do NOT call `createUser`/`loginAs` here:
- * those mint regular-user tokens that would redirect away from admin
- * routes and silently produce mislabeled screenshots — exactly what the
- * `assertNoCaptureRedirect` guard exists to catch.
+ * `chromium:admin` project). `createUser` arranges a disposable row only for
+ * the filter-empty tuple and does not replace the page's admin storage state;
+ * the redirect guard still rejects any mislabeled capture.
  *
  * Each tuple's `setup` discriminator (from `vlm_capture/tuples.ts`)
  * decides whether to additionally fill the customer-search input with a
@@ -26,6 +25,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import type { Page } from '@playwright/test';
 import { test, expect } from '../../../fixtures/fixtures';
 import { assertNoCaptureRedirect } from '../vlm_capture/redirect_guard';
 import {
@@ -52,12 +52,31 @@ function shouldCaptureFullPage(tuple: CaptureTuple): boolean {
 	return !(tuple.setup === 'admin_default' && tuple.viewport === 'desktop');
 }
 
+async function arrangeSeededFilterEmptyState(
+	page: Page,
+	customerName: string
+): Promise<void> {
+	const tableBody = page.getByTestId('customers-table-body');
+	await expect(tableBody).toBeVisible();
+	await expect(tableBody.getByText(customerName, { exact: true })).toBeVisible();
+
+	await page.getByTestId('customer-search').fill(ADMIN_FILTER_EMPTY_QUERY);
+	await expect(page.getByText('No customers match the current filters.')).toBeVisible();
+}
+
 for (const tuple of tuplesForLane('admin')) {
-	test(`admin capture: ${captureTupleTestTitle(tuple)}`, async ({ page }) => {
+	test(`admin capture: ${captureTupleTestTitle(tuple)}`, async ({ page, createUser }) => {
 		test.skip(
 			!isProducibleSetup(tuple.setup),
 			`tuple setup ${tuple.setup}: see vlm_capture/tuples.ts for the gap rationale.`
 		);
+
+		let customerName = '';
+		if (tuple.setup === 'admin_filter_no_match') {
+			const seed = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+			customerName = `Admin VLM Seed ${seed}`;
+			await createUser(`admin-vlm-${seed}@e2e.griddle.test`, 'TestPassword123!', customerName);
+		}
 
 		await page.setViewportSize(VIEWPORT_SIZES[tuple.viewport]);
 		await page.goto(tuple.path);
@@ -69,11 +88,7 @@ for (const tuple of tuplesForLane('admin')) {
 			// the page already shows "No customers found." and the filter
 			// branch never activates — fail loudly so the capture isn't
 			// mislabeled.
-			const tableBody = page.getByTestId('customers-table-body');
-			await expect(tableBody).toBeVisible();
-
-			await page.getByTestId('customer-search').fill(ADMIN_FILTER_EMPTY_QUERY);
-			await expect(page.getByText('No customers match the current filters.')).toBeVisible();
+			await arrangeSeededFilterEmptyState(page, customerName);
 		}
 
 		const artifactPath = captureArtifactPath(tuple);

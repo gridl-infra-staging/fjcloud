@@ -5,11 +5,15 @@ test('mocked migrate route shows the unavailable state and no migration form con
 }) => {
 	await page.goto('/console/migrate');
 
-	await expect(page.getByRole('heading', { name: 'Migrate from Algolia' })).toBeVisible();
+	// The page heading and the paused-imports copy both dropped "Algolia" when the console
+	// gained Meilisearch and Typesense sources. The unavailable message below is still
+	// Algolia-worded because it is server-owned (infra/api/src/routes/migration.rs:32) and
+	// rendered verbatim, so it is asserted exactly as the API publishes it.
+	await expect(page.getByRole('heading', { name: 'Migrate search data' })).toBeVisible();
 	await expect(page.getByTestId('migration-unavailable')).toContainText(
 		'Algolia migration is temporarily unavailable while we replace the importer.'
 	);
-	await expect(page.getByText(/temporarily turned off new Algolia imports/i)).toBeVisible();
+	await expect(page.getByText(/temporarily turned off new search data imports/i)).toBeVisible();
 
 	await expect(page.getByTestId('migration-available')).toHaveCount(0);
 	await expect(page.getByTestId('migration-create-flow')).toHaveCount(0);

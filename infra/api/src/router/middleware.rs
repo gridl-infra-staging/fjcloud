@@ -1,9 +1,8 @@
 use axum::{
     extract::{Request, State},
-    http::{header, HeaderName, HeaderValue, Method, StatusCode},
+    http::{header, HeaderName, HeaderValue, Method},
     middleware::Next,
     response::{IntoResponse, Response},
-    Json,
 };
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use reqwest::Url;
@@ -13,6 +12,7 @@ use subtle::ConstantTimeEq;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use crate::auth::claims::Claims;
+use crate::auth::error::AuthError;
 use crate::services::storage::s3_auth::{S3AuthContext, S3AuthService};
 use crate::services::storage::s3_error;
 use crate::state::AppState;
@@ -277,27 +277,74 @@ fn trust_proxy_headers_for_rate_limit() -> bool {
         .unwrap_or(false)
 }
 
-/// Extract the best-effort client IP key used for rate limiting.
+/// Resolved client IP, carrying the provenance of the value so downstream
+/// consumers can apply the right trust policy.
+///
+/// Rate limiting only needs a stable bucket key and accepts any of these; the
+/// `restrict_sources` authorization boundary in `ApiKeyAuth` requires a
+/// transport-verified socket peer and therefore only honors `Socket`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ClientIpResolution {
+    /// Socket peer address from `ConnectInfo` — verified by the transport layer
+    /// and therefore trustworthy for authorization decisions.
+    Socket(std::net::IpAddr),
+    /// Value derived from a forwarding header. Only produced when proxy-header
+    /// trust is explicitly enabled, and never trustworthy for authorization
+    /// because clients can spoof these headers.
+    Header(String),
+    /// No client IP could be determined.
+    Unknown,
+}
+
+impl ClientIpResolution {
+    /// Bucket key used for rate limiting: the string form of whatever we
+    /// resolved, or `"unknown"` when nothing was available.
+    pub(crate) fn rate_limit_key(&self) -> String {
+        match self {
+            Self::Socket(ip) => ip.to_string(),
+            Self::Header(value) => value.clone(),
+            Self::Unknown => "unknown".to_string(),
+        }
+    }
+
+    /// The socket-peer IP, if and only if the client IP was verified by the
+    /// transport layer (`ConnectInfo`). Header-derived and unknown values
+    /// return `None` so authorization can fail closed.
+    pub(crate) fn trusted_socket_ip(&self) -> Option<std::net::IpAddr> {
+        match self {
+            Self::Socket(ip) => Some(*ip),
+            Self::Header(_) | Self::Unknown => None,
+        }
+    }
+}
+
+/// Resolve the client IP from request parts, preserving provenance.
+///
+/// This is the single owner of the client-IP trust policy. Both rate limiting
+/// and the `restrict_sources` authorization boundary route through here so
+/// there is exactly one place that decides whether a forwarding header may be
+/// consulted.
 ///
 /// Security model:
-/// - Prefer socket peer IP when ConnectInfo is available.
+/// - Prefer the socket peer IP when `ConnectInfo` is available.
 /// - Do NOT trust forwarding headers by default (spoofable by clients).
-/// - Forwarding headers are only used when explicitly enabled via
-///   TRUST_PROXY_HEADERS_FOR_RATE_LIMIT=1|true|yes|on.
-fn extract_ip_key(request: &Request) -> String {
-    if let Some(connect_info) = request
-        .extensions()
-        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+/// - Forwarding headers are only consulted when explicitly enabled via
+///   TRUST_PROXY_HEADERS_FOR_RATE_LIMIT=1|true|yes|on, and even then the result
+///   is tagged `Header` so authorization callers can reject it.
+pub(crate) fn extract_client_ip_from_parts(
+    headers: &axum::http::HeaderMap,
+    extensions: &axum::http::Extensions,
+) -> ClientIpResolution {
+    if let Some(connect_info) = extensions.get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
     {
-        return connect_info.0.ip().to_string();
+        return ClientIpResolution::Socket(connect_info.0.ip());
     }
 
     if !trust_proxy_headers_for_rate_limit() {
-        return "unknown".to_string();
+        return ClientIpResolution::Unknown;
     }
 
-    if let Some(forwarded_for) = request
-        .headers()
+    if let Some(forwarded_for) = headers
         .get("x-forwarded-for")
         .and_then(|value| value.to_str().ok())
     {
@@ -307,32 +354,33 @@ fn extract_ip_key(request: &Request) -> String {
             .map(str::trim)
             .filter(|ip| !ip.is_empty())
         {
-            return ip.to_string();
+            return ClientIpResolution::Header(ip.to_string());
         }
     }
 
-    if let Some(real_ip) = request
-        .headers()
+    if let Some(real_ip) = headers
         .get("x-real-ip")
         .and_then(|value| value.to_str().ok())
         .map(str::trim)
         .filter(|ip| !ip.is_empty())
     {
-        return real_ip.to_string();
+        return ClientIpResolution::Header(real_ip.to_string());
     }
 
-    "unknown".to_string()
+    ClientIpResolution::Unknown
+}
+
+/// Extract the best-effort client IP key used for rate limiting. Thin delegate
+/// to the shared [`extract_client_ip_from_parts`] owner.
+fn extract_ip_key(request: &Request) -> String {
+    extract_client_ip_from_parts(request.headers(), request.extensions()).rate_limit_key()
 }
 
 fn rate_limited_response(retry_after_seconds: u64) -> Response {
-    response_with_retry_after(
-        (
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(serde_json::json!({ "error": "too many requests" })),
-        )
-            .into_response(),
+    AuthError::RateLimited {
         retry_after_seconds,
-    )
+    }
+    .into_response()
 }
 
 fn response_with_retry_after(mut response: Response, retry_after_seconds: u64) -> Response {
@@ -459,7 +507,8 @@ mod tests {
     use super::*;
     use axum::body::Body;
     use axum::extract::ConnectInfo;
-    use axum::http::{HeaderValue, Request as HttpRequest};
+    use axum::http::{HeaderValue, Request as HttpRequest, StatusCode};
+    use http_body_util::BodyExt;
     use std::sync::{Mutex, OnceLock};
 
     fn env_lock() -> &'static Mutex<()> {
@@ -502,6 +551,27 @@ mod tests {
 
     fn shared_dns_origin_header() -> HeaderValue {
         HeaderValue::from_static(DEFAULT_CLOUD_CORS_ALLOWED_ORIGIN)
+    }
+
+    #[tokio::test]
+    async fn rate_limited_response_returns_canonical_generic_429_contract() {
+        let response = rate_limited_response(3480);
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("3480")
+        );
+
+        let body = Body::new(response.into_body())
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes();
+        let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(body, serde_json::json!({"error": "too many requests"}));
     }
 
     #[test]
@@ -553,6 +623,86 @@ mod tests {
         ));
 
         assert_eq!(extract_ip_key(&request), "203.0.113.25");
+    }
+
+    /// `ConnectInfo` wins even when spoofable headers are present and trusted:
+    /// the socket peer is transport-verified and marked as such.
+    #[test]
+    fn extract_client_ip_marks_connect_info_as_trusted_socket() {
+        let _guard = env_lock().lock().expect("env lock poisoned");
+        let _env = EnvVarGuard::set(TRUST_PROXY_HEADERS_FOR_RATE_LIMIT_ENV, Some("1"));
+
+        let mut request = HttpRequest::builder()
+            .uri("/test")
+            .header("x-forwarded-for", "1.2.3.4")
+            .body(Body::empty())
+            .expect("request should build");
+        request.extensions_mut().insert(ConnectInfo(
+            "203.0.113.25:44321"
+                .parse::<std::net::SocketAddr>()
+                .expect("socket addr should parse"),
+        ));
+
+        let resolution = extract_client_ip_from_parts(request.headers(), request.extensions());
+        assert_eq!(
+            resolution,
+            ClientIpResolution::Socket("203.0.113.25".parse().expect("ip"))
+        );
+        assert_eq!(
+            resolution.trusted_socket_ip(),
+            Some("203.0.113.25".parse().expect("ip")),
+            "socket peers must be trusted for authorization"
+        );
+    }
+
+    /// Forwarding headers are ignored by default: no proxy trust means the
+    /// resolution is `Unknown` and carries no trusted IP.
+    #[test]
+    fn extract_client_ip_ignores_headers_by_default() {
+        let _guard = env_lock().lock().expect("env lock poisoned");
+        let _env = EnvVarGuard::set(TRUST_PROXY_HEADERS_FOR_RATE_LIMIT_ENV, None);
+
+        let request = HttpRequest::builder()
+            .uri("/test")
+            .header("x-forwarded-for", "1.2.3.4")
+            .header("x-real-ip", "9.9.9.9")
+            .body(Body::empty())
+            .expect("request should build");
+
+        let resolution = extract_client_ip_from_parts(request.headers(), request.extensions());
+        assert_eq!(resolution, ClientIpResolution::Unknown);
+        assert_eq!(
+            resolution.trusted_socket_ip(),
+            None,
+            "header-only requests must not yield a trusted IP"
+        );
+    }
+
+    /// With proxy trust enabled, a header-derived value is usable as a rate
+    /// limit key but stays tagged `Header`, so authorization callers can reject
+    /// it rather than mistaking it for a verified socket peer.
+    #[test]
+    fn extract_client_ip_marks_trusted_headers_as_header_derived() {
+        let _guard = env_lock().lock().expect("env lock poisoned");
+        let _env = EnvVarGuard::set(TRUST_PROXY_HEADERS_FOR_RATE_LIMIT_ENV, Some("1"));
+
+        let request = HttpRequest::builder()
+            .uri("/test")
+            .header("x-forwarded-for", "1.2.3.4, 5.6.7.8")
+            .body(Body::empty())
+            .expect("request should build");
+
+        let resolution = extract_client_ip_from_parts(request.headers(), request.extensions());
+        assert_eq!(
+            resolution,
+            ClientIpResolution::Header("5.6.7.8".to_string())
+        );
+        assert_eq!(resolution.rate_limit_key(), "5.6.7.8");
+        assert_eq!(
+            resolution.trusted_socket_ip(),
+            None,
+            "header-derived IPs must never be trusted for authorization"
+        );
     }
 
     #[test]

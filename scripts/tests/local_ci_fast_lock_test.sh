@@ -3,7 +3,6 @@
 #
 # This suite is intentionally seconds-scale. It drives the future sourced
 # helper directly instead of starting the full local-ci --fast gate.
-
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,6 +21,8 @@ source "$LOCK_LIB"
 
 CONTENTION_EXIT_CODE=75
 WAIT_ENV_NAME="FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS"
+MEASURED_FAST_RUN_SECONDS=1241
+PROTECTED_LIVE_HOLDER_MULTIPLIER=3
 
 new_fixture() {
     FIXTURE_DIR="$(mktemp -d)"
@@ -127,7 +128,7 @@ normalize_refusal() {
 expected_refusal() {
     local holder_pid="$1" holder_worktree="$2" wait_seconds="$3"
     printf '%s' \
-        "local-ci --fast lock refused (exit $CONTENTION_EXIT_CODE): holder_pid=$holder_pid holder_worktree=$holder_worktree held_seconds=<elapsed>; wait for its natural exit rather than bypass; $WAIT_ENV_NAME=$wait_seconds"
+        "local-ci --fast lock refused (exit $CONTENTION_EXIT_CODE): holder_pid=$holder_pid holder_worktree=$holder_worktree held_seconds=<elapsed>; wait for its natural exit rather than bypass; $WAIT_ENV_NAME=$wait_seconds; exit $CONTENTION_EXIT_CODE means contention, not a gate result; do not replace the whole suite with self-selected --gate <name> runs"
 }
 
 # Wall-clock seconds, sampled in a fresh process per call. Must be
@@ -221,6 +222,28 @@ test_contended_acquire_refuses_with_holder_identity() {
     cleanup_fixture
 }
 
+test_refusal_forbids_gate_subset_substitution() {
+    local output normalized rc=0
+    new_fixture
+    acquire_fast_lock
+
+    ( acquire_fast_lock >"$FIXTURE_DIR/substitution.stdout" \
+        2>"$FIXTURE_DIR/substitution.stderr" ) || rc=$?
+    output="$(cat "$FIXTURE_DIR/substitution.stderr")"
+    normalized="$(printf '%s' "$output" | normalize_refusal)"
+
+    assert_eq "$rc" "$CONTENTION_EXIT_CODE" \
+        "whole-suite contention returns the reserved refusal code"
+    assert_contains "$normalized" \
+        "exit 75 means contention, not a gate result; do not replace the whole suite with self-selected --gate <name> runs" \
+        "refusal forbids substituting self-selected gate runs for the whole suite"
+    assert_eq "$(cat "$FIXTURE_DIR/substitution.stdout")" "" \
+        "whole-suite substitution guidance stays on stderr"
+
+    release_fast_lock
+    cleanup_fixture
+}
+
 test_refusal_consumes_exported_holder_description() {
     local output normalized
     new_fixture
@@ -231,7 +254,7 @@ test_refusal_consumes_exported_holder_description() {
     output="$(_fast_lock_refuse "$FJCLOUD_LOCAL_CI_FAST_LOCK_DIR")"
     normalized="$(printf '%s' "$output" | normalize_refusal)"
     assert_eq "$normalized" \
-        "local-ci --fast lock refused (exit 75): holder_pid=123 holder_worktree=/exported-helper held_seconds=<elapsed>; wait for its natural exit rather than bypass; FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS=0" \
+        "$(expected_refusal "123" "/exported-helper" "0")" \
         "refusal consumes the exported holder-description helper"
 
     source "$LOCK_LIB"
@@ -287,6 +310,82 @@ test_dead_holder_is_reclaimed() {
 
     release_fast_lock
     cleanup_fixture
+}
+
+test_live_holder_reclaim_boundaries() {
+    local holder_kind live_pid live_worktree started_at normalized protected_holder_age
+    local original_holder held_seconds_rc
+    assert_eq "$FAST_LOCK_LIVE_RECLAIM_SECONDS" "3900" \
+        "the default-wait retune leaves the frozen live-holder reclaim boundary unchanged"
+    protected_holder_age="$(( MEASURED_FAST_RUN_SECONDS * PROTECTED_LIVE_HOLDER_MULTIPLIER ))"
+    assert_eq "$protected_holder_age" "3723" \
+        "legitimate-runtime specimen protects three measured 1241-second --fast runs"
+
+    for holder_kind in \
+        stale recent legitimate_runtime missing_started_at unparseable_started_at
+    do
+        new_fixture
+        ( trap - EXIT; exec sleep 30 ) &
+        live_pid="$!"
+        live_worktree="$FIXTURE_DIR/${holder_kind}_live_worktree"
+        case "$holder_kind" in
+            stale) started_at=1 ;;
+            recent) started_at="$(date +%s)" ;;
+            legitimate_runtime) started_at="$(( $(date +%s) - protected_holder_age ))" ;;
+            missing_started_at) started_at="" ;;
+            unparseable_started_at) started_at="not-an-epoch" ;;
+        esac
+        mkdir "$FJCLOUD_LOCAL_CI_FAST_LOCK_DIR"
+        printf 'pid=%s\nworktree=%s\n' "$live_pid" "$live_worktree" \
+            > "$FJCLOUD_LOCAL_CI_FAST_LOCK_DIR/holder"
+        if [ "$holder_kind" != missing_started_at ]; then
+            printf 'started_at=%s\n' "$started_at" \
+                >> "$FJCLOUD_LOCAL_CI_FAST_LOCK_DIR/holder"
+        fi
+        original_holder="$(cat "$FJCLOUD_LOCAL_CI_FAST_LOCK_DIR/holder")"
+
+        if [ "$holder_kind" = missing_started_at ] \
+            || [ "$holder_kind" = unparseable_started_at ]
+        then
+            held_seconds_rc=0
+            fast_lock_holder_held_seconds "$FJCLOUD_LOCAL_CI_FAST_LOCK_DIR" \
+                > "$FIXTURE_DIR/held_seconds.stdout" 2>/dev/null \
+                || held_seconds_rc=$?
+            assert_eq "$held_seconds_rc" "1" \
+                "$holder_kind age evidence is rejected by the canonical parser"
+            assert_eq "$(cat "$FIXTURE_DIR/held_seconds.stdout")" "" \
+                "$holder_kind age evidence cannot produce a held-seconds value"
+        fi
+
+        run_reclaim_capture
+        normalized="$(printf '%s' "$RECLAIM_STDERR" | normalize_refusal)"
+        if [ "$holder_kind" = stale ]; then
+            assert_eq "$RECLAIM_RC" "0" \
+                "a live holder older than the reclaim bound releases the lock to the waiter"
+            assert_contains "$RECLAIM_STDERR" "reclaiming" \
+                "stale-live reclamation is loud rather than silently stealing the lock"
+            assert_contains "$normalized" \
+                "holder_pid=$live_pid holder_worktree=$live_worktree held_seconds=<elapsed>" \
+                "stale-live reclamation identifies the displaced holder in the canonical shape"
+            assert_eq "$(holder_value pid)" "${BASHPID:-$$}" \
+                "stale-live reclamation replaces the old holder record"
+        else
+            assert_eq "$RECLAIM_RC" "$CONTENTION_EXIT_CODE" \
+                "a $holder_kind live holder inside the reclaim bound remains protected"
+            assert_eq "$normalized" "$(expected_refusal "$live_pid" "$live_worktree" "0")" \
+                "$holder_kind refusal preserves the canonical holder diagnostic"
+            assert_eq "$(holder_value pid)" "$live_pid" \
+                "$holder_kind refusal leaves the holder record unchanged"
+            assert_eq "$(cat "$FJCLOUD_LOCAL_CI_FAST_LOCK_DIR/holder")" "$original_holder" \
+                "$holder_kind refusal preserves the complete holder record"
+        fi
+        assert_eq "$(kill -0 "$live_pid" 2>/dev/null && printf alive || printf dead)" "alive" \
+            "$holder_kind reclaim decision never signals the holder"
+        [ "$RECLAIM_RC" -eq 0 ] && release_fast_lock
+        kill "$live_pid" 2>/dev/null || true
+        wait "$live_pid" 2>/dev/null || true
+        cleanup_fixture
+    done
 }
 
 test_pidless_holder_is_reclaimed() {
@@ -348,7 +447,7 @@ test_bounded_wait_honors_interval_then_refuses() {
     elapsed="$(awk -v start="$start" -v end="$end" 'BEGIN { printf "%.3f", end - start }')"
     normalized="$(printf '%s' "$output" | normalize_refusal)"
 
-    assert_elapsed_between "$elapsed" "1" "3.5" \
+    assert_elapsed_between "$elapsed" "1" "4.5" \
         "bounded contention waits for the configured interval without hanging"
     assert_eq "$rc" "$CONTENTION_EXIT_CODE" \
         "bounded contention still returns the reserved refusal code"
@@ -357,6 +456,78 @@ test_bounded_wait_honors_interval_then_refuses() {
     assert_eq "$(cat "$FIXTURE_DIR/wait.stdout")" "" \
         "bounded-wait refusal keeps the diagnostic on stderr"
 
+    FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS=0
+    release_fast_lock
+    cleanup_fixture
+}
+
+test_bounded_wait_includes_metadata_guard_attempt_time() {
+    local start end elapsed holder_pid holder_worktree output normalized rc=0
+    new_fixture
+    acquire_fast_lock
+    holder_pid="$(holder_value pid)"
+    holder_worktree="$(holder_value worktree)"
+    FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS=1
+    export FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS
+
+    _fast_lock_try_acquire_metadata_guard() {
+        local lock_dir="$1"
+        sleep 1
+        cp "$lock_dir/holder" "$lock_dir.guard"
+        return "$CONTENTION_EXIT_CODE"
+    }
+
+    start="$(wall_clock_seconds)"
+    ( acquire_fast_lock >"$FIXTURE_DIR/slow_guard.stdout" \
+        2>"$FIXTURE_DIR/slow_guard.stderr" ) || rc=$?
+    end="$(wall_clock_seconds)"
+    elapsed="$(awk -v start="$start" -v end="$end" 'BEGIN { printf "%.3f", end - start }')"
+    output="$(cat "$FIXTURE_DIR/slow_guard.stderr")"
+    normalized="$(printf '%s' "$output" | normalize_refusal)"
+
+    assert_elapsed_between "$elapsed" "1" "4.5" \
+        "metadata-guard work is charged to the configured wait budget"
+    assert_eq "$rc" "$CONTENTION_EXIT_CODE" \
+        "slow metadata-guard contention returns the reserved refusal code"
+    assert_eq "$normalized" "$(expected_refusal "$holder_pid" "$holder_worktree" "1")" \
+        "slow metadata-guard refusal preserves the holder diagnostic"
+
+    source "$LOCK_LIB"
+    FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS=0
+    release_fast_lock
+    cleanup_fixture
+}
+
+test_bounded_wait_accounts_for_missing_guard_fallback_race() {
+    local start end elapsed holder_pid holder_worktree output normalized rc=0
+    new_fixture
+    acquire_fast_lock
+    holder_pid="$(holder_value pid)"
+    holder_worktree="$(holder_value worktree)"
+    FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS=1
+    export FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS
+
+    _fast_lock_try_acquire_metadata_guard() {
+        sleep 1
+        return "$CONTENTION_EXIT_CODE"
+    }
+
+    start="$(wall_clock_seconds)"
+    ( acquire_fast_lock >"$FIXTURE_DIR/missing_guard.stdout" \
+        2>"$FIXTURE_DIR/missing_guard.stderr" ) || rc=$?
+    end="$(wall_clock_seconds)"
+    elapsed="$(awk -v start="$start" -v end="$end" 'BEGIN { printf "%.3f", end - start }')"
+    output="$(cat "$FIXTURE_DIR/missing_guard.stderr")"
+    normalized="$(printf '%s' "$output" | normalize_refusal)"
+
+    assert_elapsed_between "$elapsed" "1" "4.5" \
+        "missing-guard fallback race is still charged to the configured wait budget"
+    assert_eq "$rc" "$CONTENTION_EXIT_CODE" \
+        "missing-guard fallback race still returns the reserved refusal code"
+    assert_eq "$normalized" "$(expected_refusal "$holder_pid" "$holder_worktree" "1")" \
+        "missing-guard fallback race reuses the completed holder diagnostic"
+
+    source "$LOCK_LIB"
     FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS=0
     release_fast_lock
     cleanup_fixture
@@ -646,19 +817,56 @@ test_unset_wait_budget_defaults_to_bounded_wait() {
     export FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS
 }
 
+test_default_wait_budget_records_open_caller_session_constraint() {
+    # Budgets come from the sourced FAST_LOCK_* constants so this stays pinned
+    # to the single owner rather than to literals copied into the harness.
+    # The 2386-second upper-bound specimen leaves only 14 seconds of caller
+    # session headroom, so the retuned default is still too large to close the
+    # caller-session constraint by itself. Closing requires either shrinking
+    # the fjcloud whole-suite gate composition (`scripts/local-ci.sh --fast`)
+    # or raising matt's caller timeout (`matt_root/matt/llm.py`, timeout=2400).
+    local residual_seconds worst_case_seconds fits positive
+
+    assert_eq "$FAST_LOCK_MEASURED_FAST_RUN_SECONDS" "2386" \
+        "measured runtime rounds the same-locality 2385.98-second specimen up without under-counting"
+    assert_eq "$FAST_LOCK_DEFAULT_WAIT_SECONDS" "300" \
+        "default wait is the Stage 2 retune value, not a false green residual"
+    residual_seconds=$(( FAST_LOCK_CALLER_SESSION_BUDGET_SECONDS - FAST_LOCK_MEASURED_FAST_RUN_SECONDS ))
+    assert_eq "$residual_seconds" "14" \
+        "2386-second upper-bound specimen leaves only 14 seconds of caller-session headroom"
+    worst_case_seconds=$(( FAST_LOCK_DEFAULT_WAIT_SECONDS + FAST_LOCK_MEASURED_FAST_RUN_SECONDS ))
+
+    fits=$([ "$worst_case_seconds" -le "$FAST_LOCK_CALLER_SESSION_BUDGET_SECONDS" ] \
+        && printf 'fits' || printf 'exceeds')
+    assert_eq "$fits" "exceeds" \
+        "default wait plus one measured run remains above the caller session budget (default_wait=${FAST_LOCK_DEFAULT_WAIT_SECONDS}s + measured_run=${FAST_LOCK_MEASURED_FAST_RUN_SECONDS}s = ${worst_case_seconds}s vs caller_session_budget=${FAST_LOCK_CALLER_SESSION_BUDGET_SECONDS}s; close by shrinking scripts/local-ci.sh --fast or raising matt_root/matt/llm.py timeout=2400)"
+
+    # Guards the opposite failure mode: shrinking the default to fit must not
+    # take it to 0, which is the instant-refusal regression the bounded wait
+    # was introduced to remove.
+    positive=$([ "$FAST_LOCK_DEFAULT_WAIT_SECONDS" -gt 0 ] && printf 'positive' || printf 'non-positive')
+    assert_eq "$positive" "positive" \
+        "the default wait stays positive so contention still queues instead of refusing instantly"
+}
+
 trap cleanup_fixture EXIT
 
 test_free_acquire_records_holder_values
 test_default_lock_dir_is_stable_through_worktree_symlink
 test_contended_acquire_refuses_with_holder_identity
+test_refusal_forbids_gate_subset_substitution
 test_refusal_consumes_exported_holder_description
 test_release_allows_subsequent_acquire
 test_dead_holder_is_reclaimed
+test_live_holder_reclaim_boundaries
 test_pidless_holder_is_reclaimed
 test_invalid_pid_holder_is_reclaimed
 test_bounded_wait_honors_interval_then_refuses
+test_bounded_wait_includes_metadata_guard_attempt_time
+test_bounded_wait_accounts_for_missing_guard_fallback_race
 test_wait_seconds_parse_decimal_and_clamp_invalid
 test_unset_wait_budget_defaults_to_bounded_wait
+test_default_wait_budget_records_open_caller_session_constraint
 test_in_progress_holder_publication_is_not_reclaimed
 test_orphaned_reclaim_claim_is_recovered
 test_orphaned_metadata_guard_is_recovered

@@ -55,11 +55,27 @@ line_count_or_zero() {
 
 read_counter_file_or_zero() {
     local path="$1"
+    local value
     if [ ! -f "$path" ]; then
         printf '0'
         return 0
     fi
-    cat "$path"
+    value="$(tr -d '[:space:]' < "$path")"
+    case "$value" in
+        ''|*[!0-9]*) printf '0' ;;
+        *) printf '%s' "$value" ;;
+    esac
+}
+
+test_empty_counter_file_reads_as_zero() {
+    local tmp_dir counter_path
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+    counter_path="$tmp_dir/empty.count"
+    : > "$counter_path"
+
+    assert_eq "$(read_counter_file_or_zero "$counter_path")" "0" \
+        "empty counter files should read as zero"
 }
 
 setup_mock_workspace() {
@@ -211,7 +227,7 @@ run_seed_synthetic_dry_run() {
 run_seed_synthetic_execute() {
     local tmp_dir="$1"
     local selector="$2"
-    local duration_minutes="${MOCK_SYNTHETIC_DURATION_MINUTES:-1}"
+    local duration_minutes="${MOCK_SYNTHETIC_DURATION_MINUTES:-0}"
     local provision_only_flag=""
 
     if [ "${MOCK_SYNTHETIC_PROVISION_ONLY:-0}" = "1" ]; then
@@ -575,6 +591,7 @@ test_provisioning_contract_rerun_is_idempotent_without_duplicate_create_calls() 
     MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
     run_seed_synthetic_execute "$tmp_dir" "A"
     local first_exit="$RUN_EXIT_CODE"
+    MOCK_SYNTHETIC_DURATION_MINUTES="0" \
     MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" run_seed_synthetic_execute "$tmp_dir" "A"
     local second_exit="$RUN_EXIT_CODE"
 
@@ -671,6 +688,7 @@ test_provisioning_contract_recovers_when_create_409_omits_customer_id() {
     setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
 
     clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    MOCK_SYNTHETIC_DURATION_MINUTES="0" \
     MOCK_SYNTHETIC_CREATE_STATUS_CODE="409" \
     MOCK_SYNTHETIC_CREATE_409_INCLUDE_ID="0" \
     MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
@@ -903,8 +921,8 @@ test_storage_floor_contract_skips_backfill_when_target_already_met() {
     assert_contains "$curl_calls" "${mapped_flapjack_url}/internal/storage" \
         "storage-floor contract should poll internal storage before deciding to backfill"
     batch_write_count=$(grep -c "${mapped_flapjack_url}/1/indexes/${mapped_flapjack_uid}/batch" "$curl_log" || true)
-    assert_eq "$batch_write_count" "10" \
-        "storage-floor contract should skip pre-floor backfill and run only sustained execute traffic writes"
+    assert_eq "$batch_write_count" "0" \
+        "storage-floor contract should not start sustained traffic without an explicit duration"
     assert_not_contains "$curl_calls" "-X DELETE" \
         "storage-floor contract should avoid delete/reset branches"
 }
@@ -1034,6 +1052,7 @@ test_tenant_a_execute_starts_sustained_traffic_after_floor_is_met() {
     clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
     : > "$direct_documents_count_path"
     : > "$direct_query_count_path"
+    MOCK_SYNTHETIC_DURATION_MINUTES="1" \
     MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
     MOCK_SYNTHETIC_STORAGE_UID="$mapped_flapjack_uid" \
     MOCK_SYNTHETIC_DIRECT_DOCUMENTS_COUNT_PATH="$direct_documents_count_path" \
@@ -1101,6 +1120,7 @@ test_tenant_a_execute_cleans_count_files_when_search_loop_fails() {
     setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
 
     clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    MOCK_SYNTHETIC_DURATION_MINUTES="1" \
     MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
     MOCK_SYNTHETIC_STORAGE_UID="$mapped_flapjack_uid" \
     MOCK_SYNTHETIC_FAIL_QUERY_ON_CALL="1" \
@@ -1143,6 +1163,7 @@ test_tenant_a_execute_stops_writes_when_search_loop_fails() {
 
     clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
     : > "$direct_documents_count_path"
+    MOCK_SYNTHETIC_DURATION_MINUTES="1" \
     MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
     MOCK_SYNTHETIC_STORAGE_UID="$mapped_flapjack_uid" \
     MOCK_SYNTHETIC_DIRECT_DOCUMENTS_COUNT_PATH="$direct_documents_count_path" \
@@ -1230,6 +1251,36 @@ test_mock_curl_serializes_log_appends() {
         "synthetic curl mock should release the log append lock after writing"
     assert_not_contains "$mock_source" 'printf '\''%s\n'\'' "$log_line" >>' \
         "synthetic curl mock should not append directly to the shared log without locking"
+}
+
+test_mock_curl_lock_wait_bypasses_traffic_sleep_mock() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+
+    local curl_log="$tmp_dir/curl.log"
+    local lock_dir="${curl_log}.lock"
+    local lock_releaser_pid curl_exit_code=0
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$tmp_dir/psql.log" "$tmp_dir/psql.stdin"
+
+    cat > "$tmp_dir/bin/sleep" <<'EOF'
+#!/usr/bin/env bash
+exit 99
+EOF
+    chmod +x "$tmp_dir/bin/sleep"
+    mkdir "$lock_dir"
+    ( /bin/sleep 0.5; rmdir "$lock_dir" ) &
+    lock_releaser_pid=$!
+
+    PATH="$tmp_dir/bin:$PATH" \
+        "$tmp_dir/bin/curl" -sS "http://synthetic-flapjack.test/health" >/dev/null 2>&1 || \
+        curl_exit_code=$?
+    wait "$lock_releaser_pid"
+
+    assert_eq "$curl_exit_code" "0" \
+        "synthetic curl lock backoff should bypass the traffic-pacing sleep mock"
+    assert_eq "$(line_count_or_zero "$curl_log")" "1" \
+        "synthetic curl should append once after a contended log lock is released"
 }
 
 test_standalone_write_loop_stays_fatal_on_error() {
@@ -1956,7 +2007,9 @@ main() {
             test_tenant_a_execute_starts_sustained_traffic_after_floor_is_met
             test_tenant_a_execute_cleans_count_files_when_search_loop_fails
             test_tenant_a_execute_stops_writes_when_search_loop_fails
+            test_empty_counter_file_reads_as_zero
             test_mock_curl_serializes_log_appends
+            test_mock_curl_lock_wait_bypasses_traffic_sleep_mock
             test_probe_mode_write_loop_continues_through_transient_error
             test_standalone_write_loop_stays_fatal_on_error
             test_probe_mode_search_loop_continues_through_transient_error
@@ -1989,7 +2042,9 @@ main() {
             test_tenant_a_execute_starts_sustained_traffic_after_floor_is_met
             test_tenant_a_execute_cleans_count_files_when_search_loop_fails
             test_tenant_a_execute_stops_writes_when_search_loop_fails
+            test_empty_counter_file_reads_as_zero
             test_mock_curl_serializes_log_appends
+            test_mock_curl_lock_wait_bypasses_traffic_sleep_mock
             test_probe_mode_write_loop_continues_through_transient_error
             test_standalone_write_loop_stays_fatal_on_error
             test_probe_mode_search_loop_continues_through_transient_error

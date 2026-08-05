@@ -28,12 +28,24 @@ import JobDetailPage from './+page.svelte';
 const RUNNING_CAPABILITIES: AlgoliaMigrationCapabilities = {
 	cancel: true,
 	resume: false,
-	replace: true
+	replace: true,
+	preview: false,
+	verify: false
 };
 const NO_CAPABILITIES: AlgoliaMigrationCapabilities = {
 	cancel: false,
 	resume: false,
-	replace: false
+	replace: false,
+	preview: false,
+	verify: false
+};
+
+// Server-published capability set for a job whose provider supports cutover
+// verification. Distinct from NO_CAPABILITIES so the fail-closed default stays
+// exercised by the tests that do not opt in.
+const VERIFY_CAPABILITIES: AlgoliaMigrationCapabilities = {
+	...NO_CAPABILITIES,
+	verify: true
 };
 const CLOSED_SOURCE_PROVIDERS = ['algolia', 'meilisearch', 'typesense'] as const;
 type SourceProvider = (typeof CLOSED_SOURCE_PROVIDERS)[number];
@@ -209,7 +221,7 @@ describe('[jobId] job detail page presentation', () => {
 					sourceProvider,
 					source: { name: `${sourceProvider}_products` }
 				}),
-				{ cancel: false, resume: true, replace: false }
+				{ cancel: false, resume: true, replace: false, preview: false, verify: false }
 			);
 
 			expect(screen.getByTestId('migration-job-detail')).toHaveTextContent(sourceProvider);
@@ -352,7 +364,9 @@ describe('[jobId] job detail actions', () => {
 			const { container } = renderJobPage(resumableJob, {
 				cancel: false,
 				resume: true,
-				replace: false
+				replace: false,
+				preview: false,
+				verify: false
 			});
 
 			const apiKey = `${sourceProvider}-resume-secret-key-canary-0007`;
@@ -391,4 +405,330 @@ describe('[jobId] job detail terminal statuses never poll', () => {
 		expect(invalidateAllMock).not.toHaveBeenCalled();
 		vi.useRealTimers();
 	});
+});
+
+describe('[jobId] cutover verification panel', () => {
+	beforeEach(() => {
+		fetchMock.mockResolvedValue(new Response('serialized-action-result'));
+		deserializeMock.mockReturnValue({
+			type: 'success',
+			status: 200,
+			data: {
+				report: {
+					sourceIndex: 'source_products',
+					destinationIndex: 'products_migrated',
+					resultLimit: 4,
+					queries: [
+						{
+							query: 'running shoes',
+							overlapCount: 3,
+							sourceOnly: ['p2'],
+							destinationOnly: ['p5'],
+							hits: [{ objectID: 'p3', sourceRank: 3, destinationRank: 1, rankDelta: -2 }]
+						}
+					]
+				}
+			}
+		});
+		invalidateAllMock.mockResolvedValue(undefined);
+		vi.stubGlobal('fetch', fetchMock);
+	});
+
+	it.each(['completed', 'completed_with_warnings'] as const)(
+		'mounts the verification panel for %s retained jobs',
+		(status) => {
+			renderJobPage(
+				publicJob({
+					status,
+					source: { name: 'source_products' },
+					destination: { kind: 'create', target: 'products_migrated', region: 'us-east-1' }
+				}),
+				NO_CAPABILITIES
+			);
+
+			expect(screen.getByRole('region', { name: /cutover verification/i })).toBeInTheDocument();
+			expect(screen.getByTestId('cutover-verification-source-index')).toHaveTextContent(
+				'source_products'
+			);
+			expect(screen.getByTestId('cutover-verification-destination-index')).toHaveTextContent(
+				'products_migrated'
+			);
+		}
+	);
+
+	// The server-published capability, not the job's provider, decides whether
+	// the console offers verification. A false `capabilities.verify` must reach
+	// the panel as the unsupported state even for an Algolia job.
+	it('renders the unsupported state when the server does not publish capabilities.verify', () => {
+		renderJobPage(publicJob({ status: 'completed', sourceProvider: 'algolia' }), NO_CAPABILITIES);
+
+		expect(screen.getByRole('region', { name: /cutover verification/i })).toBeInTheDocument();
+		expect(
+			screen.getByText('Algolia verification is not supported yet for retained migration jobs.')
+		).toBeInTheDocument();
+		expect(screen.queryByLabelText(/algolia api key/i)).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: /run verification/i })).not.toBeInTheDocument();
+	});
+
+	it('renders the verification form when the server publishes capabilities.verify', () => {
+		renderJobPage(
+			publicJob({ status: 'completed', sourceProvider: 'algolia' }),
+			VERIFY_CAPABILITIES
+		);
+
+		expect(screen.getByLabelText(/algolia api key/i)).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /run verification/i })).toBeEnabled();
+	});
+
+	it.each(['queued', 'copying_documents', 'failed', 'cancelled'] as const)(
+		'does not mount the verification panel for %s retained jobs',
+		(status) => {
+			renderJobPage(publicJob({ status }), NO_CAPABILITIES);
+
+			expect(
+				screen.queryByRole('region', { name: /cutover verification/i })
+			).not.toBeInTheDocument();
+		}
+	);
+
+	it('submits verification through the verify action without source or destination form fields', async () => {
+		renderJobPage(
+			publicJob({
+				status: 'completed',
+				sourceProvider: 'algolia',
+				source: { name: 'source_products' },
+				destination: { kind: 'create', target: 'products_migrated', region: 'us-east-1' }
+			}),
+			VERIFY_CAPABILITIES
+		);
+
+		await fireEvent.input(screen.getByLabelText(/algolia application id/i), {
+			target: { value: 'algolia_app_id_canary' }
+		});
+		await fireEvent.input(screen.getByLabelText(/algolia api key/i), {
+			target: { value: 'algolia_api_key_canary' }
+		});
+		await fireEvent.input(screen.getByLabelText(/queries/i), {
+			target: { value: 'running shoes' }
+		});
+		await fireEvent.input(screen.getByLabelText(/result limit/i), {
+			target: { value: '4' }
+		});
+		await fireEvent.click(screen.getByRole('button', { name: /run verification/i }));
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			'?/verify',
+			expect.objectContaining({
+				method: 'POST',
+				headers: { 'x-sveltekit-action': 'true' }
+			})
+		);
+		const submittedBody = fetchMock.mock.calls[0][1].body as FormData;
+		expect(Array.from(submittedBody.entries())).toEqual([
+			['source_provider', 'algolia'],
+			['appId', 'algolia_app_id_canary'],
+			['apiKey', 'algolia_api_key_canary'],
+			['queries', 'running shoes'],
+			['resultLimit', '4']
+		]);
+		expect(submittedBody.has('sourceIndex')).toBe(false);
+		expect(submittedBody.has('destinationIndex')).toBe(false);
+	});
+
+	it('renders code-owned copy from a flat SvelteKit verify failure payload', async () => {
+		deserializeMock.mockReturnValue({
+			type: 'failure',
+			status: 401,
+			data: {
+				error: true,
+				code: 'invalid_credentials',
+				message: 'The supplied credentials were rejected.'
+			}
+		});
+		const { container } = renderJobPage(
+			publicJob({ status: 'completed', sourceProvider: 'algolia' }),
+			VERIFY_CAPABILITIES
+		);
+
+		await fireEvent.input(screen.getByLabelText(/algolia application id/i), {
+			target: { value: 'algolia_app_id_canary' }
+		});
+		await fireEvent.input(screen.getByLabelText(/algolia api key/i), {
+			target: { value: 'algolia_api_key_canary' }
+		});
+		await fireEvent.click(screen.getByRole('button', { name: /run verification/i }));
+
+		await vi.waitFor(() =>
+			expect(screen.getByRole('alert')).toHaveTextContent(
+				'Algolia credentials were rejected. Enter a valid key and run verification again.'
+			)
+		);
+		expect(screen.getByRole('alert')).not.toHaveTextContent(
+			'Cutover verification could not be completed.'
+		);
+		expect(container.textContent).not.toContain('algolia_app_id_canary');
+		expect(container.textContent).not.toContain('algolia_api_key_canary');
+	});
+
+	it('renders sanitized detail from a shared error-only verification failure payload', async () => {
+		deserializeMock.mockReturnValue({
+			type: 'failure',
+			status: 404,
+			data: { error: 'Destination algolia_api_key_canary is not ready for comparison.' }
+		});
+		const { container } = renderJobPage(
+			publicJob({ status: 'completed', sourceProvider: 'algolia' }),
+			VERIFY_CAPABILITIES
+		);
+
+		await fireEvent.input(screen.getByLabelText(/algolia application id/i), {
+			target: { value: 'algolia_app_id_canary' }
+		});
+		await fireEvent.input(screen.getByLabelText(/algolia api key/i), {
+			target: { value: 'algolia_api_key_canary' }
+		});
+		await fireEvent.click(screen.getByRole('button', { name: /run verification/i }));
+
+		await vi.waitFor(() =>
+			expect(screen.getByRole('alert')).toHaveTextContent(
+				'Destination [redacted] is not ready for comparison.'
+			)
+		);
+		expect(container.textContent).not.toContain('algolia_api_key_canary');
+	});
+
+	it('passes dashboard session expiry failures to the shared action handler', async () => {
+		const sessionFailure = {
+			type: 'failure' as const,
+			status: 401,
+			data: { _authSessionExpired: true, error: 'Unauthorized' }
+		};
+		deserializeMock.mockReturnValue(sessionFailure);
+		renderJobPage(
+			publicJob({ status: 'completed', sourceProvider: 'algolia' }),
+			VERIFY_CAPABILITIES
+		);
+
+		await fireEvent.input(screen.getByLabelText(/algolia application id/i), {
+			target: { value: 'algolia_app_id_canary' }
+		});
+		await fireEvent.input(screen.getByLabelText(/algolia api key/i), {
+			target: { value: 'algolia_api_key_canary' }
+		});
+		await fireEvent.click(screen.getByRole('button', { name: /run verification/i }));
+
+		await vi.waitFor(() => expect(applyActionMock).toHaveBeenCalledWith(sessionFailure));
+		expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+	});
+
+	it.each([
+		{ outcome: 'report', bindingChange: 'queries' },
+		{ outcome: 'report', bindingChange: 'result limit' },
+		{ outcome: 'report', bindingChange: 'retained job' },
+		{ outcome: 'error', bindingChange: 'queries' },
+		{ outcome: 'error', bindingChange: 'result limit' },
+		{ outcome: 'error', bindingChange: 'retained job' }
+	] as const)(
+		'hides a settled $outcome after the $bindingChange binding changes',
+		async ({ outcome, bindingChange }) => {
+			if (outcome === 'error') {
+				deserializeMock.mockReturnValue({
+					type: 'failure',
+					status: 404,
+					data: { error: 'Prior destination is not ready.' }
+				});
+			}
+			const job = publicJob({
+				status: 'completed',
+				sourceProvider: 'algolia',
+				source: { name: 'source_products' },
+				destination: { kind: 'create', target: 'products_migrated', region: 'us-east-1' }
+			});
+			const view = renderJobPage(job, VERIFY_CAPABILITIES);
+
+			await fireEvent.input(screen.getByLabelText(/algolia application id/i), {
+				target: { value: 'algolia_app_id_canary' }
+			});
+			await fireEvent.input(screen.getByLabelText(/algolia api key/i), {
+				target: { value: 'algolia_api_key_canary' }
+			});
+			await fireEvent.click(screen.getByRole('button', { name: /run verification/i }));
+
+			if (outcome === 'report') {
+				await vi.waitFor(() =>
+					expect(screen.getByLabelText('Cutover verification report')).toBeInTheDocument()
+				);
+			} else {
+				await vi.waitFor(() =>
+					expect(screen.getByRole('alert')).toHaveTextContent('Prior destination is not ready.')
+				);
+			}
+
+			if (bindingChange === 'queries') {
+				await fireEvent.input(screen.getByLabelText(/queries/i), { target: { value: 'boots' } });
+			} else if (bindingChange === 'result limit') {
+				await fireEvent.input(screen.getByLabelText(/result limit/i), {
+					target: { value: '5' }
+				});
+			} else {
+				await view.rerender({
+					data: { job: publicJob({ ...job, id: 'job_456' }), capabilities: VERIFY_CAPABILITIES }
+				});
+			}
+
+			expect(screen.queryByLabelText('Cutover verification report')).not.toBeInTheDocument();
+			expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+			expect(screen.queryByText('p2')).not.toBeInTheDocument();
+			expect(screen.queryByText('Prior destination is not ready.')).not.toBeInTheDocument();
+		}
+	);
+
+	it.each([
+		{ inputName: 'queries', changedLabel: /queries/i, changedValue: 'boots' },
+		{ inputName: 'result limit', changedLabel: /result limit/i, changedValue: '5' }
+	])(
+		'discards an in-flight verification response after $inputName changes',
+		async ({ changedLabel, changedValue }) => {
+			let resolveFetch: (response: Response) => void = () => {};
+			fetchMock.mockReturnValue(
+				new Promise<Response>((resolve) => {
+					resolveFetch = resolve;
+				})
+			);
+			renderJobPage(
+				publicJob({
+					status: 'completed',
+					sourceProvider: 'algolia',
+					source: { name: 'source_products' },
+					destination: { kind: 'create', target: 'products_migrated', region: 'us-east-1' }
+				}),
+				VERIFY_CAPABILITIES
+			);
+
+			await fireEvent.input(screen.getByLabelText(/algolia application id/i), {
+				target: { value: 'algolia_app_id_canary' }
+			});
+			await fireEvent.input(screen.getByLabelText(/algolia api key/i), {
+				target: { value: 'algolia_api_key_canary' }
+			});
+			await fireEvent.input(screen.getByLabelText(/queries/i), {
+				target: { value: 'running shoes' }
+			});
+			await fireEvent.input(screen.getByLabelText(/result limit/i), {
+				target: { value: '4' }
+			});
+			await fireEvent.click(screen.getByRole('button', { name: /run verification/i }));
+			await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+
+			await fireEvent.input(screen.getByLabelText(changedLabel), {
+				target: { value: changedValue }
+			});
+			resolveFetch(new Response('serialized-action-result'));
+
+			await vi.waitFor(() =>
+				expect(screen.getByRole('button', { name: /run verification/i })).toBeEnabled()
+			);
+			expect(screen.queryByLabelText('Cutover verification report')).not.toBeInTheDocument();
+		}
+	);
 });

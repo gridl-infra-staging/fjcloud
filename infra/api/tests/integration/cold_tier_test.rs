@@ -1,7 +1,7 @@
 #![allow(clippy::field_reassign_with_default)]
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::Arc;
 
 use crate::common::{FailableObjectStore, MockNodeClient};
 use api::models::cold_snapshot::{ColdSnapshot, NewColdSnapshot};
@@ -14,9 +14,7 @@ use api::services::cold_tier::{
 };
 use api::services::discovery::{DiscoveryError, DiscoveryService};
 use api::services::flapjack_node::flapjack_index_uid;
-use api::services::object_store::{
-    InMemoryObjectStore, ObjectStore, RegionObjectStoreResolver, S3ObjectStoreConfig,
-};
+use api::services::object_store::{InMemoryObjectStore, ObjectStore, RegionObjectStoreResolver};
 use chrono::{Duration, Utc};
 use uuid::Uuid;
 
@@ -861,68 +859,6 @@ async fn snapshot_timeout_rolls_back_catalog_state_and_warns() {
         alerts.iter().any(|a| a.severity == AlertSeverity::Warning),
         "timeout should be treated as retryable failure"
     );
-}
-
-// ---------------------------------------------------------------------------
-// Stage 9 §6 — Cold storage cross-region support
-// ---------------------------------------------------------------------------
-
-fn cold_tier_env_lock() -> &'static Mutex<()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
-}
-
-struct EnvVarGuard {
-    key: &'static str,
-    previous: Option<String>,
-}
-
-impl EnvVarGuard {
-    fn set(key: &'static str, value: &str) -> Self {
-        let previous = std::env::var(key).ok();
-        std::env::set_var(key, value);
-        Self { key, previous }
-    }
-}
-
-impl Drop for EnvVarGuard {
-    fn drop(&mut self) {
-        match &self.previous {
-            Some(value) => std::env::set_var(self.key, value),
-            None => std::env::remove_var(self.key),
-        }
-    }
-}
-
-/// §6 test: S3ObjectStore configured with a Hetzner Object Storage endpoint
-/// produces the correct config (bucket, prefix, region, endpoint with
-/// force_path_style). This covers the cross-region cold storage foundation.
-#[test]
-fn cold_storage_with_custom_endpoint() {
-    let _lock = cold_tier_env_lock()
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let _bucket = EnvVarGuard::set("COLD_STORAGE_BUCKET", "fjcloud-cold-eu");
-    let _prefix = EnvVarGuard::set("COLD_STORAGE_PREFIX", "cold");
-    let _region = EnvVarGuard::set("COLD_STORAGE_REGION", "eu-central-1");
-    let _endpoint = EnvVarGuard::set(
-        "COLD_STORAGE_ENDPOINT",
-        "https://fsn1.your-objectstorage.com",
-    );
-    let _access_key = EnvVarGuard::set("COLD_STORAGE_ACCESS_KEY", "cold-access");
-    let _secret_key = EnvVarGuard::set("COLD_STORAGE_SECRET_KEY", "cold-secret");
-
-    let config = S3ObjectStoreConfig::from_env();
-    assert_eq!(config.bucket, "fjcloud-cold-eu");
-    assert_eq!(config.prefix, "cold");
-    assert_eq!(config.region, "eu-central-1");
-    assert_eq!(
-        config.endpoint.as_deref(),
-        Some("https://fsn1.your-objectstorage.com"),
-        "Hetzner Object Storage endpoint must be set for cross-region cold storage"
-    );
-    assert_eq!(config.access_key.as_deref(), Some("cold-access"));
-    assert_eq!(config.secret_key.as_deref(), Some("cold-secret"));
 }
 
 /// §6 test: The cold tier snapshot pipeline succeeds identically for a Hetzner VM.

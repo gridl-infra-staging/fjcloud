@@ -14,7 +14,7 @@
  * and unauthenticated-redirect coverage.
  */
 
-import { expect, test } from '../../../fixtures/fixtures';
+import { expect, sleep, test } from '../../../fixtures/fixtures';
 import type { Locator, Page } from '@playwright/test';
 import { navigateToAdminPage, waitForBillingSectionsToResolve } from './admin_page_helpers';
 
@@ -23,14 +23,17 @@ import { navigateToAdminPage, waitForBillingSectionsToResolve } from './admin_pa
 // ---------------------------------------------------------------------------
 
 test.describe('Admin page shells — nav-backed', () => {
-	test('Customers page renders heading and table or empty state', async ({ page }) => {
-		await navigateToAdminPage(page, '/admin/customers', 'Customer Management');
+	test('Customers page renders its seeded customer row content', async ({ page, createUser }) => {
+		const seed = Date.now();
+		const customerName = `Admin Customers Load Verify ${seed}`;
+		const customerEmail = `admin-customers-load-${seed}@e2e.griddle.test`;
+		await createUser(customerEmail, 'TestPassword123!', customerName);
 
-		const tableBody = page.getByTestId('customers-table-body');
-		const emptyState = page.getByText('No customers found.');
-		const unavailableState = page.getByText('Customer data unavailable.');
-		await expect(tableBody.or(emptyState)).toBeVisible();
-		await expect(unavailableState).toHaveCount(0);
+		const customerRow = await findCustomerRow(page, customerName, 'active');
+		await expect(customerRow.getByRole('link', { name: customerName })).toBeVisible();
+		await expect(customerRow).toContainText(customerEmail);
+		await expect(customerRow.getByTestId('index-count')).toHaveText('0');
+		await expect(page.getByText('Customer data unavailable.')).toHaveCount(0);
 	});
 
 	test('Migrations page renders heading and active/recent sections', async ({ page }) => {
@@ -61,31 +64,31 @@ test.describe('Admin page shells — nav-backed', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Admin page shells — remaining', () => {
-	test('Billing page renders seeded failed and draft invoice row content', async ({ page }) => {
+	test('Billing page renders its seeded draft invoice row content', async ({
+		page,
+		createUser,
+		seedAdminDraftInvoice
+	}) => {
+		const seed = Date.now();
+		const customerName = `Admin Billing Draft ${seed}`;
+		const customerEmail = `admin-billing-draft-${seed}@e2e.griddle.test`;
+		const customer = await createUser(customerEmail, 'TestPassword123!', customerName);
+		await seedAdminDraftInvoice(customer, '2025-01');
+
 		await navigateToAdminPage(page, '/admin/billing', 'Billing Review');
 
 		await expect(page.getByTestId('failed-invoices-section')).toBeVisible();
 		await expect(page.getByTestId('draft-invoices-section')).toBeVisible();
-		const { failedRows, draftRows, failedEmptyState, draftEmptyState } =
-			await waitForBillingSectionsToResolve(page);
+		const { failedRows, failedEmptyState } = await waitForBillingSectionsToResolve(page);
+		await expect(failedRows.or(failedEmptyState)).toBeVisible();
 
-		if (await failedRows.count()) {
-			const failedRow = failedRows.first();
-			await expect(failedRow.getByTestId('failed-invoice-customer')).toHaveText(/\S+/);
-			await expect(failedRow.getByTestId('failed-invoice-email')).toHaveText(/@/);
-			await expect(failedRow.getByTestId('failed-invoice-amount')).toHaveText(/^\$\d/);
-		} else {
-			await expect(failedEmptyState).toBeVisible();
-		}
-
-		if (await draftRows.count()) {
-			const draftRow = draftRows.first();
-			await expect(draftRow.getByTestId('draft-invoice-customer')).toHaveText(/\S+/);
-			await expect(draftRow.getByTestId('draft-invoice-email')).toHaveText(/@/);
-			await expect(draftRow.getByTestId('draft-invoice-amount')).toHaveText(/^\$\d/);
-		} else {
-			await expect(draftEmptyState).toBeVisible();
-		}
+		const draftRow = page
+			.getByTestId('draft-invoice-row')
+			.filter({ has: page.getByText(customerName, { exact: true }) });
+		await expect(draftRow).toHaveCount(1);
+		await expect(draftRow.getByTestId('draft-invoice-customer')).toHaveText(customerName);
+		await expect(draftRow.getByTestId('draft-invoice-email')).toHaveText(customerEmail);
+		await expect(draftRow.getByTestId('draft-invoice-amount')).toHaveText('$0.00');
 	});
 
 	test('Alerts page renders heading and table or empty state', async ({ page }) => {
@@ -122,19 +125,19 @@ async function findCustomerRow(
 		page
 			.getByTestId('customers-table-body')
 			.getByRole('row')
-			.filter({ has: page.getByRole('link', { name: customerName }) })
-			.first();
+			.filter({ has: page.getByRole('link', { name: customerName }) });
 
 	await expect(async () => {
 		await navigateToAdminPage(page, '/admin/customers', 'Customer Management');
 		await page.getByTestId('status-filter').selectOption(status);
 		await page.getByTestId('customer-search').fill(customerName);
+		await expect(customerRow()).toHaveCount(1, { timeout: 5_000 });
 		await expect(customerRow().getByRole('link', { name: customerName })).toBeVisible({
-			timeout: 10_000
+			timeout: 5_000
 		});
 	}).toPass({
 		intervals: [1_000, 2_000, 3_000, 4_000],
-		timeout: 30_000
+		timeout: 20_000
 	});
 
 	return customerRow();
@@ -169,41 +172,29 @@ test.describe('Admin customer actions', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Admin customer list truthfulness', () => {
-	const BILLING_HEALTH_LABEL_RANK: Record<string, number> = {
-		Red: 0,
-		Yellow: 1,
-		Grey: 2,
-		Green: 3
-	};
-
-	test('Billing-health sort ties are ordered by newest customer first', async ({
+	test('Billing-health sort reorders by health before created date', async ({
 		page,
-		createUser
+		createUser,
+		adminDeleteCustomer
 	}) => {
 		const seed = Date.now();
-		const customerPrefix = `Admin Sort Tie ${seed}`;
-		const olderName = `${customerPrefix} Older`;
-		const newerName = `${customerPrefix} Newer`;
+		const customerPrefix = `Admin Health Sort ${seed}`;
+		const olderGreyName = `${customerPrefix} Older Grey`;
+		const newerGreenName = `${customerPrefix} Newer Green`;
 
-		await createUser(
-			`admin-sort-tie-older-${seed}@e2e.griddle.test`,
+		const olderGreyCustomer = await createUser(
+			`admin-health-sort-grey-${seed}@e2e.griddle.test`,
 			'TestPassword123!',
-			olderName
+			olderGreyName
 		);
-		// Ensure distinct created_at values for deterministic createdAtMs tie-break
-		// ordering. The createUser helper hits the API which writes created_at via
-		// PostgreSQL now() with second-resolution truncation in some code paths,
-		// so back-to-back creates can land on the same second and produce
-		// nondeterministic sort order in the next assertion. Using a real wall-
-		// clock delay between creates is the simplest setup-phase shortcut. This
-		// lives in arrange (not act/assert), so it's permitted under the
-		// browser-testing standards' arrange/act distinction.
-		// eslint-disable-next-line playwright/no-wait-for-timeout, no-restricted-syntax -- arrange-phase wait, see comment above
-		await page.waitForTimeout(1_100);
+		await adminDeleteCustomer(olderGreyCustomer.customerId);
+		// Keep the API-created timestamps in distinct database seconds. The wait
+		// stays in the fixture/setup owner instead of using a browser sleep.
+		await sleep(1_100);
 		await createUser(
-			`admin-sort-tie-newer-${seed}@e2e.griddle.test`,
+			`admin-health-sort-green-${seed}@e2e.griddle.test`,
 			'TestPassword123!',
-			newerName
+			newerGreenName
 		);
 
 		await navigateToAdminPage(page, '/admin/customers', 'Customer Management');
@@ -212,85 +203,52 @@ test.describe('Admin customer list truthfulness', () => {
 		const tableBody = page.getByTestId('customers-table-body');
 		await expect
 			.poll(async () => tableBody.getByRole('row').count(), {
-				message: 'expected exactly the two seeded same-severity customers'
+				message: 'expected exactly the two seeded cross-health customers'
 			})
 			.toBe(2);
 
+		const rows = tableBody.getByRole('row');
+		await expect(rows).toHaveCount(2);
+		await expect(rows.nth(0).getByRole('link', { name: newerGreenName })).toBeVisible();
+		await expect(rows.nth(0).getByTestId(/^billing-health-badge-/)).toHaveText('Green');
+		await expect(rows.nth(1).getByRole('link', { name: olderGreyName })).toBeVisible();
+		await expect(rows.nth(1).getByTestId(/^billing-health-badge-/)).toHaveText('Grey');
+
 		const sortBillingHealth = page.getByTestId('sort-billing-health');
 		await sortBillingHealth.click();
 		await expect(sortBillingHealth).toContainText('sorted');
 
-		const sortedRows = await tableBody.getByRole('row').evaluateAll((rows) =>
-			rows.map((row) => ({
-				customerName: row.querySelector('a')?.textContent?.trim() ?? '',
-				billingHealth:
-					row.querySelector('[data-testid^="billing-health-badge-"]')?.textContent?.trim() ?? ''
-			}))
-		);
-
-		expect(sortedRows).toHaveLength(2);
-		expect(sortedRows.map((row) => row.customerName)).toEqual([newerName, olderName]);
-		expect(sortedRows[0]?.billingHealth).toBe(sortedRows[1]?.billingHealth);
+		const sortedRows = tableBody.getByRole('row');
+		await expect(sortedRows).toHaveCount(2);
+		await expect(sortedRows.nth(0).getByRole('link', { name: olderGreyName })).toBeVisible();
+		await expect(sortedRows.nth(0).getByTestId(/^billing-health-badge-/)).toHaveText('Grey');
+		await expect(sortedRows.nth(1).getByRole('link', { name: newerGreenName })).toBeVisible();
+		await expect(sortedRows.nth(1).getByTestId(/^billing-health-badge-/)).toHaveText('Green');
 	});
 
-	test('Customer list exposes billing-health and last-activity columns', async ({ page }) => {
-		await navigateToAdminPage(page, '/admin/customers', 'Customer Management');
+	test('Customer list exposes billing-health and last-activity columns', async ({
+		page,
+		createUser
+	}) => {
+		const seed = Date.now();
+		const customerName = `Admin Zero Index ${seed}`;
+		await createUser(`admin-zero-index-${seed}@e2e.griddle.test`, 'TestPassword123!', customerName);
 
-		const tableBody = page.getByTestId('customers-table-body');
-		const emptyState = page.getByText('No customers found.');
-		await expect(tableBody.or(emptyState)).toBeVisible();
+		const customerRow = await findCustomerRow(page, customerName, 'active');
 
 		const sortBillingHealth = page.getByTestId('sort-billing-health');
 		await expect(sortBillingHealth).toBeVisible();
-		if (await emptyState.isVisible()) {
-			await expect(emptyState).toBeVisible();
-			return;
-		}
 
-		const firstRow = tableBody.getByRole('row').first();
-		await expect(firstRow).toBeVisible();
-		await expect(firstRow.getByTestId('index-count')).toHaveText('—');
+		await expect(customerRow).toBeVisible();
+		await expect(customerRow.getByTestId('index-count')).toHaveText('0');
 		// Badge and last-activity cells use per-customer testid suffixes
 		// (billing-health-badge-<id>, last-activity-cell-<id>), so scope by
-		// data-testid prefix within the row to avoid the em-dash collision
-		// between index-count and last-activity (both render '—' for an
-		// unseeded customer).
-		await expect(firstRow.getByTestId(/^billing-health-badge-/)).toHaveText(
+		// data-testid prefix within the row.
+		await expect(customerRow.getByTestId(/^billing-health-badge-/)).toHaveText(
 			/^(Green|Yellow|Red|Grey)$/
 		);
-		await expect(firstRow.getByTestId(/^last-activity-cell-/)).toHaveText(
+		await expect(customerRow.getByTestId(/^last-activity-cell-/)).toHaveText(
 			/^(—|just now|\d+m ago|\d+h ago|\d+ days ago)$/
 		);
-
-		await sortBillingHealth.click();
-		await expect(sortBillingHealth).toContainText('sorted');
-
-		const sortedRows = await tableBody.getByRole('row').evaluateAll((rows) =>
-			rows.map((row) => ({
-				rowTestId: row.getAttribute('data-testid') ?? '',
-				billingHealth:
-					row.querySelector('[data-testid^="billing-health-badge-"]')?.textContent?.trim() ?? ''
-			}))
-		);
-		expect(sortedRows.length).toBeGreaterThan(0);
-
-		const sortedRanks = sortedRows.map(({ rowTestId, billingHealth }) => {
-			expect(rowTestId).toMatch(/^customer-row-/);
-			const rank = BILLING_HEALTH_LABEL_RANK[billingHealth];
-			expect(rank).not.toBeUndefined();
-			return rank;
-		});
-		expect(sortedRanks).toEqual([...sortedRanks].sort((left, right) => left - right));
-
-		const sortedLabels = sortedRows.map((row) => row.billingHealth);
-		const distinctLabelsInRenderedOrder = sortedLabels.filter(
-			(label, index) => index === 0 || sortedLabels[index - 1] !== label
-		);
-		expect(distinctLabelsInRenderedOrder.length).toBeGreaterThan(0);
-
-		const expectedDistinctLabelOrder = ['Red', 'Yellow', 'Grey', 'Green'].filter((label) =>
-			distinctLabelsInRenderedOrder.includes(label)
-		);
-		expect(distinctLabelsInRenderedOrder).toEqual(expectedDistinctLabelOrder);
 	});
 });

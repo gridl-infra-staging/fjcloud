@@ -3,11 +3,7 @@ import {
 	_parseOptionalU32 as parseOptionalU32,
 	_parseOptionalU64 as parseOptionalU64
 } from './+page.server';
-import {
-	ADMIN_SESSION_COOKIE,
-	clearAdminSessionsForTest,
-	createAdminSession
-} from '$lib/server/admin-session';
+import { adminSessionRouteEvent } from '../../admin_session_durable_test_support';
 import { DETAIL_FIXTURE } from '../admin-customer-detail.test-fixtures';
 
 vi.mock('$env/dynamic/private', () => ({
@@ -16,11 +12,9 @@ vi.mock('$env/dynamic/private', () => ({
 
 beforeEach(() => {
 	process.env.ADMIN_KEY = 'test-admin-key';
-	clearAdminSessionsForTest();
 });
 
 afterEach(() => {
-	clearAdminSessionsForTest();
 	delete process.env.ADMIN_KEY;
 	vi.clearAllMocks();
 });
@@ -88,23 +82,19 @@ function actionContext(
 	fetchHandler: (url: string, init?: RequestInit) => Promise<Response>,
 	overrides: Record<string, unknown> = {}
 ) {
-	const adminSession = createAdminSession(3600);
-	return {
+	return adminSessionRouteEvent({
 		request: new Request('http://localhost/admin/customers/test-id/action', {
 			method: 'POST',
 			body: new URLSearchParams(formParams)
 		}),
-		fetch: async (input: string | URL | Request, init?: RequestInit) => {
+		fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
 			const url =
 				typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
 			return fetchHandler(url, init);
 		},
 		params: { id: 'aaaaaaaa-0002-0000-0000-000000000002' },
-		cookies: {
-			get: (name: string) => (name === ADMIN_SESSION_COOKIE ? adminSession.id : undefined)
-		},
 		...overrides
-	} as never;
+	}) as never;
 }
 
 function jsonResponse(body: unknown) {
@@ -119,20 +109,18 @@ function loadContext(
 	tenantId = 'aaaaaaaa-0002-0000-0000-000000000002',
 	withSession = true
 ) {
-	const adminSession = withSession ? createAdminSession(3600) : null;
-	return {
-		fetch: async (input: string | URL | Request, init?: RequestInit) => {
-			const url =
-				typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-			return fetchHandler(url, init);
+	return adminSessionRouteEvent(
+		{
+			fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url =
+					typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+				return fetchHandler(url, init);
+			},
+			params: { id: tenantId },
+			depends: vi.fn()
 		},
-		params: { id: tenantId },
-		depends: vi.fn(),
-		cookies: {
-			get: (name: string) =>
-				name === ADMIN_SESSION_COOKIE && adminSession ? adminSession.id : undefined
-		}
-	} as never;
+		withSession ? 'active' : 'revoked'
+	) as never;
 }
 
 describe('load', () => {
@@ -334,6 +322,28 @@ describe('actions.updateQuotas', () => {
 		expect(data.success).toBe(false);
 		expect(data.error).toBeTruthy();
 	});
+});
+
+describe('session loss after action validation', () => {
+	it.each([401, 403])(
+		'redirects reactivate to admin login when the API returns %i',
+		async (status) => {
+			const { actions } = await import('./+page.server');
+			const ctx = actionContext(
+				{},
+				async () =>
+					new Response(JSON.stringify({ error: 'session no longer valid' }), {
+						status,
+						headers: { 'content-type': 'application/json' }
+					})
+			);
+
+			await expect(actions.reactivate(ctx)).rejects.toMatchObject({
+				status: 303,
+				location: '/admin/login'
+			});
+		}
+	);
 });
 
 describe('actions.terminateDeployment', () => {
@@ -552,7 +562,9 @@ describe('actions.impersonate', () => {
 			};
 		};
 		ctxAny.url = new URL('http://localhost/admin/customers/test-id');
-		const originalGet = ctxAny.cookies.get;
+		// Bind before detaching: the shared cookie jar is a class instance, so an
+		// unbound `get` would lose `this` and never see the session cookie.
+		const originalGet = ctxAny.cookies.get.bind(ctxAny.cookies);
 		ctxAny.cookies = {
 			get: originalGet,
 			set: (name: string, value: string) => {

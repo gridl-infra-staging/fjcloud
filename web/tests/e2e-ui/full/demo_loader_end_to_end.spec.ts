@@ -2,8 +2,8 @@ import { test, expect } from '../../fixtures/fixtures';
 import { chooseFirstAvailableRegion } from '../../fixtures/create_index_form_helpers';
 import {
 	SEARCH_PANEL_TEST_ID,
-	SEARCH_TAB_LABEL,
 	SEARCH_TAB_QUERY_VALUE,
+	getIndexDetailSearchTab,
 	startSearchPreviewSearchCapture,
 	submitSearchPreviewQuery,
 	waitForSearchPreviewHitsToContain,
@@ -78,7 +78,7 @@ test.describe('Demo loader end-to-end', () => {
 		expect(settings.attributesForFaceting).toEqual(['genre', 'director', 'year']);
 
 		const searchCapture = startSearchPreviewSearchCapture(page);
-		await page.getByRole('tab', { name: SEARCH_TAB_LABEL }).click();
+		await getIndexDetailSearchTab(page).click();
 		const searchUrl = new URL(page.url());
 		expect(searchUrl.searchParams.get('tab')).toBe(SEARCH_TAB_QUERY_VALUE);
 
@@ -94,7 +94,7 @@ test.describe('Demo loader end-to-end', () => {
 		await page.getByRole('button', { name: 'Add Record' }).click();
 		await expect(page.getByText('Document added.')).toBeVisible({ timeout: 15_000 });
 
-		await page.getByRole('tab', { name: SEARCH_TAB_LABEL }).click();
+		await getIndexDetailSearchTab(page).click();
 		await expect(page.getByTestId(SEARCH_PANEL_TEST_ID)).toBeVisible({ timeout: 10_000 });
 		await waitForSearchPreviewReady(page);
 		expect(searchCapture.payloads).toHaveLength(0);

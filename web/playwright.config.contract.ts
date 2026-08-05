@@ -23,7 +23,8 @@ export const PLAYWRIGHT_STORAGE_STATE = {
 	customerJourneys: 'tests/fixtures/.auth/customer-journeys.json',
 	admin: 'tests/fixtures/.auth/admin.json'
 } as const;
-export const PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS = 180_000;
+// Covers Flapjack/migration preflight plus the stack's separate 180-second API readiness window.
+export const PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS = 600_000;
 // Firefox/WebKit dropped 2026-05-02. Playwright-on-Linux WebKit isn't real
 // Safari (no ITP, no Apple Pay, no Stripe 3DS quirks), and Firefox is
 // ~3-6% of users — neither earns its CI cycle cost at paid-beta scale.
@@ -161,6 +162,11 @@ function isPublicOnlyPlaywrightSelection(argv: string[]): boolean {
 const PLAYWRIGHT_DEFAULT_PORT_HASH_MIN = 5600;
 const PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN = 2000;
 const PLAYWRIGHT_DEFAULT_API_PORT_HASH_MIN = 7600;
+// Chromium blocks these ports inside the derived web band for all HTTP requests.
+// Advancing to the next safe port preserves deterministic workspace isolation.
+const CHROMIUM_BLOCKED_PLAYWRIGHT_WEB_PORTS = new Set([
+	6000, 6566, 6665, 6666, 6667, 6668, 6669, 6697
+]);
 // Flapjack band sits above web (5600–7599), API (7600–9599), and the API's S3 sidecar
 // (apiPort+1, ≤9600) so the three workspace-derived ports — which all share the same
 // hash offset — never collide. 9700 + offset(0–1999) → 9700–11699, safely below 65535.
@@ -200,7 +206,11 @@ export function resolveDefaultPlaywrightWebPort(workspacePath: string = process.
 		return 5173;
 	}
 	const portOffset = hashStringFNV1A(normalizedWorkspacePath) % PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN;
-	return PLAYWRIGHT_DEFAULT_PORT_HASH_MIN + portOffset;
+	let derivedPort = PLAYWRIGHT_DEFAULT_PORT_HASH_MIN + portOffset;
+	while (CHROMIUM_BLOCKED_PLAYWRIGHT_WEB_PORTS.has(derivedPort)) {
+		derivedPort += 1;
+	}
+	return derivedPort;
 }
 
 export function resolveDefaultPlaywrightApiPort(workspacePath: string = process.cwd()): number {
@@ -304,6 +314,21 @@ export const PLAYWRIGHT_PROJECT_CONTRACTS: PlaywrightProjectContract[] = [
 		use: { desktopBrowser: 'chromium' }
 	},
 	{
+		name: 'chromium:security-headers',
+		testMatch: /e2e-ui\/full\/security_headers\.spec\.ts/,
+		use: { desktopBrowser: 'chromium' }
+	},
+	{
+		// Hermetic browser contracts: every request including the document is
+		// fulfilled by page.route, so these need no application, no database and
+		// no host ports. They must stay dependency-free — adding a `dependencies`
+		// entry here would couple them to the contended local stack and defeat
+		// the reason they exist.
+		name: 'chromium:contract',
+		testMatch: /e2e-ui\/contract\/.+\.spec\.ts/,
+		use: { desktopBrowser: 'chromium' }
+	},
+	{
 		name: EMAIL_VERIFICATION_PROJECT_NAME,
 		testMatch: /e2e-ui\/full\/auth-end-effects\.spec\.ts/,
 		use: { desktopBrowser: 'chromium' }
@@ -320,7 +345,7 @@ export const PLAYWRIGHT_PROJECT_CONTRACTS: PlaywrightProjectContract[] = [
 	{
 		name: 'chromium',
 		testMatch:
-			/e2e-ui\/(smoke|full)\/(?!accessibility\.|admin|public-|onboarding\.|customer-journeys\.|signup_to_paid_invoice\.).+\.spec\.ts/,
+			/e2e-ui\/(smoke|full)\/(?!accessibility\.|admin|public-|onboarding\.|customer-journeys\.|signup_to_paid_invoice\.|security_headers\.).+\.spec\.ts/,
 		dependencies: ['setup:user'],
 		use: {
 			desktopBrowser: 'chromium',
@@ -606,6 +631,8 @@ export function resolvePlaywrightRuntime({
 		hasExplicitBaseUrl &&
 		isNoDepsPlaywrightSelection(argv) &&
 		!isRemoteTargetOptInActive(processEnv);
+	const shouldStartSpawnedLocalWebServer =
+		shouldStartExplicitNoDepsWebServer || !hasExplicitBaseUrl;
 	if (!hasExplicitBaseUrl) {
 		processEnv.BASE_URL = baseURL;
 		// Local spawned-stack runs must ignore static API_BASE_URL/API_URL values
@@ -668,6 +695,12 @@ export function resolvePlaywrightRuntime({
 				SKIP_EMAIL_VERIFICATION: '1',
 				API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION: '1'
 			};
+	const spawnedLocalWebServerEnv = shouldStartSpawnedLocalWebServer
+		? {
+				ENVIRONMENT: 'local',
+				FJCLOUD_ALLOW_LOOPBACK_SOURCE_ORIGINS: '1'
+			}
+		: {};
 	const webServerEnv = sanitizeWebServerEnv({
 		...repoEnv,
 		...webEnv,
@@ -696,14 +729,12 @@ export function resolvePlaywrightRuntime({
 			DEFAULT_PLAYWRIGHT_ADMIN_KEY,
 		// The Apr27 hardening (commit d4dde081 "Harden signup verification
 		// bypass") gated SKIP_EMAIL_VERIFICATION on ENVIRONMENT ∈
-		// {local,dev,development}. Both must be set together for the spawned
-		// API server to auto-verify signups, otherwise /signup → /console
-		// redirects back to /login because verification is required, breaking
-		// every fixture in tests/fixtures/onboarding-auth-shared.ts and
-		// auth.setup.ts. These ONLY apply to the locally-spawned webServer
-		// (this whole block is skipped when processEnv.BASE_URL is set, e.g.
-		// running playwright against a real remote deploy).
-		ENVIRONMENT: 'local',
+		// {local,dev,development}. The ENVIRONMENT flag and loopback-source
+		// opt-in belong only on spawned local servers; explicit BASE_URL runs
+		// keep the verification bypass values for helper parity, but must not
+		// advertise the migrate-loopback exception to an already-running or
+		// remote target.
+		...spawnedLocalWebServerEnv,
 		...localEmailVerificationEnv
 	});
 

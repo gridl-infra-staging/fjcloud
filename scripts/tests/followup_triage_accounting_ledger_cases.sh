@@ -51,9 +51,22 @@ write_feed() {
         > "$repo_root/chats/icg/_followups.md"
 }
 
+pin_current_feed() {
+    local repo_root="$1" message="$2"
+    git -C "$repo_root" init -q
+    git -C "$repo_root" add chats/icg/_followups.md
+    git -C "$repo_root" \
+        -c user.email=fixture@example.invalid \
+        -c user.name=Fixture \
+        commit -q -m "$message"
+    git -C "$repo_root" rev-parse HEAD
+}
+
 write_rewrite_outcome() {
     local repo_root="$1" post_pin_arrivals="$2" readmitted_out_of_window="$3"
     local singleton_residual_open="${4:-0}"
+    local post_pin_arrival_identities="${5:-}"
+    local post_reconciliation_arrival_identities="${6:-}"
     printf '%s\n' \
         "" \
         "## Rewrite outcome" \
@@ -62,6 +75,48 @@ write_rewrite_outcome() {
         "- post_pin_arrivals: $post_pin_arrivals" \
         "- readmitted_out_of_window: $readmitted_out_of_window" \
         >> "$repo_root/docs/audits/followup-triage/TRIAGE.md"
+    write_post_pin_arrival_identities "$repo_root" "$post_pin_arrival_identities"
+    write_post_reconciliation_arrival_identities \
+        "$repo_root" "$post_reconciliation_arrival_identities"
+}
+
+write_identity_block() {
+    local repo_root="$1" heading="$2" identities="$3"
+    printf '%s\n' \
+        "" \
+        "$heading" \
+        "" \
+        '```text' \
+        >> "$repo_root/docs/audits/followup-triage/TRIAGE.md"
+    if [ -n "$identities" ]; then
+        printf '%s\n' "$identities" \
+            >> "$repo_root/docs/audits/followup-triage/TRIAGE.md"
+    fi
+    printf '%s\n' '```' >> "$repo_root/docs/audits/followup-triage/TRIAGE.md"
+}
+
+# Appends the frozen reconciliation-snapshot post-pin arrivals. The
+# `post_pin_arrivals` scalar must match this block's cardinality.
+write_post_pin_arrival_identities() {
+    local repo_root="$1" identities="$2"
+    write_identity_block \
+        "$repo_root" "### post_pin_arrivals identities" "$identities"
+}
+
+write_post_reconciliation_arrival_identities() {
+    local repo_root="$1" identities="$2"
+    write_identity_block \
+        "$repo_root" "### post_reconciliation_arrival identities" "$identities"
+}
+
+# The singleton residual block is optional by absence, so it is written only by
+# the cases that hold a pinned singleton under `## Open`. Call it after
+# `write_rewrite_outcome`, whose `singleton_residual_open` scalar must match this
+# block's cardinality.
+write_singleton_residual_identities() {
+    local repo_root="$1" identities="$2"
+    write_identity_block \
+        "$repo_root" "### singleton_residual_open identities" "$identities"
 }
 
 run_check() {
@@ -75,7 +130,18 @@ run_structure() {
     local repo_root="$1"
     RUN_EXIT_CODE=0
     RUN_OUTPUT="$(
-        FJCLOUD_REPO_ROOT="$repo_root" bash "$CHECK_SCRIPT" --structure-only 2>&1
+        FJCLOUD_STRUCTURE_FIXTURE_ALLOW_MISSING_PIN=1 \
+            FJCLOUD_REPO_ROOT="$repo_root" \
+            bash "$CHECK_SCRIPT" --structure-only 2>&1
+    )" || RUN_EXIT_CODE=$?
+}
+
+run_structure_requiring_pin() {
+    local repo_root="$1"
+    RUN_EXIT_CODE=0
+    RUN_OUTPUT="$(
+        FJCLOUD_REPO_ROOT="$repo_root" \
+            bash "$CHECK_SCRIPT" --structure-only 2>&1
     )" || RUN_EXIT_CODE=$?
 }
 
@@ -83,7 +149,9 @@ run_repository_verdict_fixture() {
     local repo_root="$1"
     RUN_EXIT_CODE=0
     RUN_OUTPUT="$(
-        FOLLOWUP_TRIAGE_TEST_CHILD=1 FJCLOUD_REPO_ROOT="$repo_root" \
+        FOLLOWUP_TRIAGE_TEST_CHILD=1 \
+            FJCLOUD_STRUCTURE_FIXTURE_ALLOW_MISSING_PIN=1 \
+            FJCLOUD_REPO_ROOT="$repo_root" \
             bash "$CHECK_SCRIPT" --repo-verdict 2>&1
     )" || RUN_EXIT_CODE=$?
 }
@@ -129,13 +197,7 @@ write_pinned_scope_fixture() {
   status: open
 - lane_id: lane-b::second
   status: open'
-    git -C "$repo_root" init -q
-    git -C "$repo_root" add chats/icg/_followups.md
-    git -C "$repo_root" \
-        -c user.email=fixture@example.invalid \
-        -c user.name=Fixture \
-        commit -q -m "pin scope fixture"
-    pin="$(git -C "$repo_root" rev-parse HEAD)"
+    pin="$(pin_current_feed "$repo_root" "pin scope fixture")"
     write_ledger "$repo_root" "6" "$rows" "$pin"
 }
 

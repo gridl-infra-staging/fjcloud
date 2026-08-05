@@ -107,7 +107,11 @@ async fn has_active_reservation(pool: &PgPool, id: Uuid) -> bool {
 async fn hard_erase_customer(pool: &PgPool, customer_id: Uuid) {
     soft_delete_customer(pool, customer_id).await;
     PgCustomerRepo::new(pool.clone())
-        .hard_delete(customer_id, CustomerHardDeleteKind::PrivacyErasure)
+        .hard_delete(
+            customer_id,
+            CustomerHardDeleteKind::PrivacyErasure,
+            api::repos::CustomerHardDeleteAuditPolicy::NoAudit,
+        )
         .await
         .expect("hard-erase customer");
 }

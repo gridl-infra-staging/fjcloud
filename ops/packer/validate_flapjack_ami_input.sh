@@ -5,6 +5,7 @@ EXPECTED_SCHEMA_VERSION=1
 EXPECTED_TARGET="aarch64-unknown-linux-musl"
 EXPECTED_ARCH="aarch64"
 EXPECTED_PROFILE="release"
+BUILD_INFO_IMAGE="public.ecr.aws/amazonlinux/amazonlinux:2023"
 
 usage() {
   cat <<USAGE
@@ -12,6 +13,10 @@ Usage: validate_flapjack_ami_input.sh --manifest <manifest.json> --archive <arch
 
 Validates the selected upstream Flapjack E3 release manifest/archive pair and
 extracts the single flapjack executable to --out.
+
+Cross-platform fallback requires Docker image $BUILD_INFO_IMAGE when the host
+cannot execute the Linux ARM64 artifact directly. Docker must be installed and
+its daemon must be available; the image is pulled through Docker when absent.
 USAGE
 }
 
@@ -167,8 +172,30 @@ validate_build_info_matches_manifest() {
   local binary_path="$1"
   local manifest_build binary_build
   manifest_build="$(jq -S -c '.build' "$MANIFEST_PATH")" || fail "manifest build object is invalid"
-  binary_build="$("$binary_path" build-info --json | jq -S -c '.')" || fail "flapjack build-info --json failed"
+  binary_build="$(read_binary_build_info "$binary_path" | jq -S -c '.')" \
+    || fail "flapjack build-info --json failed"
   [[ "$manifest_build" == "$binary_build" ]] || fail "flapjack build-info --json does not match manifest .build"
+}
+
+read_binary_build_info() {
+  local binary_path="$1"
+  local build_info
+  if build_info="$("$binary_path" build-info --json 2>/dev/null)"; then
+    printf '%s\n' "$build_info"
+    return
+  fi
+
+  read_binary_build_info_in_linux_container "$binary_path"
+}
+
+read_binary_build_info_in_linux_container() {
+  local binary_path="$1"
+  require_command docker
+  docker run --rm --interactive \
+    --platform linux/arm64 \
+    "$BUILD_INFO_IMAGE" \
+    sh -c 'cat > /tmp/flapjack && chmod 0755 /tmp/flapjack && /tmp/flapjack build-info --json' \
+    <"$binary_path"
 }
 
 main() {

@@ -1,26 +1,45 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, expectTypeOf, it } from 'vitest';
 import type {
 	AlgoliaDestinationEligibilityRequest,
 	AlgoliaDestinationEligibilityResponse,
 	AlgoliaMigrationAvailabilityResponse,
+	AlgoliaMigrationPreviewRequest,
 	AlgoliaSourceListResponse,
 	CancelAlgoliaImportJobRequest,
-	PublicAlgoliaImportJobPage
+	MeilisearchMigrationPreviewRequest,
+	VerifySourceMigrationHitComparison,
+	VerifySourceMigrationQueryReport,
+	VerifySourceMigrationRequest,
+	VerifySourceMigrationResponse,
+	PublicAlgoliaImportJobPage,
+	MigrationPreviewArguments
 } from './types';
+import { MIGRATION_PREVIEW_SOURCE_PROVIDERS } from './types';
 import { BASE_URL, createAuthenticatedClient, mockFetch } from './client.test.shared';
 import {
 	AUTH_HEADERS,
+	expectApiRequestError,
 	CLOSED_SOURCE_PROVIDERS,
 	VOLATILE_SOURCE_CREDENTIALS,
 	fullSourceMetadata,
+	mockFetchWithHeaders,
 	neutralCreateRequest,
+	neutralPreviewArguments,
 	neutralSourceListRequest,
+	previewResponse,
 	publicJob,
+	requestInit,
 	serializedRequest,
+	verifySourceMigrationRequest,
+	verifySourceMigrationResponse,
 	type NeutralMigrationClient,
 	type NeutralResumeRequest,
 	type PublicJobWithSourceProvider
 } from './client_migration_test_fixtures';
+
+type ExpectedMigrationPreviewArguments =
+	| [sourceProvider: 'algolia', request: AlgoliaMigrationPreviewRequest]
+	| [sourceProvider: 'meilisearch', request: MeilisearchMigrationPreviewRequest];
 
 describe('ApiClient - neutral migration source provider contract', () => {
 	let client: NeutralMigrationClient;
@@ -35,7 +54,13 @@ describe('ApiClient - neutral migration source provider contract', () => {
 			const expected: AlgoliaMigrationAvailabilityResponse = {
 				available: true,
 				message: `${sourceProvider} migration is available.`,
-				capabilities: { cancel: true, resume: true, replace: sourceProvider === 'algolia' }
+				capabilities: {
+					cancel: true,
+					resume: true,
+					replace: sourceProvider === 'algolia',
+					preview: true,
+					verify: false
+				}
 			};
 			const fetch = mockFetch(200, expected);
 			client.setFetch(fetch);
@@ -133,6 +158,211 @@ describe('ApiClient - neutral migration source provider contract', () => {
 			expect((result as PublicJobWithSourceProvider).sourceProvider).toBe(sourceProvider);
 		}
 	);
+
+	it.each(MIGRATION_PREVIEW_SOURCE_PROVIDERS)(
+		'POST /migration/%s/preview forwards the published provider-specific preview body',
+		async (sourceProvider) => {
+			const expected = previewResponse(sourceProvider);
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+			const previewArguments = neutralPreviewArguments(sourceProvider);
+			const request = previewArguments[1];
+
+			const result = await client.previewMigrationImport(...previewArguments);
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/migration/${sourceProvider}/preview`, {
+				method: 'POST',
+				headers: AUTH_HEADERS,
+				body: JSON.stringify(request)
+			});
+			expect(result).toEqual(expected);
+			expect(result.sourceCounts).toEqual({ indexes: 3, records: 42 });
+			expect(result.report.summary).toEqual({
+				totalEntries: 2,
+				hardRejections: 1,
+				warnings: 1,
+				scopeGaps: 0
+			});
+			expect(result.report.entries[1]).toEqual({
+				severity: 'HardRejection',
+				code: 'MalformedDocumentPayload',
+				resource: 'Document',
+				pageIndex: 1,
+				itemIndex: 7,
+				jsonPath: '$.hits[7]'
+			});
+		}
+	);
+
+	it('previews without allocating a create idempotency key', async () => {
+		const fetch = mockFetch(200, previewResponse('algolia'));
+		client.setFetch(fetch);
+
+		await client.previewMigrationImport(...neutralPreviewArguments('algolia'));
+
+		const headers = requestInit(fetch).headers as Record<string, string>;
+		expect(Object.keys(headers)).toEqual(['Content-Type', 'Authorization']);
+		expect(headers['idempotency-key']).toBeUndefined();
+	});
+
+	it('POST /migration/algolia/verify forwards the exact verification body without a create idempotency key', async () => {
+		const expected = verifySourceMigrationResponse();
+		const fetch = mockFetch(200, expected);
+		client.setFetch(fetch);
+		const request = verifySourceMigrationRequest();
+
+		const result = await client.verifySourceMigration('algolia', request);
+
+		expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/migration/algolia/verify`, {
+			method: 'POST',
+			headers: AUTH_HEADERS,
+			body: JSON.stringify(request)
+		});
+		expect(result).toEqual(expected);
+		expect(result.queries[0]).toEqual({
+			query: 'running shoes',
+			overlapCount: 3,
+			sourceOnly: ['p2'],
+			destinationOnly: ['p5'],
+			hits: [
+				{ objectID: 'p1', sourceRank: 1, destinationRank: 3, rankDelta: 2 },
+				{ objectID: 'p3', sourceRank: 3, destinationRank: 1, rankDelta: -2 },
+				{ objectID: 'p4', sourceRank: 4, destinationRank: 4, rankDelta: 0 }
+			]
+		});
+		const headers = requestInit(fetch).headers as Record<string, string>;
+		expect(headers).toEqual(AUTH_HEADERS);
+		expect(headers['idempotency-key']).toBeUndefined();
+	});
+
+	it('redacts structured verification error bodies while preserving public code and message fields', async () => {
+		const request = verifySourceMigrationRequest();
+		const fetch = mockFetchWithHeaders(
+			403,
+			{
+				error: 'missing_source_permission',
+				message: 'The source key cannot search source_products',
+				code: 'missing_source_permission',
+				appId: request.appId,
+				apiKey: request.apiKey,
+				nested: { authorization: `Bearer ${request.apiKey}`, message: 'public detail' }
+			},
+			{ 'x-request-id': 'verify-redaction-request' }
+		);
+		client.setFetch(fetch);
+
+		await expectApiRequestError(() => client.verifySourceMigration('algolia', request), {
+			status: 403,
+			body: {
+				error: 'missing_source_permission',
+				message: 'The source key cannot search source_products',
+				code: 'missing_source_permission',
+				appId: '[REDACTED]',
+				apiKey: '[REDACTED]',
+				nested: { authorization: '[REDACTED]', message: 'public detail' }
+			},
+			requestId: 'verify-redaction-request'
+		});
+		expect(serializedRequest(fetch)).toContain(request.apiKey);
+	});
+
+	it('barrel-exports the exact source verification request and response shapes', () => {
+		const request: VerifySourceMigrationRequest = verifySourceMigrationRequest();
+		const hit: VerifySourceMigrationHitComparison = {
+			objectID: 'p3',
+			sourceRank: 3,
+			destinationRank: 1,
+			rankDelta: -2
+		};
+		const query: VerifySourceMigrationQueryReport = {
+			query: 'running shoes',
+			overlapCount: 3,
+			sourceOnly: ['p2'],
+			destinationOnly: ['p5'],
+			hits: [hit]
+		};
+		const response: VerifySourceMigrationResponse = {
+			sourceIndex: request.sourceIndex,
+			destinationIndex: request.destinationIndex,
+			resultLimit: request.resultLimit,
+			queries: [query]
+		};
+
+		expect(request).toEqual({
+			appId: 'ALGOLIA_VERIFY_APP_CANARY',
+			apiKey: 'algolia-verify-key-canary',
+			sourceIndex: 'source_products',
+			destinationIndex: 'fj_products',
+			queries: ['running shoes'],
+			resultLimit: 4
+		});
+		expect(response.queries[0].hits[0]).toEqual({
+			objectID: 'p3',
+			sourceRank: 3,
+			destinationRank: 1,
+			rankDelta: -2
+		});
+	});
+
+	it('redacts reflected source credentials from preview error bodies', async () => {
+		const previewArguments = neutralPreviewArguments('meilisearch');
+		const reflectedApiKey = previewArguments[1].apiKey;
+		const fetch = mockFetchWithHeaders(
+			400,
+			{
+				error: 'Preview rejected',
+				apiKey: reflectedApiKey,
+				nested: {
+					token: 'server-generated-retry-token',
+					context: 'keep this field'
+				},
+				events: [{ authorization: 'Bearer server-generated-access-token' }]
+			},
+			{ 'x-request-id': 'preview-redaction-request' }
+		);
+		client.setFetch(fetch);
+
+		await expectApiRequestError(() => client.previewMigrationImport(...previewArguments), {
+			status: 400,
+			body: {
+				error: 'Preview rejected',
+				apiKey: '[REDACTED]',
+				nested: {
+					token: '[REDACTED]',
+					context: 'keep this field'
+				},
+				events: [{ authorization: '[REDACTED]' }]
+			},
+			requestId: 'preview-redaction-request'
+		});
+	});
+
+	it('exposes exactly one migration preview method and no per-provider preview aliases', () => {
+		expectTypeOf<
+			Parameters<typeof client.previewMigrationImport>
+		>().toEqualTypeOf<ExpectedMigrationPreviewArguments>();
+		expectTypeOf<MigrationPreviewArguments>().toEqualTypeOf<ExpectedMigrationPreviewArguments>();
+		const methodNames: string[] = [];
+		for (
+			let prototype = Object.getPrototypeOf(client) as object | null;
+			prototype !== null && prototype !== Object.prototype;
+			prototype = Object.getPrototypeOf(prototype) as object | null
+		) {
+			methodNames.push(...Object.getOwnPropertyNames(prototype));
+		}
+		// `postPreviewEvent` belongs to search analytics, not migration, so match on
+		// the migration/provider vocabulary rather than the bare word "preview".
+		const migrationPreviewMethods = methodNames.filter((name) => {
+			const lowercased = name.toLowerCase();
+			return (
+				lowercased.includes('preview') &&
+				(lowercased.includes('migration') ||
+					CLOSED_SOURCE_PROVIDERS.some((provider) => lowercased.includes(provider)))
+			);
+		});
+
+		expect(migrationPreviewMethods).toEqual(['previewMigrationImport']);
+	});
 
 	it.each(CLOSED_SOURCE_PROVIDERS)(
 		'GET /migration/%s/jobs keeps retained import history provider-scoped',
@@ -260,7 +490,7 @@ describe('ApiClient - neutral migration source provider contract', () => {
 		const availabilityFetch = mockFetch(200, {
 			available: true,
 			message: 'Algolia migration is available.',
-			capabilities: { cancel: true, resume: false, replace: true }
+			capabilities: { cancel: true, resume: false, replace: true, preview: true, verify: false }
 		});
 		client.setFetch(availabilityFetch);
 		await client.getAlgoliaMigrationAvailability();

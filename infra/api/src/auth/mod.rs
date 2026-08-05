@@ -1,4 +1,5 @@
 pub mod admin;
+pub mod admin_session;
 pub mod api_key;
 pub mod claims;
 pub mod error;

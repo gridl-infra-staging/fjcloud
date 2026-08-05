@@ -17,6 +17,7 @@ type AttemptRemoteSignupFallbackParams = {
 	password: string;
 	name: string;
 	createUser: CreateUserWithTokenFn;
+	beforeDocumentReplacement?: () => Promise<void>;
 	remoteTargetOptInEnv?: string;
 };
 
@@ -49,6 +50,7 @@ export async function attemptRemoteSignupFallback({
 	password,
 	name,
 	createUser,
+	beforeDocumentReplacement,
 	remoteTargetOptInEnv
 }: AttemptRemoteSignupFallbackParams): Promise<boolean> {
 	if (!isRemoteTargetMode(remoteTargetOptInEnv)) {
@@ -57,6 +59,7 @@ export async function attemptRemoteSignupFallback({
 
 	const created = await createUser(email, password, name);
 	await setAuthCookieForToken(page, created.token);
+	await beforeDocumentReplacement?.();
 	await page.goto('/console');
 	await expect(page).toHaveURL(/\/console/, { timeout: 20_000 });
 	return true;

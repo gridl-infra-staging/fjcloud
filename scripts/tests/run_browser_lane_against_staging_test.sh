@@ -124,23 +124,20 @@ write_mock_npx() {
     cat > "$root/bin/npx" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-counter_file="${TEST_NPX_COUNTER_FILE:?}"
-count=0
-if [ -f "$counter_file" ]; then
-    count="$(cat "$counter_file")"
-fi
-count=$((count + 1))
-printf '%s\n' "$count" > "$counter_file"
-
-if [ "$count" -eq 1 ]; then
-    echo "mock first lane start"
-    sleep 5
-    echo "mock first lane finished"
-    exit 0
-fi
-
-echo "mock second lane executed"
-exit 0
+case "$*" in
+    *signup_to_paid_invoice.spec.ts*)
+        echo "mock first lane start"
+        sleep 5
+        echo "mock first lane finished"
+        ;;
+    *billing_portal_payment_method_update.spec.ts*)
+        echo "mock second lane executed"
+        ;;
+    *)
+        echo "unexpected mock npx arguments: $*" >&2
+        exit 64
+        ;;
+esac
 EOF
     chmod +x "$root/bin/npx"
 }
@@ -220,7 +217,6 @@ run_browser_lane_script() {
         env -i \
             HOME="$workspace" \
             PATH="$workspace/bin:/usr/bin:/bin:/usr/local/bin" \
-            TEST_NPX_COUNTER_FILE="$workspace/npx_counter.txt" \
             TEST_NPX_ARGS_FILE="$workspace/npx_args.txt" \
             BROWSER_LANE_TIMEOUT_SECONDS="$lane_timeout_seconds" \
             bash "$workspace/scripts/launch/run_browser_lane_against_staging.sh" \

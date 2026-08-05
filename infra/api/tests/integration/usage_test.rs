@@ -1,4 +1,4 @@
-use api::repos::CustomerRepo;
+use api::repos::{CustomerRepo, UsageRepo};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use chrono::{NaiveDate, Utc};
@@ -328,6 +328,117 @@ async fn admin_get_usage_200() {
 }
 
 #[tokio::test]
+async fn admin_seed_and_delete_usage_preserves_unrelated_rows() {
+    let customer_repo = mock_repo();
+    let usage_repo = mock_usage_repo();
+    let customer = customer_repo.seed("Chart Customer", "chart@example.com");
+    let foreign_customer = customer_repo.seed("Foreign Customer", "foreign@example.com");
+    let foreign_date = NaiveDate::from_ymd_opt(2026, 8, 1).unwrap();
+    usage_repo.seed(
+        foreign_customer.id,
+        foreign_date,
+        "e2e-dashboard-usage-foreign",
+        999_999,
+        999_999,
+        0,
+        0,
+    );
+
+    let app = test_app_full(
+        customer_repo,
+        mock_deployment_repo(),
+        usage_repo.clone(),
+        mock_rate_card_repo(),
+    );
+    let region = "e2e-dashboard-usage-chart-proof";
+    let seed_body = serde_json::json!({
+        "entries": [
+            {
+                "date": "2026-08-01",
+                "region": region,
+                "search_requests": 1037,
+                "write_operations": 111,
+                "storage_bytes_avg": 2147483648_i64,
+                "documents_count_avg": 50000
+            },
+            {
+                "date": "2026-08-02",
+                "region": region,
+                "search_requests": 1074,
+                "write_operations": 122,
+                "storage_bytes_avg": 2147483648_i64,
+                "documents_count_avg": 50000
+            }
+        ]
+    });
+    let seed_response = app
+        .clone()
+        .oneshot(
+            Request::post(format!("/admin/tenants/{}/usage", customer.id))
+                .header("x-admin-key", TEST_ADMIN_KEY)
+                .header("content-type", "application/json")
+                .body(Body::from(seed_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(seed_response.status(), StatusCode::CREATED);
+    let seed_response_body: serde_json::Value = serde_json::from_slice(
+        &seed_response
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes(),
+    )
+    .unwrap();
+    assert_eq!(seed_response_body, serde_json::json!({ "seeded_rows": 2 }));
+
+    let seeded = usage_repo
+        .get_daily_usage(
+            customer.id,
+            NaiveDate::from_ymd_opt(2026, 8, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 8, 31).unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(seeded.len(), 2);
+    assert_eq!(seeded[0].search_requests, 1037);
+    assert_eq!(seeded[1].write_operations, 122);
+
+    let delete_response = app
+        .oneshot(
+            Request::delete(format!("/admin/tenants/{}/usage", customer.id))
+                .header("x-admin-key", TEST_ADMIN_KEY)
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "month": "2026-08", "region": region }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(delete_response.status(), StatusCode::NO_CONTENT);
+    assert!(usage_repo
+        .get_daily_usage(
+            customer.id,
+            NaiveDate::from_ymd_opt(2026, 8, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 8, 31).unwrap(),
+        )
+        .await
+        .unwrap()
+        .is_empty());
+    let foreign_rows = usage_repo
+        .get_daily_usage(foreign_customer.id, foreign_date, foreign_date)
+        .await
+        .unwrap();
+    assert_eq!(foreign_rows.len(), 1);
+    assert_eq!(foreign_rows[0].search_requests, 999_999);
+}
+
+#[tokio::test]
 async fn admin_get_usage_404_unknown_tenant() {
     let app = test_app_full(
         mock_repo(),
@@ -458,6 +569,53 @@ async fn admin_get_usage_404_deleted_tenant() {
         .unwrap();
 
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn admin_delete_usage_404_deleted_tenant() {
+    let customer_repo = mock_repo();
+    let usage_repo = mock_usage_repo();
+    let deleted = customer_repo.seed_deleted("Gone Corp", "gone@example.com");
+    usage_repo.seed(
+        deleted.id,
+        NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
+        "us-east-1",
+        123,
+        45,
+        0,
+        0,
+    );
+
+    let app = test_app_full(
+        customer_repo,
+        mock_deployment_repo(),
+        usage_repo.clone(),
+        mock_rate_card_repo(),
+    );
+
+    let resp = app
+        .oneshot(
+            Request::delete(format!("/admin/tenants/{}/usage", deleted.id))
+                .header("x-admin-key", TEST_ADMIN_KEY)
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "month": "2026-02", "region": "us-east-1" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    let rows = usage_repo
+        .get_daily_usage(
+            deleted.id,
+            NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 1, "deleted-tenant usage must remain untouched");
 }
 
 // ---------------------------------------------------------------------------
@@ -884,7 +1042,13 @@ async fn get_usage_daily_200_tenant_isolation() {
 async fn get_usage_daily_403_suspended_customer() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Acme", "acme@example.com");
-    customer_repo.suspend(customer.id).await.unwrap();
+    customer_repo
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
+        .await
+        .unwrap();
 
     let app = test_app_full(
         customer_repo,

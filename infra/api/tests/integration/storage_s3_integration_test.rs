@@ -354,7 +354,10 @@ async fn suspended_customer_returns_access_denied() {
 
     // Suspend the customer
     customer_repo
-        .suspend(customer.id)
+        .suspend(
+            customer.id,
+            crate::common::customer_suspended_audit_entry(customer.id),
+        )
         .await
         .expect("suspend should succeed");
 

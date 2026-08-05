@@ -24,6 +24,7 @@ pub struct CustomerTenantSummary {
     pub customer_id: Uuid,
     pub tenant_id: String,
     pub deployment_id: Uuid,
+    pub vm_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub region: String,
     pub flapjack_url: Option<String>,

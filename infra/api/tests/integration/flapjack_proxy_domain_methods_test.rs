@@ -446,6 +446,37 @@ async fn delete_synonym_sends_delete_to_synonyms_object_id() {
     assert_eq!(requests[0].json_body, None);
 }
 
+#[tokio::test]
+async fn clear_synonyms_sends_post_to_synonyms_clear() {
+    let (http, ssm, proxy) = setup().await;
+    let api_key = ssm.get_secret("node-1").unwrap();
+
+    let upstream_response = json!({"taskID": 12, "deletedAt": "2026-02-25T02:00:00Z"});
+    http.push_json_response(200, upstream_response.clone());
+
+    let result = proxy
+        .clear_synonyms(
+            "https://vm-a1.flapjack.foo",
+            "node-1",
+            "us-east-1",
+            "products",
+        )
+        .await
+        .expect("clear_synonyms should succeed");
+
+    assert_eq!(result, upstream_response);
+
+    let requests = http.take_requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].method, reqwest::Method::POST);
+    assert_eq!(
+        requests[0].url,
+        "https://vm-a1.flapjack.foo/1/indexes/products/synonyms/clear"
+    );
+    assert_eq!(requests[0].api_key, api_key);
+    assert_eq!(requests[0].json_body, None);
+}
+
 // ---------------------------------------------------------------------------
 // Stage 5: query suggestions
 // ---------------------------------------------------------------------------
@@ -641,6 +672,37 @@ async fn get_qs_status_sends_get_to_configs_index_name_status() {
     assert_eq!(
         requests[0].url,
         "https://vm-a1.flapjack.foo/1/configs/products/status"
+    );
+    assert_eq!(requests[0].api_key, api_key);
+    assert_eq!(requests[0].json_body, None);
+}
+
+#[tokio::test]
+async fn build_qs_config_sends_post_to_configs_index_name_build() {
+    let (http, ssm, proxy) = setup().await;
+    let api_key = ssm.get_secret("node-1").unwrap();
+
+    let build_response = json!({"taskID": 27, "status": "queued"});
+    http.push_json_response(200, build_response.clone());
+
+    let result = proxy
+        .build_qs_config(
+            "https://vm-a1.flapjack.foo",
+            "node-1",
+            "us-east-1",
+            "products",
+        )
+        .await
+        .expect("build_qs_config should succeed");
+
+    assert_eq!(result, build_response);
+
+    let requests = http.take_requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].method, reqwest::Method::POST);
+    assert_eq!(
+        requests[0].url,
+        "https://vm-a1.flapjack.foo/1/configs/products/build"
     );
     assert_eq!(requests[0].api_key, api_key);
     assert_eq!(requests[0].json_body, None);

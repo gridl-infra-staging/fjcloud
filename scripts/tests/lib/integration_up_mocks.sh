@@ -118,6 +118,7 @@ fi
 exit 0
 '
     write_mock_script "$tmp_dir/curl" 'exit 0'
+    write_mock_script "$tmp_dir/lsof" 'exit 1'
 }
 
 setup_isolated_startup_mocks() {
@@ -134,6 +135,7 @@ fi
 exit 0
 '
     write_mock_script "$tmp_dir/curl" 'exit 0'
+    write_mock_script "$tmp_dir/lsof" 'exit 1'
 }
 
 cleanup_startup_mocks() {

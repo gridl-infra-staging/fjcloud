@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { adminSessionRouteEvent } from '../admin_session_durable_test_support';
 import { isActionFailure } from '@sveltejs/kit';
 import type { ActionFailure } from '@sveltejs/kit';
 import type { VmHostMetricsResponse, VmInventoryItem } from '$lib/admin-client';
@@ -76,10 +77,12 @@ describe('Fleet page server load', () => {
 			return new Response(JSON.stringify([]), { status: 200 });
 		};
 
-		const result = await load({
-			fetch: mockFetch,
-			depends: () => {}
-		} as never);
+		const result = await load(
+			adminSessionRouteEvent({
+				fetch: mockFetch,
+				depends: () => {}
+			}) as never
+		);
 
 		expect(result!.fleet).toEqual(FLEET_FIXTURES);
 		expect(result!.fleetAvailable).toBe(true);
@@ -123,10 +126,12 @@ describe('Fleet page server load', () => {
 			return new Response(JSON.stringify([]), { status: 200 });
 		};
 
-		const result = await load({
-			fetch: mockFetch,
-			depends: () => {}
-		} as never);
+		const result = await load(
+			adminSessionRouteEvent({
+				fetch: mockFetch,
+				depends: () => {}
+			}) as never
+		);
 
 		expect(result!.fleet).toEqual(FLEET_FIXTURES);
 		expect(result!.fleetAvailable).toBe(true);
@@ -160,10 +165,12 @@ describe('Fleet page server load', () => {
 			return new Response(JSON.stringify([]), { status: 200 });
 		};
 
-		const result = await load({
-			fetch: mockFetch,
-			depends: () => {}
-		} as never);
+		const result = await load(
+			adminSessionRouteEvent({
+				fetch: mockFetch,
+				depends: () => {}
+			}) as never
+		);
 
 		expect(capturedPaths.some((p) => p.includes('/admin/fleet'))).toBe(true);
 		expect(capturedPaths.some((p) => p.endsWith('/admin/vms'))).toBe(true);
@@ -204,10 +211,12 @@ describe('Fleet page server load', () => {
 			return new Response(JSON.stringify([]), { status: 200 });
 		};
 
-		const result = await load({
-			fetch: mockFetch,
-			depends: () => {}
-		} as never);
+		const result = await load(
+			adminSessionRouteEvent({
+				fetch: mockFetch,
+				depends: () => {}
+			}) as never
+		);
 
 		expect(result!.hostMetricsByVmId).toEqual({
 			[VM_FIXTURES[0].id]: HOST_METRICS_FIXTURE,
@@ -245,10 +254,12 @@ describe('Fleet page server load', () => {
 			return new Response(JSON.stringify([]), { status: 200 });
 		};
 
-		const result = await load({
-			fetch: mockFetch,
-			depends: () => {}
-		} as never);
+		const result = await load(
+			adminSessionRouteEvent({
+				fetch: mockFetch,
+				depends: () => {}
+			}) as never
+		);
 
 		expect(result!.fleet).toEqual([]);
 		expect(result!.fleetAvailable).toBe(false);
@@ -283,10 +294,12 @@ describe('Fleet page server load', () => {
 			return new Response(JSON.stringify([]), { status: 200 });
 		};
 
-		const result = await load({
-			fetch: mockFetch,
-			depends: () => {}
-		} as never);
+		const result = await load(
+			adminSessionRouteEvent({
+				fetch: mockFetch,
+				depends: () => {}
+			}) as never
+		);
 
 		expect(result!.fleet).toHaveLength(5);
 		expect(result!.fleetAvailable).toBe(true);
@@ -314,10 +327,12 @@ describe('Fleet page server load', () => {
 			return new Response(JSON.stringify([]), { status: 200 });
 		};
 
-		const result = await load({
-			fetch: mockFetch,
-			depends: () => {}
-		} as never);
+		const result = await load(
+			adminSessionRouteEvent({
+				fetch: mockFetch,
+				depends: () => {}
+			}) as never
+		);
 
 		expect(result!.fleet).toEqual(FLEET_FIXTURES);
 		expect(result!.fleetAvailable).toBe(true);
@@ -336,10 +351,12 @@ describe('Fleet page server load', () => {
 			return new Response('Internal Server Error', { status: 500 });
 		};
 
-		const result = await load({
-			fetch: mockFetch,
-			depends: () => {}
-		} as never);
+		const result = await load(
+			adminSessionRouteEvent({
+				fetch: mockFetch,
+				depends: () => {}
+			}) as never
+		);
 
 		expect(result!.fleet).toEqual([]);
 		expect(result!.fleetAvailable).toBe(false);
@@ -349,6 +366,22 @@ describe('Fleet page server load', () => {
 		expect(result!.hostMetricsByVmId).toEqual({});
 		expect(result!.replicaPlacementAvailable).toBe(false);
 	});
+
+	it.each([401, 403])(
+		'redirects to admin login when a post-validation fleet request returns %i',
+		async (status) => {
+			const { load } = await import('./+page.server');
+
+			await expect(
+				load(
+					adminSessionRouteEvent({
+						fetch: async () => new Response('session no longer valid', { status }),
+						depends: () => {}
+					}) as never
+				)
+			).rejects.toMatchObject({ status: 303, location: '/admin/login' });
+		}
+	);
 });
 
 describe('Fleet page server actions', () => {
@@ -363,23 +396,27 @@ describe('Fleet page server actions', () => {
 		const form = new FormData();
 		form.set('vmId', remoteVm.id);
 
-		const result = await actions.killVm({
-			request: new Request('http://example.test/admin/fleet', {
-				method: 'POST',
-				body: form
-			}),
-			fetch: async (input: string | URL | Request) => {
-				const path = requestPath(input);
-				requestedPaths.push(path);
-				if (path.endsWith('/admin/vms')) {
-					return new Response(JSON.stringify([remoteVm]), { status: 200 });
+		const result = await actions.killVm(
+			adminSessionRouteEvent({
+				request: new Request('http://example.test/admin/fleet', {
+					method: 'POST',
+					body: form
+				}),
+				fetch: async (input: string | URL | Request) => {
+					const path = requestPath(input);
+					requestedPaths.push(path);
+					if (path.endsWith('/admin/vms')) {
+						return new Response(JSON.stringify([remoteVm]), { status: 200 });
+					}
+					if (path.includes('/kill')) {
+						return new Response(JSON.stringify({ region: 'remote', port: 9999 }), { status: 200 });
+					}
+					return new Response(JSON.stringify({ error: `unexpected path ${path}` }), {
+						status: 500
+					});
 				}
-				if (path.includes('/kill')) {
-					return new Response(JSON.stringify({ region: 'remote', port: 9999 }), { status: 200 });
-				}
-				return new Response(JSON.stringify({ error: `unexpected path ${path}` }), { status: 500 });
-			}
-		} as never);
+			}) as never
+		);
 
 		expectActionFailure<{ error: string }>(result);
 		expect(result.status).toBe(403);
@@ -394,13 +431,15 @@ describe('Fleet page server actions', () => {
 		const form = new FormData();
 		form.set('vmId', '../customers/target?force=1');
 
-		const result = await actions.killVm({
-			request: new Request('http://example.test/admin/fleet', {
-				method: 'POST',
-				body: form
-			}),
-			fetch: fetchSpy
-		} as never);
+		const result = await actions.killVm(
+			adminSessionRouteEvent({
+				request: new Request('http://example.test/admin/fleet', {
+					method: 'POST',
+					body: form
+				}),
+				fetch: fetchSpy
+			}) as never
+		);
 
 		expectActionFailure<{ error: string }>(result);
 		expect(result.status).toBe(400);

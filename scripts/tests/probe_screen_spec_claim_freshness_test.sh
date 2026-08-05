@@ -179,19 +179,31 @@ test_known_claim_controls_and_link_classes() {
     assert_contains "$RUN_OUTPUT" "class=missing_evidence raw_target=runbooks/evidence/database-recovery/20260525T231835Z_a4_coverage/drill_unit.log" "database drill_unit missing evidence should be distinct"
     assert_contains "$RUN_OUTPUT" "class=missing_evidence raw_target=runbooks/evidence/database-recovery/20260525T231835Z_a4_coverage/evidence_static.log" "database evidence_static missing evidence should be distinct"
     assert_contains "$RUN_OUTPUT" "class=missing_evidence raw_target=runbooks/evidence/database-recovery/20260525T231835Z_a4_coverage/evidence_unit.log" "database evidence_unit missing evidence should be distinct"
-    assert_contains "$RUN_OUTPUT" "screen_spec_evidence_lines=9" "fixture evidence-line denominator should be exact"
-    assert_contains "$RUN_OUTPUT" "screen_spec_recheckable_lines=9" "fixture recheckable-line denominator should include legacy event control"
-    assert_contains "$RUN_OUTPUT" "screen_spec_atomic_predicates=26" "fixture atomic-predicate denominator should count each target-token pair"
-    assert_contains "$RUN_OUTPUT" "screen_spec_holds=15" "fixture holding-predicate count should be exact"
-    assert_contains "$RUN_OUTPUT" "screen_spec_contradictions=11" "fixture contradiction count should include every present token"
-    assert_contains "$RUN_OUTPUT" "screen_spec_unparsed_lines=1" "fixture prose scope should remain observable"
-    assert_contains "$RUN_OUTPUT" "screen_spec_dead_claim_paths=0" "fixture dead-claim-path count should be exact"
+    assert_contains "$RUN_OUTPUT" "claim_evidence_lines=9" "fixture evidence-line denominator should be exact"
+    assert_contains "$RUN_OUTPUT" "claim_recheckable_lines=9" "fixture recheckable-line denominator should include legacy event control"
+    assert_contains "$RUN_OUTPUT" "claim_atomic_predicates=26" "fixture atomic-predicate denominator should count each target-token pair"
+    assert_contains "$RUN_OUTPUT" "claim_holds=15" "fixture holding-predicate count should be exact"
+    assert_contains "$RUN_OUTPUT" "claim_contradictions=11" "fixture contradiction count should include every present token"
+    assert_contains "$RUN_OUTPUT" "claim_unparsed_lines=1" "fixture prose scope should remain observable"
+    assert_contains "$RUN_OUTPUT" "claim_dead_claim_paths=0" "fixture dead-claim-path count should be exact"
     assert_contains "$RUN_OUTPUT" "links_total=15" "local-link denominator should be exact"
     assert_contains "$RUN_OUTPUT" "links_clean=7" "clean local-link count should be exact"
     assert_contains "$RUN_OUTPUT" "links_dead=8" "dead local-link count should be exact"
     assert_contains "$RUN_OUTPUT" "ordinary_dead_links=4" "ordinary dead-link count should be exact"
     assert_contains "$RUN_OUTPUT" "missing_evidence_links=4" "missing-evidence count should be exact"
-    assert_contains "$RUN_OUTPUT" "markdown_roots=docs/**/*.md,LAUNCH.md,ROADMAP.md,PROJECT_OVERVIEW.md,README.md" "link denominator should name its corpus roots"
+    # The claim corpus and the link corpus are DIFFERENT sets, and the summary
+    # used to name only one of them (`markdown_roots=`) directly above the claim
+    # counters. A reader reasonably concluded ROADMAP.md claims were checked;
+    # they were not. Both denominators are now named, separately and exactly.
+    assert_contains "$RUN_OUTPUT" "claim_roots=docs/screen_specs/*.md,LAUNCH.md,ROADMAP.md,PROJECT_OVERVIEW.md,README.md" "claim denominator should name its own corpus roots"
+    assert_contains "$RUN_OUTPUT" "link_roots=docs/**/*.md,LAUNCH.md,ROADMAP.md,PROJECT_OVERVIEW.md,README.md" "link denominator should name its own corpus roots"
+    assert_not_contains "$RUN_OUTPUT" "markdown_roots=" "the ambiguous single-corpus label must not survive"
+    # Negative control for the cross-repo classifier (handoff arm 4): every claim
+    # in this fixture is about a surface the repo owns, so none may be reclassified
+    # as cross-repo just because it carries no re-derive command.
+    assert_contains "$RUN_OUTPUT" "claim_cross_repo_unverifiable_here=0" "own-surface fixture should record no unverifiable-here claims"
+    assert_contains "$RUN_OUTPUT" "claim_cross_repo_unproven=0" "own-surface fixture should record no unproven cross-repo claims"
+    assert_not_contains "$RUN_OUTPUT" "class=cross-repo" "own-surface claims must never be classified cross-repo"
 }
 
 test_presence_claim_content_is_verified() {
@@ -237,7 +249,7 @@ test_claim_target_escape_fails_closed_without_reading_outside_repo() {
     assert_not_contains "$RUN_OUTPUT" "tokens=leakedtoken reason=unexpected token present" "escaping target must not be read as a content oracle"
 }
 
-test_empty_screen_spec_corpus_fails_closed() {
+test_empty_claim_corpus_fails_closed() {
     local tmpdir
     tmpdir="$(mktemp -d)"; register_tmp_path "$tmpdir"
     mkdir -p "$tmpdir/docs/screen_specs"
@@ -245,7 +257,7 @@ test_empty_screen_spec_corpus_fails_closed() {
     run_probe "$tmpdir"
 
     assert_eq "$RUN_EXIT_CODE" "2" "empty screen-spec corpus should fail closed"
-    assert_contains "$RUN_OUTPUT" "screen-spec corpus is empty" "empty corpus failure should explain the cause"
+    assert_contains "$RUN_OUTPUT" "claim corpus is empty" "empty corpus failure should explain the cause"
 }
 
 test_zero_recheckable_claims_fails_closed() {
@@ -261,7 +273,7 @@ test_zero_recheckable_claims_fails_closed() {
     run_probe "$tmpdir"
 
     assert_eq "$RUN_EXIT_CODE" "2" "zero recheckable claims should fail closed"
-    assert_contains "$RUN_OUTPUT" "zero parsed recheckable screen-spec claims" "zero recheckable failure should explain the cause"
+    assert_contains "$RUN_OUTPUT" "zero parsed recheckable claims" "zero recheckable failure should explain the cause"
 }
 
 test_zero_evidence_lines_fails_closed() {
@@ -273,7 +285,7 @@ test_zero_evidence_lines_fails_closed() {
     run_probe "$tmpdir"
 
     assert_eq "$RUN_EXIT_CODE" "2" "zero evidence lines should fail closed"
-    assert_contains "$RUN_OUTPUT" "screen-spec evidence corpus is empty" "zero-evidence failure should explain the cause"
+    assert_contains "$RUN_OUTPUT" "claim evidence corpus is empty" "zero-evidence failure should explain the cause"
 }
 
 test_invalid_root_and_malformed_cli_fail_closed() {
@@ -327,15 +339,249 @@ PY
     RUN_OUTPUT="$(bash "$mutated_probe" --repo-root "$tmpdir/fixture" 2>&1)" || RUN_EXIT_CODE=$?
 
     assert_eq "$RUN_EXIT_CODE" "0" "mutated shadow probe still exits zero"
-    assert_contains "$RUN_OUTPUT" "screen_spec_contradictions=0" "deliberate mutation should expose incorrect contradiction value"
-    assert_ne "$(printf '%s\n' "$RUN_OUTPUT" | awk -F= '/^screen_spec_contradictions=/{print $2}')" "11" "deliberate mutation should fail the expected contradiction count"
+    assert_contains "$RUN_OUTPUT" "claim_contradictions=0" "deliberate mutation should expose incorrect contradiction value"
+    assert_ne "$(printf '%s\n' "$RUN_OUTPUT" | awk -F= '/^claim_contradictions=/{print $2}')" "11" "deliberate mutation should fail the expected contradiction count"
 }
 
+# ---------------------------------------------------------------------------
+# Claim-corpus boundary.
+#
+# Until 2026-08-01 the CLAIM corpus was docs/screen_specs/*.md alone, while the
+# summary advertised `markdown_roots=...,ROADMAP.md,...` — which was the LINK
+# corpus, printed one line above the claim counters. The two were measurably
+# different: an identical `Evidence:` claim citing a missing path exited 0 in
+# ROADMAP.md and exited 2 in docs/screen_specs/. Agents are told ROADMAP.md and
+# LAUNCH.md are canonical, so claims recorded there must be checked. These two
+# tests pin the corpus in both directions — what is scanned, and what is not.
+# ---------------------------------------------------------------------------
+test_canonical_status_docs_are_claim_scanned() {
+    local tmpdir
+    tmpdir="$(mktemp -d)"; register_tmp_path "$tmpdir"
+    seed_fixture_repo "$tmpdir"
+    write_file "$tmpdir" "ROADMAP.md" '
+# Roadmap
+- Current: the preview route is absent.
+  Evidence: `infra/api/src/routes/migration/preview.rs` (no matches for `preview_handler`).
+'
+
+    run_probe "$tmpdir"
+
+    assert_eq "$RUN_EXIT_CODE" "2" "a dead claim path in ROADMAP.md must fail closed exactly like one in a screen spec"
+    assert_contains "$RUN_OUTPUT" "WARN: ROADMAP.md:4 class=dead-path result=dead_claim_path target=infra/api/src/routes/migration/preview.rs" "ROADMAP.md claims must be classified, not silently skipped"
+}
+
+test_non_claim_root_docs_are_not_claim_scanned() {
+    # Negative control for the widening above. docs/ is the LINK corpus; only
+    # docs/screen_specs/ plus the four canonical root docs are CLAIM roots. If
+    # this arm ever goes red the corpus has silently become "every markdown
+    # file", which measured 87.5% false positives on the real tree (dated
+    # `<UTC>` placeholder paths in archived checklists) — the noise failure that
+    # gets a probe switched off.
+    local tmpdir
+    tmpdir="$(mktemp -d)"; register_tmp_path "$tmpdir"
+    seed_fixture_repo "$tmpdir"
+    write_file "$tmpdir" "docs/notes.md" '
+# Notes
+- Current: nothing is wired here yet.
+  Evidence: `infra/api/src/routes/does_not_exist.rs` (no matches for `handler`).
+'
+
+    run_probe "$tmpdir"
+
+    assert_eq "$RUN_EXIT_CODE" "0" "a claim outside the claim roots must not fail the probe"
+    assert_not_contains "$RUN_OUTPUT" "docs/notes.md:4" "docs/ is the link corpus and must not be claim-scanned"
+}
+
+# ---------------------------------------------------------------------------
+# Cross-repo claims.
+#
+# fjcloud's migration feature depends on an engine that lives in flapjack_dev.
+# An agent here cannot run flapjack's tests, so claims about it are written down
+# and trusted. Before this change such a claim produced NO diagnostic at all:
+# its target failed the repo-local prefix test and was dropped, so "I could not
+# check this" was indistinguishable from "this is fine". A claim that records a
+# re-derive command is reported in its own state and passes — someone in the
+# right locality can run it. A claim that records none can never be checked by
+# anyone, so it fails closed.
+# ---------------------------------------------------------------------------
+test_cross_repo_claim_with_command_is_reported_unverifiable_here() {
+    local tmpdir
+    tmpdir="$(mktemp -d)"; register_tmp_path "$tmpdir"
+    seed_fixture_repo "$tmpdir"
+    write_file "$tmpdir" "docs/screen_specs/upstream.md" '
+# Upstream
+- Current: the engine publishes a preview route for all three providers.
+  Evidence: `flapjack_dev` — `git show origin/main:engine/docs2/openapi.json` lists the three preview paths.
+'
+
+    run_probe "$tmpdir"
+
+    assert_eq "$RUN_EXIT_CODE" "0" "a cross-repo claim that records a re-derive command must not fail the probe"
+    assert_contains "$RUN_OUTPUT" "CLAIM: docs/screen_specs/upstream.md:4 class=cross-repo result=unverifiable_here target=flapjack_dev" "a cross-repo claim must be reported in its own state, not dropped"
+    assert_contains "$RUN_OUTPUT" "claim_cross_repo_unverifiable_here=1" "unverifiable-here claims must be counted"
+    assert_not_contains "$RUN_OUTPUT" "docs/screen_specs/upstream.md:4 class=prose" "a cross-repo claim must not be filed as unparsed prose"
+}
+
+test_cross_repo_claim_without_command_fails_closed() {
+    local tmpdir
+    tmpdir="$(mktemp -d)"; register_tmp_path "$tmpdir"
+    seed_fixture_repo "$tmpdir"
+    write_file "$tmpdir" "docs/screen_specs/upstream.md" '
+# Upstream
+- Current: the engine declares no preview route for any provider.
+  Evidence: `flapjack_dev` origin/main publishes no such path.
+'
+
+    run_probe "$tmpdir"
+
+    assert_eq "$RUN_EXIT_CODE" "2" "a cross-repo claim with no re-derive command must fail closed"
+    assert_contains "$RUN_OUTPUT" "WARN: docs/screen_specs/upstream.md:4 class=cross-repo result=unproven target=flapjack_dev" "an unprovable cross-repo claim must name the repo it cannot reach"
+    assert_contains "$RUN_OUTPUT" "claim_cross_repo_unproven=1" "unproven cross-repo claims must be counted"
+    assert_contains "$RUN_OUTPUT" "cross-repo claim records no re-derive command" "the failure must say what is missing"
+    # Three distinct states, not one bucket: cannot-check-here, target-missing,
+    # and claim-is-false must never collapse into each other.
+    assert_not_contains "$RUN_OUTPUT" "docs/screen_specs/upstream.md:4 class=recheckable" "an unverifiable claim must not be reported as a checked one"
+    assert_not_contains "$RUN_OUTPUT" "docs/screen_specs/upstream.md:4 class=dead-path" "a cross-repo claim is not a dead repo-local path"
+}
+
+test_pasted_tool_output_is_not_mistaken_for_a_re_derive_command() {
+    # `test result: ok. 894 passed; 0 failed; ...` is cargo's summary line, and
+    # this repo's docs quote it 34 times. It starts with the word `test`, which
+    # is also a real shell command used here as `test -f` / `test -s` / `test -x`.
+    # Recognising the pasted line as a command would let a cross-repo claim quote
+    # OUTPUT as though it were a re-derivable PROOF and pass the gate — the exact
+    # rumour-accepted-as-measurement failure this classifier exists to stop.
+    # The discriminator is a flag: real `test`/`make` invocations take one,
+    # result lines and prose ("make sure ...") do not.
+    local tmpdir
+    tmpdir="$(mktemp -d)"; register_tmp_path "$tmpdir"
+    seed_fixture_repo "$tmpdir"
+    write_file "$tmpdir" "docs/screen_specs/upstream.md" '
+# Upstream
+- Current: the engine suite is green.
+  Evidence: `flapjack_dev` — `test result: ok. 894 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out`.
+'
+
+    run_probe "$tmpdir"
+
+    assert_eq "$RUN_EXIT_CODE" "2" "quoted tool output must not satisfy the re-derive-command requirement"
+    assert_contains "$RUN_OUTPUT" "WARN: docs/screen_specs/upstream.md:4 class=cross-repo result=unproven target=flapjack_dev" "a claim quoting output records no way to re-derive it"
+
+    # Positive control: the same head IS a command when it carries a flag, so the
+    # fix must not reject genuine `test -f` evidence.
+    write_file "$tmpdir" "docs/screen_specs/upstream.md" '
+# Upstream
+- Current: the engine publishes its bundle.
+  Evidence: `flapjack_dev` — `test -f engine/docs2/openapi.json` succeeds on origin/main.
+'
+
+    run_probe "$tmpdir"
+
+    assert_eq "$RUN_EXIT_CODE" "0" "a genuine flagged invocation must still count as a re-derive command"
+    assert_contains "$RUN_OUTPUT" "CLAIM: docs/screen_specs/upstream.md:4 class=cross-repo result=unverifiable_here target=flapjack_dev" "flagged test invocation should be accepted as proof"
+}
+
+test_home_relative_link_is_outside_repo_scope() {
+    # `~/.matt/scrai/globals/standards/*.md` is a home-directory pointer to the
+    # shared scrai tree, not a repo-relative link. Resolving it against the
+    # citing document's directory produced `docs/live-state/<stamp>/~/.matt/...`
+    # and reported a dead pointer for a target that was never in the repo. Two
+    # such false positives existed on main, and they are exactly the noise that
+    # would have to be triaged away before this probe could gate anything.
+    local tmpdir
+    tmpdir="$(mktemp -d)"; register_tmp_path "$tmpdir"
+    seed_fixture_repo "$tmpdir"
+    write_file "$tmpdir" "docs/home_links.md" '
+[globals standard](~/.matt/scrai/globals/standards/live_state_discipline.md)
+[genuinely missing](really/missing.md)
+'
+
+    run_probe "$tmpdir"
+
+    assert_not_contains "$RUN_OUTPUT" "raw_target=~/.matt/scrai/globals/standards/live_state_discipline.md" "home-relative pointers must be outside local-link scope"
+    assert_contains "$RUN_OUTPUT" "WARN: docs/home_links.md:3 class=moved_pointer raw_target=really/missing.md" "a genuinely missing repo-relative link must still be reported"
+}
+
+test_claim_corpus_tolerates_absent_canonical_docs() {
+    # The public mirrors are a strict whitelist: `.debbie.toml` syncs ROADMAP.md
+    # and README.md but NOT LAUNCH.md or PROJECT_OVERVIEW.md, while scripts/ —
+    # this probe included — ships in full. A claim root that is merely absent
+    # must therefore be skipped, not treated as a hard requirement. That exact
+    # breakage already happened once for docs/screen_specs/, which is why
+    # .debbie.toml carries a comment pinning it into the sync list.
+    local tmpdir
+    tmpdir="$(mktemp -d)"; register_tmp_path "$tmpdir"
+    seed_fixture_repo "$tmpdir"
+    rm "$tmpdir/LAUNCH.md" "$tmpdir/PROJECT_OVERVIEW.md"
+
+    run_probe "$tmpdir"
+
+    assert_eq "$RUN_EXIT_CODE" "0" "an absent canonical claim root must be skipped, not crash the probe"
+    assert_contains "$RUN_OUTPUT" "claim_evidence_lines=9" "the surviving corpus must still be classified in full"
+}
+
+test_local_ci_registration_is_complete() {
+    # The probe spent its whole life classifying claims that nothing ever read:
+    # `grep -c probe_screen_spec_claim_freshness scripts/local-ci.sh` was 0, so
+    # it gated nothing. Its *test* ran via the reachability manifest, which is
+    # what made the gap easy to miss — a green test on a probe no one invokes.
+    # This arm pins every registration site so the wiring cannot rot back out.
+    # Static assertions only, deliberately. Actually invoking `local-ci.sh
+    # --summary-only` here would reach the network: it calls render_prod_drift ->
+    # scripts/launch/post_wave_a_sync_prod.sh -> scripts/deploy_status.sh, which
+    # curls https://api.flapjack.foo/version and the staging equivalent. This
+    # suite is hermetic and its gate runs on every --fast, so it must not make
+    # external calls. `--summary-only` behaviour already has an owner that mocks
+    # the probe properly — scripts/tests/local_ci_summary_only_test.sh — and
+    # duplicating that invocation here would be a second, worse-behaved owner.
+    local local_ci="$REPO_ROOT/scripts/local-ci.sh"
+    local gate_name="claim-freshness-contract"
+
+    assert_eq "$(grep -Fxc '#                    claim-freshness-contract,' "$local_ci" || true)" "1" \
+        "local-ci usage comments name the claim gate exactly once"
+    assert_eq "$(grep -Fxc 'gate_claim_freshness_contract() {' "$local_ci" || true)" "1" \
+        "local-ci defines the exact claim gate function once"
+    assert_eq "$(grep -Fxc 'schedule claim-freshness-contract' "$local_ci" || true)" "1" \
+        "local-ci fast scheduler names the claim gate exactly once"
+    assert_eq "$(grep -Fxc '            claim-freshness-contract) run_gate claim-freshness-contract gate_claim_freshness_contract ;;' "$local_ci" || true)" "1" \
+        "local-ci dispatches the exact claim gate once"
+    assert_eq "$(grep -F "    printf 'Known gates:" "$local_ci" | grep -Fc "$gate_name" || true)" "1" \
+        "local-ci summary-only inventory names the claim gate exactly once"
+    assert_eq "$(grep -F '        echo "Known gates:' "$local_ci" | grep -Fc "$gate_name" || true)" "1" \
+        "local-ci unknown-gate help names the claim gate exactly once"
+    assert_eq "$(grep -Fo "$gate_name" "$local_ci" | wc -l | tr -d ' ')" "6" \
+        "local-ci has exactly the six intended claim gate registrations"
+}
+
+test_every_defined_case_is_invoked() {
+    # A test function that is defined but never called is a guard that cannot
+    # fail, and nothing else in the repo catches it: probe_test_reachability.sh
+    # audits test FILES, not the cases inside one. This was not hypothetical —
+    # test_pasted_tool_output_is_not_mistaken_for_a_re_derive_command was added
+    # here and sat inert, with the suite still reporting all green.
+    local self="$SCRIPT_DIR/probe_screen_spec_claim_freshness_test.sh"
+    local defined invoked
+    defined="$(grep -oE '^test_[a-z0-9_]+\(\) \{' "$self" | sed 's/() {//' | sort)"
+    invoked="$(grep -oE '^test_[a-z0-9_]+$' "$self" | sort -u)"
+
+    assert_eq "$(comm -23 <(printf '%s\n' "$defined") <(printf '%s\n' "$invoked") | tr '\n' ' ' | sed 's/ *$//')" "" \
+        "every defined test case must appear in the invocation list"
+}
+
+test_every_defined_case_is_invoked
 test_known_claim_controls_and_link_classes
+test_pasted_tool_output_is_not_mistaken_for_a_re_derive_command
+test_local_ci_registration_is_complete
+test_claim_corpus_tolerates_absent_canonical_docs
+test_canonical_status_docs_are_claim_scanned
+test_non_claim_root_docs_are_not_claim_scanned
+test_cross_repo_claim_with_command_is_reported_unverifiable_here
+test_cross_repo_claim_without_command_fails_closed
+test_home_relative_link_is_outside_repo_scope
 test_presence_claim_content_is_verified
 test_missing_claim_path_fails_closed
 test_claim_target_escape_fails_closed_without_reading_outside_repo
-test_empty_screen_spec_corpus_fails_closed
+test_empty_claim_corpus_fails_closed
 test_zero_recheckable_claims_fails_closed
 test_zero_evidence_lines_fails_closed
 test_invalid_root_and_malformed_cli_fail_closed

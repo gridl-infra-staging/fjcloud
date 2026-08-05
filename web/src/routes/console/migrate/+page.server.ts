@@ -6,16 +6,20 @@ import type {
 	AlgoliaMigrationAvailabilityResponse,
 	CreateMigrationImportJobRequest,
 	ListMigrationSourceIndexesRequest,
+	MigrationPreviewArguments,
+	MigrationPreviewRequest,
+	MigrationPreviewSourceProvider,
 	PublicAlgoliaImportJobPage,
 	SourceProvider
 } from '$lib/api/types';
-import { isSourceProvider } from '$lib/api/types';
+import { MIGRATION_PREVIEW_SOURCE_PROVIDERS, isSourceProvider } from '$lib/api/types';
 import { createApiClient } from '$lib/server/api';
 import {
 	customerFacingErrorMessage,
 	mapDashboardSessionFailure,
 	type DashboardSessionExpiredPayload
 } from '$lib/server/auth-action-errors';
+import { privateEnvValue } from '$lib/server/runtime-env';
 
 const MIGRATION_ACTION_FAILED = 'Migration request failed';
 const RECENT_IMPORTS_FAILED = 'Recent imports could not be loaded';
@@ -27,12 +31,13 @@ const INVALID_IDEMPOTENCY_KEY_MESSAGE = 'Invalid idempotency key';
 const DEFAULT_SOURCE_PROVIDER: SourceProvider = 'algolia';
 const MAX_IDEMPOTENCY_KEY_LENGTH = 128;
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:-]+$/;
+const LOOPBACK_HOSTNAMES = new Set(['127.0.0.1', '::1', 'localhost']);
 
 const UNAVAILABLE_AVAILABILITY: AlgoliaMigrationAvailabilityResponse = {
 	available: false,
 	reason: 'temporarily_unavailable',
 	message: 'Algolia migration is temporarily unavailable while we replace the importer.',
-	capabilities: { cancel: false, resume: false, replace: false }
+	capabilities: { cancel: false, resume: false, replace: false, preview: false, verify: false }
 };
 
 type ServerApiClient = ReturnType<typeof createApiClient>;
@@ -141,42 +146,73 @@ function validatedHostedSourceOrigin(value: string): string {
 	}
 
 	const hostname = parsed.hostname.toLowerCase();
+	const loopbackHostname = hostname.replace(/^\[|\]$/g, '');
 	const hasExplicitPort = parsed.port !== '' && parsed.port !== '443';
 	const isIpLiteral = /^[\d.:]+$/.test(hostname);
-	if (
-		parsed.protocol !== 'https:' ||
+	const shapeRejected =
 		parsed.username !== '' ||
 		parsed.password !== '' ||
 		parsed.search !== '' ||
 		parsed.hash !== '' ||
-		parsed.pathname !== '/' ||
+		parsed.pathname !== '/';
+	const publicRejected =
+		parsed.protocol !== 'https:' ||
 		hasExplicitPort ||
 		isIpLiteral ||
 		hostname === 'localhost' ||
 		hostname.endsWith('.localhost') ||
-		!hostname.includes('.')
-	) {
+		!hostname.includes('.');
+	const flagEnabled = privateEnvValue('FJCLOUD_ALLOW_LOOPBACK_SOURCE_ORIGINS') === '1';
+	// Local development imports may point at a loopback search service, but the
+	// opt-in is private server config and must never make RFC1918 or metadata
+	// hosts client-admissible.
+	const loopbackAdmitted =
+		flagEnabled &&
+		LOOPBACK_HOSTNAMES.has(loopbackHostname) &&
+		(parsed.protocol === 'http:' || parsed.protocol === 'https:');
+	if (shapeRejected || (publicRejected && !loopbackAdmitted)) {
 		throw new InvalidSourceHostError();
 	}
 
 	return parsed.origin;
 }
 
-function sanitizeHostedSourcePayload<T>(sourceProvider: SourceProvider, payload: T): T {
+function sanitizeHostedSourceField<T>(
+	sourceProvider: SourceProvider,
+	payload: T,
+	field: 'host' | 'endpoint'
+): T {
 	if (sourceProvider === 'algolia') {
 		return payload;
 	}
-	if (typeof payload !== 'object' || payload === null || !('host' in payload)) {
+	if (typeof payload !== 'object' || payload === null || !(field in payload)) {
 		throw new InvalidSourceHostError();
 	}
-	const host = (payload as { host?: unknown }).host;
-	if (typeof host !== 'string') {
+	const value = (payload as Partial<Record<'host' | 'endpoint', unknown>>)[field];
+	if (typeof value !== 'string') {
 		throw new InvalidSourceHostError();
 	}
 	return {
 		...payload,
-		host: validatedHostedSourceOrigin(host)
+		[field]: validatedHostedSourceOrigin(value)
 	} as T;
+}
+
+function sanitizeHostedSourcePayload<T>(sourceProvider: SourceProvider, payload: T): T {
+	return sanitizeHostedSourceField(sourceProvider, payload, 'host');
+}
+
+function sanitizePreviewPayload(
+	sourceProvider: SourceProvider,
+	payload: MigrationPreviewRequest
+): MigrationPreviewRequest {
+	return sanitizeHostedSourceField(sourceProvider, payload, 'endpoint');
+}
+
+function isMigrationPreviewSourceProvider(
+	sourceProvider: SourceProvider
+): sourceProvider is MigrationPreviewSourceProvider {
+	return (MIGRATION_PREVIEW_SOURCE_PROVIDERS as readonly SourceProvider[]).includes(sourceProvider);
 }
 
 function validatedIdempotencyKey(value: FormDataEntryValue | null): string {
@@ -263,6 +299,18 @@ export const actions: Actions = {
 			})
 		}));
 	},
+	availability: async ({ request, locals }) => {
+		let sourceProvider: SourceProvider;
+		try {
+			const parsed = migrationPayloadFromFormData<Record<string, never>>(await request.formData());
+			sourceProvider = parsed.sourceProvider;
+		} catch (error) {
+			return payloadFailure(error) ?? fail(400, { error: MIGRATION_ACTION_FAILED });
+		}
+		return runMigrationAction(locals, async (api) => ({
+			availability: await api.getMigrationAvailability(sourceProvider)
+		}));
+	},
 	checkDestinationEligibility: async ({ request, locals }) => {
 		let sourceProvider: SourceProvider;
 		let payload: AlgoliaDestinationEligibilityRequest;
@@ -313,6 +361,24 @@ export const actions: Actions = {
 		}
 		return runMigrationAction(locals, async (api) => ({
 			job: await api.createMigrationImportJob(sourceProvider, payload, idempotencyKey)
+		}));
+	},
+	previewImport: async ({ request, locals }) => {
+		let sourceProvider: SourceProvider;
+		let previewArguments: MigrationPreviewArguments;
+		try {
+			const parsed = migrationPayloadFromFormData<MigrationPreviewRequest>(
+				await request.formData()
+			);
+			sourceProvider = parsed.sourceProvider;
+			if (!isMigrationPreviewSourceProvider(sourceProvider)) return sourceProviderFailure();
+			const payload = sanitizePreviewPayload(sourceProvider, parsed.payload);
+			previewArguments = [sourceProvider, payload] as MigrationPreviewArguments;
+		} catch (error) {
+			return payloadFailure(error) ?? fail(400, { error: MIGRATION_ACTION_FAILED });
+		}
+		return runMigrationAction(locals, async (api) => ({
+			preview: await api.previewMigrationImport(...previewArguments)
 		}));
 	},
 	recentImports: async ({ request, locals }) => {

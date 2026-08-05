@@ -235,8 +235,23 @@ poll_remote_command() {
 inspection_script() {
   cat <<'EOF'
 set -euo pipefail
+wait_for_local_version_json() {
+  local attempt version_json
+  local VERSION_WAIT_ATTEMPTS=20
+  local VERSION_WAIT_SLEEP_SECONDS=1
+
+  for attempt in $(seq 1 "$VERSION_WAIT_ATTEMPTS"); do
+    if version_json="$(curl -fsS http://127.0.0.1:3001/version 2>/dev/null)"; then
+      printf '%s\n' "$version_json"
+      return 0
+    fi
+    [ "$attempt" = "$VERSION_WAIT_ATTEMPTS" ] || sleep "$VERSION_WAIT_SLEEP_SECONDS"
+  done
+  return 1
+}
+
 pointer="$(grep '^AWS_AMI_ID=' /etc/fjcloud/env | tail -n1 | cut -d= -f2-)"
-version_json="$(curl -fsS http://127.0.0.1:3001/version)"
+version_json="$(wait_for_local_version_json)"
 printf 'POINTER=%s\nVERSION_JSON=%s\n' "$pointer" "$version_json"
 EOF
 }

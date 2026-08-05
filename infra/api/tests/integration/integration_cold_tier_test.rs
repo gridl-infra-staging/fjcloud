@@ -25,28 +25,79 @@ fn unique_index(prefix: &str) -> String {
 }
 
 fn cold_storage_endpoint() -> Option<String> {
-    std::env::var("COLD_STORAGE_ENDPOINT").ok()
+    cold_storage_config_from_env().endpoint
 }
 
-// Defaults below ("us-east-1", "fjcloud-cold") must stay in sync with
-// S3ObjectStoreConfig::from_env() in services/object_store.rs.
-// These wrappers exist because the integration test needs Option/String
-// locally without constructing a full S3ObjectStoreConfig.
+// The live integration path still reads COLD_STORAGE_* from the process env via
+// cold_storage_config_from_env(); helper tests bypass the env entirely and supply
+// values directly through cold_storage_config_from().
 
 fn cold_storage_region() -> String {
-    std::env::var("COLD_STORAGE_REGION").unwrap_or_else(|_| "us-east-1".to_string())
+    cold_storage_config_from_env().region
 }
 
 fn cold_storage_bucket() -> String {
-    std::env::var("COLD_STORAGE_BUCKET").unwrap_or_else(|_| "fjcloud-cold".to_string())
+    cold_storage_config_from_env().bucket
 }
 
 fn cold_storage_access_key() -> Option<String> {
-    std::env::var("COLD_STORAGE_ACCESS_KEY").ok()
+    cold_storage_config_from_env().access_key
 }
 
 fn cold_storage_secret_key() -> Option<String> {
-    std::env::var("COLD_STORAGE_SECRET_KEY").ok()
+    cold_storage_config_from_env().secret_key
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct ColdStorageConfig {
+    endpoint: Option<String>,
+    region: String,
+    bucket: String,
+    access_key: Option<String>,
+    secret_key: Option<String>,
+}
+
+fn cold_storage_config_from_env() -> ColdStorageConfig {
+    let endpoint = std::env::var("COLD_STORAGE_ENDPOINT").ok();
+    let region = std::env::var("COLD_STORAGE_REGION").ok();
+    let bucket = std::env::var("COLD_STORAGE_BUCKET").ok();
+    let access_key = std::env::var("COLD_STORAGE_ACCESS_KEY").ok();
+    let secret_key = std::env::var("COLD_STORAGE_SECRET_KEY").ok();
+
+    cold_storage_config_from(
+        endpoint.as_deref(),
+        region.as_deref(),
+        bucket.as_deref(),
+        access_key.as_deref(),
+        secret_key.as_deref(),
+    )
+}
+
+/// Test-local mirror of `S3ObjectStoreConfig::from_env()`'s mapping rules.
+///
+/// The defaults below ("us-east-1", "fjcloud-cold") and the COLD_STORAGE_* names
+/// read by `cold_storage_config_from_env()` duplicate the canonical owner,
+/// `S3ObjectStoreConfig::from_env()` in `api/src/services/object_store.rs`, and
+/// must stay in sync with it. This mirror exists so the helper tests can exercise
+/// the mapping without mutating process env — env mutation here previously raced
+/// the `--test platform storage` selection. The canonical parser's own env
+/// contract is asserted in `object_store_test.rs`
+/// (`s3_object_store_with_custom_endpoint_configures_correctly`,
+/// `s3_object_store_default_uses_aws`), which is the sole env-mutating owner.
+fn cold_storage_config_from(
+    endpoint: Option<&str>,
+    region: Option<&str>,
+    bucket: Option<&str>,
+    access_key: Option<&str>,
+    secret_key: Option<&str>,
+) -> ColdStorageConfig {
+    ColdStorageConfig {
+        endpoint: endpoint.map(str::to_string),
+        region: region.unwrap_or("us-east-1").to_string(),
+        bucket: bucket.unwrap_or("fjcloud-cold").to_string(),
+        access_key: access_key.map(str::to_string),
+        secret_key: secret_key.map(str::to_string),
+    }
 }
 
 fn flapjack_admin_key() -> String {
@@ -481,61 +532,76 @@ crate::integration_test!(cold_tier_full_lifecycle_s3_round_trip, async {
 
 #[cfg(test)]
 mod helper_tests {
-    use super::{cold_storage_access_key, cold_storage_bucket, cold_storage_endpoint};
-    use std::sync::Mutex;
+    use super::cold_storage_config_from;
 
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    // The `*_reads_env` names are historical: these tests now exercise the pure
+    // mapper and read no process env. They are deliberately NOT renamed here —
+    // `cold_storage_endpoint_reads_env` is the verbatim referent of the open P2
+    // row at `ROADMAP.md:177`, which FS-9 owns and matches by title. Rename them
+    // together with that row's closure, not before.
 
     #[test]
     fn cold_storage_endpoint_reads_env() {
-        let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let prior = std::env::var("COLD_STORAGE_ENDPOINT").ok();
+        let config =
+            cold_storage_config_from(Some("http://localhost:8333"), None, None, None, None);
+        assert_eq!(config.endpoint, Some("http://localhost:8333".to_string()));
 
-        std::env::set_var("COLD_STORAGE_ENDPOINT", "http://localhost:8333");
-        assert_eq!(
-            cold_storage_endpoint(),
-            Some("http://localhost:8333".to_string())
-        );
-
-        std::env::remove_var("COLD_STORAGE_ENDPOINT");
-        assert_eq!(cold_storage_endpoint(), None);
-
-        if let Some(v) = prior {
-            std::env::set_var("COLD_STORAGE_ENDPOINT", v);
-        }
+        let config = cold_storage_config_from(None, None, None, None, None);
+        assert_eq!(config.endpoint, None);
     }
 
     #[test]
     fn cold_storage_bucket_defaults_to_fjcloud_cold() {
-        let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let prior = std::env::var("COLD_STORAGE_BUCKET").ok();
+        let config = cold_storage_config_from(None, None, None, None, None);
+        assert_eq!(config.bucket, "fjcloud-cold");
 
-        std::env::remove_var("COLD_STORAGE_BUCKET");
-        assert_eq!(cold_storage_bucket(), "fjcloud-cold");
-
-        std::env::set_var("COLD_STORAGE_BUCKET", "custom-bucket");
-        assert_eq!(cold_storage_bucket(), "custom-bucket");
-
-        if let Some(v) = prior {
-            std::env::set_var("COLD_STORAGE_BUCKET", v);
-        } else {
-            std::env::remove_var("COLD_STORAGE_BUCKET");
-        }
+        let config = cold_storage_config_from(None, None, Some("custom-bucket"), None, None);
+        assert_eq!(config.bucket, "custom-bucket");
     }
 
     #[test]
     fn cold_storage_access_key_reads_env() {
-        let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let prior = std::env::var("COLD_STORAGE_ACCESS_KEY").ok();
+        let config = cold_storage_config_from(None, None, None, Some("local-key"), None);
+        assert_eq!(config.access_key, Some("local-key".to_string()));
 
-        std::env::set_var("COLD_STORAGE_ACCESS_KEY", "local-key");
-        assert_eq!(cold_storage_access_key(), Some("local-key".to_string()));
+        let config = cold_storage_config_from(None, None, None, None, None);
+        assert_eq!(config.access_key, None);
+    }
 
-        std::env::remove_var("COLD_STORAGE_ACCESS_KEY");
-        assert_eq!(cold_storage_access_key(), None);
+    #[test]
+    fn cold_storage_region_defaults_to_us_east_1() {
+        let config = cold_storage_config_from(None, None, None, None, None);
+        assert_eq!(config.region, "us-east-1");
 
-        if let Some(v) = prior {
-            std::env::set_var("COLD_STORAGE_ACCESS_KEY", v);
-        }
+        let config = cold_storage_config_from(None, Some("eu-central-1"), None, None, None);
+        assert_eq!(config.region, "eu-central-1");
+    }
+
+    #[test]
+    fn cold_storage_secret_key_passes_through_and_defaults_to_none() {
+        let config = cold_storage_config_from(None, None, None, None, Some("local-secret"));
+        assert_eq!(config.secret_key, Some("local-secret".to_string()));
+
+        let config = cold_storage_config_from(None, None, None, None, None);
+        assert_eq!(config.secret_key, None);
+    }
+
+    /// Each field must come from its own argument — a positional swap between the
+    /// five same-typed `Option<&str>` parameters would otherwise go undetected.
+    #[test]
+    fn cold_storage_config_from_maps_each_argument_to_its_own_field() {
+        let config = cold_storage_config_from(
+            Some("http://endpoint"),
+            Some("region-value"),
+            Some("bucket-value"),
+            Some("access-value"),
+            Some("secret-value"),
+        );
+
+        assert_eq!(config.endpoint, Some("http://endpoint".to_string()));
+        assert_eq!(config.region, "region-value");
+        assert_eq!(config.bucket, "bucket-value");
+        assert_eq!(config.access_key, Some("access-value".to_string()));
+        assert_eq!(config.secret_key, Some("secret-value".to_string()));
     }
 }

@@ -1,0 +1,199 @@
+Stage 1 final stale-live fast-lock RED exact receipt
+captured_at_utc=2026-08-02T00:58:34Z
+head=30763280fc86b6ef4b67b51c81e65eb4adb548c2
+production_source_modified=no
+receipt_capture=raw stdout/stderr, unelided
+
+RUN 1 EXACT COMMAND:
+bash scripts/tests/local_ci_fast_lock_test.sh
+
+RUN 1 RESULT:
+start_utc=2026-08-02T00:58:34Z
+end_utc=2026-08-02T00:58:59Z
+exit_status=1
+wall_clock_millis=25379
+
+RUN 1 STDOUT BEGIN
+PASS: free lock acquisition succeeds
+PASS: free lock acquisition writes a holder record
+PASS: holder record contains the acquiring shell PID
+PASS: holder record contains the exact worktree path
+PASS: holder record contains an acquisition epoch timestamp
+PASS: default lock key is stable when one clone is entered through a symlink
+PASS: contended acquisition returns the reserved refusal code
+PASS: contention is not reported as success
+PASS: contention is distinct from a failed gate
+PASS: contention stderr identifies the holder and gives actionable refusal guidance
+PASS: contention keeps the refusal diagnostic on stderr
+PASS: refusal consumes the exported holder-description helper
+PASS: release removes the owned lock directory
+PASS: a subsequent acquire succeeds after release
+PASS: a lock owned by a reaped PID is reclaimed
+PASS: stale-lock diagnostic names the exact dead PID
+PASS: stale reclamation replaces the dead holder record
+PASS: stale-lock reclamation emits its diagnostic only on stderr
+PASS: legitimate-runtime specimen protects three measured 1241-second --fast runs
+PASS: stale-live reclamation identifies the displaced holder in the canonical shape
+PASS: stale reclaim decision never signals the holder
+PASS: a recent live holder inside the reclaim bound remains protected
+PASS: recent refusal preserves the canonical holder diagnostic
+PASS: recent refusal leaves the holder record unchanged
+PASS: recent reclaim decision never signals the holder
+PASS: a legitimate_runtime live holder inside the reclaim bound remains protected
+PASS: legitimate_runtime refusal preserves the canonical holder diagnostic
+PASS: legitimate_runtime refusal leaves the holder record unchanged
+PASS: legitimate-runtime refusal preserves the holder age evidence
+PASS: legitimate_runtime reclaim decision never signals the holder
+PASS: a PID-less holder record is reclaimed
+PASS: corrupt-lock diagnostic explains the exact defect
+PASS: corrupt reclamation writes a valid replacement holder
+PASS: corrupt-lock reclamation emits its diagnostic only on stderr
+PASS: an invalid-PID holder record is reclaimed
+PASS: invalid-PID reclamation reuses the corrupt-lock diagnostic
+PASS: invalid-PID reclamation writes a valid replacement holder
+PASS: invalid-PID reclamation emits its diagnostic only on stderr
+PASS: bounded contention waits for the configured interval without hanging
+PASS: bounded contention still returns the reserved refusal code
+PASS: bounded-wait refusal preserves the exact holder diagnostic
+PASS: bounded-wait refusal keeps the diagnostic on stderr
+PASS: metadata-guard work is charged to the configured wait budget
+PASS: slow metadata-guard contention returns the reserved refusal code
+PASS: slow metadata-guard refusal preserves the holder diagnostic
+PASS: missing-guard fallback race is still charged to the configured wait budget
+PASS: missing-guard fallback race still returns the reserved refusal code
+PASS: missing-guard fallback race reuses the completed holder diagnostic
+PASS: leading-zero wait values are normalized as decimal
+PASS: normalized decimal wait values are safe in Bash arithmetic
+PASS: negative wait values clamp to immediate refusal
+PASS: non-numeric wait values clamp to immediate refusal
+PASS: an unset wait budget falls back to the bounded-wait default
+PASS: the default budget is positive so contention queues instead of refusing
+PASS: an empty wait budget falls back to the same default
+PASS: an explicit 0 still opts into immediate refusal
+PASS: publisher acquires the lock after delayed holder publication
+PASS: default-zero contender refuses immediately while publication is paused
+PASS: contender refuses instead of reclaiming an in-progress holder publication
+PASS: in-progress refusal names the true paused publisher
+PASS: in-progress publication is not treated as a corrupt holder
+PASS: in-progress publication refusal keeps the diagnostic on stderr
+PASS: an orphaned reclaim claim does not wedge immediate acquisition
+PASS: orphaned reclaim recovery replaces the dead holder record
+PASS: an unlocked orphaned metadata guard is reclaimed
+PASS: metadata-guard recovery installs the current holder
+PASS: metadata guard path is removed after acquisition metadata completes
+PASS: an interrupted reclaimer releases the metadata guard
+PASS: acquisition after reclaimer interruption installs a live holder
+PASS: torn-owner contender immediately refuses during publisher metadata
+PASS: torn-owner refusal uses the atomic publisher guard record
+PASS: torn-owner refusal never names an arbitrary waiting contender
+PASS: torn-owner refusal keeps the diagnostic on stderr
+PASS: stale takeover permits exactly one concurrent reclaimer
+PASS: stale takeover refuses the losing reclaimer with exit 75
+PASS: corrupt takeover permits exactly one concurrent reclaimer
+PASS: corrupt takeover refuses the losing reclaimer with exit 75
+
+=== Results: 77 passed, 3 failed ===
+RUN 1 STDOUT END
+
+RUN 1 STDERR BEGIN
+FAIL: a live holder older than the reclaim bound releases the lock to the waiter (expected='0' actual='75')
+FAIL: stale-live reclamation is loud rather than silently stealing the lock (expected substring 'reclaiming' in 'local-ci --fast lock refused (exit 75): holder_pid=41933 holder_worktree=/var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.lS0YEAxGha/stale_live_worktree held_seconds=1785632316; wait for its natural exit rather than bypass; FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS=0')
+FAIL: stale-live reclamation replaces the old holder record (expected='41164' actual='41933')
+RUN 1 STDERR END
+
+RUN 2 EXACT COMMAND:
+bash scripts/tests/local_ci_fast_lock_test.sh
+
+RUN 2 RESULT:
+start_utc=2026-08-02T00:58:59Z
+end_utc=2026-08-02T00:59:22Z
+exit_status=1
+wall_clock_millis=22350
+
+RUN 2 STDOUT BEGIN
+PASS: free lock acquisition succeeds
+PASS: free lock acquisition writes a holder record
+PASS: holder record contains the acquiring shell PID
+PASS: holder record contains the exact worktree path
+PASS: holder record contains an acquisition epoch timestamp
+PASS: default lock key is stable when one clone is entered through a symlink
+PASS: contended acquisition returns the reserved refusal code
+PASS: contention is not reported as success
+PASS: contention is distinct from a failed gate
+PASS: contention stderr identifies the holder and gives actionable refusal guidance
+PASS: contention keeps the refusal diagnostic on stderr
+PASS: refusal consumes the exported holder-description helper
+PASS: release removes the owned lock directory
+PASS: a subsequent acquire succeeds after release
+PASS: a lock owned by a reaped PID is reclaimed
+PASS: stale-lock diagnostic names the exact dead PID
+PASS: stale reclamation replaces the dead holder record
+PASS: stale-lock reclamation emits its diagnostic only on stderr
+PASS: legitimate-runtime specimen protects three measured 1241-second --fast runs
+PASS: stale-live reclamation identifies the displaced holder in the canonical shape
+PASS: stale reclaim decision never signals the holder
+PASS: a recent live holder inside the reclaim bound remains protected
+PASS: recent refusal preserves the canonical holder diagnostic
+PASS: recent refusal leaves the holder record unchanged
+PASS: recent reclaim decision never signals the holder
+PASS: a legitimate_runtime live holder inside the reclaim bound remains protected
+PASS: legitimate_runtime refusal preserves the canonical holder diagnostic
+PASS: legitimate_runtime refusal leaves the holder record unchanged
+PASS: legitimate-runtime refusal preserves the holder age evidence
+PASS: legitimate_runtime reclaim decision never signals the holder
+PASS: a PID-less holder record is reclaimed
+PASS: corrupt-lock diagnostic explains the exact defect
+PASS: corrupt reclamation writes a valid replacement holder
+PASS: corrupt-lock reclamation emits its diagnostic only on stderr
+PASS: an invalid-PID holder record is reclaimed
+PASS: invalid-PID reclamation reuses the corrupt-lock diagnostic
+PASS: invalid-PID reclamation writes a valid replacement holder
+PASS: invalid-PID reclamation emits its diagnostic only on stderr
+PASS: bounded contention waits for the configured interval without hanging
+PASS: bounded contention still returns the reserved refusal code
+PASS: bounded-wait refusal preserves the exact holder diagnostic
+PASS: bounded-wait refusal keeps the diagnostic on stderr
+PASS: metadata-guard work is charged to the configured wait budget
+PASS: slow metadata-guard contention returns the reserved refusal code
+PASS: slow metadata-guard refusal preserves the holder diagnostic
+PASS: missing-guard fallback race is still charged to the configured wait budget
+PASS: missing-guard fallback race still returns the reserved refusal code
+PASS: missing-guard fallback race reuses the completed holder diagnostic
+PASS: leading-zero wait values are normalized as decimal
+PASS: normalized decimal wait values are safe in Bash arithmetic
+PASS: negative wait values clamp to immediate refusal
+PASS: non-numeric wait values clamp to immediate refusal
+PASS: an unset wait budget falls back to the bounded-wait default
+PASS: the default budget is positive so contention queues instead of refusing
+PASS: an empty wait budget falls back to the same default
+PASS: an explicit 0 still opts into immediate refusal
+PASS: publisher acquires the lock after delayed holder publication
+PASS: default-zero contender refuses immediately while publication is paused
+PASS: contender refuses instead of reclaiming an in-progress holder publication
+PASS: in-progress refusal names the true paused publisher
+PASS: in-progress publication is not treated as a corrupt holder
+PASS: in-progress publication refusal keeps the diagnostic on stderr
+PASS: an orphaned reclaim claim does not wedge immediate acquisition
+PASS: orphaned reclaim recovery replaces the dead holder record
+PASS: an unlocked orphaned metadata guard is reclaimed
+PASS: metadata-guard recovery installs the current holder
+PASS: metadata guard path is removed after acquisition metadata completes
+PASS: an interrupted reclaimer releases the metadata guard
+PASS: acquisition after reclaimer interruption installs a live holder
+PASS: torn-owner contender immediately refuses during publisher metadata
+PASS: torn-owner refusal uses the atomic publisher guard record
+PASS: torn-owner refusal never names an arbitrary waiting contender
+PASS: torn-owner refusal keeps the diagnostic on stderr
+PASS: stale takeover permits exactly one concurrent reclaimer
+PASS: stale takeover refuses the losing reclaimer with exit 75
+PASS: corrupt takeover permits exactly one concurrent reclaimer
+PASS: corrupt takeover refuses the losing reclaimer with exit 75
+
+=== Results: 77 passed, 3 failed ===
+RUN 2 STDOUT END
+
+RUN 2 STDERR BEGIN
+FAIL: a live holder older than the reclaim bound releases the lock to the waiter (expected='0' actual='75')
+FAIL: stale-live reclamation is loud rather than silently stealing the lock (expected substring 'reclaiming' in 'local-ci --fast lock refused (exit 75): holder_pid=50867 holder_worktree=/var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.V0mvrqiLx3/stale_live_worktree held_seconds=1785632339; wait for its natural exit rather than bypass; FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS=0')
+FAIL: stale-live reclamation replaces the old holder record (expected='50545' actual='50867')
+RUN 2 STDERR END

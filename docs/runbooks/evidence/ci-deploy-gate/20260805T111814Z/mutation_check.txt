@@ -1,0 +1,87 @@
+# Stage 2 mutation check
+utc_created=2026-08-05T11:18:14Z
+host=ip-172-31-14-9
+postgres=16.14 (Debian 16.14-1.pgdg13+1)
+lock_key=4026570603639819734
+lock_identity=classid 937509025 objid 1559973334 objsubid 1
+test_filter=admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins
+
+## reverted mechanism hunk compile
+   Compiling api v0.1.0 (/home/ubuntu/fjcloud_dev/infra/api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.02s
+  Executable tests/auth_admin.rs (target/debug/deps/auth_admin-856e96dda8ebebbe)
+## RED with only isolated_schema_migrator locking restored
+utc_start=2026-08-05T11:18:23Z
+command=DATABASE_URL=postgres://griddle:griddle_local@127.0.0.1:5432/fjcloud_test timeout 75 cargo test -p api --test auth_admin admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins -- --exact --nocapture
+## RED with only isolated_schema_migrator locking restored: pg_stat_activity and pg_locks while guarded test is running
+captured_at=2026-08-05T11:18:31Z
+ pid | state  | wait_event_type | wait_event | blocked_by |                                                                                                  query                                                                                                   
+-----+--------+-----------------+------------+------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 641 | active | Timeout         | PgSleep    | {}         | SELECT pg_backend_pid(); SELECT pg_advisory_lock(4026570603639819734); SELECT pg_sleep(50);
+ 651 | active | Lock            | advisory   | {641}      | SELECT pg_advisory_lock($1)
+ 677 | active |                 |            | {}         | SELECT pid, state, wait_event_type, wait_event, pg_blocking_pids(pid) AS blocked_by, left(query, 200) AS query FROM pg_stat_activity WHERE datname = current_database() AND (query LIKE '%pg_advisory_lo
+(3 rows)
+
+ pid | state  | locktype |     mode      | granted |  classid  |   objid    | objsubid |                                            query                                            
+-----+--------+----------+---------------+---------+-----------+------------+----------+---------------------------------------------------------------------------------------------
+ 641 | active | advisory | ExclusiveLock | t       | 937509025 | 1559973334 |        1 | SELECT pg_backend_pid(); SELECT pg_advisory_lock(4026570603639819734); SELECT pg_sleep(50);
+ 651 | active | advisory | ExclusiveLock | f       | 937509025 | 1559973334 |        1 | SELECT pg_advisory_lock($1)
+(2 rows)
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.19s
+     Running tests/auth_admin.rs (target/debug/deps/auth_admin-856e96dda8ebebbe)
+
+running 1 test
+
+thread 'admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins' (4853) panicked at api/tests/integration/admin_vms_test.rs:977:6:
+admin VM reference-first publication test must finish inside 30s: Elapsed(())
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins ... FAILED
+
+failures:
+
+failures:
+    admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 404 filtered out; finished in 30.22s
+
+error: test failed, to rerun pass `-p api --test auth_admin`
+exit=101
+wall_s=30
+utc_end=2026-08-05T11:18:53Z
+
+## restored mechanism hunk compile
+   Compiling api v0.1.0 (/home/ubuntu/fjcloud_dev/infra/api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.07s
+  Executable tests/auth_admin.rs (target/debug/deps/auth_admin-856e96dda8ebebbe)
+## GREEN with isolated_schema_migrator set_locking(false) restored
+utc_start=2026-08-05T11:19:37Z
+command=DATABASE_URL=postgres://griddle:griddle_local@127.0.0.1:5432/fjcloud_test timeout 75 cargo test -p api --test auth_admin admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins -- --exact --nocapture
+## GREEN with isolated_schema_migrator set_locking(false) restored: pg_stat_activity and pg_locks while guarded test is running
+captured_at=2026-08-05T11:19:45Z
+ pid | state  | wait_event_type | wait_event | blocked_by |                                                                                                  query                                                                                                   
+-----+--------+-----------------+------------+------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 850 | active | Timeout         | PgSleep    | {}         | SELECT pg_backend_pid(); SELECT pg_advisory_lock(4026570603639819734); SELECT pg_sleep(50);
+ 885 | active |                 |            | {}         | SELECT pid, state, wait_event_type, wait_event, pg_blocking_pids(pid) AS blocked_by, left(query, 200) AS query FROM pg_stat_activity WHERE datname = current_database() AND (query LIKE '%pg_advisory_lo
+(2 rows)
+
+ pid | state  | locktype |     mode      | granted |  classid  |   objid    | objsubid |                                            query                                            
+-----+--------+----------+---------------+---------+-----------+------------+----------+---------------------------------------------------------------------------------------------
+ 850 | active | advisory | ExclusiveLock | t       | 937509025 | 1559973334 |        1 | SELECT pg_backend_pid(); SELECT pg_advisory_lock(4026570603639819734); SELECT pg_sleep(50);
+(1 row)
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s
+     Running tests/auth_admin.rs (target/debug/deps/auth_admin-856e96dda8ebebbe)
+
+running 1 test
+test admin_vms_test::decommission_endpoint_reports_blockers_when_reference_publication_wins ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 404 filtered out; finished in 1.24s
+
+exit=0
+wall_s=9
+utc_end=2026-08-05T11:19:46Z
+
+red_exit=101
+green_exit=0
+transcript=/home/ubuntu/fjcloud_dev/docs/runbooks/evidence/ci-deploy-gate/20260805T111814Z/mutation_check.txt

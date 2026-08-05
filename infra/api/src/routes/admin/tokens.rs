@@ -1,10 +1,8 @@
 //! `POST /admin/tokens` — mint a JWT for a given customer.
 //!
-//! Adds an optional `purpose` discriminator: when set to "impersonation",
-//! the handler writes an `audit_log` row so there's a durable trail of
-//! who impersonated whom and when. Default (purpose unset or "admin") is
-//! treated as a routine token mint and writes nothing — keeps audit_log's
-//! signal-to-noise ratio high for T1.4's per-customer audit view.
+//! The optional `purpose` discriminator is retained only as caller-supplied
+//! context in the audit metadata. Every successful admin-minted customer JWT
+//! is audited because the route always grants tenant impersonation capability.
 use axum::extract::State;
 use axum::Json;
 use chrono::{DateTime, Utc};
@@ -15,10 +13,9 @@ use uuid::Uuid;
 use crate::auth::{AdminAuth, Claims};
 use crate::errors::ApiError;
 use crate::models::customer::{customer_auth_state, CustomerAuthState};
-use crate::services::audit_log::{write_audit_log, ACTION_IMPERSONATION_TOKEN_CREATED};
+use crate::services::audit_log::{AuditEntry, ACTION_IMPERSONATION_TOKEN_CREATED};
 use crate::state::AppState;
 
-/// Discriminator value for the `purpose` field that triggers an audit row.
 const PURPOSE_ADMIN: &str = "admin";
 const PURPOSE_IMPERSONATION: &str = "impersonation";
 
@@ -27,11 +24,11 @@ pub struct CreateTokenRequest {
     pub customer_id: Uuid,
     pub expires_in_secs: Option<u64>,
     /// Optional discriminator. Accepted values:
-    /// * unset or `"admin"` — mint the token without an audit row
-    /// * `"impersonation"` — mint the token and append an audit row
+    /// * unset or `"admin"` — mint the token and record `purpose="admin"`
+    /// * `"impersonation"` — mint the token and record `purpose="impersonation"`
     ///
     /// Any other value is rejected with 400 so a caller typo cannot silently
-    /// disable the audit trail for an intended impersonation token.
+    /// change the route's audit metadata.
     #[serde(default)]
     pub purpose: Option<String>,
 }
@@ -71,13 +68,12 @@ async fn require_token_customer(state: &AppState, customer_id: Uuid) -> Result<(
 /// Returns the signed token and its expiration timestamp.
 ///
 /// Accepted `purpose` values are `"admin"` and `"impersonation"` (or omit the
-/// field for the default `"admin"` behavior).
+/// field for the default `"admin"` metadata value).
 ///
-/// When `purpose=="impersonation"` the handler writes an `audit_log` row with
+/// Before signing the JWT, the handler always writes an `audit_log` row with
 /// `action="impersonation_token_created"`, `target_tenant_id=customer_id`, and
-/// metadata `{ "duration_secs": <clamped expiry> }`. The audit write is
-/// best-effort: failures are logged at `error!` level but do NOT block token
-/// issuance — see the comment on `write_audit_log` for the rationale.
+/// metadata containing the clamped expiry plus the requested purpose. Audit
+/// failures block token issuance.
 pub async fn create_token(
     auth: AdminAuth,
     State(state): State<AppState>,
@@ -97,8 +93,31 @@ pub async fn create_token(
         .expires_in_secs
         .unwrap_or(86400)
         .clamp(MIN_EXPIRY, MAX_EXPIRY);
-    let exp = now + duration;
+    let audit_purpose = purpose.unwrap_or(PURPOSE_ADMIN);
 
+    state
+        .audit_log_writer
+        .write(&AuditEntry {
+            actor_id: auth.operator_id,
+            action: ACTION_IMPERSONATION_TOKEN_CREATED.to_owned(),
+            target_tenant_id: Some(req.customer_id),
+            metadata: serde_json::json!({
+            "duration_secs": duration,
+            "purpose": audit_purpose,
+            }),
+        })
+        .await
+        .map_err(|err| {
+            tracing::error!(
+                error = %err,
+                customer_id = %req.customer_id,
+                purpose = audit_purpose,
+                "failed to write admin token audit_log row"
+            );
+            ApiError::Internal("failed to persist admin token audit log".into())
+        })?;
+
+    let exp = now + duration;
     let claims = Claims {
         sub: req.customer_id.to_string(),
         exp: exp as usize,
@@ -114,30 +133,6 @@ pub async fn create_token(
 
     let expires_at: DateTime<Utc> =
         DateTime::from_timestamp(exp as i64, 0).expect("valid timestamp");
-
-    // Write the audit row only for impersonation tokens. Routine admin token
-    // mints (the most common case — ops scripts, integration tests, etc.) are
-    // intentionally excluded so audit_log stays signal-dense for T1.4.
-    if purpose == Some(PURPOSE_IMPERSONATION) {
-        // Best-effort: log on failure but do NOT propagate. A transient DB
-        // hiccup must not block legitimate impersonation flows. Worst case is
-        // we lose ONE audit row; tracing!error gives ops visibility.
-        if let Err(err) = write_audit_log(
-            &state.pool,
-            auth.operator_id,
-            ACTION_IMPERSONATION_TOKEN_CREATED,
-            Some(req.customer_id),
-            serde_json::json!({ "duration_secs": duration }),
-        )
-        .await
-        {
-            tracing::error!(
-                error = %err,
-                customer_id = %req.customer_id,
-                "failed to write impersonation audit_log row"
-            );
-        }
-    }
 
     Ok(Json(CreateTokenResponse {
         token,

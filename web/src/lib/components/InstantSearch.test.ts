@@ -303,6 +303,127 @@ describe('InstantSearch', () => {
 		});
 	});
 
+	it('uses a conventional subtitle field in the compact preview card', async () => {
+		const imageUrl = 'https://cdn.example.test/products/doc-1.png';
+		mockLocalStorage();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue(
+				createSearchResponse({
+					hits: [
+						{
+							objectID: 'doc-1',
+							title: 'Water Bottle',
+							subtitle: 'Keeps water cold',
+							image_url: imageUrl,
+							tags: ['hydration']
+						}
+					],
+					nbHits: 1
+				})
+			)
+		);
+
+		render(InstantSearch, {
+			indexName: 'cust_products'
+		});
+
+		const queryInput = screen.getByLabelText('Search preview query');
+		await fireEvent.input(queryInput, { target: { value: 'bottle' } });
+		await fireEvent.keyDown(queryInput, { key: 'Enter' });
+
+		expect(await screen.findByTestId('document-card-subtitle')).toHaveTextContent(
+			'Keeps water cold'
+		);
+		expect(screen.getByTestId('document-card-image')).toHaveAttribute('src', imageUrl);
+		expect(screen.getByTestId('document-card-tag')).toHaveTextContent('hydration');
+	});
+
+	it('prefers conventional tags over a singular category in the compact preview card', async () => {
+		mockLocalStorage();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue(
+				createSearchResponse({
+					hits: [
+						{
+							objectID: 'doc-1',
+							title: 'Polished Beta Pancake',
+							tags: ['polished-beta', 'odd'],
+							category: 'staging_verify'
+						}
+					],
+					nbHits: 1
+				})
+			)
+		);
+
+		render(InstantSearch, {
+			indexName: 'cust_products'
+		});
+
+		const queryInput = screen.getByLabelText('Search preview query');
+		await fireEvent.input(queryInput, { target: { value: 'pancake' } });
+		await fireEvent.keyDown(queryInput, { key: 'Enter' });
+
+		const tags = await screen.findAllByTestId('document-card-tag');
+		expect(tags.map((tag) => tag.textContent)).toEqual(['polished-beta', 'odd']);
+	});
+
+	it('preserves compact preview subtitle field precedence', async () => {
+		mockLocalStorage();
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(
+				createSearchResponse({
+					hits: [
+						{
+							objectID: 'doc-1',
+							title: 'Overview Document',
+							overview: 'Overview summary',
+							description: 'Description summary',
+							subtitle: 'Subtitle summary'
+						}
+					],
+					nbHits: 1
+				})
+			)
+			.mockResolvedValueOnce(
+				createSearchResponse({
+					hits: [
+						{
+							objectID: 'doc-2',
+							title: 'Description Document',
+							description: 'Fallback description',
+							subtitle: 'Fallback subtitle'
+						}
+					],
+					nbHits: 1
+				})
+			);
+		vi.stubGlobal('fetch', fetchMock);
+
+		render(InstantSearch, {
+			indexName: 'cust_products'
+		});
+
+		const queryInput = screen.getByLabelText('Search preview query');
+		await fireEvent.input(queryInput, { target: { value: 'overview' } });
+		await fireEvent.keyDown(queryInput, { key: 'Enter' });
+
+		expect(await screen.findByTestId('document-card-subtitle')).toHaveTextContent(
+			'Overview summary'
+		);
+
+		await fireEvent.input(queryInput, { target: { value: 'description' } });
+		await fireEvent.keyDown(queryInput, { key: 'Enter' });
+
+		await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+		expect(await screen.findByTestId('document-card-subtitle')).toHaveTextContent(
+			'Fallback description'
+		);
+	});
+
 	it('does not submit a duplicate Enter search after instant input search', async () => {
 		mockLocalStorage({
 			search_preview_instant_search: JSON.stringify({ cust_products: true })

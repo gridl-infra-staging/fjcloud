@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { PASSWORD_MIN_LENGTH } from '$lib/auth/password-policy';
 	import OAuthButtons from '$lib/components/OAuthButtons.svelte';
 	import PasswordInput from '$lib/components/PasswordInput.svelte';
 	import { LEGAL_SUPPORT_MAILTO, SUPPORT_EMAIL } from '$lib/format';
 	import { MARKETING_PRICING } from '$lib/pricing';
-	import { SIGNUP_PASSWORD_MIN_LENGTH, clientSignupPasswordLengthError } from './signup-validation';
+	import { clientSignupPasswordLengthError } from './signup-validation';
 
 	type SignupFieldError = 'form' | 'name' | 'email' | 'password' | 'confirm_password';
 	type SignupFormState = {
@@ -25,7 +26,7 @@
 		if (form?.email !== undefined) email = form.email ?? '';
 	});
 
-	const passwordRequirementText = `Use at least ${SIGNUP_PASSWORD_MIN_LENGTH} characters.`;
+	const passwordRequirementText = `Use at least ${PASSWORD_MIN_LENGTH} characters.`;
 	const passwordErrorMessage = $derived.by(() => {
 		if (password.length > 0) {
 			return clientSignupPasswordLengthError(password);
@@ -33,6 +34,11 @@
 
 		return form?.errors?.password ?? null;
 	});
+	// Native `minlength` counts UTF-16 units and would accept short supplementary-
+	// plane values (e.g. eight emoji); block submission on the code-point-short case.
+	const isPasswordTooShort = $derived(
+		password.length > 0 && clientSignupPasswordLengthError(password) !== null
+	);
 </script>
 
 <svelte:head>
@@ -88,7 +94,7 @@
 					label="Password"
 					bind:value={password}
 					required
-					minlength={SIGNUP_PASSWORD_MIN_LENGTH}
+					minlength={PASSWORD_MIN_LENGTH}
 					error={passwordErrorMessage}
 				/>
 				{#if !passwordErrorMessage}
@@ -102,7 +108,7 @@
 					name="confirm_password"
 					label="Confirm Password"
 					required
-					minlength={SIGNUP_PASSWORD_MIN_LENGTH}
+					minlength={PASSWORD_MIN_LENGTH}
 					error={form?.errors?.confirm_password}
 					errorRole="alert"
 				/>
@@ -110,7 +116,8 @@
 
 			<button
 				type="submit"
-				class="w-full rounded bg-flapjack-rose px-4 py-2 font-medium text-white hover:bg-flapjack-plum focus:ring-2 focus:ring-flapjack-rose focus:ring-offset-flapjack-cream"
+				disabled={isPasswordTooShort}
+				class="w-full rounded bg-flapjack-rose px-4 py-2 font-medium text-white hover:bg-flapjack-plum focus:ring-2 focus:ring-flapjack-rose focus:ring-offset-flapjack-cream disabled:cursor-not-allowed disabled:opacity-50"
 			>
 				Sign Up
 			</button>

@@ -1,0 +1,28 @@
+{
+  "rows": [
+    {
+      "row_id": "B2",
+      "spec_path": "web/tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts",
+      "runner_command": "bash scripts/launch/run_browser_lane_locally.sh --lane billing_portal_payment_method_update",
+      "outcome": "executed_pass",
+      "recorded_at": "2026-07-28T18:30:50Z",
+      "raw_log": "raw/billing_portal_payment_method_update.txt"
+    },
+    {
+      "row_id": "B7",
+      "spec_path": "web/tests/e2e-ui/full/upgrade_to_shared_unmocked.spec.ts",
+      "runner_command": "bash scripts/launch/run_browser_lane_locally.sh --lane upgrade_to_shared_unmocked",
+      "outcome": "executed_pass",
+      "recorded_at": "2026-07-28T18:33:09Z",
+      "raw_log": "raw/upgrade_to_shared_unmocked.txt"
+    },
+    {
+      "row_id": "B21",
+      "spec_path": "web/tests/e2e-ui/full/auth-end-effects.spec.ts",
+      "runner_command": "bash scripts/launch/run_browser_lane_locally.sh --lane b21_verify_email",
+      "outcome": "executed_pass",
+      "recorded_at": "2026-08-01T11:26:53Z",
+      "raw_log": "raw/b21_verify_email.txt"
+    }
+  ]
+}

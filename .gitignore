@@ -67,6 +67,7 @@ composer.lock
 # Logs
 /logs
 *.log
+!docs/audits/browser-suite/20260804T010337Z/playwright_admin_and_staging_verify.log
 !docs/runbooks/evidence/billing_coverage_a2/**/*.log
 !docs/runbooks/evidence/ses-coverage-a1/**/*.log
 !docs/runbooks/evidence/local-p0-coverage/**/*.log

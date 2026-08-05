@@ -1,4 +1,5 @@
 use api::models::{CustomerRateOverrideRow, RateCardRow};
+use api::services::audit_log::ACTION_RATE_CARD_OVERRIDE;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use chrono::Utc;
@@ -7,6 +8,11 @@ use rust_decimal_macros::dec;
 use tower::ServiceExt;
 use uuid::Uuid;
 
+use crate::common::admin_audit_test_support::{
+    app_with_pg_customer_and_rate_card_repos, audit_row_count_for_action_and_nullable_target,
+    connect_isolated_and_migrate, create_active_customer, install_scoped_audit_failure_trigger,
+    register_operator,
+};
 use crate::common::{
     mock_deployment_repo, mock_rate_card_repo, mock_repo, mock_usage_repo, test_app_full,
     TEST_ADMIN_KEY,
@@ -643,4 +649,96 @@ async fn set_rate_override_200_supports_object_storage_fields() {
     // Other fields unchanged
     assert_eq!(body["storage_rate_per_mb_month"], "0.200000");
     assert_eq!(body["cold_storage_rate_per_gb_month"], "0.020000");
+}
+
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn set_rate_override_audit_transactional_best_effort_persists_override_when_audit_insert_fails(
+) {
+    let db = connect_isolated_and_migrate("rate_card_audit_transactional_best_effort").await;
+    let (operator_id, admin_credential) = register_operator(
+        &db.pool,
+        &format!(
+            "rate-card-transactional-best-effort-{}@example.com",
+            Uuid::new_v4()
+        ),
+    )
+    .await;
+    let customer_id = create_active_customer(&db.pool, "Rate Card Audit Best Effort").await;
+    install_scoped_audit_failure_trigger(
+        &db.pool,
+        ACTION_RATE_CARD_OVERRIDE,
+        operator_id,
+        Some(customer_id),
+    )
+    .await;
+    let app = app_with_pg_customer_and_rate_card_repos(db.pool.clone());
+    let request_body = serde_json::json!({
+        "storage_rate_per_mb_month": "0.123456",
+        "cold_storage_rate_per_gb_month": "0.015000",
+        "object_storage_rate_per_gb_month": "0.033000",
+        "object_storage_egress_rate_per_gb": "0.007000",
+        "minimum_spend_cents": 321,
+        "shared_minimum_spend_cents": 222,
+        "region_multipliers": {
+            "us-east-1": "0.75",
+            "eu-west-1": "1.25"
+        }
+    });
+    let expected_overrides = serde_json::json!({
+        "storage_rate_per_mb_month": "0.123456",
+        "cold_storage_rate_per_gb_month": "0.015000",
+        "object_storage_rate_per_gb_month": "0.033000",
+        "object_storage_egress_rate_per_gb": "0.007000",
+        "minimum_spend_cents": 321,
+        "shared_minimum_spend_cents": 222,
+        "region_multipliers": {
+            "us-east-1": "0.75",
+            "eu-west-1": "1.25"
+        }
+    });
+
+    let resp = app
+        .oneshot(
+            Request::put(format!("/admin/tenants/{customer_id}/rate-card"))
+                .header("x-admin-key", admin_credential)
+                .header("content-type", "application/json")
+                .body(Body::from(request_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body: serde_json::Value =
+        serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(body["has_override"], true);
+    assert_eq!(body["storage_rate_per_mb_month"], "0.123456");
+    assert_eq!(body["cold_storage_rate_per_gb_month"], "0.015000");
+    assert_eq!(body["object_storage_rate_per_gb_month"], "0.033000");
+    assert_eq!(body["object_storage_egress_rate_per_gb"], "0.007000");
+    assert_eq!(body["minimum_spend_cents"], 321);
+    assert_eq!(body["shared_minimum_spend_cents"], 222);
+    assert_eq!(body["region_multipliers"]["us-east-1"], "0.75");
+    assert_eq!(body["region_multipliers"]["eu-west-1"], "1.25");
+    assert_eq!(body["override_fields"], expected_overrides);
+
+    let persisted_overrides = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT overrides FROM customer_rate_overrides WHERE customer_id = $1",
+    )
+    .bind(customer_id)
+    .fetch_one(&db.pool)
+    .await
+    .expect("read persisted rate override");
+    assert_eq!(persisted_overrides, expected_overrides);
+    assert_eq!(
+        audit_row_count_for_action_and_nullable_target(
+            &db.pool,
+            ACTION_RATE_CARD_OVERRIDE,
+            Some(customer_id)
+        )
+        .await,
+        0,
+        "rate-card audit writes are intentionally best-effort"
+    );
 }

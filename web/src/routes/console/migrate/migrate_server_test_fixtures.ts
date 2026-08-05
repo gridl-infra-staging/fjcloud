@@ -11,6 +11,7 @@ export const listAlgoliaImportJobsMock = vi.fn();
 export const checkMigrationDestinationEligibilityMock = vi.fn();
 export const listMigrationSourceIndexesMock = vi.fn();
 export const createMigrationImportJobMock = vi.fn();
+export const previewMigrationImportMock = vi.fn();
 export const listMigrationImportJobsMock = vi.fn();
 export const CLOSED_SOURCE_PROVIDERS = ['algolia', 'meilisearch', 'typesense'] as const;
 export const HOSTED_SOURCE_PROVIDERS = ['meilisearch', 'typesense'] as const;
@@ -28,6 +29,7 @@ export function createMigrationApiClientMock() {
 		checkMigrationDestinationEligibility: checkMigrationDestinationEligibilityMock,
 		listMigrationSourceIndexes: listMigrationSourceIndexesMock,
 		createMigrationImportJob: createMigrationImportJobMock,
+		previewMigrationImport: previewMigrationImportMock,
 		listMigrationImportJobs: listMigrationImportJobsMock
 	};
 }
@@ -129,6 +131,27 @@ export function createJobPayload(sourceProvider: SourceProvider) {
 	};
 }
 
+export function previewPayload(sourceProvider: 'algolia' | 'meilisearch') {
+	if (sourceProvider === 'algolia') {
+		return {
+			source_provider: 'algolia',
+			appId: 'algolia_app_id_canary',
+			apiKey: 'algolia_api_key_canary',
+			sourceIndex: 'algolia_products',
+			targetIndex: 'algolia_target',
+			overwrite: false
+		};
+	}
+	return {
+		source_provider: 'meilisearch',
+		endpoint: 'https://meilisearch.example.test',
+		apiKey: 'meilisearch_api_key_canary',
+		sourceIndex: 'configured_pk',
+		targetIndex: 'configured_pk',
+		overwrite: false
+	};
+}
+
 export function forwardedSourceCredentials(payload: ReturnType<typeof sourceListPayload>) {
 	const credentials = { ...payload };
 	Reflect.deleteProperty(credentials, 'source_provider');
@@ -146,13 +169,13 @@ export function resetMigrateServerMocks(): void {
 		available: false,
 		reason: 'temporarily_unavailable',
 		message: 'Algolia migration is temporarily unavailable while we replace the importer.',
-		capabilities: { cancel: false, resume: false, replace: false }
+		capabilities: { cancel: false, resume: false, replace: false, preview: false, verify: false }
 	});
 	getMigrationAvailabilityMock.mockResolvedValue({
 		available: false,
 		reason: 'temporarily_unavailable',
 		message: 'Algolia migration is temporarily unavailable while we replace the importer.',
-		capabilities: { cancel: false, resume: false, replace: false }
+		capabilities: { cancel: false, resume: false, replace: false, preview: false, verify: false }
 	});
 	checkAlgoliaDestinationEligibilityMock.mockResolvedValue({
 		phase: 'provider',
@@ -175,5 +198,13 @@ export function resetMigrateServerMocks(): void {
 	});
 	listMigrationSourceIndexesMock.mockResolvedValue({ items: [], nextCursor: null });
 	createMigrationImportJobMock.mockResolvedValue({ id: 'job_123' });
+	previewMigrationImportMock.mockResolvedValue({
+		sourceCounts: { indexes: 1, records: 4 },
+		report: {
+			summary: { totalEntries: 0, hardRejections: 0, warnings: 0, scopeGaps: 0 },
+			entries: [],
+			reportDigest: 'sha256:test-preview'
+		}
+	});
 	listMigrationImportJobsMock.mockResolvedValue({ jobs: [], nextCursor: null });
 }

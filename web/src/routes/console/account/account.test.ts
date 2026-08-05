@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/svelte';
 import type { CustomerProfileResponse } from '$lib/api/types';
 import { layoutTestDefaults } from '../layout-test-context';
+import { PASSWORD_MIN_LENGTH } from '$lib/auth/password-policy';
 import { LEGAL_SUPPORT_MAILTO, SUPPORT_EMAIL } from '$lib/format';
 import { TOAST_DURATION_MS } from '$lib/toast_contract';
 import { getAccessibilityViolations } from '../../../tests/a11y';
@@ -149,13 +150,13 @@ describe('Account page', () => {
 		const newPasswordInput = screen.getByLabelText('New password');
 		expect(newPasswordInput).toHaveAttribute('id', 'new-password');
 		expect(newPasswordInput).toHaveAttribute('name', 'new_password');
-		expect(newPasswordInput).toHaveAttribute('minlength', '8');
+		expect(newPasswordInput).toHaveAttribute('minlength', String(PASSWORD_MIN_LENGTH));
 		expect(newPasswordInput).toBeRequired();
 
 		const confirmPasswordInput = screen.getByLabelText('Confirm new password');
 		expect(confirmPasswordInput).toHaveAttribute('id', 'confirm-password');
 		expect(confirmPasswordInput).toHaveAttribute('name', 'confirm_password');
-		expect(confirmPasswordInput).toHaveAttribute('minlength', '8');
+		expect(confirmPasswordInput).toHaveAttribute('minlength', String(PASSWORD_MIN_LENGTH));
 		expect(confirmPasswordInput).toBeRequired();
 
 		const passwordForm = currentPasswordInput.closest('form');
@@ -166,6 +167,47 @@ describe('Account page', () => {
 		expect(passwordForm).toHaveAttribute('method', 'POST');
 		expect(
 			within(passwordForm).getByRole('button', { name: 'Change password' })
+		).toBeInTheDocument();
+	});
+
+	it('blocks change-password submission for an eight-emoji password that native minlength accepts', async () => {
+		renderAccount();
+
+		const newPasswordInput = screen.getByLabelText('New password');
+		const passwordForm = newPasswordInput.closest('form');
+		if (!(passwordForm instanceof HTMLFormElement)) {
+			throw new Error('Expected new password input inside password form');
+		}
+		const submit = within(passwordForm).getByRole('button', { name: 'Change password' });
+
+		// Eight lock emoji: 8 code points but 16 UTF-16 units, so native
+		// minlength={15} treats it as long enough while the policy does not.
+		await fireEvent.input(newPasswordInput, { target: { value: '🔒'.repeat(8) } });
+		expect(
+			within(passwordForm).getByText(
+				`New password must be at least ${PASSWORD_MIN_LENGTH} characters`
+			)
+		).toBeInTheDocument();
+		expect(submit).toBeDisabled();
+
+		await fireEvent.input(newPasswordInput, { target: { value: 'abc café 123456' } });
+		expect(
+			within(passwordForm).queryByText(
+				`New password must be at least ${PASSWORD_MIN_LENGTH} characters`
+			)
+		).not.toBeInTheDocument();
+		expect(submit).toBeEnabled();
+	});
+
+	it('renders server-owned new-password validation inline', () => {
+		renderAccount({
+			form: {
+				newPasswordError: 'New password is too common; choose another password'
+			} as SettingsForm
+		});
+
+		expect(
+			screen.getByText('New password is too common; choose another password')
 		).toBeInTheDocument();
 	});
 

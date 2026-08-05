@@ -36,6 +36,10 @@ make_test_tmp_dir() {
     mkdir -p "$TEST_TMP_DIR/bin" "$TEST_TMP_DIR/state" "$TEST_TMP_DIR/evidence"
     : >"$TEST_TMP_DIR/empty.env"
     write_mock_script "$TEST_TMP_DIR/bin/sleep" 'exit 0'
+    write_mock_script "$TEST_TMP_DIR/bin/tee" '
+/bin/sleep 0.1
+exec /usr/bin/tee "$@"
+'
 }
 
 make_mock_aws() {

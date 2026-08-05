@@ -33,17 +33,19 @@ pub struct AdminVmPgTestAppWithStateMocks {
     pub node_secret_manager: Arc<MockNodeSecretManager>,
 }
 
-pub fn admin_vm_pg_test_app(pool: PgPool) -> Router {
+pub async fn admin_vm_pg_test_app(pool: PgPool) -> Router {
+    super::seed_test_admin_operator(&pool).await;
     let mut state = TestStateBuilder::new().with_pool(pool.clone()).build();
     state.vm_inventory_repo = Arc::new(PgVmInventoryRepo::new(pool));
     build_router(state)
 }
 
-pub fn admin_vm_pg_test_app_with_state_mocks(pool: PgPool) -> AdminVmPgTestAppWithStateMocks {
+pub async fn admin_vm_pg_test_app_with_state_mocks(pool: PgPool) -> AdminVmPgTestAppWithStateMocks {
     let deployment_repo = Arc::new(super::MockDeploymentRepo::new());
     let vm_provisioner = Arc::new(MockVmProvisioner::new());
     let dns_manager = Arc::new(MockDnsManager::new());
     let node_secret_manager = Arc::new(MockNodeSecretManager::new());
+    super::seed_test_admin_operator(&pool).await;
     let mut state = TestStateBuilder::new()
         .with_pool(pool.clone())
         .with_deployment_repo(deployment_repo.clone())
@@ -192,7 +194,7 @@ pub async fn assert_admin_route_inventory_lock_wins_publication(
 
     let route_pid = backend_pid(&route_pool).await;
     let route_task = spawn_decommission_request(
-        admin_vm_pg_test_app(route_pool),
+        admin_vm_pg_test_app(route_pool).await,
         fixture.vm_id,
         "admin_route_inventory_first_vm",
         admin_key,
@@ -242,7 +244,7 @@ pub async fn assert_admin_route_reference_publication_wins(
 
     let route_pid = backend_pid(&route_pool).await;
     let route_task = spawn_decommission_request(
-        admin_vm_pg_test_app(route_pool),
+        admin_vm_pg_test_app(route_pool).await,
         fixture.vm_id,
         "admin_route_reference_first_vm",
         admin_key,

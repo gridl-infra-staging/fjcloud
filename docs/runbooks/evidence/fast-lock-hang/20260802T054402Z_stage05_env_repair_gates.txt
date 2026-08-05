@@ -1,0 +1,121 @@
+Stage 5: the four gates the single union attempt reported red, re-run lock-free after
+repairing web/node_modules with 'cd web && npm ci' (the union run found only an empty
+.bin directory, so every web-dependent gate errored before executing any assertion).
+HEAD 0fdc3b746c696a70247043272f9879b866f93f39
+clean_tree False
+
+$ cd web && npm ci
+added 469 packages, and audited 470 packages in 1m
+found 0 vulnerabilities
+exit_code 0
+
+---
+
+$ /usr/bin/time -p bash scripts/local-ci.sh --gate baseline-integrity
+Running 1 gate(s): baseline-integrity
+Mode: fast  Max parallel: 8
+
+
+=== local-ci summary (wall 19s) ===
+GATE                STATUS   SECS  LOG
+----                ------   ----  ---
+baseline-integrity  PASS       19  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/baseline-integrity.log
+
+## Prod deploy drift (informational — does not affect exit code)
+Prod deploy drift:
+  dev_sha:            99262771479dc6b8c5aeb2c20403300854883b86
+  build_time:         2026-07-30T13:31:29Z (64h 16m ago)
+  commits_behind:     902
+  deployable_drift:   true (behind)
+  doc_only_ahead:     false
+  dev_main_sha:       510a2c258b06
+
+Totals: pass=1 fail=0 skip=0
+Result: PASS
+real 19.02
+user 13.30
+sys 4.39
+exit_code 0
+
+---
+$ /usr/bin/time -p bash scripts/local-ci.sh --gate local-real-pipeline-contract
+Running 1 gate(s): local-real-pipeline-contract
+Mode: fast  Max parallel: 8
+
+
+=== local-ci summary (wall 57s) ===
+GATE                STATUS   SECS  LOG
+----                ------   ----  ---
+local-real-pipeline-contract  PASS       57  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/local-real-pipeline-contract.log
+
+## Prod deploy drift (informational — does not affect exit code)
+Prod deploy drift:
+  dev_sha:            99262771479dc6b8c5aeb2c20403300854883b86
+  build_time:         2026-07-30T13:31:29Z (64h 17m ago)
+  commits_behind:     902
+  deployable_drift:   true (behind)
+  doc_only_ahead:     false
+  dev_main_sha:       510a2c258b06
+
+Totals: pass=1 fail=0 skip=0
+Result: PASS
+real 58.08
+user 19.81
+sys 17.64
+exit_code 0
+
+---
+$ /usr/bin/time -p bash scripts/local-ci.sh --gate web-lint
+Running 1 gate(s): web-lint
+Mode: fast  Max parallel: 8
+
+
+=== local-ci summary (wall 37s) ===
+GATE                STATUS   SECS  LOG
+----                ------   ----  ---
+web-lint            PASS       37  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/web-lint.log
+
+## Prod deploy drift (informational — does not affect exit code)
+Prod deploy drift:
+  dev_sha:            99262771479dc6b8c5aeb2c20403300854883b86
+  build_time:         2026-07-30T13:31:29Z (64h 18m ago)
+  commits_behind:     902
+  deployable_drift:   true (behind)
+  doc_only_ahead:     false
+  dev_main_sha:       510a2c258b06
+
+Totals: pass=1 fail=0 skip=0
+Result: PASS
+real 37.51
+user 45.71
+sys 6.63
+exit_code 0
+
+---
+$ /usr/bin/time -p bash scripts/local-ci.sh --gate web-test
+Running 1 gate(s): web-test (sequential)
+Mode: fast  Max parallel: 8
+
+
+=== local-ci summary (wall 149s) ===
+GATE                STATUS   SECS  LOG
+----                ------   ----  ---
+web-test            PASS      149  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/web-test.log
+
+## Prod deploy drift (informational — does not affect exit code)
+Prod deploy drift:
+  dev_sha:            99262771479dc6b8c5aeb2c20403300854883b86
+  build_time:         2026-07-30T13:31:29Z (64h 21m ago)
+  commits_behind:     902
+  deployable_drift:   true (behind)
+  doc_only_ahead:     false
+  dev_main_sha:       510a2c258b06
+
+Totals: pass=1 fail=0 skip=0
+Result: PASS
+real 149.80
+user 261.92
+sys 46.97
+exit_code 0
+
+---

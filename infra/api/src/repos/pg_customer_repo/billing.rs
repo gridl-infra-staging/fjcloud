@@ -4,6 +4,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::repos::error::RepoError;
+use crate::services::audit_log::{write_audit_log_tx, AuditEntry};
 
 pub(super) async fn set_stripe_customer_id(
     pool: &PgPool,
@@ -102,15 +103,35 @@ pub(super) async fn set_billing_plan(
     Ok(result.rows_affected() > 0)
 }
 
-pub(super) async fn suspend(pool: &PgPool, id: Uuid) -> Result<bool, RepoError> {
+pub(super) async fn suspend(
+    pool: &PgPool,
+    id: Uuid,
+    audit_entry: AuditEntry,
+) -> Result<bool, RepoError> {
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|error| RepoError::Other(error.to_string()))?;
+
     let result = sqlx::query(
         "UPDATE customers SET status = 'suspended', updated_at = NOW() \
              WHERE id = $1 AND status = 'active'",
     )
     .bind(id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await
     .map_err(|e| RepoError::Other(e.to_string()))?;
+
+    if result.rows_affected() == 0 {
+        return Ok(false);
+    }
+
+    write_audit_log_tx(&mut tx, &audit_entry)
+        .await
+        .map_err(|error| RepoError::Other(error.to_string()))?;
+    tx.commit()
+        .await
+        .map_err(|error| RepoError::Other(error.to_string()))?;
 
     Ok(result.rows_affected() > 0)
 }

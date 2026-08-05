@@ -14,6 +14,8 @@
 		submitError = null,
 		submitDisabled,
 		submitting,
+		submitLabel = 'Start import',
+		showSubmit = true,
 		onSubmit
 	}: {
 		mode?: AlgoliaMigrationDestinationMode;
@@ -24,6 +26,8 @@
 		submitError?: string | null;
 		submitDisabled: boolean;
 		submitting: boolean;
+		submitLabel?: string;
+		showSubmit?: boolean;
 		onSubmit: () => void;
 	} = $props();
 
@@ -110,12 +114,14 @@
 		</p>
 	{/if}
 
-	<button
-		type="button"
-		disabled={submitDisabled}
-		onclick={onSubmit}
-		class="rounded bg-flapjack-rose px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-	>
-		{submitting ? 'Starting import' : 'Start import'}
-	</button>
+	{#if showSubmit}
+		<button
+			type="button"
+			disabled={submitDisabled}
+			onclick={onSubmit}
+			class="rounded bg-flapjack-rose px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+		>
+			{submitting ? 'Starting import' : submitLabel}
+		</button>
+	{/if}
 </section>

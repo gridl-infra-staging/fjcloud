@@ -13,6 +13,9 @@ const OPENAPI_OPERATION_METHODS: [&str; 8] = [
     "get", "put", "post", "delete", "options", "head", "patch", "trace",
 ];
 
+#[path = "openapi_spec_test/neutral_source_discovery_contract.rs"]
+mod neutral_source_discovery_contract;
+
 fn openapi_artifact_path() -> PathBuf {
     let api_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     api_dir
@@ -59,6 +62,99 @@ fn response_schema_ref<'a>(
     .and_then(|value| value.as_str())
 }
 
+fn response_schema_refs(
+    spec: &serde_json::Value,
+    operation_ptr: &str,
+    status: &str,
+) -> BTreeSet<String> {
+    let schema = spec
+        .pointer(&format!(
+            "{operation_ptr}/responses/{status}/content/application~1json/schema"
+        ))
+        .unwrap_or_else(|| panic!("{operation_ptr} {status} response must document a JSON schema"));
+    let mut refs = BTreeSet::new();
+    let mut visited = BTreeSet::new();
+    collect_schema_refs(spec, schema, &mut refs, &mut visited);
+    refs
+}
+
+/// Create-request schema refs the published `SourceImportProvider` union implies,
+/// one per accepted provider. Deriving the expectation from the spec's own provider
+/// enum — rather than a hand-kept list — makes a new provider variant fail the create
+/// contract test until the documented create union publishes its request shape.
+fn published_create_request_schema_refs(spec: &serde_json::Value) -> BTreeSet<String> {
+    let providers = spec
+        .pointer("/components/schemas/SourceImportProvider/enum")
+        .and_then(|value| value.as_array())
+        .expect("SourceImportProvider must publish its closed provider enum");
+    assert!(
+        !providers.is_empty(),
+        "the published provider enum must not be empty, or this guard would assert nothing"
+    );
+
+    providers
+        .iter()
+        .map(|provider| {
+            let provider = provider
+                .as_str()
+                .expect("published provider values must be strings");
+            let pascal_case: String = provider
+                .split('_')
+                .map(|segment| {
+                    let mut characters = segment.chars();
+                    match characters.next() {
+                        Some(first) => first.to_uppercase().chain(characters).collect::<String>(),
+                        None => String::new(),
+                    }
+                })
+                .collect();
+            format!("#/components/schemas/Create{pascal_case}ImportJobRequest")
+        })
+        .collect()
+}
+
+fn collect_schema_refs(
+    spec: &serde_json::Value,
+    schema: &serde_json::Value,
+    refs: &mut BTreeSet<String>,
+    visited: &mut BTreeSet<String>,
+) {
+    if let Some(reference) = schema.get("$ref").and_then(|value| value.as_str()) {
+        if !visited.insert(reference.to_string()) {
+            return;
+        }
+        if let Some(schema_name) = reference.strip_prefix("#/components/schemas/") {
+            if let Some(component) = spec.pointer(&format!("/components/schemas/{schema_name}")) {
+                if ["oneOf", "anyOf", "allOf"]
+                    .iter()
+                    .any(|key| component.get(key).is_some())
+                {
+                    collect_schema_refs(spec, component, refs, visited);
+                    return;
+                }
+            }
+        }
+        refs.insert(reference.to_string());
+    }
+    for key in ["oneOf", "anyOf", "allOf"] {
+        if let Some(entries) = schema.get(key).and_then(|value| value.as_array()) {
+            for entry in entries {
+                collect_schema_refs(spec, entry, refs, visited);
+            }
+        }
+    }
+}
+
+fn schema_refs_at_pointer(spec: &serde_json::Value, pointer: &str) -> BTreeSet<String> {
+    let schema = spec
+        .pointer(pointer)
+        .unwrap_or_else(|| panic!("OpenAPI schema must exist at {pointer}"));
+    let mut refs = BTreeSet::new();
+    let mut visited = BTreeSet::new();
+    collect_schema_refs(spec, schema, &mut refs, &mut visited);
+    refs
+}
+
 fn scalar_api_reference_json(html: &str) -> serde_json::Value {
     let id_index = html
         .find(r#"id="api-reference""#)
@@ -83,7 +179,7 @@ fn migration_http_operations(spec: &serde_json::Value) -> BTreeSet<(String, Stri
         .expect("OpenAPI spec must contain object-valued paths");
     let mut operations = BTreeSet::new();
     for (path, path_item) in paths {
-        if !path.starts_with("/migration/algolia/") {
+        if !path.starts_with("/migration/{source_provider}/") {
             continue;
         }
         let methods = path_item
@@ -98,11 +194,29 @@ fn migration_http_operations(spec: &serde_json::Value) -> BTreeSet<(String, Stri
     operations
 }
 
+fn assert_no_legacy_algolia_path_items(spec: &serde_json::Value) {
+    let paths = spec
+        .get("paths")
+        .and_then(|value| value.as_object())
+        .expect("OpenAPI spec must contain object-valued paths");
+    let legacy_paths = paths
+        .keys()
+        .filter(|path| {
+            path.as_str() == "/migration/algolia" || path.starts_with("/migration/algolia/")
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        legacy_paths.is_empty(),
+        "legacy Algolia aliases must not duplicate the canonical neutral OpenAPI path items: {legacy_paths:?}"
+    );
+}
+
 #[test]
 fn migration_http_operations_counts_all_openapi_operation_methods() {
     let spec = serde_json::json!({
         "paths": {
-            "/migration/algolia/jobs": {
+            "/migration/{source_provider}/jobs": {
                 "get": {},
                 "put": {},
                 "post": {},
@@ -113,7 +227,7 @@ fn migration_http_operations_counts_all_openapi_operation_methods() {
                 "trace": {},
                 "parameters": []
             },
-            "/migration/other/jobs": {
+            "/migration/algolia/jobs": {
                 "trace": {}
             }
         }
@@ -124,15 +238,56 @@ fn migration_http_operations_counts_all_openapi_operation_methods() {
     assert_eq!(
         operations,
         BTreeSet::from([
-            ("DELETE".to_string(), "/migration/algolia/jobs".to_string()),
-            ("GET".to_string(), "/migration/algolia/jobs".to_string()),
-            ("HEAD".to_string(), "/migration/algolia/jobs".to_string()),
-            ("OPTIONS".to_string(), "/migration/algolia/jobs".to_string()),
-            ("PATCH".to_string(), "/migration/algolia/jobs".to_string()),
-            ("POST".to_string(), "/migration/algolia/jobs".to_string()),
-            ("PUT".to_string(), "/migration/algolia/jobs".to_string()),
-            ("TRACE".to_string(), "/migration/algolia/jobs".to_string()),
+            (
+                "DELETE".to_string(),
+                "/migration/{source_provider}/jobs".to_string()
+            ),
+            (
+                "GET".to_string(),
+                "/migration/{source_provider}/jobs".to_string()
+            ),
+            (
+                "HEAD".to_string(),
+                "/migration/{source_provider}/jobs".to_string()
+            ),
+            (
+                "OPTIONS".to_string(),
+                "/migration/{source_provider}/jobs".to_string()
+            ),
+            (
+                "PATCH".to_string(),
+                "/migration/{source_provider}/jobs".to_string()
+            ),
+            (
+                "POST".to_string(),
+                "/migration/{source_provider}/jobs".to_string()
+            ),
+            (
+                "PUT".to_string(),
+                "/migration/{source_provider}/jobs".to_string()
+            ),
+            (
+                "TRACE".to_string(),
+                "/migration/{source_provider}/jobs".to_string()
+            ),
         ])
+    );
+}
+
+#[test]
+fn legacy_algolia_path_item_guard_rejects_descendant_aliases() {
+    let spec = serde_json::json!({
+        "paths": {
+            "/migration/{source_provider}/jobs": {"get": {}},
+            "/migration/algolia/jobs": {"get": {}}
+        }
+    });
+
+    let rejection = std::panic::catch_unwind(|| assert_no_legacy_algolia_path_items(&spec));
+
+    assert!(
+        rejection.is_err(),
+        "legacy /migration/algolia/ descendant path items must be rejected"
     );
 }
 
@@ -219,28 +374,62 @@ fn openapi_spec_matches_committed_artifact() {
 }
 
 #[test]
-fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
+fn source_discovery_openapi_publishes_every_provider_request_contract() {
+    let spec = crate::common::openapi_spec_json();
+    assert_eq!(
+        schema_refs_at_pointer(
+            &spec,
+            "/paths/~1migration~1{source_provider}~1list-indexes/post/requestBody/content/application~1json/schema",
+        ),
+        BTreeSet::from([
+            "#/components/schemas/ListAlgoliaIndexesRequest".to_string(),
+            "#/components/schemas/ListMeilisearchIndexesRequest".to_string(),
+            "#/components/schemas/ListTypesenseIndexesRequest".to_string(),
+        ]),
+        "list-indexes must publish one request body contract per accepted source provider"
+    );
+}
+
+#[test]
+fn source_discovery_openapi_publishes_algolia_and_hosted_response_contracts() {
+    let spec = crate::common::openapi_spec_json();
+    assert_eq!(
+        schema_refs_at_pointer(
+            &spec,
+            "/paths/~1migration~1{source_provider}~1list-indexes/post/responses/200/content/application~1json/schema",
+        ),
+        BTreeSet::from([
+            "#/components/schemas/AlgoliaSourceListResponse".to_string(),
+            "#/components/schemas/ListSourceIndexesResponse".to_string(),
+        ]),
+        "list-indexes 200 must publish both the Algolia compatibility and hosted engine response contracts"
+    );
+}
+
+#[test]
+fn source_migration_openapi_surface_is_narrow_and_client_bound() {
     let spec = crate::common::openapi_spec_json();
 
     assert!(
-        spec.pointer("/paths/~1migration~1algolia~1list-indexes/post")
+        spec.pointer("/paths/~1migration~1{source_provider}~1list-indexes/post")
             .is_some(),
-        "POST /migration/algolia/list-indexes must be in OpenAPI"
+        "POST /migration/{{source_provider}}/list-indexes must be in OpenAPI"
     );
     assert!(
-        spec.pointer("/paths/~1migration~1algolia~1migrate/post")
+        spec.pointer("/paths/~1migration~1{source_provider}~1migrate/post")
             .is_none(),
-        "removed POST /migration/algolia/migrate must not be in OpenAPI"
+        "removed POST /migration/{{source_provider}}/migrate must not be in OpenAPI"
     );
+    assert_no_legacy_algolia_path_items(&spec);
 
     assert!(
-        spec.pointer("/paths/~1migration~1algolia~1availability/get")
+        spec.pointer("/paths/~1migration~1{source_provider}~1availability/get")
             .is_some(),
-        "authenticated GET /migration/algolia/availability must remain in OpenAPI"
+        "authenticated GET /migration/{{source_provider}}/availability must remain in OpenAPI"
     );
     assert_eq!(
         spec.pointer(
-            "/paths/~1migration~1algolia~1availability/get/responses/200/content/application~1json/schema/$ref"
+            "/paths/~1migration~1{source_provider}~1availability/get/responses/200/content/application~1json/schema/$ref"
         )
         .and_then(|value| value.as_str()),
         Some("#/components/schemas/AlgoliaMigrationAvailabilityResponse"),
@@ -267,12 +456,14 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
         required_fields(&spec, "AlgoliaMigrationCapabilities"),
         vec![
             "cancel".to_string(),
+            "preview".to_string(),
             "replace".to_string(),
-            "resume".to_string()
+            "resume".to_string(),
+            "verify".to_string()
         ],
         "capabilities must require the complete operation set"
     );
-    for operation in ["cancel", "resume", "replace"] {
+    for operation in ["cancel", "preview", "replace", "resume", "verify"] {
         assert_eq!(
             spec.pointer(&format!(
                 "/components/schemas/AlgoliaMigrationCapabilities/properties/{operation}/type"
@@ -282,28 +473,22 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
             "{operation} capability must be documented as a boolean"
         );
     }
-    assert_eq!(
-        spec.pointer(
-            "/paths/~1migration~1algolia~1list-indexes/post/responses/200/content/application~1json/schema/$ref"
-        )
-        .and_then(|value| value.as_str()),
-        Some("#/components/schemas/AlgoliaSourceListResponse")
-    );
-    assert_eq!(
-        spec.pointer(
-            "/paths/~1migration~1algolia~1list-indexes/post/requestBody/content/application~1json/schema/$ref"
-        )
-        .and_then(|value| value.as_str()),
-        Some("#/components/schemas/ListAlgoliaIndexesRequest")
-    );
-    let list_indexes_operation = "/paths/~1migration~1algolia~1list-indexes/post";
-    for status in ["400", "403", "503"] {
+    let list_indexes_operation = "/paths/~1migration~1{source_provider}~1list-indexes/post";
+    for status in ["403", "500", "503"] {
         assert_eq!(
             response_schema_ref(&spec, list_indexes_operation, status),
             Some("#/components/schemas/MigrationErrorResponse"),
             "list-indexes {status} handler response must use coded migration errors"
         );
     }
+    assert_eq!(
+        spec.pointer(&format!(
+            "{list_indexes_operation}/responses/500/description"
+        ))
+        .and_then(|value| value.as_str()),
+        Some("Backend target, engine response, or secret lookup failed"),
+        "list-indexes 500 must document every hosted discovery internal-failure family"
+    );
     assert_eq!(
         response_schema_ref(&spec, list_indexes_operation, "401"),
         Some("#/components/schemas/ErrorResponse"),
@@ -355,57 +540,100 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
     .collect::<Vec<_>>();
     assert_eq!(code_values, &expected_codes);
     for mounted_path in [
-        "/paths/~1migration~1algolia~1destination-eligibility/post",
-        "/paths/~1migration~1algolia~1jobs/post",
-        "/paths/~1migration~1algolia~1jobs/get",
-        "/paths/~1migration~1algolia~1jobs~1{id}/get",
-        "/paths/~1migration~1algolia~1jobs~1{id}~1cancel/post",
-        "/paths/~1migration~1algolia~1jobs~1{id}~1resume/post",
+        "/paths/~1migration~1{source_provider}~1destination-eligibility/post",
+        "/paths/~1migration~1{source_provider}~1jobs/post",
+        "/paths/~1migration~1{source_provider}~1jobs/get",
+        "/paths/~1migration~1{source_provider}~1jobs~1{id}/get",
+        "/paths/~1migration~1{source_provider}~1jobs~1{id}~1cancel/post",
+        "/paths/~1migration~1{source_provider}~1jobs~1{id}~1resume/post",
     ] {
         assert!(
             spec.pointer(mounted_path).is_some(),
             "{mounted_path} must remain documented after route activation"
         );
     }
-    for (mounted_path, legacy_operation_id) in [
+    for (mounted_path, operation_id) in [
         (
-            "/paths/~1migration~1algolia~1availability/get",
+            "/paths/~1migration~1{source_provider}~1availability/get",
             "algolia_availability",
         ),
         (
-            "/paths/~1migration~1algolia~1list-indexes/post",
+            "/paths/~1migration~1{source_provider}~1list-indexes/post",
             "list_algolia_indexes",
         ),
         (
-            "/paths/~1migration~1algolia~1destination-eligibility/post",
+            "/paths/~1migration~1{source_provider}~1destination-eligibility/post",
             "check_algolia_destination_eligibility",
         ),
         (
-            "/paths/~1migration~1algolia~1jobs/post",
+            "/paths/~1migration~1{source_provider}~1jobs/post",
             "create_algolia_import_job",
         ),
         (
-            "/paths/~1migration~1algolia~1jobs/get",
+            "/paths/~1migration~1{source_provider}~1jobs/get",
             "list_algolia_import_jobs",
         ),
         (
-            "/paths/~1migration~1algolia~1jobs~1{id}/get",
+            "/paths/~1migration~1{source_provider}~1jobs~1{id}/get",
             "get_algolia_import_job",
         ),
         (
-            "/paths/~1migration~1algolia~1jobs~1{id}~1cancel/post",
+            "/paths/~1migration~1{source_provider}~1jobs~1{id}~1cancel/post",
             "cancel_algolia_import_job",
         ),
         (
-            "/paths/~1migration~1algolia~1jobs~1{id}~1resume/post",
+            "/paths/~1migration~1{source_provider}~1jobs~1{id}~1resume/post",
             "resume_algolia_import_job",
         ),
     ] {
+        if mounted_path == "/paths/~1migration~1{source_provider}~1jobs/get" {
+            assert_eq!(
+                response_schema_refs(&spec, mounted_path, "400"),
+                BTreeSet::from([
+                    "#/components/schemas/ErrorResponse".to_string(),
+                    "#/components/schemas/MigrationErrorResponse".to_string()
+                ]),
+                "{mounted_path} must document coded unsupported-provider errors and uncoded cursor errors"
+            );
+        } else {
+            assert_eq!(
+                response_schema_ref(&spec, mounted_path, "400"),
+                Some("#/components/schemas/MigrationErrorResponse"),
+                "{mounted_path} must document its coded unsupported-provider response"
+            );
+        }
         assert_eq!(
             spec.pointer(&format!("{mounted_path}/operationId"))
                 .and_then(|value| value.as_str()),
-            Some(legacy_operation_id),
-            "{mounted_path} must preserve its public legacy operationId"
+            Some(operation_id),
+            "{mounted_path} must preserve its public operationId"
+        );
+        let parameters = spec
+            .pointer(&format!("{mounted_path}/parameters"))
+            .and_then(|value| value.as_array())
+            .unwrap_or_else(|| panic!("{mounted_path} must document operation parameters"));
+        let source_provider = parameters
+            .iter()
+            .find(|parameter| {
+                parameter.get("name").and_then(|value| value.as_str()) == Some("source_provider")
+                    && parameter.get("in").and_then(|value| value.as_str()) == Some("path")
+            })
+            .unwrap_or_else(|| {
+                panic!("{mounted_path} must document the source_provider path parameter")
+            });
+        assert_eq!(
+            source_provider
+                .get("required")
+                .and_then(|value| value.as_bool()),
+            Some(true),
+            "{mounted_path} source_provider path parameter must be required"
+        );
+        assert_eq!(
+            source_provider
+                .pointer("/schema/$ref")
+                .and_then(|value| value.as_str()),
+            Some("#/components/schemas/SourceImportProvider"),
+            "{mounted_path} source_provider path parameter must reuse the canonical provider schema"
         );
     }
     let required = spec
@@ -469,14 +697,16 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
     );
     assert_eq!(
         spec.pointer(
-            "/paths/~1migration~1algolia~1availability/get/responses/401/content/application~1json/schema/$ref"
+            "/paths/~1migration~1{source_provider}~1availability/get/responses/401/content/application~1json/schema/$ref"
         )
         .and_then(|value| value.as_str()),
         Some("#/components/schemas/ErrorResponse"),
         "availability route must document the auth-required response"
     );
 
-    if let Some(security) = spec.pointer("/paths/~1migration~1algolia~1availability/get/security") {
+    if let Some(security) =
+        spec.pointer("/paths/~1migration~1{source_provider}~1availability/get/security")
+    {
         let security = security
             .as_array()
             .expect("availability operation security must be an array when present");
@@ -514,84 +744,20 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
     );
 
     let repo_root = repo_root_path();
-    let client_source =
-        std::fs::read_to_string(repo_root.join("web/src/lib/api/migration_client.ts"))
-            .expect("read migration API client");
-    assert!(
-        client_source.contains(
-            "getAlgoliaMigrationAvailability(): Promise<AlgoliaMigrationAvailabilityResponse>"
-        ),
-        "generated client must expose the availability binding"
-    );
-    assert!(
-        client_source.contains("return this.getMigrationAvailability('algolia');")
-            && client_source.contains("`/migration/${pathSegment(sourceProvider)}/availability`"),
-        "migration client must bind the Algolia wrapper to the neutral availability GET route"
-    );
-    assert!(
-        client_source.contains("listAlgoliaSourceIndexes(")
-            && client_source.contains("request: ListAlgoliaIndexesRequest")
-            && client_source.contains("): Promise<AlgoliaSourceListResponse>"),
-        "client must expose Algolia source discovery"
-    );
-    assert!(
-        client_source.contains(
-            "return this.listMigrationSourceIndexes('algolia', algoliaSourceListRequest(request));"
-        ) && client_source.contains(
-            "`/migration/${pathSegment(sourceProvider)}/list-indexes`"
-        ),
-        "migration client must bind Algolia discovery to the neutral route with the canonical sanitized request body"
-    );
-    for (method, route) in [
-        (
-            "checkAlgoliaDestinationEligibility(",
-            "`/migration/${pathSegment(sourceProvider)}/destination-eligibility`",
-        ),
-        (
-            "createAlgoliaImportJob(",
-            "`/migration/${pathSegment(sourceProvider)}/jobs`",
-        ),
-        (
-            "getAlgoliaImportJob(",
-            "`/migration/${pathSegment(sourceProvider)}/jobs/${pathSegment(jobId)}`",
-        ),
-        (
-            "listAlgoliaImportJobs(",
-            "`/migration/${pathSegment(sourceProvider)}/jobs${query}`",
-        ),
-        (
-            "cancelAlgoliaImportJob(",
-            "`/migration/${pathSegment(sourceProvider)}/jobs/${pathSegment(jobId)}/cancel`",
-        ),
-        (
-            "resumeAlgoliaImportJob(",
-            "`/migration/${pathSegment(sourceProvider)}/jobs/${pathSegment(jobId)}/resume`",
-        ),
-    ] {
-        assert!(
-            client_source.contains(method),
-            "migration client method {method} must remain exposed"
-        );
-        assert!(
-            client_source.contains(route),
-            "neutral migration client route binding {route} must remain exposed"
-        );
-    }
-
     let types_source =
         std::fs::read_to_string(repo_root.join("web/src/lib/api/types_algolia_migration.ts"))
-            .expect("read generated migration API types");
+            .expect("read migration API types");
     assert!(
         types_source.contains("reason?: 'temporarily_unavailable';"),
-        "generated migration type must expose the optional fail-closed reason literal"
+        "web API migration type must expose the optional fail-closed reason literal"
     );
     assert!(
         types_source.contains("hitsPerPage?: number | null;"),
-        "generated migration request type must expose the optional hitsPerPage override"
+        "web API migration request type must expose the optional hitsPerPage override"
     );
     assert!(
         types_source.contains("resumeProvenance: string | null;"),
-        "generated migration job type must expose producer-authored resume provenance"
+        "web API migration job type must expose producer-authored resume provenance"
     );
     assert!(
         !types_source.contains("resumeCheckpoint:"),
@@ -599,7 +765,7 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
     );
     assert!(
         !types_source.contains("| 'available'"),
-        "generated migration type must not advertise an available reason"
+        "web API migration type must not advertise an available reason"
     );
     for field in [
         "updatedAt: string;",
@@ -610,6 +776,298 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
         assert!(
             types_source.contains(field),
             "missing picker metadata field {field}"
+        );
+    }
+}
+
+#[test]
+fn verify_source_migration_openapi_surface_is_schema_bound() {
+    let spec = crate::common::openapi_spec_json();
+    let operation = "/paths/~1migration~1{source_provider}~1verify/post";
+
+    let published_verify_paths = spec
+        .get("paths")
+        .and_then(|value| value.as_object())
+        .expect("spec must have a paths object")
+        .keys()
+        .filter(|path| path.starts_with("/migration/") && path.ends_with("/verify"))
+        .cloned()
+        .collect::<Vec<_>>();
+    assert_eq!(
+        published_verify_paths,
+        vec!["/migration/{source_provider}/verify".to_string()],
+        "verify must publish exactly the parameterized route mounted in route_assembly"
+    );
+
+    assert_eq!(
+        spec.pointer(&format!("{operation}/operationId"))
+            .and_then(|value| value.as_str()),
+        Some("verify_source_migration"),
+        "verify must preserve its public operationId"
+    );
+    assert_eq!(
+        spec.pointer(&format!(
+            "{operation}/requestBody/content/application~1json/schema/$ref"
+        ))
+        .and_then(|value| value.as_str()),
+        Some("#/components/schemas/VerifySourceMigrationRequest"),
+        "verify request body must reference the published request schema"
+    );
+    assert_eq!(
+        response_schema_ref(&spec, operation, "200"),
+        Some("#/components/schemas/VerifySourceMigrationResponse"),
+        "verify 200 must publish the parity report schema it serves"
+    );
+    let bad_request_schema = spec
+        .pointer(&format!(
+            "{operation}/responses/400/content/application~1json/schema"
+        ))
+        .expect("verify 400 must document a JSON schema");
+    assert!(
+        bad_request_schema.get("oneOf").is_none(),
+        "verify 400 must not publish overlapping oneOf alternatives"
+    );
+    assert_eq!(
+        bad_request_schema
+            .get("$ref")
+            .and_then(|value| value.as_str()),
+        Some("#/components/schemas/VerifySourceMigrationBadRequestResponse"),
+        "verify 400 must publish one structural envelope with optional migration code"
+    );
+    for (status, expected) in [
+        ("401", "#/components/schemas/ErrorResponse"),
+        ("403", "#/components/schemas/MigrationErrorResponse"),
+        ("404", "#/components/schemas/ErrorResponse"),
+    ] {
+        assert_eq!(
+            response_schema_ref(&spec, operation, status),
+            Some(expected),
+            "verify {status} must publish {expected}"
+        );
+    }
+    assert_eq!(
+        response_schema_ref(&spec, operation, "410"),
+        Some("#/components/schemas/VerifySourceMigrationRestoreStatusResponse"),
+        "verify 410 must publish the shared cold-restore body shape it serves"
+    );
+    assert_eq!(
+        response_schema_refs(&spec, operation, "503"),
+        BTreeSet::from([
+            "#/components/schemas/MigrationErrorResponse".to_string(),
+            "#/components/schemas/VerifySourceMigrationRestoreStatusResponse".to_string()
+        ]),
+        "verify 503 must publish both coded backend errors and destination restoring bodies"
+    );
+
+    let source_provider = spec
+        .pointer(&format!("{operation}/parameters"))
+        .and_then(|value| value.as_array())
+        .and_then(|parameters| {
+            parameters.iter().find(|parameter| {
+                parameter.get("name").and_then(|v| v.as_str()) == Some("source_provider")
+            })
+        })
+        .expect("verify must document the source_provider path parameter");
+    assert_eq!(
+        source_provider.get("required").and_then(|v| v.as_bool()),
+        Some(true),
+        "verify source_provider path parameter must be required"
+    );
+    assert_eq!(
+        source_provider
+            .pointer("/schema/$ref")
+            .and_then(|v| v.as_str()),
+        Some("#/components/schemas/SourceImportProvider"),
+        "verify source_provider must reuse the canonical provider schema"
+    );
+
+    assert_eq!(
+        required_fields(&spec, "VerifySourceMigrationRequest"),
+        vec![
+            "apiKey".to_string(),
+            "appId".to_string(),
+            "destinationIndex".to_string(),
+            "queries".to_string(),
+            "resultLimit".to_string(),
+            "sourceIndex".to_string(),
+        ],
+        "verify request schema must require every credential and comparison field"
+    );
+    let verify_queries = spec
+        .pointer("/components/schemas/VerifySourceMigrationRequest/properties/queries")
+        .expect("verify request must publish its queries schema");
+    assert_eq!(
+        verify_queries
+            .get("minItems")
+            .and_then(|value| value.as_u64()),
+        Some(1)
+    );
+    assert_eq!(
+        verify_queries
+            .get("maxItems")
+            .and_then(|value| value.as_u64()),
+        Some(20)
+    );
+    assert_eq!(
+        verify_queries
+            .pointer("/items/maxLength")
+            .and_then(|value| value.as_u64()),
+        Some(512),
+        "verify query strings must publish the runtime search-query bound"
+    );
+    assert_eq!(
+        required_fields(&spec, "VerifySourceMigrationResponse"),
+        vec![
+            "destinationIndex".to_string(),
+            "queries".to_string(),
+            "resultLimit".to_string(),
+            "sourceIndex".to_string(),
+        ],
+        "verify response schema must always serialize the report envelope fields"
+    );
+    assert_eq!(
+        required_fields(&spec, "VerifySourceMigrationQueryReport"),
+        vec![
+            "destinationOnly".to_string(),
+            "hits".to_string(),
+            "overlapCount".to_string(),
+            "query".to_string(),
+            "sourceOnly".to_string(),
+        ],
+        "verify per-query report must serialize the full parity breakdown"
+    );
+    assert_eq!(
+        required_fields(&spec, "VerifySourceMigrationHitComparison"),
+        vec![
+            "destinationRank".to_string(),
+            "objectID".to_string(),
+            "rankDelta".to_string(),
+            "sourceRank".to_string(),
+        ],
+        "verify hit comparison must serialize both ranks and the delta"
+    );
+    assert_eq!(
+        required_fields(&spec, "VerifySourceMigrationBadRequestResponse"),
+        vec!["error".to_string()],
+        "verify 400 structural envelope must require the shared error field"
+    );
+    let bad_request_code_schema = spec
+        .pointer("/components/schemas/VerifySourceMigrationBadRequestResponse/properties/code")
+        .expect("verify 400 code property must be published");
+    let mut bad_request_code_refs = BTreeSet::new();
+    let mut visited_code_refs = BTreeSet::new();
+    collect_schema_refs(
+        &spec,
+        bad_request_code_schema,
+        &mut bad_request_code_refs,
+        &mut visited_code_refs,
+    );
+    assert_eq!(
+        bad_request_code_refs,
+        BTreeSet::from(["#/components/schemas/AlgoliaImportErrorCode".to_string()]),
+        "verify 400 optional code must still be typed when present"
+    );
+    assert_eq!(
+        required_fields(&spec, "VerifySourceMigrationRestoreStatusResponse"),
+        vec!["error".to_string(), "message".to_string()],
+        "verify restore body must require the common restore-status fields"
+    );
+    let restore_links = spec
+        .pointer("/components/schemas/VerifySourceMigrationRestoreStatusResponse/properties")
+        .and_then(|value| value.as_object())
+        .expect("verify restore body must publish properties")
+        .keys()
+        .filter(|field| *field == "poll_url" || *field == "restore_url")
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        restore_links,
+        BTreeSet::from(["poll_url".to_string(), "restore_url".to_string()]),
+        "verify restore body must publish both cold restore_url and restoring poll_url"
+    );
+}
+
+#[test]
+fn source_migration_create_openapi_publishes_all_provider_request_contracts() {
+    let spec = crate::common::openapi_spec_json();
+    let operation = "/paths/~1migration~1{source_provider}~1jobs/post";
+    let request_schema = spec
+        .pointer(&format!(
+            "{operation}/requestBody/content/application~1json/schema"
+        ))
+        .expect("POST /migration/{source_provider}/jobs must publish a JSON request schema");
+    let mut request_variants = BTreeSet::new();
+    let mut visited = BTreeSet::new();
+    collect_schema_refs(&spec, request_schema, &mut request_variants, &mut visited);
+
+    let expected_variants = published_create_request_schema_refs(&spec);
+    assert_eq!(
+        request_variants, expected_variants,
+        "the create operation must publish one request variant per accepted provider"
+    );
+    assert_eq!(
+        response_schema_ref(&spec, operation, "415"),
+        Some("#/components/schemas/MigrationErrorResponse"),
+        "the documented JSON-only request boundary must publish its 415 response"
+    );
+
+    let provider_field_contracts = [
+        (
+            "CreateAlgoliaImportJobRequest",
+            vec!["apiKey", "appId", "mode", "sourceName", "target"],
+            "appId",
+            "sourceIndex",
+        ),
+        (
+            "CreateMeilisearchImportJobRequest",
+            vec!["apiKey", "endpoint", "mode", "sourceIndex", "target"],
+            "endpoint",
+            "sourceName",
+        ),
+        (
+            "CreateTypesenseImportJobRequest",
+            vec!["apiKey", "mode", "node", "sourceIndex", "target"],
+            "node",
+            "sourceName",
+        ),
+    ];
+
+    assert_eq!(
+        provider_field_contracts
+            .iter()
+            .map(|(schema, ..)| format!("#/components/schemas/{schema}"))
+            .collect::<BTreeSet<String>>(),
+        expected_variants,
+        "every published provider create schema must also have a field-shape contract asserted below"
+    );
+
+    for (schema, expected_required, provider_field, forbidden_field) in provider_field_contracts {
+        assert_eq!(
+            required_fields(&spec, schema),
+            expected_required,
+            "{schema} must require its exact provider-specific create shape"
+        );
+        assert!(
+            spec.pointer(&format!(
+                "/components/schemas/{schema}/properties/{provider_field}"
+            ))
+            .is_some(),
+            "{schema} must publish {provider_field}"
+        );
+        assert!(
+            spec.pointer(&format!(
+                "/components/schemas/{schema}/properties/{forbidden_field}"
+            ))
+            .is_none(),
+            "{schema} must not publish the sibling wire field {forbidden_field}"
+        );
+        assert_eq!(
+            spec.pointer(&format!(
+                "/components/schemas/{schema}/additionalProperties"
+            ))
+            .and_then(serde_json::Value::as_bool),
+            Some(false),
+            "{schema} must reject ambiguous or mismatched provider fields"
         );
     }
 }
@@ -707,44 +1165,41 @@ async fn openapi_docs_route_serves_exact_migration_contract_over_http() {
     let expected_operations = BTreeSet::from([
         (
             "GET".to_string(),
-            "/migration/algolia/availability".to_string(),
+            "/migration/{source_provider}/availability".to_string(),
         ),
         (
             "POST".to_string(),
-            "/migration/algolia/list-indexes".to_string(),
+            "/migration/{source_provider}/list-indexes".to_string(),
+        ),
+        ("POST".into(), "/migration/{source_provider}/preview".into()),
+        ("POST".into(), "/migration/{source_provider}/verify".into()),
+        (
+            "POST".to_string(),
+            "/migration/{source_provider}/destination-eligibility".to_string(),
         ),
         (
             "POST".to_string(),
-            "/migration/algolia/destination-eligibility".to_string(),
+            "/migration/{source_provider}/jobs".to_string(),
         ),
-        ("POST".to_string(), "/migration/algolia/jobs".to_string()),
-        ("GET".to_string(), "/migration/algolia/jobs".to_string()),
         (
             "GET".to_string(),
-            "/migration/algolia/jobs/{id}".to_string(),
+            "/migration/{source_provider}/jobs".to_string(),
         ),
-        (
-            "POST".to_string(),
-            "/migration/algolia/jobs/{id}/cancel".to_string(),
-        ),
-        (
-            "POST".to_string(),
-            "/migration/algolia/jobs/{id}/resume".to_string(),
-        ),
-    ]);
-    let existing_operations = BTreeSet::from([
         (
             "GET".to_string(),
-            "/migration/algolia/availability".to_string(),
+            "/migration/{source_provider}/jobs/{id}".to_string(),
         ),
         (
             "POST".to_string(),
-            "/migration/algolia/list-indexes".to_string(),
+            "/migration/{source_provider}/jobs/{id}/cancel".to_string(),
+        ),
+        (
+            "POST".to_string(),
+            "/migration/{source_provider}/jobs/{id}/resume".to_string(),
         ),
     ]);
-    assert_eq!(operations.len(), 8);
+    assert_eq!(operations.len(), 10);
     assert_eq!(operations, expected_operations);
-    assert_eq!(operations.difference(&existing_operations).count(), 6);
 
     shutdown_tx
         .send(())
@@ -893,17 +1348,17 @@ fn spec_stage5_documents_public_security_and_response_contracts() {
     }
 
     assert!(
-        spec.pointer("/paths/~1migration~1algolia~1availability/get")
+        spec.pointer("/paths/~1migration~1{source_provider}~1availability/get")
             .is_some(),
-        "GET /migration/algolia/availability must be documented"
+        "GET /migration/{{source_provider}}/availability must be documented"
     );
     assert!(
-        spec.pointer("/paths/~1migration~1algolia~1list-indexes/post")
+        spec.pointer("/paths/~1migration~1{source_provider}~1list-indexes/post")
             .is_some(),
         "Customer source discovery route must remain in OpenAPI"
     );
     assert!(
-        spec.pointer("/paths/~1migration~1algolia~1migrate")
+        spec.pointer("/paths/~1migration~1{source_provider}~1migrate")
             .is_none(),
         "Removed customer migration mutate route must not remain in OpenAPI"
     );

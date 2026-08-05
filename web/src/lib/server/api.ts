@@ -1,6 +1,6 @@
 import { getRequestEvent } from '$app/server';
 import { ApiClient } from '$lib/api/client';
-import { deriveApiBaseUrl } from '$lib/config';
+import { deriveApiBaseUrl, resolveRequestApiBaseUrl } from '$lib/config';
 import { CANONICAL_PUBLIC_API_BASE_URL } from '$lib/public_api';
 
 const LOCAL_REQUEST_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -26,8 +26,11 @@ export function createApiClientForBaseUrl(
 // every protected dashboard route.
 export function createApiClient(token?: string, fetchFn?: typeof globalThis.fetch): ApiClient {
 	const event = getRequestEvent();
-	const apiBaseUrl = event.locals.apiBaseUrl || deriveApiBaseUrl(event.url.hostname);
-	return createApiClientForBaseUrl(apiBaseUrl, token, fetchFn);
+	return createApiClientForBaseUrl(
+		resolveRequestApiBaseUrl(event.locals, event.url),
+		token,
+		fetchFn
+	);
 }
 
 export function createCanonicalPublicApiClient(fetchFn?: typeof globalThis.fetch): ApiClient {

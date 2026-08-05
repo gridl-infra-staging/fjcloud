@@ -20,7 +20,7 @@ use crate::routes::auth::contracts::{
 };
 use crate::state::AppState;
 use crate::validation::{
-    validate_email, validate_length, validate_password, MAX_NAME_LEN, MAX_PASSWORD_LEN,
+    validate_email, validate_length, validate_password, validate_password_max_bytes, MAX_NAME_LEN,
 };
 pub use contracts::{
     AuthResponse, ForgotPasswordRequest, LoginRequest, MessageResponse, RegisterRequest,
@@ -113,7 +113,11 @@ async fn rollback_failed_registration(
 ) -> Result<(), ApiError> {
     match state
         .customer_repo
-        .hard_delete(customer_id, CustomerHardDeleteKind::RegistrationRollback)
+        .hard_delete(
+            customer_id,
+            CustomerHardDeleteKind::RegistrationRollback,
+            crate::repos::CustomerHardDeleteAuditPolicy::NoAudit,
+        )
         .await
     {
         Ok(CustomerHardDeleteOutcome::Erased { .. }) => Ok(()),
@@ -277,11 +281,7 @@ pub async fn login(
     State(state): State<AppState>,
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<AuthResponse>, ApiError> {
-    if req.password.len() > MAX_PASSWORD_LEN {
-        return Err(ApiError::BadRequest(format!(
-            "password must be at most {MAX_PASSWORD_LEN} characters"
-        )));
-    }
+    validate_password_max_bytes("password", &req.password)?;
 
     let customer = state
         .customer_repo

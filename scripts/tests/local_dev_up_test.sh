@@ -27,9 +27,12 @@ source "$SCRIPT_DIR/lib/assertions.sh"
 source "$SCRIPT_DIR/lib/local_dev_test_state.sh"
 # shellcheck source=lib/source_provider_harness.sh
 source "$SCRIPT_DIR/lib/source_provider_harness.sh"
+# shellcheck source=lib/playwright_port_oracle.sh
+source "$SCRIPT_DIR/lib/playwright_port_oracle.sh"
 
 LOCAL_DEV_TEST_DB_URL="postgres://local-test:local-pass@localhost:5432/local_dev_test"
 LOCAL_DEV_ALT_PORT_DB_URL="postgres://local-test:local-pass@localhost:15432/local_dev_test"
+LOCAL_DEV_REMOTE_HOST_DB_URL="postgres://local-test:local-pass@example.com:5432/local_dev_test"
 LOCAL_DEV_INVALID_PORT_DB_URL="postgres://local-test:local-pass@localhost:notaport/local_dev_test"
 LOCAL_DEV_OUT_OF_RANGE_PORT_DB_URL="postgres://local-test:local-pass@localhost:70000/local_dev_test"
 LOCAL_DEV_TEST_REPO_ROOT=""
@@ -47,6 +50,10 @@ setup_local_dev_repo_state() {
     local tmp_dir="$1"
     LOCAL_DEV_TEST_REPO_ROOT="$(create_local_dev_fixture_repo_root "$tmp_dir" "$LOCAL_DEV_TEST_DB_URL")"
     LOCAL_DEV_COMPOSE_PROJECT_NAME="fjcloud_local_dev_up_$$_${RANDOM}"
+    mkdir -p "$tmp_dir/bin"
+    if [ ! -e "$tmp_dir/bin/lsof" ]; then
+        write_mock_script "$tmp_dir/bin/lsof" 'exit 1'
+    fi
     mkdir -p "$LOCAL_DEV_TEST_REPO_ROOT/infra"
     cp -R "$REPO_ROOT/infra/migrations" "$LOCAL_DEV_TEST_REPO_ROOT/infra/"
     cp "$REPO_ROOT/.env.local.example" "$LOCAL_DEV_TEST_REPO_ROOT/.env.local.example"
@@ -124,6 +131,17 @@ fi
 MOCK
 }
 
+# Mock lsof: report every port as available (exit 1 = no listener found).
+# Port ownership is real host state, so any test that builds its own mock bin
+# must declare it too — otherwise the developer's own Postgres or Meilisearch
+# decides whether the port preflights in local-dev-up.sh pass.
+write_available_ports_mock() {
+    local mock_dir="$1" call_log="$2"
+
+    write_mock_script "$mock_dir/lsof" \
+        'echo "lsof $@" >> "'"$call_log"'"; exit 1'
+}
+
 # Create a standard mock bin directory with all required mocks.
 # Writes all docker/curl/psql calls to $call_log for assertion.
 setup_mock_bin() {
@@ -153,9 +171,7 @@ exit 0'
     write_mock_script "$mock_dir/psql" \
         'echo "psql $@" >> "'"$call_log"'"; exit 0'
 
-    # Mock lsof: report all ports as available (exit 1 = not found)
-    write_mock_script "$mock_dir/lsof" \
-        'echo "lsof $@" >> "'"$call_log"'"; exit 1'
+    write_available_ports_mock "$mock_dir" "$call_log"
 
     # Mock nohup: run the command directly (no backgrounding)
     write_mock_script "$mock_dir/nohup" \
@@ -191,12 +207,43 @@ test_source_provider_ports_bind_to_loopback() {
     local compose
     compose="$(cat "$REPO_ROOT/docker-compose.yml")"
 
+    # Assert the loopback binding and the container-side port only. The HOST-side
+    # default is owned by test_source_provider_defaults_cannot_collide_with_flapjack,
+    # which reads it from local-dev-up.sh and requires the two files agree; naming
+    # the number here too would give the same fact two owners that can drift.
     assert_contains "$compose" \
-        '- "127.0.0.1:${LOCAL_MEILISEARCH_PORT:-7700}:7700"' \
+        '- "127.0.0.1:${LOCAL_MEILISEARCH_PORT:-' \
         "Meilisearch should not expose its predictable local development key beyond loopback"
+    assert_contains "$compose" \
+        ':7700"' \
+        "Meilisearch should keep publishing its container-side 7700"
     assert_contains "$compose" \
         '- "127.0.0.1:${LOCAL_TYPESENSE_PORT:-8108}:8108"' \
         "Typesense should not expose its predictable local development key beyond loopback"
+}
+
+# A bare "${LOCAL_DB_PORT:-5432}:5432" publish binds every host interface and
+# only the IPv4 one, so on a host that already runs its own PostgreSQL the
+# compose database and the foreign server can each own one loopback family.
+# `localhost` then resolves to whichever family the resolver prefers and the
+# API silently reads and writes an unrelated database. Loopback-qualifying the
+# publish turns that ambiguity into a hard bind collision the preflight below
+# reports.
+test_postgres_port_binds_to_loopback() {
+    local compose
+    compose="$(cat "$REPO_ROOT/docker-compose.yml")"
+
+    assert_contains "$compose" \
+        '- "127.0.0.1:${LOCAL_DB_PORT:-5432}:5432"' \
+        "Postgres should publish its predictable local development credentials on loopback only"
+}
+
+test_env_example_database_url_names_an_unambiguous_loopback_host() {
+    local db_url
+    db_url="$(grep '^DATABASE_URL=' "$REPO_ROOT/.env.local.example" | head -1 | cut -d= -f2-)"
+
+    assert_eq "$db_url" "postgres://griddle:griddle_local@127.0.0.1:5432/fjcloud_dev" \
+        "DATABASE_URL template should name the loopback address compose publishes, not a resolver-dependent alias"
 }
 
 test_calls_down_before_starting() {
@@ -375,7 +422,7 @@ test_discovers_default_repo_relative_fresh_host_candidates_when_unset() {
     trap 'rm -rf "'"$tmp_dir"'"' RETURN
 
     local fixture_repo_root="$tmp_dir/workspaces/fjcloud_dev"
-    mkdir -p "$fixture_repo_root/scripts/lib"
+    mkdir -p "$fixture_repo_root/scripts/lib" "$fixture_repo_root/web"
     cp "$REPO_ROOT/scripts/local-dev-up.sh" "$fixture_repo_root/scripts/"
     cp "$REPO_ROOT/scripts/local-dev-down.sh" "$fixture_repo_root/scripts/"
     cp "$REPO_ROOT/scripts/lib/env.sh" "$fixture_repo_root/scripts/lib/"
@@ -388,6 +435,10 @@ test_discovers_default_repo_relative_fresh_host_candidates_when_unset() {
     cp "$REPO_ROOT/scripts/lib/process.sh" "$fixture_repo_root/scripts/lib/"
     cp "$REPO_ROOT/scripts/lib/docker.sh" "$fixture_repo_root/scripts/lib/"
     cp "$REPO_ROOT/scripts/lib/local_source_providers.sh" "$fixture_repo_root/scripts/lib/"
+    if [ -f "$REPO_ROOT/scripts/lib/playwright_port_plan.sh" ]; then
+        cp "$REPO_ROOT/scripts/lib/playwright_port_plan.sh" "$fixture_repo_root/scripts/lib/"
+    fi
+    cp "$REPO_ROOT/web/playwright.config.contract.ts" "$fixture_repo_root/web/"
     mkdir -p "$fixture_repo_root/infra"
     cp -R "$REPO_ROOT/infra/migrations" "$fixture_repo_root/infra/"
     write_local_dev_env_file "$fixture_repo_root/.env.local" "$LOCAL_DEV_TEST_DB_URL"
@@ -545,6 +596,7 @@ exit 0'
         'echo "nohup $@" >> "'"$call_log"'"; "$@" &'
     write_mock_script "$tmp_dir/bin/sleep" \
         'exit 0'
+    write_available_ports_mock "$tmp_dir/bin" "$call_log"
 
     local output exit_code=0
     output=$(
@@ -599,6 +651,7 @@ exit 0'
         'echo "nohup $@" >> "'"$call_log"'"; "$@" &'
     write_mock_script "$tmp_dir/bin/sleep" \
         'exit 0'
+    write_available_ports_mock "$tmp_dir/bin" "$call_log"
 
     local output exit_code=0
     output=$(
@@ -758,6 +811,8 @@ exit 0'
     write_healthy_mock_curl "$tmp_dir/bin/curl" "$call_log"
     write_mock_script "$tmp_dir/bin/nohup" \
         'echo "nohup $@" >> "'"$call_log"'"; "$@" &'
+    write_mock_script "$tmp_dir/bin/sleep" 'exit 0'
+    write_available_ports_mock "$tmp_dir/bin" "$call_log"
 
     local output exit_code=0
     output=$(
@@ -800,6 +855,161 @@ test_uses_database_url_port_for_postgres_bind_and_summary() {
         "should print the Postgres line in the startup summary"
     assert_contains "$output" "localhost:15432" \
         "should print the configured host Postgres port in the startup summary"
+}
+
+test_exported_local_db_port_beats_derivation_and_rewrites_database_url() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_local_dev_repo_state; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local call_log="$tmp_dir/calls.log"
+    mkdir -p "$tmp_dir/bin"
+    setup_mock_bin "$tmp_dir/bin" "$call_log"
+    setup_local_dev_repo_state "$tmp_dir"
+
+    local output exit_code=0 calls
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        LOCAL_DB_PORT=25432 \
+        FLAPJACK_DEV_DIR="/nonexistent" \
+        run_local_dev_up 2>&1
+    ) || exit_code=$?
+    calls="$(cat "$call_log" 2>/dev/null || true)"
+
+    assert_eq "$exit_code" "0" "an exported LOCAL_DB_PORT should remain a valid override"
+    assert_contains "$calls" "LOCAL_DB_PORT=25432 docker compose up -d postgres" \
+        "the exported LOCAL_DB_PORT should flow into Postgres Compose startup"
+    assert_contains "$calls" "lsof -i :25432 -sTCP:LISTEN -P" \
+        "DB_PORT should match the exported LOCAL_DB_PORT before availability checks"
+    assert_contains "$output" "localhost:25432" \
+        "the Postgres summary should use the exported LOCAL_DB_PORT"
+    assert_contains "$output" "@localhost:25432/local_dev_test" \
+        "DATABASE_URL should be rewritten to the exported LOCAL_DB_PORT"
+}
+
+test_nonlegacy_database_url_port_beats_derivation_without_local_db_port() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_local_dev_repo_state; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local call_log="$tmp_dir/calls.log"
+    mkdir -p "$tmp_dir/bin"
+    setup_mock_bin "$tmp_dir/bin" "$call_log"
+    setup_local_dev_repo_state "$tmp_dir"
+    write_local_dev_env_file "$LOCAL_DEV_TEST_REPO_ROOT/.env.local" "$LOCAL_DEV_ALT_PORT_DB_URL"
+
+    local output exit_code=0 calls
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        FLAPJACK_DEV_DIR="/nonexistent" \
+        run_local_dev_up 2>&1
+    ) || exit_code=$?
+    calls="$(cat "$call_log" 2>/dev/null || true)"
+
+    assert_eq "$exit_code" "0" "a non-legacy DATABASE_URL port should remain a valid override"
+    assert_contains "$calls" "LOCAL_DB_PORT=15432 docker compose up -d postgres" \
+        "a non-legacy DATABASE_URL port should flow unchanged into Compose"
+    assert_contains "$output" "localhost:15432" \
+        "the Postgres summary should retain the non-legacy DATABASE_URL port"
+    assert_contains "$output" "@localhost:15432/local_dev_test" \
+        "DATABASE_URL should retain its explicit non-legacy port"
+}
+
+test_legacy_database_url_port_is_rewritten_to_derived_local_db_port() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_local_dev_repo_state; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local call_log="$tmp_dir/calls.log"
+    mkdir -p "$tmp_dir/bin"
+    setup_mock_bin "$tmp_dir/bin" "$call_log"
+    setup_local_dev_repo_state "$tmp_dir"
+
+    local plan derived_db_port
+    if ! plan="$(manual_port_plan_for_workspace "$LOCAL_DEV_TEST_REPO_ROOT")"; then
+        fail "manual port-plan helper should derive the legacy DATABASE_URL replacement"
+        return
+    fi
+    derived_db_port="$(manual_port_plan_value "$plan" LOCAL_DB_PORT)"
+
+    local output exit_code=0 calls
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        FLAPJACK_DEV_DIR="/nonexistent" \
+        run_local_dev_up 2>&1
+    ) || exit_code=$?
+    calls="$(cat "$call_log" 2>/dev/null || true)"
+
+    assert_eq "$exit_code" "0" "a legacy DATABASE_URL port should resolve to a derived local port"
+    assert_contains "$calls" "LOCAL_DB_PORT=$derived_db_port docker compose up -d postgres" \
+        "the derived Postgres port should flow into Compose"
+    assert_contains "$calls" "lsof -i :$derived_db_port -sTCP:LISTEN -P" \
+        "DB_PORT should consume the rewritten derived Postgres port"
+    assert_contains "$output" "localhost:$derived_db_port" \
+        "the Postgres summary should use the derived Postgres port"
+    assert_contains "$output" "@localhost:$derived_db_port/local_dev_test" \
+        "DATABASE_URL should be rewritten before later consumers inspect it"
+}
+
+test_rejects_database_url_port_held_by_host_process() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_local_dev_repo_state; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local call_log="$tmp_dir/calls.log"
+    mkdir -p "$tmp_dir/bin"
+    setup_mock_bin "$tmp_dir/bin" "$call_log"
+    setup_local_dev_repo_state "$tmp_dir"
+    write_mock_script "$tmp_dir/bin/lsof" \
+        'echo "lsof $@" >> "'"$call_log"'"; exit 0'
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        LOCAL_DB_PORT=5432 \
+        FLAPJACK_DEV_DIR="/nonexistent" \
+        run_local_dev_up 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "1" \
+        "should reject a DATABASE_URL port already held by a host process"
+    assert_contains "$output" "port 5432 is already in use" \
+        "should explain that the configured Postgres port is occupied"
+
+    local calls
+    calls=$(cat "$call_log" 2>/dev/null || true)
+    assert_not_contains "$calls" "docker compose up -d postgres" \
+        "should fail before starting a Docker database hidden behind the occupied host port"
+}
+
+test_rejects_non_loopback_database_url_host() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_local_dev_repo_state; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local call_log="$tmp_dir/calls.log"
+    mkdir -p "$tmp_dir/bin"
+    setup_mock_bin "$tmp_dir/bin" "$call_log"
+    setup_local_dev_repo_state "$tmp_dir"
+    write_local_dev_env_file "$LOCAL_DEV_TEST_REPO_ROOT/.env.local" "$LOCAL_DEV_REMOTE_HOST_DB_URL"
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        FLAPJACK_DEV_DIR="/nonexistent" \
+        run_local_dev_up 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "1" "should reject non-loopback DATABASE_URL hosts"
+    assert_contains "$output" "DATABASE_URL host must be loopback for local-dev-up" \
+        "should explain why remote DATABASE_URL hosts are invalid for the local stack"
+    assert_contains "$output" "example.com" \
+        "should surface the rejected DATABASE_URL host"
+
+    local calls
+    calls=$(cat "$call_log" 2>/dev/null || true)
+    assert_not_contains "$calls" "docker compose" \
+        "should fail before invoking docker compose when DATABASE_URL points at a non-loopback host"
 }
 
 test_rejects_non_numeric_database_url_port() {
@@ -858,7 +1068,12 @@ test_rejects_out_of_range_database_url_port() {
         "should fail before invoking docker compose when the port exceeds TCP limits"
 }
 
-test_starts_flapjack_on_port_7700() {
+# The stale-state cleanup above stops this stack's own Postgres, so anything
+# still listening on the DATABASE_URL port belongs to a foreign server. Starting
+# compose anyway leaves the published port owned by that foreign server, and
+# every later probe in this script — readiness, migrations, row counts — reports
+# healthy against a database fjcloud does not own.
+test_rejects_foreign_listener_on_database_url_port() {
     local tmp_dir
     tmp_dir=$(mktemp -d)
     trap 'restore_local_dev_repo_state; rm -rf "'"$tmp_dir"'"' RETURN
@@ -868,10 +1083,52 @@ test_starts_flapjack_on_port_7700() {
     setup_mock_bin "$tmp_dir/bin" "$call_log"
     setup_local_dev_repo_state "$tmp_dir"
 
-    # Create a fake flapjack binary
+    # Report a listener on the DATABASE_URL port only, so the failure cannot be
+    # confused with the flapjack port checks later in the script.
+    write_mock_script "$tmp_dir/bin/lsof" \
+        'echo "lsof $@" >> "'"$call_log"'"
+case "$*" in
+    *":5432"*) exit 0 ;;
+esac
+exit 1'
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        LOCAL_DB_PORT=5432 \
+        FLAPJACK_DEV_DIR="/nonexistent" \
+        run_local_dev_up 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "1" "should refuse to start when a foreign server owns the DATABASE_URL port"
+    assert_contains "$output" "port 5432 is already in use (needed for postgres from DATABASE_URL)" \
+        "should name the colliding Postgres port instead of proceeding against an unowned database"
+
+    local calls
+    calls=$(cat "$call_log" 2>/dev/null || true)
+    assert_not_contains "$calls" "docker compose up -d postgres" \
+        "should fail before starting compose Postgres behind a foreign listener"
+}
+
+test_starts_flapjack_on_derived_port() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_local_dev_repo_state; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local call_log="$tmp_dir/calls.log"
+    mkdir -p "$tmp_dir/bin"
+    setup_mock_bin "$tmp_dir/bin" "$call_log"
+    setup_local_dev_repo_state "$tmp_dir"
+
+    # The harness mocks health separately, so this process must not keep the
+    # command substitution open or make the suite wait on a long-lived daemon.
     local fj_dir="$tmp_dir/flapjack_dev/target/debug"
     mkdir -p "$fj_dir"
-    write_mock_script "$fj_dir/flapjack-http" 'sleep 300'
+    write_mock_script "$fj_dir/flapjack-http" 'exit 0'
+
+    local plan derived_flapjack_port
+    plan="$(manual_port_plan_for_workspace "$LOCAL_DEV_TEST_REPO_ROOT")"
+    derived_flapjack_port="$(manual_port_plan_value "$plan" FLAPJACK_PORT)"
 
     local output exit_code=0
     output=$(
@@ -880,8 +1137,8 @@ test_starts_flapjack_on_port_7700() {
         run_local_dev_up 2>&1
     ) || exit_code=$?
 
-    assert_contains "$output" "port 7700" \
-        "should start flapjack on port 7700"
+    assert_contains "$output" "port $derived_flapjack_port" \
+        "should start flapjack on the workspace-derived port"
 
     local flapjack_pid_file="$LOCAL_DEV_TEST_REPO_ROOT/.local/flapjack.pid"
     if [ -f "$flapjack_pid_file" ]; then
@@ -906,7 +1163,11 @@ test_starts_flapjack_with_current_binary_name() {
 
     local fj_dir="$tmp_dir/flapjack_dev/target/debug"
     mkdir -p "$fj_dir"
-    write_mock_script "$fj_dir/flapjack" 'sleep 300'
+    write_mock_script "$fj_dir/flapjack" 'exit 0'
+
+    local plan derived_flapjack_port
+    plan="$(manual_port_plan_for_workspace "$LOCAL_DEV_TEST_REPO_ROOT")"
+    derived_flapjack_port="$(manual_port_plan_value "$plan" FLAPJACK_PORT)"
 
     local output exit_code=0
     output=$(
@@ -915,7 +1176,7 @@ test_starts_flapjack_with_current_binary_name() {
         run_local_dev_up 2>&1
     ) || exit_code=$?
 
-    assert_contains "$output" "port 7700" \
+    assert_contains "$output" "port $derived_flapjack_port" \
         "should start flapjack when the current binary name is present"
 
     local flapjack_pid_file="$LOCAL_DEV_TEST_REPO_ROOT/.local/flapjack.pid"
@@ -950,6 +1211,8 @@ exit 0'
     write_healthy_mock_curl "$tmp_dir/bin/curl" "$call_log"
     write_mock_script "$tmp_dir/bin/nohup" \
         'echo "nohup $@" >> "'"$call_log"'"; "$@" &'
+    write_mock_script "$tmp_dir/bin/sleep" 'exit 0'
+    write_available_ports_mock "$tmp_dir/bin" "$call_log"
 
     local output exit_code=0
     output=$(
@@ -1204,6 +1467,253 @@ test_source_provider_profile_starts_and_reports_healthy_services() {
         "healthy source-provider summary should include Typesense"
 }
 
+test_source_provider_defaults_cannot_collide_with_flapjack() {
+    # Regression guard for the 2026-08-03 defect: FLAPJACK_PORT and
+    # LOCAL_MEILISEARCH_PORT both defaulted to 7700, so the three-provider
+    # local stack — which needs flapjack as the migration DESTINATION and
+    # Meilisearch as a migration SOURCE at the same time — could not come up
+    # on defaults at all. Every pre-existing source-provider test in this file
+    # passes explicit 17700/18108 overrides, which is exactly why the broken
+    # default was never exercised. Assert the declared defaults, not a
+    # runtime path, so the contract holds even when no stack is running.
+    local plan flapjack_default meili_default
+    plan="$(manual_port_plan_for_workspace "$LOCAL_DEV_TEST_REPO_ROOT")"
+    flapjack_default="$(manual_port_plan_value "$plan" FLAPJACK_PORT)"
+    meili_default="$(manual_port_plan_value "$plan" LOCAL_MEILISEARCH_PORT)"
+
+    if [ "$flapjack_default" = "$meili_default" ]; then
+        fail "FLAPJACK_PORT and LOCAL_MEILISEARCH_PORT must not share the default $flapjack_default; the three-provider local stack needs both bound at once"
+    else
+        pass "Flapjack ($flapjack_default) and Meilisearch ($meili_default) declare distinct default host ports"
+    fi
+
+    assert_contains "$(cat "$REPO_ROOT/scripts/local-dev-up.sh")" \
+        'playwright_apply_manual_stack_port_defaults' \
+        "local-dev-up.sh should obtain defaults from the shared port-plan seam"
+}
+
+test_manual_port_defaults_are_deterministic_and_disjoint_per_workspace() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+
+    local workspace_a workspace_b plan_a_first plan_a_second plan_b
+    workspace_a="$(create_local_dev_fixture_repo_root "$tmp_dir/workspace_a")"
+    workspace_b="$(create_local_dev_fixture_repo_root "$tmp_dir/workspace_b")"
+
+    if ! plan_a_first="$(manual_port_plan_for_workspace "$workspace_a")"; then
+        fail "manual port-plan helper should derive defaults for a fixture workspace"
+        return
+    fi
+    if ! plan_a_second="$(manual_port_plan_for_workspace "$workspace_a")"; then
+        fail "manual port-plan helper should repeat derivation for the same fixture workspace"
+        return
+    fi
+    if ! plan_b="$(manual_port_plan_for_workspace "$workspace_b")"; then
+        fail "manual port-plan helper should derive defaults for a second fixture workspace"
+        return
+    fi
+
+    assert_eq "$plan_a_first" "$plan_a_second" \
+        "the same workspace path should derive the same manual stack defaults twice"
+
+    local port_names=(
+        FLAPJACK_PORT
+        LOCAL_MEILISEARCH_PORT
+        LOCAL_TYPESENSE_PORT
+        LOCAL_MAILPIT_UI_PORT
+        LOCAL_SMTP_PORT
+        LOCAL_S3_PORT
+        LOCAL_DB_PORT
+    )
+    local name value all_ports=""
+    for name in "${port_names[@]}"; do
+        value="$(manual_port_plan_value "$plan_a_first" "$name")"
+        [ -n "$value" ] || fail "$name should be present in the first workspace port plan"
+        all_ports="${all_ports}${value}"$'\n'
+        value="$(manual_port_plan_value "$plan_b" "$name")"
+        [ -n "$value" ] || fail "$name should be present in the second workspace port plan"
+        all_ports="${all_ports}${value}"$'\n'
+    done
+
+    local unique_port_count
+    unique_port_count="$(printf '%s' "$all_ports" | sed '/^$/d' | sort -n -u | wc -l | tr -d ' ')"
+    assert_eq "$unique_port_count" "14" \
+        "two distinct fixture workspaces should derive disjoint values for all seven host ports"
+}
+
+test_all_manual_defaults_match_typescript_resolvers() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+
+    local workspace_path plan typescript_plan web_port api_port flapjack_port
+    local workspace_paths=(
+        ""
+        "/tmp/fq6_blocked_46"
+        "$(create_local_dev_fixture_repo_root "$tmp_dir/plain_workspace")"
+        "$(create_local_dev_fixture_repo_root "$tmp_dir/non_bmp_😀_workspace")"
+    )
+
+    for workspace_path in "${workspace_paths[@]}"; do
+        if ! plan="$(manual_port_plan_for_workspace "$workspace_path")"; then
+            fail "manual port-plan helper should derive all defaults for anti-drift coverage"
+            return
+        fi
+        typescript_plan="$(typescript_port_plan_for_workspace "$workspace_path" "$tmp_dir")"
+        web_port="$(manual_port_plan_value "$typescript_plan" WEB_PORT)"
+        api_port="$(manual_port_plan_value "$typescript_plan" API_PORT)"
+        flapjack_port="$(manual_port_plan_value "$typescript_plan" FLAPJACK_PORT)"
+
+        local expected_manual_plan
+        expected_manual_plan=$(printf '%s\n' \
+            "LOCAL_MEILISEARCH_PORT=$web_port" \
+            "LOCAL_TYPESENSE_PORT=$api_port" \
+            "FLAPJACK_PORT=$flapjack_port" \
+            "LOCAL_SMTP_PORT=$((flapjack_port + 2000))" \
+            "LOCAL_MAILPIT_UI_PORT=$((flapjack_port + 4000))" \
+            "LOCAL_S3_PORT=$((flapjack_port + 6000))" \
+            "LOCAL_DB_PORT=$((flapjack_port + 8000))")
+
+        local variable_name expected_value actual_value
+        while IFS='=' read -r variable_name expected_value; do
+            actual_value="$(manual_port_plan_value "$plan" "$variable_name")"
+            assert_eq "$actual_value" "$expected_value" \
+                "$variable_name should match the TypeScript-owned port plan for $workspace_path"
+        done <<< "$expected_manual_plan"
+    done
+}
+
+test_explicit_flapjack_port_flows_through_startup_summary_and_checks() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_local_dev_repo_state; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local call_log="$tmp_dir/calls.log"
+    mkdir -p "$tmp_dir/bin"
+    setup_mock_bin "$tmp_dir/bin" "$call_log"
+    setup_local_dev_repo_state "$tmp_dir"
+
+    local flapjack_dir="$tmp_dir/flapjack_dev/target/debug"
+    mkdir -p "$flapjack_dir"
+    write_mock_script "$flapjack_dir/flapjack" 'exit 0'
+
+    local output exit_code=0 calls wait_attempt
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        FLAPJACK_DEV_DIR="$tmp_dir/flapjack_dev" \
+        FLAPJACK_PORT=17800 \
+        run_local_dev_up 2>&1
+    ) || exit_code=$?
+    calls=""
+    for wait_attempt in $(seq 1 50); do
+        calls="$(cat "$call_log" 2>/dev/null || true)"
+        [[ "$calls" == *"nohup $flapjack_dir/flapjack --port 17800"* ]] && break
+        /bin/sleep 0.1
+    done
+
+    assert_eq "$exit_code" "0" "an explicit FLAPJACK_PORT should remain a valid startup override"
+    assert_contains "$calls" "lsof -i :17800 -sTCP:LISTEN -P" \
+        "the explicit FLAPJACK_PORT should flow into host-port availability checks"
+    assert_contains "$calls" "nohup $flapjack_dir/flapjack --port 17800" \
+        "the explicit FLAPJACK_PORT should flow into Flapjack startup"
+    assert_contains "$output" "Flapjack default: http://localhost:17800" \
+        "the explicit FLAPJACK_PORT should flow into the startup summary"
+}
+
+test_all_manual_host_ports_fail_collisions_before_teardown_or_startup() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_local_dev_repo_state; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local call_log="$tmp_dir/calls.log"
+    mkdir -p "$tmp_dir/bin"
+    setup_mock_bin "$tmp_dir/bin" "$call_log"
+    setup_local_dev_repo_state "$tmp_dir"
+
+    local collision_variable output exit_code calls
+    local collision_variables=(
+        LOCAL_MEILISEARCH_PORT
+        LOCAL_TYPESENSE_PORT
+        LOCAL_MAILPIT_UI_PORT
+        LOCAL_SMTP_PORT
+        LOCAL_S3_PORT
+        LOCAL_DB_PORT
+    )
+    for collision_variable in "${collision_variables[@]}"; do
+        : > "$call_log"
+        exit_code=0
+        output=$(
+            env \
+                PATH="$tmp_dir/bin:$PATH" \
+                FJCLOUD_REPO_ROOT="$LOCAL_DEV_TEST_REPO_ROOT" \
+                COMPOSE_PROJECT_NAME="$LOCAL_DEV_COMPOSE_PROJECT_NAME" \
+                COMPOSE_PROFILES="source-providers" \
+                FLAPJACK_DEV_DIR="/nonexistent" \
+                FLAPJACK_PORT=17800 \
+                LOCAL_MEILISEARCH_PORT=17801 \
+                LOCAL_TYPESENSE_PORT=17802 \
+                LOCAL_MAILPIT_UI_PORT=17803 \
+                LOCAL_SMTP_PORT=17804 \
+                LOCAL_S3_PORT=17805 \
+                LOCAL_DB_PORT=17806 \
+                "$collision_variable=17800" \
+                bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        ) || exit_code=$?
+        calls="$(cat "$call_log" 2>/dev/null || true)"
+
+        assert_eq "$exit_code" "1" \
+            "$collision_variable should collide with FLAPJACK_PORT before startup"
+        assert_contains "$output" "FLAPJACK_PORT" \
+            "$collision_variable collision should identify FLAPJACK_PORT"
+        assert_contains "$output" "$collision_variable" \
+            "$collision_variable collision should identify both owners"
+        assert_not_contains "$calls" "docker compose down" \
+            "$collision_variable collision should fail before local-dev-down.sh"
+        assert_not_contains "$calls" "docker compose up" \
+            "$collision_variable collision should fail before any compose service starts"
+    done
+}
+
+test_rejects_colliding_flapjack_and_source_provider_ports() {
+    # The default is now safe, but an operator can still point two services at
+    # one port by hand. Without a pre-flight guard the failure surfaces late
+    # and misleadingly: Meilisearch binds first, then flapjack's own
+    # check_port_available reports "port 7700 already in use (needed for
+    # flapjack-default)" without ever naming the Meilisearch override that
+    # took it. Require a fail-fast that names BOTH variables.
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_local_dev_repo_state; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local call_log="$tmp_dir/calls.log"
+    mkdir -p "$tmp_dir/bin"
+    setup_mock_bin "$tmp_dir/bin" "$call_log"
+    setup_local_dev_repo_state "$tmp_dir"
+
+    local output exit_code=0 calls
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        COMPOSE_PROFILES="source-providers" \
+        FLAPJACK_PORT=17700 \
+        LOCAL_MEILISEARCH_PORT=17700 \
+        LOCAL_TYPESENSE_PORT=18108 \
+        FLAPJACK_DEV_DIR="/nonexistent" \
+        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+    ) || exit_code=$?
+    calls=$(cat "$call_log" 2>/dev/null || true)
+
+    assert_eq "$exit_code" "1" "colliding host ports should fail fast, not start a partial stack"
+    assert_contains "$output" "FLAPJACK_PORT" \
+        "the collision diagnostic must name FLAPJACK_PORT so the operator knows which override to move"
+    assert_contains "$output" "LOCAL_MEILISEARCH_PORT" \
+        "the collision diagnostic must name LOCAL_MEILISEARCH_PORT, not just the bare port number"
+    assert_contains "$output" "17700" \
+        "the collision diagnostic must name the colliding port"
+    assert_not_contains "$calls" "docker compose up -d meilisearch typesense" \
+        "no source-provider container may start once a port collision is known"
+}
+
 test_source_provider_health_failure_is_nonfatal() {
     local tmp_dir
     tmp_dir=$(mktemp -d)
@@ -1270,6 +1780,7 @@ exit 0'
     # Mock sleep to no-op so wait_for_health retries don't block
     write_mock_script "$tmp_dir/bin/sleep" \
         'exit 0'
+    write_available_ports_mock "$tmp_dir/bin" "$call_log"
 
     setup_local_dev_repo_state "$tmp_dir"
 
@@ -1329,6 +1840,7 @@ exit 0'
         'echo "nohup $@" >> "'"$call_log2"'"; "$@" &'
     write_mock_script "$tmp_dir/bin/sleep" \
         'exit 0'
+    write_available_ports_mock "$tmp_dir/bin" "$call_log2"
 
     setup_local_dev_repo_state "$tmp_dir"
 
@@ -1343,6 +1855,8 @@ exit 0'
         "summary should omit SeaweedFS when unhealthy"
     assert_not_contains "$output_unhealthy" "Mailpit UI:" \
         "summary should omit Mailpit when unhealthy"
+    assert_contains "$(cat "$call_log2")" "lsof" \
+        "run-2 port preflight should record lsof in the active call log"
 }
 
 test_multi_region_flapjack_starts_one_per_region() {
@@ -1358,9 +1872,9 @@ test_multi_region_flapjack_starts_one_per_region() {
     # Create a fake flapjack binary.
     local fj_dir="$tmp_dir/flapjack_dev/target/debug"
     mkdir -p "$fj_dir"
-    # Mock flapjack that logs its arguments and sleeps.
+    # Health is mocked independently; this fixture only needs to record args.
     write_mock_script "$fj_dir/flapjack" \
-        'echo "flapjack $@" >> "'"$call_log"'"; sleep 300'
+        'echo "flapjack $@" >> "'"$call_log"'"; exit 0'
 
     # Override nohup to log the FLAPJACK_ADMIN_KEY and args, then background.
     write_mock_script "$tmp_dir/bin/nohup" \
@@ -1417,6 +1931,8 @@ main() {
 
     test_compose_leaves_api_startup_to_component_scripts
     test_source_provider_ports_bind_to_loopback
+    test_postgres_port_binds_to_loopback
+    test_env_example_database_url_names_an_unambiguous_loopback_host
     test_calls_down_before_starting
     test_starts_only_postgres_service
     test_waits_for_postgres_with_superuser_probe
@@ -1435,9 +1951,15 @@ main() {
     test_runs_migrations
     test_does_not_require_host_psql_when_container_client_is_available
     test_uses_database_url_port_for_postgres_bind_and_summary
+    test_exported_local_db_port_beats_derivation_and_rewrites_database_url
+    test_nonlegacy_database_url_port_beats_derivation_without_local_db_port
+    test_legacy_database_url_port_is_rewritten_to_derived_local_db_port
+    test_rejects_database_url_port_held_by_host_process
+    test_rejects_non_loopback_database_url_host
     test_rejects_non_numeric_database_url_port
     test_rejects_out_of_range_database_url_port
-    test_starts_flapjack_on_port_7700
+    test_rejects_foreign_listener_on_database_url_port
+    test_starts_flapjack_on_derived_port
     test_starts_flapjack_with_current_binary_name
     test_migrations_skip_already_applied_on_rerun
     test_flapjack_missing_warns_and_skips
@@ -1448,6 +1970,12 @@ main() {
     test_starts_seaweedfs_and_mailpit
     test_source_providers_are_default_off
     test_source_provider_profile_starts_and_reports_healthy_services
+    test_source_provider_defaults_cannot_collide_with_flapjack
+    test_manual_port_defaults_are_deterministic_and_disjoint_per_workspace
+    test_all_manual_defaults_match_typescript_resolvers
+    test_explicit_flapjack_port_flows_through_startup_summary_and_checks
+    test_all_manual_host_ports_fail_collisions_before_teardown_or_startup
+    test_rejects_colliding_flapjack_and_source_provider_ports
     test_source_provider_health_failure_is_nonfatal
     test_optional_service_health_failure_nonfatal
     test_startup_summary_reflects_health_status

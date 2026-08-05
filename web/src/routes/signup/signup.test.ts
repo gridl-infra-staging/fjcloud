@@ -9,12 +9,13 @@ vi.mock('$app/forms', () => ({
 
 import SignupPage from './+page.svelte';
 import { LEGAL_SUPPORT_MAILTO, SUPPORT_EMAIL } from '$lib/format';
+import { PASSWORD_MIN_LENGTH } from '$lib/auth/password-policy';
 import { MARKETING_PRICING } from '$lib/pricing';
-import { SIGNUP_PASSWORD_MIN_LENGTH } from './signup-validation';
 
 afterEach(cleanup);
 
 const signupPageData = { apiBaseUrl: 'http://127.0.0.1:3001' };
+const VALID_PASSWORD = 'ValidPassword123!';
 
 function renderSignupPage(form?: Record<string, unknown>) {
 	return render(SignupPage, {
@@ -53,9 +54,7 @@ describe('Signup page', () => {
 		expect(heading).toBeInTheDocument();
 		expect(heading).toHaveClass('text-flapjack-ink');
 		expect(screen.getByText(MARKETING_PRICING.free_tier_promise)).toBeInTheDocument();
-		expect(
-			screen.getByText(`Use at least ${SIGNUP_PASSWORD_MIN_LENGTH} characters.`)
-		).toBeInTheDocument();
+		expect(screen.getByText(`Use at least ${PASSWORD_MIN_LENGTH} characters.`)).toBeInTheDocument();
 		const signUpButton = screen.getByRole('button', { name: 'Sign Up' });
 		expect(signUpButton).toBeInTheDocument();
 		expect(signUpButton).toHaveClass('bg-flapjack-rose');
@@ -97,13 +96,13 @@ describe('Signup page', () => {
 		expect(password).toBeRequired();
 		expect(password).toHaveAttribute('type', 'password');
 		expect(password).toHaveAttribute('name', 'password');
-		expect(password).toHaveAttribute('minlength', '8');
+		expect(password).toHaveAttribute('minlength', String(PASSWORD_MIN_LENGTH));
 
 		const confirmPassword = screen.getByLabelText('Confirm Password');
 		expect(confirmPassword).toBeRequired();
 		expect(confirmPassword).toHaveAttribute('type', 'password');
 		expect(confirmPassword).toHaveAttribute('name', 'confirm_password');
-		expect(confirmPassword).toHaveAttribute('minlength', '8');
+		expect(confirmPassword).toHaveAttribute('minlength', String(PASSWORD_MIN_LENGTH));
 	});
 
 	it('keeps signup password fields in place while toggling between masked and plain text', async () => {
@@ -114,19 +113,19 @@ describe('Signup page', () => {
 
 		expect(password).toHaveAttribute('id', 'password');
 		expect(password).toHaveAttribute('name', 'password');
-		expect(password).toHaveAttribute('minlength', String(SIGNUP_PASSWORD_MIN_LENGTH));
+		expect(password).toHaveAttribute('minlength', String(PASSWORD_MIN_LENGTH));
 		expect(password).toHaveAttribute('type', 'password');
 		expect(confirmPassword).toHaveAttribute('id', 'confirm_password');
 		expect(confirmPassword).toHaveAttribute('name', 'confirm_password');
-		expect(confirmPassword).toHaveAttribute('minlength', String(SIGNUP_PASSWORD_MIN_LENGTH));
+		expect(confirmPassword).toHaveAttribute('minlength', String(PASSWORD_MIN_LENGTH));
 		expect(confirmPassword).toHaveAttribute('type', 'password');
 
-		await fireEvent.input(password, { target: { value: 'valid-password' } });
-		expect(password).toHaveValue('valid-password');
+		await fireEvent.input(password, { target: { value: VALID_PASSWORD } });
+		expect(password).toHaveValue(VALID_PASSWORD);
 
 		await fireEvent.click(screen.getAllByRole('button', { name: 'Show password' })[0]);
 		expect(password).toHaveAttribute('type', 'text');
-		expect(password).toHaveValue('valid-password');
+		expect(password).toHaveValue(VALID_PASSWORD);
 		expect(confirmPassword).toHaveAttribute('type', 'password');
 
 		await fireEvent.click(screen.getAllByRole('button', { name: 'Show password' })[0]);
@@ -196,7 +195,7 @@ describe('Signup page', () => {
 
 	it('preserves server-returned name and email values after validation errors', () => {
 		renderSignupPage({
-			errors: { password: 'Password must be at least 8 characters' },
+			errors: { password: 'Password must be at least 15 characters' },
 			name: 'Alice',
 			email: 'alice@example.com'
 		});
@@ -216,15 +215,36 @@ describe('Signup page', () => {
 		expect(screen.getByText('Password is required')).toBeInTheDocument();
 
 		await fireEvent.input(password, { target: { value: 'short' } });
-		expect(screen.getByText('Password must be at least 8 characters')).toBeInTheDocument();
+		expect(screen.getByText('Password must be at least 15 characters')).toBeInTheDocument();
 		expect(screen.queryByText('Password is required')).not.toBeInTheDocument();
 
-		await fireEvent.input(password, { target: { value: '12345678' } });
-		expect(screen.queryByText('Password must be at least 8 characters')).not.toBeInTheDocument();
+		await fireEvent.input(password, { target: { value: 'abc café 123456' } });
+		expect(screen.queryByText('Password must be at least 15 characters')).not.toBeInTheDocument();
 	});
 
 	it('does not show any alert region when there is no form-level or confirm-password error', () => {
 		renderSignupPage();
 		expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+	});
+
+	it('blocks submission for an eight-emoji password that native minlength would accept', async () => {
+		renderSignupPage();
+
+		const password = screen.getByLabelText('Password');
+		const submit = screen.getByRole('button', { name: 'Sign Up' });
+
+		// Eight lock emoji: 8 code points but 16 UTF-16 units, so native
+		// minlength={15} treats it as long enough while the policy does not.
+		await fireEvent.input(password, { target: { value: '🔒'.repeat(8) } });
+		expect(
+			screen.getByText(`Password must be at least ${PASSWORD_MIN_LENGTH} characters`)
+		).toBeInTheDocument();
+		expect(submit).toBeDisabled();
+
+		await fireEvent.input(password, { target: { value: 'abc café 123456' } });
+		expect(
+			screen.queryByText(`Password must be at least ${PASSWORD_MIN_LENGTH} characters`)
+		).not.toBeInTheDocument();
+		expect(submit).toBeEnabled();
 	});
 });

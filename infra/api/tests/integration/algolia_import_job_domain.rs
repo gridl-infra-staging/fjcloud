@@ -1231,7 +1231,11 @@ async fn dispatch_guard_blocks_hard_erase_until_the_single_send_window_releases(
     let customer_repo = PgCustomerRepo::new(pool.clone());
     let mut hard_erase = tokio::spawn(async move {
         customer_repo
-            .hard_delete(customer_id, CustomerHardDeleteKind::RegistrationRollback)
+            .hard_delete(
+                customer_id,
+                CustomerHardDeleteKind::RegistrationRollback,
+                api::repos::CustomerHardDeleteAuditPolicy::NoAudit,
+            )
             .await
     });
 
@@ -1277,7 +1281,11 @@ async fn hard_erase_that_wins_before_dispatch_guard_prevents_send() {
     };
 
     let erased = PgCustomerRepo::new(db.pool.clone())
-        .hard_delete(customer_id, CustomerHardDeleteKind::RegistrationRollback)
+        .hard_delete(
+            customer_id,
+            CustomerHardDeleteKind::RegistrationRollback,
+            api::repos::CustomerHardDeleteAuditPolicy::NoAudit,
+        )
         .await
         .expect("hard erase customer");
 
@@ -1374,7 +1382,10 @@ async fn suspended_then_reactivated_customer_refuses_stale_dispatch_admission_re
     let customer_repo = PgCustomerRepo::new(db.pool.clone());
 
     assert!(customer_repo
-        .suspend(customer_id)
+        .suspend(
+            customer_id,
+            crate::common::customer_suspended_audit_entry(customer_id)
+        )
         .await
         .expect("suspend customer"));
     assert!(customer_repo

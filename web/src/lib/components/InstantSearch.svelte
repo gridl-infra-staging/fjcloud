@@ -217,10 +217,11 @@
 	function applyDeterministicDisplayDefaults(searchHits: SearchHit[] = hits): void {
 		const attributes = availableAttributesFor(searchHits);
 		titleField = firstAvailableAttribute(['title', 'name', 'objectID'], attributes);
-		subtitleField = firstAvailableAttribute(['overview', 'description'], attributes);
+		// Prefer richer summaries first, with conventional subtitle as the final fallback.
+		subtitleField = firstAvailableAttribute(['overview', 'description', 'subtitle'], attributes);
 		imageField = firstAvailableAttribute(['poster_url', 'image_url', 'image'], attributes);
 		tagsField = firstAvailableAttribute(
-			['genre', 'genres', 'category', 'categories', 'tags'],
+			['genre', 'genres', 'tags', 'category', 'categories'],
 			attributes
 		);
 	}

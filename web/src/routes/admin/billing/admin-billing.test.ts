@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { adminSessionRouteEvent } from '../admin_session_durable_test_support';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
 
@@ -324,10 +325,12 @@ describe('Billing page server load', () => {
 			return new Response('Not Found', { status: 404 });
 		};
 
-		const result = await load({
-			fetch: mockFetch,
-			depends: () => {}
-		} as never);
+		const result = await load(
+			adminSessionRouteEvent({
+				fetch: mockFetch,
+				depends: () => {}
+			}) as never
+		);
 
 		expect(requestedUrls).toHaveLength(1);
 		expect(requestedUrls[0]).toMatch(/\/admin\/billing\/summary$/);
@@ -348,10 +351,12 @@ describe('Billing page server load', () => {
 
 		const mockFetch = async () => new Response('Internal Server Error', { status: 500 });
 
-		const result = await load({
-			fetch: mockFetch,
-			depends: () => {}
-		} as never);
+		const result = await load(
+			adminSessionRouteEvent({
+				fetch: mockFetch,
+				depends: () => {}
+			}) as never
+		);
 
 		expect(result!.summary).toEqual({
 			status_totals: {
@@ -404,10 +409,12 @@ describe('Billing page server load', () => {
 			]
 		};
 
-		const result = await load({
-			fetch: async () => new Response(JSON.stringify(malformedSummary), { status: 200 }),
-			depends: () => {}
-		} as never);
+		const result = await load(
+			adminSessionRouteEvent({
+				fetch: async () => new Response(JSON.stringify(malformedSummary), { status: 200 }),
+				depends: () => {}
+			}) as never
+		);
 
 		expect(result!.summary.status_totals.paid).toEqual({ total_cents: 27000, count: 0 });
 		expect(result!.summary.status_totals.failed).toEqual({ total_cents: 0, count: 0 });
@@ -460,10 +467,12 @@ describe('Billing page server load', () => {
 			]
 		};
 
-		const result = await load({
-			fetch: async () => new Response(JSON.stringify(outOfOrderSummary), { status: 200 }),
-			depends: () => {}
-		} as never);
+		const result = await load(
+			adminSessionRouteEvent({
+				fetch: async () => new Response(JSON.stringify(outOfOrderSummary), { status: 200 }),
+				depends: () => {}
+			}) as never
+		);
 
 		expect(
 			result!.invoices.map((invoice: BillingInvoice) => `${invoice.id}:${invoice.customer_name}`)
@@ -570,26 +579,28 @@ describe('Billing page server actions', () => {
 		const formData = new FormData();
 		formData.set('month', '2026-02');
 
-		const result = await actions.runBilling({
-			request: new Request('http://localhost/admin/billing?/runBilling', {
-				method: 'POST',
-				body: formData
-			}),
-			fetch: async (input: string | URL | Request, init?: RequestInit) => {
-				capturedUrl = typeof input === 'string' ? input : input.toString();
-				capturedMethod = init?.method ?? 'GET';
-				capturedBody = (init?.body as string) ?? '';
-				return new Response(
-					JSON.stringify({
-						month: '2026-02',
-						invoices_created: 3,
-						invoices_skipped: 1,
-						results: []
-					}),
-					{ status: 200 }
-				);
-			}
-		} as never);
+		const result = await actions.runBilling(
+			adminSessionRouteEvent({
+				request: new Request('http://localhost/admin/billing?/runBilling', {
+					method: 'POST',
+					body: formData
+				}),
+				fetch: async (input: string | URL | Request, init?: RequestInit) => {
+					capturedUrl = typeof input === 'string' ? input : input.toString();
+					capturedMethod = init?.method ?? 'GET';
+					capturedBody = (init?.body as string) ?? '';
+					return new Response(
+						JSON.stringify({
+							month: '2026-02',
+							invoices_created: 3,
+							invoices_skipped: 1,
+							results: []
+						}),
+						{ status: 200 }
+					);
+				}
+			}) as never
+		);
 
 		expect(capturedUrl).toContain('/admin/billing/run');
 		expect(capturedMethod).toBe('POST');
@@ -611,18 +622,20 @@ describe('Billing page server actions', () => {
 		formData.append('invoice_ids', BULK_FINALIZE_INVOICE_ID_ONE);
 		formData.append('invoice_ids', BULK_FINALIZE_INVOICE_ID_TWO);
 
-		const result = await actions.bulkFinalize({
-			request: new Request('http://localhost/admin/billing?/bulkFinalize', {
-				method: 'POST',
-				body: formData
-			}),
-			fetch: async (input: string | URL | Request) => {
-				capturedUrls.push(typeof input === 'string' ? input : input.toString());
-				return new Response(JSON.stringify({ id: 'inv-001', status: 'finalized' }), {
-					status: 200
-				});
-			}
-		} as never);
+		const result = await actions.bulkFinalize(
+			adminSessionRouteEvent({
+				request: new Request('http://localhost/admin/billing?/bulkFinalize', {
+					method: 'POST',
+					body: formData
+				}),
+				fetch: async (input: string | URL | Request) => {
+					capturedUrls.push(typeof input === 'string' ? input : input.toString());
+					return new Response(JSON.stringify({ id: 'inv-001', status: 'finalized' }), {
+						status: 200
+					});
+				}
+			}) as never
+		);
 
 		expect(capturedUrls).toHaveLength(2);
 		expect(capturedUrls[0]).toContain(`/admin/invoices/${BULK_FINALIZE_INVOICE_ID_ONE}/finalize`);
@@ -641,13 +654,15 @@ describe('Billing page server actions', () => {
 
 		const formData = new FormData();
 
-		const result = await actions.runBilling({
-			request: new Request('http://localhost/admin/billing?/runBilling', {
-				method: 'POST',
-				body: formData
-			}),
-			fetch: async () => new Response('', { status: 200 })
-		} as never);
+		const result = await actions.runBilling(
+			adminSessionRouteEvent({
+				request: new Request('http://localhost/admin/billing?/runBilling', {
+					method: 'POST',
+					body: formData
+				}),
+				fetch: async () => new Response('', { status: 200 })
+			}) as never
+		);
 
 		expect(result).toEqual(expect.objectContaining({ status: 400 }));
 	});
@@ -659,13 +674,15 @@ describe('Billing page server actions', () => {
 		formData.set('month', '2026-13');
 
 		const fetchSpy = vi.fn(async () => new Response('', { status: 200 }));
-		const result = await actions.runBilling({
-			request: new Request('http://localhost/admin/billing?/runBilling', {
-				method: 'POST',
-				body: formData
-			}),
-			fetch: fetchSpy
-		} as never);
+		const result = await actions.runBilling(
+			adminSessionRouteEvent({
+				request: new Request('http://localhost/admin/billing?/runBilling', {
+					method: 'POST',
+					body: formData
+				}),
+				fetch: fetchSpy
+			}) as never
+		);
 
 		expect(fetchSpy).not.toHaveBeenCalled();
 		expect(result).toEqual(
@@ -685,13 +702,16 @@ describe('Billing page server actions', () => {
 		const formData = new FormData();
 		formData.set('month', '2026-02');
 
-		const result = await actions.runBilling({
-			request: new Request('http://localhost/admin/billing?/runBilling', {
-				method: 'POST',
-				body: formData
-			}),
-			fetch: async () => new Response(JSON.stringify({ error: 'upstream failed' }), { status: 500 })
-		} as never);
+		const result = await actions.runBilling(
+			adminSessionRouteEvent({
+				request: new Request('http://localhost/admin/billing?/runBilling', {
+					method: 'POST',
+					body: formData
+				}),
+				fetch: async () =>
+					new Response(JSON.stringify({ error: 'upstream failed' }), { status: 500 })
+			}) as never
+		);
 
 		expect(result).toEqual(
 			expect.objectContaining({
@@ -711,14 +731,16 @@ describe('Billing page server actions', () => {
 		formData.append('invoice_ids', BULK_FINALIZE_INVOICE_ID_ONE);
 		formData.append('invoice_ids', BULK_FINALIZE_INVOICE_ID_TWO);
 
-		const result = await actions.bulkFinalize({
-			request: new Request('http://localhost/admin/billing?/bulkFinalize', {
-				method: 'POST',
-				body: formData
-			}),
-			fetch: async () =>
-				new Response(JSON.stringify({ error: 'finalize endpoint unavailable' }), { status: 500 })
-		} as never);
+		const result = await actions.bulkFinalize(
+			adminSessionRouteEvent({
+				request: new Request('http://localhost/admin/billing?/bulkFinalize', {
+					method: 'POST',
+					body: formData
+				}),
+				fetch: async () =>
+					new Response(JSON.stringify({ error: 'finalize endpoint unavailable' }), { status: 500 })
+			}) as never
+		);
 
 		expect(result).toEqual(
 			expect.objectContaining({
@@ -738,27 +760,29 @@ describe('Billing page server actions', () => {
 		formData.append('invoice_ids', BULK_FINALIZE_INVOICE_ID_ONE);
 		formData.append('invoice_ids', BULK_FINALIZE_INVOICE_ID_TWO);
 
-		const result = await actions.bulkFinalize({
-			request: new Request('http://localhost/admin/billing?/bulkFinalize', {
-				method: 'POST',
-				body: formData
-			}),
-			fetch: async (input: string | URL | Request) => {
-				const url = typeof input === 'string' ? input : input.toString();
-				if (url.includes(`/admin/invoices/${BULK_FINALIZE_INVOICE_ID_ONE}/finalize`)) {
-					return new Response(
-						JSON.stringify({ id: BULK_FINALIZE_INVOICE_ID_ONE, status: 'finalized' }),
-						{
-							status: 200
-						}
-					);
-				}
+		const result = await actions.bulkFinalize(
+			adminSessionRouteEvent({
+				request: new Request('http://localhost/admin/billing?/bulkFinalize', {
+					method: 'POST',
+					body: formData
+				}),
+				fetch: async (input: string | URL | Request) => {
+					const url = typeof input === 'string' ? input : input.toString();
+					if (url.includes(`/admin/invoices/${BULK_FINALIZE_INVOICE_ID_ONE}/finalize`)) {
+						return new Response(
+							JSON.stringify({ id: BULK_FINALIZE_INVOICE_ID_ONE, status: 'finalized' }),
+							{
+								status: 200
+							}
+						);
+					}
 
-				return new Response(JSON.stringify({ error: 'finalize endpoint unavailable' }), {
-					status: 500
-				});
-			}
-		} as never);
+					return new Response(JSON.stringify({ error: 'finalize endpoint unavailable' }), {
+						status: 500
+					});
+				}
+			}) as never
+		);
 
 		expect(result).toEqual(
 			expect.objectContaining({
@@ -777,13 +801,15 @@ describe('Billing page server actions', () => {
 		formData.append('invoice_ids', '../customers/target');
 
 		const fetchSpy = vi.fn(async () => new Response('', { status: 200 }));
-		const result = await actions.bulkFinalize({
-			request: new Request('http://localhost/admin/billing?/bulkFinalize', {
-				method: 'POST',
-				body: formData
-			}),
-			fetch: fetchSpy
-		} as never);
+		const result = await actions.bulkFinalize(
+			adminSessionRouteEvent({
+				request: new Request('http://localhost/admin/billing?/bulkFinalize', {
+					method: 'POST',
+					body: formData
+				}),
+				fetch: fetchSpy
+			}) as never
+		);
 
 		expect(fetchSpy).not.toHaveBeenCalled();
 		expect(result).toEqual(

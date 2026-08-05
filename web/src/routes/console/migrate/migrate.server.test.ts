@@ -36,7 +36,13 @@ describe('Migrate page server', () => {
 				available: false,
 				reason: 'temporarily_unavailable',
 				message: 'Algolia migration is temporarily unavailable while we replace the importer.',
-				capabilities: { cancel: false, resume: false, replace: false }
+				capabilities: {
+					cancel: false,
+					resume: false,
+					replace: false,
+					preview: false,
+					verify: false
+				}
 			},
 			recentImports: { page: null, error: null }
 		});
@@ -53,7 +59,7 @@ describe('Migrate page server', () => {
 		getMigrationAvailabilityMock.mockResolvedValue({
 			available: true,
 			message: 'Algolia migration is available.',
-			capabilities: { cancel: true, resume: false, replace: true }
+			capabilities: { cancel: true, resume: false, replace: true, preview: true }
 		});
 		listMigrationImportJobsMock.mockResolvedValue({
 			jobs: [{ id: 'job_123' }],
@@ -76,7 +82,7 @@ describe('Migrate page server', () => {
 		getMigrationAvailabilityMock.mockResolvedValue({
 			available: true,
 			message: 'Algolia migration is available.',
-			capabilities: { cancel: true, resume: false, replace: true }
+			capabilities: { cancel: true, resume: false, replace: true, preview: true }
 		});
 		listMigrationImportJobsMock.mockRejectedValue(new ApiRequestError(500, 'boom'));
 
@@ -96,7 +102,7 @@ describe('Migrate page server', () => {
 		getMigrationAvailabilityMock.mockResolvedValue({
 			available: true,
 			message: 'Algolia migration is available.',
-			capabilities: { cancel: true, resume: false, replace: true }
+			capabilities: { cancel: true, resume: false, replace: true, preview: true }
 		});
 		listMigrationImportJobsMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
 
@@ -245,9 +251,11 @@ describe('Migrate page server', () => {
 
 	it('exports only the server-owned migration action bridge names', () => {
 		expect(Object.keys(actions).sort()).toEqual([
+			'availability',
 			'checkDestinationEligibility',
 			'createImportJob',
 			'listSourceIndexes',
+			'previewImport',
 			'providerEligibility',
 			'recentImports'
 		]);

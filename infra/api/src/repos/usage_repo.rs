@@ -6,6 +6,23 @@ use uuid::Uuid;
 use crate::models::UsageDaily;
 use crate::repos::error::RepoError;
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct DailyUsageWrite {
+    pub date: NaiveDate,
+    pub region: String,
+    pub search_requests: i64,
+    pub write_operations: i64,
+    pub storage_bytes_avg: i64,
+    pub documents_count_avg: i64,
+}
+
+/// Operator and customer identity required for an audited admin usage mutation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AdminUsageMutation {
+    pub operator_id: Uuid,
+    pub customer_id: Uuid,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct UsageSummary {
     pub total_search_requests: i64,
@@ -49,4 +66,27 @@ pub trait UsageRepo {
     ) -> Result<i64, RepoError>;
 
     async fn summary_for(&self, customer_id: Uuid, days: u32) -> Result<UsageSummary, RepoError>;
+
+    async fn upsert_daily_usage(
+        &self,
+        _mutation: AdminUsageMutation,
+        _entries: &[DailyUsageWrite],
+    ) -> Result<u64, RepoError> {
+        Err(RepoError::Other(
+            "daily usage mutation is not supported by this repository".to_string(),
+        ))
+    }
+
+    async fn delete_daily_usage(
+        &self,
+        _mutation: AdminUsageMutation,
+        _start_date: NaiveDate,
+        _end_date: NaiveDate,
+        _month: &str,
+        _region: &str,
+    ) -> Result<u64, RepoError> {
+        Err(RepoError::Other(
+            "daily usage mutation is not supported by this repository".to_string(),
+        ))
+    }
 }

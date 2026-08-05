@@ -122,6 +122,8 @@ async fn app_state_includes_usable_object_store() {
 fn s3_object_store_with_custom_endpoint_configures_correctly() {
     use api::services::object_store::S3ObjectStoreConfig;
 
+    // Sole env-reading contract for the six COLD_STORAGE_* variables; other
+    // cold-tier tests should supply config values directly.
     let _lock = object_store_env_lock()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());

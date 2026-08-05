@@ -28,6 +28,10 @@ async fn body_json(resp: axum::response::Response) -> serde_json::Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
+fn hash_password(password: &str) -> String {
+    api::password::hash_password(password).expect("hashing should not fail in tests")
+}
+
 fn json_post(uri: &str, body: serde_json::Value) -> Request<Body> {
     Request::builder()
         .method("POST")
@@ -639,7 +643,7 @@ async fn register_short_password_returns_400() {
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
     let json = body_json(resp).await;
-    assert_eq!(json["error"], "password must be at least 8 characters");
+    assert_eq!(json["error"], "password must be at least 15 characters");
 }
 
 #[tokio::test]
@@ -773,6 +777,32 @@ async fn login_success_returns_200_with_jwt() {
     let json = body_json(login_resp).await;
     assert!(json["token"].as_str().is_some());
     assert_eq!(json["customer_id"].as_str().unwrap(), customer_id);
+}
+
+#[tokio::test]
+async fn login_allows_existing_subminimum_passwords() {
+    let repo = crate::common::mock_repo();
+    let legacy_password = "oldpass1";
+    let legacy_password_hash = hash_password(legacy_password);
+
+    repo.create_with_password("Legacy User", "legacy@example.com", &legacy_password_hash)
+        .await
+        .expect("legacy customer should seed with a short password");
+
+    let app = crate::common::test_app_with_repo(repo);
+    let req = json_post(
+        "/auth/login",
+        serde_json::json!({
+            "email": "legacy@example.com",
+            "password": legacy_password
+        }),
+    );
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let json = body_json(resp).await;
+    assert!(json["token"].as_str().is_some());
 }
 
 #[tokio::test]
@@ -1201,7 +1231,7 @@ async fn reset_password_with_valid_token_succeeds() {
         serde_json::json!({
             "name": "Eve",
             "email": "eve@example.com",
-            "password": "oldpassword123"
+            "password": "OldPassword123!"
         }),
     );
     app.oneshot(reg_req).await.unwrap();
@@ -1228,7 +1258,7 @@ async fn reset_password_with_valid_token_succeeds() {
         "/auth/reset-password",
         serde_json::json!({
             "token": reset_token,
-            "new_password": "newpassword456"
+            "new_password": "NewPassword456!"
         }),
     );
     let resp = app3.oneshot(req).await.unwrap();
@@ -1243,7 +1273,7 @@ async fn reset_password_with_valid_token_succeeds() {
         "/auth/login",
         serde_json::json!({
             "email": "eve@example.com",
-            "password": "newpassword456"
+            "password": "NewPassword456!"
         }),
     );
     let login_resp = app4.oneshot(login_req).await.unwrap();
@@ -1258,7 +1288,7 @@ async fn reset_password_invalid_token_returns_400() {
         "/auth/reset-password",
         serde_json::json!({
             "token": "bad-token",
-            "new_password": "newpassword456"
+            "new_password": "NewPassword456!"
         }),
     );
 
@@ -1285,7 +1315,7 @@ async fn reset_password_with_expired_token_returns_400() {
         "/auth/reset-password",
         serde_json::json!({
             "token": "expired-reset-token",
-            "new_password": "newpassword456"
+            "new_password": "NewPassword456!"
         }),
     );
 
@@ -1312,7 +1342,7 @@ async fn reset_password_short_password_returns_400() {
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
     let json = body_json(resp).await;
-    assert_eq!(json["error"], "password must be at least 8 characters");
+    assert_eq!(json["error"], "password must be at least 15 characters");
 }
 
 #[tokio::test]
@@ -1326,7 +1356,7 @@ async fn reset_password_token_consumed_after_use() {
         serde_json::json!({
             "name": "Frank",
             "email": "frank@example.com",
-            "password": "oldpassword123"
+            "password": "OldPassword123!"
         }),
     );
     app.oneshot(reg_req).await.unwrap();
@@ -1353,7 +1383,7 @@ async fn reset_password_token_consumed_after_use() {
         "/auth/reset-password",
         serde_json::json!({
             "token": &reset_token,
-            "new_password": "newpassword456"
+            "new_password": "NewPassword456!"
         }),
     );
     let resp = app3.oneshot(req).await.unwrap();
@@ -1589,7 +1619,7 @@ async fn reset_password_invalidates_old_password() {
         serde_json::json!({
             "name": "Grace",
             "email": "grace@example.com",
-            "password": "oldpassword123"
+            "password": "OldPassword123!"
         }),
     );
     app.oneshot(reg_req).await.unwrap();
@@ -1616,7 +1646,7 @@ async fn reset_password_invalidates_old_password() {
         "/auth/reset-password",
         serde_json::json!({
             "token": reset_token,
-            "new_password": "newpassword456"
+            "new_password": "NewPassword456!"
         }),
     );
     let resp = app3.oneshot(req).await.unwrap();
@@ -1628,7 +1658,7 @@ async fn reset_password_invalidates_old_password() {
         "/auth/login",
         serde_json::json!({
             "email": "grace@example.com",
-            "password": "oldpassword123"
+            "password": "OldPassword123!"
         }),
     );
     let login_resp = app4.oneshot(login_req).await.unwrap();
@@ -1802,7 +1832,7 @@ async fn reset_password_deleted_customer_returns_400() {
         "/auth/reset-password",
         serde_json::json!({
             "token": reset_token,
-            "new_password": "newpassword456"
+            "new_password": "NewPassword456!"
         }),
     );
     let resp = app3.oneshot(req).await.unwrap();
@@ -1963,6 +1993,9 @@ async fn login_rejects_password_exceeding_max_length() {
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+    let json = body_json(resp).await;
+    assert_eq!(json["error"], "password must be at most 128 bytes");
 }
 
 #[tokio::test]
@@ -2239,9 +2272,12 @@ async fn resend_verification_invalid_auth_returns_401() {
 async fn resend_verification_suspended_account_returns_403() {
     let repo = crate::common::mock_repo();
     let customer = repo.seed("Suspended", "suspended@example.com");
-    repo.suspend(customer.id)
-        .await
-        .expect("suspend fixture customer");
+    repo.suspend(
+        customer.id,
+        crate::common::customer_suspended_audit_entry(customer.id),
+    )
+    .await
+    .expect("suspend fixture customer");
     let app = crate::common::test_app_with_repo(repo);
     let jwt = crate::common::create_test_jwt(customer.id);
 

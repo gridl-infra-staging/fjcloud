@@ -12,6 +12,8 @@ const API_KEY: &str = "volatile-secret-api-key";
 struct FakeClient {
     responses: Mutex<VecDeque<Result<AlgoliaClientResponse, AlgoliaClientError>>>,
     requests: Mutex<Vec<AlgoliaClientRequest>>,
+    search_responses: Mutex<VecDeque<Result<AlgoliaClientResponse, AlgoliaClientError>>>,
+    search_requests: Mutex<Vec<AlgoliaSourceQueryClientRequest>>,
 }
 
 impl FakeClient {
@@ -21,11 +23,28 @@ impl FakeClient {
         Arc::new(Self {
             responses: Mutex::new(responses.into_iter().collect()),
             requests: Mutex::new(Vec::new()),
+            search_responses: Mutex::new(VecDeque::new()),
+            search_requests: Mutex::new(Vec::new()),
+        })
+    }
+
+    fn with_search_responses(
+        responses: impl IntoIterator<Item = Result<AlgoliaClientResponse, AlgoliaClientError>>,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            responses: Mutex::new(VecDeque::new()),
+            requests: Mutex::new(Vec::new()),
+            search_responses: Mutex::new(responses.into_iter().collect()),
+            search_requests: Mutex::new(Vec::new()),
         })
     }
 
     fn requests(&self) -> Vec<AlgoliaClientRequest> {
         self.requests.lock().unwrap().clone()
+    }
+
+    fn search_requests(&self) -> Vec<AlgoliaSourceQueryClientRequest> {
+        self.search_requests.lock().unwrap().clone()
     }
 }
 
@@ -41,6 +60,18 @@ impl AlgoliaSourceClient for FakeClient {
             .unwrap()
             .pop_front()
             .expect("fake response configured")
+    }
+
+    async fn search_index(
+        &self,
+        request: AlgoliaSourceQueryClientRequest,
+    ) -> Result<AlgoliaClientResponse, AlgoliaClientError> {
+        self.search_requests.lock().unwrap().push(request);
+        self.search_responses
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("fake search response configured")
     }
 }
 
@@ -97,6 +128,35 @@ fn service(client: Arc<FakeClient>) -> AlgoliaSourceService {
     AlgoliaSourceService::new(client, CURSOR_KEY).unwrap()
 }
 
+fn service_with_source_base_url(
+    client: Arc<FakeClient>,
+    source_base_url: &str,
+) -> AlgoliaSourceService {
+    AlgoliaSourceService::new_with_source_base_url(
+        client,
+        CURSOR_KEY,
+        validated_source_base_url(source_base_url),
+    )
+    .unwrap()
+}
+
+fn validated_source_base_url(source_base_url: &str) -> Option<reqwest::Url> {
+    use std::collections::HashMap;
+
+    crate::config::Config::from_reader(|key| {
+        HashMap::from([
+            ("DATABASE_URL", "postgres://localhost/fjcloud"),
+            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
+            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
+            ("FJCLOUD_ALGOLIA_SOURCE_BASE_URL", source_base_url),
+        ])
+        .get(key)
+        .map(|value| value.to_string())
+    })
+    .expect("test source base URL should parse")
+    .algolia_source_base_url
+}
+
 #[tokio::test]
 async fn algolia_cloud_discovery_returns_typed_picker_metadata_and_shape() {
     let client = FakeClient::with_responses([Ok(response(0, 1, vec![item("products")]))]);
@@ -139,6 +199,11 @@ async fn algolia_cloud_discovery_accepts_live_list_response_without_page_field()
 
 #[tokio::test]
 async fn algolia_cloud_discovery_uses_fixed_validated_host_and_explicit_page_size() {
+    assert_eq!(
+        algolia_list_url(APP_ID, None).unwrap().as_str(),
+        "https://testapp123.algolia.net/1/indexes"
+    );
+
     let client = FakeClient::with_responses([Ok(response(0, 1, vec![]))]);
     service(client.clone())
         .list_indexes(request(None))
@@ -153,7 +218,37 @@ async fn algolia_cloud_discovery_uses_fixed_validated_host_and_explicit_page_siz
     );
     assert_eq!(requests[0].page, 0);
     assert_eq!(requests[0].hits_per_page, 100);
+}
 
+#[tokio::test]
+async fn algolia_cloud_discovery_uses_loopback_override_base_for_list_and_actions() {
+    let client = FakeClient::with_responses([
+        Ok(response(0, 1, vec![])),
+        Ok(response(0, 1, vec![sized_item("products", 42, 2048, 4096)])),
+        Ok(AlgoliaClientResponse::status(200)),
+        Ok(AlgoliaClientResponse::status(200)),
+    ]);
+    let source_service = service_with_source_base_url(client.clone(), "http://127.0.0.1:43123");
+
+    source_service
+        .list_indexes(request(None))
+        .await
+        .expect("loopback override list URL should be accepted");
+    source_service
+        .inspect_source(inspect_request("products"))
+        .await
+        .expect("loopback override action URLs should be accepted");
+
+    let requests = client.requests();
+    assert_eq!(requests[0].url.as_str(), "http://127.0.0.1:43123/1/indexes");
+    assert_eq!(
+        requests[2].url.as_str(),
+        "http://127.0.0.1:43123/1/indexes/products/settings"
+    );
+}
+
+#[tokio::test]
+async fn algolia_cloud_discovery_rejects_invalid_app_id_before_fetching() {
     let error = service(FakeClient::default().into())
         .list_indexes(AlgoliaSourceListRequest {
             app_id: "example.com/path".to_string(),
@@ -175,9 +270,12 @@ async fn algolia_cloud_discovery_credentials_are_redacted_and_never_enter_cursor
         .unwrap();
 
     let debug_request = format!("{:?}", client.requests()[0]);
+    assert!(debug_request.contains("url: \"[REDACTED]\""));
     assert!(debug_request.contains("app_id: \"[REDACTED]\""));
     assert!(debug_request.contains("api_key: \"[REDACTED]\""));
-    assert!(!debug_request.contains(APP_ID));
+    assert!(!debug_request
+        .to_ascii_lowercase()
+        .contains(&APP_ID.to_ascii_lowercase()));
     assert!(!debug_request.contains(API_KEY));
     let debug_source_request = format!("{:?}", request(None));
     assert!(debug_source_request.contains("app_id: \"[REDACTED]\""));
@@ -457,10 +555,6 @@ async fn algolia_cloud_discovery_rejects_redirects() {
     assert_eq!(server.received_requests().await.unwrap().len(), 1);
 }
 
-// ---------------------------------------------------------------------------
-// Final temporary-key source inspection (create admission input)
-// ---------------------------------------------------------------------------
-
 fn sized_item(name: &str, entries: u64, data_size: u64, file_size: u64) -> AlgoliaIndexMetadata {
     AlgoliaIndexMetadata {
         name: name.to_string(),
@@ -483,321 +577,7 @@ fn inspect_request(source_name: &str) -> AlgoliaSourceInspectRequest {
     }
 }
 
-fn expected_source(item: &AlgoliaIndexMetadata) -> AlgoliaImportSource {
-    AlgoliaImportSource::from_final_key_metadata(
-        APP_ID,
-        &item.name,
-        AlgoliaImportSourceMetadata::new(
-            i64::try_from(item.file_size).ok(),
-            i64::try_from(item.entries).ok(),
-            format!(
-                "{}:{}",
-                item.updated_at.to_rfc3339(),
-                item.last_build_time_s
-            ),
-        ),
-    )
-}
-
-#[tokio::test]
-async fn algolia_cloud_job_inspect_source_builds_source_from_server_metadata_only() {
-    let server_item = sized_item("products", 42, 2048, 4096);
-    let client = FakeClient::with_responses([
-        Ok(response(0, 1, vec![server_item.clone()])),
-        Ok(AlgoliaClientResponse::status(200)),
-        Ok(AlgoliaClientResponse::status(200)),
-    ]);
-
-    let source = service(client)
-        .inspect_source(inspect_request("products"))
-        .await
-        .unwrap();
-
-    // The on-disk (file) size is the authoritative source size, never the
-    // record-data size and never any browser-supplied number.
-    assert_eq!(source.source_size_bytes(), 4096);
-    assert_eq!(
-        source.canonical_fingerprint(),
-        expected_source(&server_item).canonical_fingerprint()
-    );
-}
-
-#[tokio::test]
-async fn algolia_cloud_job_inspect_source_uses_server_size_not_client_picker_numbers() {
-    // Two server responses for the same index name differing only in the
-    // server-reported file size must yield different fingerprints, proving the
-    // fingerprint is driven by the re-fetched server metadata rather than any
-    // client-provided count or size (the request carries none).
-    let small = sized_item("products", 42, 2048, 4096);
-    let large = sized_item("products", 42, 2048, 9999);
-
-    let small_source = service(FakeClient::with_responses([
-        Ok(response(0, 1, vec![small.clone()])),
-        Ok(AlgoliaClientResponse::status(200)),
-        Ok(AlgoliaClientResponse::status(200)),
-    ]))
-    .inspect_source(inspect_request("products"))
-    .await
-    .unwrap();
-    let large_source = service(FakeClient::with_responses([
-        Ok(response(0, 1, vec![large.clone()])),
-        Ok(AlgoliaClientResponse::status(200)),
-        Ok(AlgoliaClientResponse::status(200)),
-    ]))
-    .inspect_source(inspect_request("products"))
-    .await
-    .unwrap();
-
-    assert_eq!(small_source.source_size_bytes(), 4096);
-    assert_eq!(large_source.source_size_bytes(), 9999);
-    assert_ne!(
-        small_source.canonical_fingerprint(),
-        large_source.canonical_fingerprint()
-    );
-    assert_eq!(
-        large_source.canonical_fingerprint(),
-        expected_source(&large).canonical_fingerprint()
-    );
-}
-
-#[tokio::test]
-async fn algolia_cloud_job_inspect_source_finds_index_on_later_page() {
-    let target = sized_item("products", 7, 1024, 2048);
-    let client = FakeClient::with_responses([
-        Ok(response(0, 2, vec![sized_item("other", 1, 1, 1)])),
-        Ok(response(1, 2, vec![target.clone()])),
-        Ok(AlgoliaClientResponse::status(200)),
-        Ok(AlgoliaClientResponse::status(200)),
-    ]);
-    let handle = client.clone();
-
-    let source = service(client)
-        .inspect_source(inspect_request("products"))
-        .await
-        .unwrap();
-
-    assert_eq!(
-        source.canonical_fingerprint(),
-        expected_source(&target).canonical_fingerprint()
-    );
-    // Two list pages to find the index on page 1, then the settings and browse
-    // permission probes.
-    assert_eq!(handle.requests().len(), 4);
-}
-
-#[tokio::test]
-async fn algolia_cloud_job_inspect_source_missing_index_is_source_index_not_found() {
-    let client = FakeClient::with_responses([
-        Ok(response(0, 2, vec![sized_item("other", 1, 1, 1)])),
-        Ok(response(1, 2, vec![sized_item("another", 1, 1, 1)])),
-    ]);
-    assert_eq!(
-        service(client)
-            .inspect_source(inspect_request("products"))
-            .await
-            .unwrap_err(),
-        AlgoliaSourceError::SourceIndexNotFound
-    );
-}
-
-#[tokio::test]
-async fn algolia_cloud_job_inspect_source_maps_credential_and_acl_failures() {
-    let client = FakeClient::with_responses([Ok(AlgoliaClientResponse::status(401))]);
-    assert_eq!(
-        service(client)
-            .inspect_source(inspect_request("products"))
-            .await
-            .unwrap_err(),
-        AlgoliaSourceError::InvalidCredentials
-    );
-
-    let client = FakeClient::with_responses([Ok(AlgoliaClientResponse::status(403))]);
-    assert_eq!(
-        service(client)
-            .inspect_source(inspect_request("products"))
-            .await
-            .unwrap_err(),
-        AlgoliaSourceError::ListIndexesAclRequired
-    );
-
-    let empty_key =
-        FakeClient::with_responses([Ok(response(0, 1, vec![sized_item("products", 1, 1, 1)]))]);
-    let handle = empty_key.clone();
-    assert_eq!(
-        service(empty_key)
-            .inspect_source(AlgoliaSourceInspectRequest {
-                app_id: APP_ID.to_string(),
-                api_key: Zeroizing::new(String::new()),
-                source_name: "products".to_string(),
-            })
-            .await
-            .unwrap_err(),
-        AlgoliaSourceError::InvalidCredentials
-    );
-    assert!(handle.requests().is_empty());
-}
-
-// ---------------------------------------------------------------------------
-// Final temporary-key permission validation (settings + browse ACLs)
-// ---------------------------------------------------------------------------
-
-/// A key that can list indexes and see the selected index but lacks the
-/// `settings` ACL must be refused before any source is returned — and therefore
-/// before the route can persist a job. Known-answer probe: 403 on the settings
-/// endpoint means the permission is absent.
-#[tokio::test]
-async fn algolia_cloud_job_inspect_source_refuses_key_missing_settings_permission() {
-    let client = FakeClient::with_responses([
-        Ok(response(0, 1, vec![sized_item("products", 42, 2048, 4096)])),
-        Ok(AlgoliaClientResponse::status(403)),
-    ]);
-    let handle = client.clone();
-
-    assert_eq!(
-        service(client)
-            .inspect_source(inspect_request("products"))
-            .await
-            .unwrap_err(),
-        AlgoliaSourceError::SourcePermissionRequired
-    );
-
-    // The settings endpoint for the selected index is the probe that was denied;
-    // browse is never reached once settings fails.
-    let requests = handle.requests();
-    assert_eq!(requests.len(), 2);
-    assert!(requests[1]
-        .url
-        .as_str()
-        .ends_with("/1/indexes/products/settings"));
-}
-
-/// A key that holds `settings` but not `browse` is likewise refused. `browse`
-/// is probed only after `settings` passes, proving both permissions are
-/// required, not just one.
-#[tokio::test]
-async fn algolia_cloud_job_inspect_source_refuses_key_missing_browse_permission() {
-    let client = FakeClient::with_responses([
-        Ok(response(0, 1, vec![sized_item("products", 42, 2048, 4096)])),
-        Ok(AlgoliaClientResponse::status(200)),
-        Ok(AlgoliaClientResponse::status(403)),
-    ]);
-    let handle = client.clone();
-
-    assert_eq!(
-        service(client)
-            .inspect_source(inspect_request("products"))
-            .await
-            .unwrap_err(),
-        AlgoliaSourceError::SourcePermissionRequired
-    );
-
-    let requests = handle.requests();
-    assert_eq!(requests.len(), 3);
-    assert!(requests[1]
-        .url
-        .as_str()
-        .ends_with("/1/indexes/products/settings"));
-    assert!(requests[2]
-        .url
-        .as_str()
-        .ends_with("/1/indexes/products/browse"));
-}
-
-/// A key that lists, sees the selected index, and holds both `settings` and
-/// `browse` is accepted, and both permission probes carry the same redacted
-/// credentials against the selected index.
-#[tokio::test]
-async fn algolia_cloud_job_inspect_source_accepts_key_with_settings_and_browse() {
-    let server_item = sized_item("products", 42, 2048, 4096);
-    let client = FakeClient::with_responses([
-        Ok(response(0, 1, vec![server_item.clone()])),
-        Ok(AlgoliaClientResponse::status(200)),
-        Ok(AlgoliaClientResponse::status(200)),
-    ]);
-    let handle = client.clone();
-
-    let source = service(client)
-        .inspect_source(inspect_request("products"))
-        .await
-        .unwrap();
-
-    assert_eq!(
-        source.canonical_fingerprint(),
-        expected_source(&server_item).canonical_fingerprint()
-    );
-    let requests = handle.requests();
-    assert_eq!(requests.len(), 3);
-    assert!(requests[0].url.as_str().ends_with("/1/indexes"));
-    assert!(requests[1]
-        .url
-        .as_str()
-        .ends_with("/1/indexes/products/settings"));
-    assert!(requests[2]
-        .url
-        .as_str()
-        .ends_with("/1/indexes/products/browse"));
-    let probe_debug = format!("{:?}", requests[1]);
-    assert!(probe_debug.contains("api_key: \"[REDACTED]\""));
-    assert!(!probe_debug.contains(API_KEY));
-}
-
-/// A permission-probe timeout maps to the transient discovery error, so a slow
-/// upstream never masquerades as a missing permission.
-#[tokio::test]
-async fn algolia_cloud_job_inspect_source_permission_probe_timeout_is_transient() {
-    let client = FakeClient::with_responses([
-        Ok(response(0, 1, vec![sized_item("products", 42, 2048, 4096)])),
-        Err(AlgoliaClientError::Timeout),
-    ]);
-    assert_eq!(
-        service(client)
-            .inspect_source(inspect_request("products"))
-            .await
-            .unwrap_err(),
-        AlgoliaSourceError::TimedOut
-    );
-}
-
-#[tokio::test]
-async fn algolia_cloud_job_inspect_source_rejects_oversized_catalog() {
-    let client = FakeClient::with_responses([Ok(response(
-        0,
-        MAX_TOTAL_PAGES + 1,
-        vec![sized_item("other", 1, 1, 1)],
-    ))]);
-    assert_eq!(
-        service(client)
-            .inspect_source(inspect_request("products"))
-            .await
-            .unwrap_err(),
-        AlgoliaSourceError::SourceCatalogTooLarge
-    );
-}
-
-#[tokio::test]
-async fn algolia_cloud_job_inspect_source_request_and_result_never_reveal_key() {
-    let secret = "do-not-log-this-temporary-key";
-    let request = AlgoliaSourceInspectRequest {
-        app_id: "TESTAPP123".to_string(),
-        api_key: Zeroizing::new(secret.to_string()),
-        source_name: "products".to_string(),
-    };
-    let debug_request = format!("{request:?}");
-    assert!(debug_request.contains("app_id: \"[REDACTED]\""));
-    assert!(debug_request.contains("api_key: \"[REDACTED]\""));
-    assert!(debug_request.contains("source_name: \"[REDACTED]\""));
-    assert!(!debug_request.contains(secret));
-    assert!(!debug_request.contains("TESTAPP123"));
-    assert!(!debug_request.contains("products"));
-
-    let server_item = sized_item("products", 42, 2048, 4096);
-    let source = service(FakeClient::with_responses([
-        Ok(response(0, 1, vec![server_item])),
-        Ok(AlgoliaClientResponse::status(200)),
-        Ok(AlgoliaClientResponse::status(200)),
-    ]))
-    .inspect_source(request)
-    .await
-    .unwrap();
-    assert!(!format!("{source:?}").contains(secret));
-}
+#[path = "bounded_read_tests.rs"]
+mod bounded_read_tests;
+#[path = "inspect_tests.rs"]
+mod inspect_tests;

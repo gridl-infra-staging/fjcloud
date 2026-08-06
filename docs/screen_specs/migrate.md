@@ -258,6 +258,21 @@ into a new or replacement fjcloud index without persisting source credentials.
   no query or result-limit controls, and no submit control. The backend
   publishes `verify: true` for Algolia sources only, so Meilisearch and
   Typesense retained jobs always land here.
+- Unsupported copy contract: the statement names what is unavailable, names the
+  job's source provider, and states that the completed migration and any preview
+  support published for it are unaffected. It is rendered inside
+  `data-testid="cutover-verification-unsupported"`. The exact sentence is
+  `Cutover verification is not available for this {Provider} migration, so you
+  cannot compare source and fjcloud search results here. The completed migration
+  and any preview support published for it are unaffected.` The copy must stay
+  true when verification is withheld for a reason other than provider support —
+  an operator-disabled platform fails `capabilities.verify` closed for Algolia
+  too — so it must not name Algolia as the supported source or promise a future
+  release. Owner:
+  `web/src/lib/components/migration/job_presentation.ts::describeUnsupportedCutoverVerification`,
+  with the literal wording pinned by
+  `web/src/lib/components/migration/MigrationCutoverVerification.test.ts` and
+  every other consumer asserting through the builder.
 - Read-only job identity: source provider, source index name, destination index
   name, job id, and job status come from the retained job loaded by the route.
   Source and destination index names are displayed as read-only values and are
@@ -405,6 +420,16 @@ into a new or replacement fjcloud index without persisting source credentials.
       real browser detail page renders the warning summary, grouped resource
       headings, every warning entry with its bounded message, code, and locator,
       and no `and N more` warning-set truncation copy.
+- [x] Given a retained completed job whose source provider has no
+      server-published `capabilities.verify`, the real browser detail page states
+      that cutover verification is unavailable, names that provider, says the
+      completed migration and any published preview support are unaffected, and
+      exposes no credential, query, result-limit, or submit control; and given a
+      retained completed job whose provider does publish `verify`, the same panel
+      exposes `Run verification` and no unsupported statement. Proven unmocked
+      against a migration-enabled local stack by
+      `web/tests/e2e-ui/full/migration-recovery.spec.ts`. This criterion covers
+      the boundary only; the report-rendering criteria below stay unchecked.
 - [ ] Given a retained `completed` or `completed_with_warnings` Algolia job,
       the cutover verification panel derives source and destination indexes
       from the retained job, accepts fresh Algolia credentials plus query and
@@ -562,10 +587,27 @@ into a new or replacement fjcloud index without persisting source credentials.
   behavior are therefore assumed from the documented contract, not observed.
   The local proof narrows the source-behavior gap; it does not close the
   vendor-compatibility gap.
-- Gap: the retained-job cutover verification browser proof remains mocked.
-  `web/tests/e2e-ui/mocked/migration_cutover_verification.spec.ts` drives the
-  panel against mocked responses, so the two unchecked cutover acceptance
-  criteria stay unchecked regardless of the API-side proof above.
+- Current: the retained-job cutover verification unsupported/supported boundary
+  now has an unmocked browser proof.
+  `web/tests/e2e-ui/full/migration-recovery.spec.ts` (`Retained cutover
+  verification boundary`) seeds one completed Meilisearch and one completed
+  Algolia retained job through
+  `web/tests/fixtures/fixtures.ts::seedCompletedRetainedMigrationJob`, proves
+  each is readable through `GET /migration/{source_provider}/jobs/{id}`, and
+  opens both detail routes in a real browser against a real API, PostgreSQL,
+  and Flapjack. The Meilisearch arm asserts the exact unsupported statement with
+  no credential, query, result-limit, or submit control; the Algolia arm is the
+  negative control that asserts `Run verification` and the absence of the
+  unsupported statement, so the proof follows server-published
+  `capabilities.verify` rather than provider-name copy.
+- Gap: that proof needs its own stack.
+  `FJCLOUD_ALGOLIA_MIGRATION_ENABLED` — see
+  `web/tests/fixtures/migration_enabled_stack.ts` — is read once at API startup,
+  and the shared Playwright stack runs with migration disabled because
+  `migration-recovery.spec.ts` also proves the closed state. The cutover proof
+  therefore spawns a second local stack through
+  `web/tests/fixtures/nested_local_stack.ts`. Until the shared stack can serve
+  both states, the proof pays a full cold start.
 - Gap: FS-7 can return the same public `backend_unavailable` code for source
   and destination transport failures. The screen must keep that copy
   origin-neutral and must not claim a source-versus-engine diagnosis unless a

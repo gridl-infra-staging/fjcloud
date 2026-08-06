@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { test, expect } from '../../fixtures/fixtures';
+import { describeUnsupportedCutoverVerification } from '../../../src/lib/components/migration/job_presentation';
 import {
 	assertMigrationFixtureSatisfied,
 	CUTOVER_DIFFERENCES_REPORT,
@@ -132,9 +133,7 @@ test.describe('cutover verification mocked retained job panel', () => {
 			await openCutoverVerificationPanel(page, fixture);
 
 			await expect(
-				page.getByText(
-					`${provider.label} verification is not supported yet for retained migration jobs.`
-				)
+				page.getByText(describeUnsupportedCutoverVerification(provider.sourceProvider))
 			).toBeVisible();
 			await expect(page.getByLabel('Algolia Application ID')).toHaveCount(0);
 			await expect(page.getByLabel('Algolia API key')).toHaveCount(0);
@@ -156,7 +155,7 @@ test.describe('cutover verification mocked retained job panel', () => {
 
 		await expect(page.getByRole('button', { name: 'Run verification' })).toBeVisible();
 		await expect(
-			page.getByText('Meilisearch verification is not supported yet for retained migration jobs.')
+			page.getByText(describeUnsupportedCutoverVerification('meilisearch'))
 		).toHaveCount(0);
 		await assertMigrationFixtureSatisfied(fixture, { jobLoads: true });
 	});

@@ -232,9 +232,9 @@ fn seeded_source_batch() -> serde_json::Value {
 /// This keeps the seeded proof local and makes changing the override change the
 /// source the proof contacts.
 ///
-/// The gate exports the value before starting the test process. This function
-/// only reads it; mutating the process environment here would race the other
-/// tests in the shared platform binary.
+/// The launcher that execs `cargo test` must export the value before starting
+/// this shared platform test process. This function only reads it; mutating
+/// process env in the test body would race sibling tests in the same binary.
 pub(super) fn seeded_source_url() -> reqwest::Url {
     let source_base_url = std::env::var("FJCLOUD_ALGOLIA_SOURCE_BASE_URL")
         .expect("FJCLOUD_ALGOLIA_SOURCE_BASE_URL must point at lane-local Flapjack");

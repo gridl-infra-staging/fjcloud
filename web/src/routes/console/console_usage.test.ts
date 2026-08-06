@@ -5,6 +5,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/svelte';
 import type { DailyUsageEntry, EstimatedBillResponse, UsageSummaryResponse } from '$lib/api/types';
 import { formatCents, formatNumber, formatPeriod } from '$lib/format';
+import { MARKETING_PRICING } from '$lib/pricing';
 import {
 	parseRealPipelineOracle,
 	type RealPipelineOracle
@@ -624,7 +625,9 @@ describe('Dashboard usage page', () => {
 			formatCents(estimate.total_cents)
 		);
 		expect(
-			within(widget).getByText('Paid plan minimum applied ($5.00 per month)')
+			within(widget).getByText(
+				`Paid plan minimum applied (${formatCents(MARKETING_PRICING.shared_minimum_spend_cents)} per month)`
+			)
 		).toBeInTheDocument();
 		expect(within(widget).queryByText('View breakdown')).not.toBeInTheDocument();
 		expect(

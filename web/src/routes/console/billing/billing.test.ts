@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, within } from '@testing-library/svelte';
 import { layoutTestDefaults } from '../layout-test-context';
 import { LEGAL_SUPPORT_MAILTO, SUPPORT_EMAIL } from '$lib/format';
+import { MARKETING_PRICING, sharedPlanMinimumMonthlyLabel } from '$lib/pricing';
 import { getAccessibilityViolations } from '../../../tests/a11y';
 
 vi.mock('$app/navigation', () => ({
@@ -142,8 +143,14 @@ describe('Billing page', () => {
 		expect(screen.getByTestId('current-plan-label')).toHaveTextContent('Current plan: Free');
 		expect(screen.getByRole('heading', { name: 'Move from Free to Paid' })).toBeInTheDocument();
 		expect(screen.getByText(/Paid lifts the Free-tier caps/)).toBeInTheDocument();
+		// Derived from MARKETING_PRICING rather than hardcoded, so a floor change
+		// cannot leave a stale price on the upgrade CTA. This literal was "$5" until
+		// migration 072 raised the floor and the button kept advertising the old
+		// number — the assertion is value-driven now so that cannot recur.
 		expect(screen.getByTestId('upgrade-to-shared-button')).toHaveTextContent(
-			'Upgrade to Paid ($5/mo minimum)'
+			`Upgrade to Paid (${sharedPlanMinimumMonthlyLabel(
+				MARKETING_PRICING.shared_minimum_spend_cents
+			)}/mo minimum)`
 		);
 	});
 

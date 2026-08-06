@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { proposeDestinationIndexName } from '$lib/index-name';
 	import type {
 		AlgoliaDestinationEligibilityResponse,
@@ -359,7 +359,7 @@
 	}
 
 	function updateEligibilityClock(nowMillis: number): void {
-		if (nowMillis > eligibilityNowMillis) {
+		if (nowMillis > untrack(() => eligibilityNowMillis)) {
 			eligibilityNowMillis = nowMillis;
 		}
 	}

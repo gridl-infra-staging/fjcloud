@@ -6,6 +6,7 @@ import type {
 	PublicAlgoliaImportJob
 } from '$lib/api/types';
 import { getAccessibilityViolations } from '../../../../tests/a11y';
+import { describeUnsupportedCutoverVerification } from '$lib/components/migration/job_presentation';
 
 const { applyActionMock, deserializeMock, fetchMock, invalidateAllMock } = vi.hoisted(() => ({
 	applyActionMock: vi.fn(),
@@ -464,7 +465,7 @@ describe('[jobId] cutover verification panel', () => {
 
 		expect(screen.getByRole('region', { name: /cutover verification/i })).toBeInTheDocument();
 		expect(
-			screen.getByText('Algolia verification is not supported yet for retained migration jobs.')
+			screen.getByText(describeUnsupportedCutoverVerification('algolia'))
 		).toBeInTheDocument();
 		expect(screen.queryByLabelText(/algolia api key/i)).not.toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: /run verification/i })).not.toBeInTheDocument();

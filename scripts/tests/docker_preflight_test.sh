@@ -53,6 +53,15 @@ EOF
     chmod +x "$dir/docker"
 }
 
+make_fake_uname() {
+    local dir="$1" os_name="$2"
+    cat > "$dir/uname" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' '$os_name'
+EOF
+    chmod +x "$dir/uname"
+}
+
 # Source the helper inside a subshell so PATH/log/env changes don't leak.
 # Returns the helper's exit code (via the subshell) and captures combined
 # stdout/stderr in $CAPTURED_OUTPUT for assertions.
@@ -103,6 +112,7 @@ test_colima_context_hint_mentions_colima_restart() {
     local tmpdir
     tmpdir="$(mktemp -d)"
     make_fake_docker "$tmpdir"
+    make_fake_uname "$tmpdir" "Darwin"
     FAKE_DOCKER_VERSION_RC=1 FAKE_DOCKER_CONTEXT="colima" \
         run_helper require_docker_daemon "$tmpdir" || true
     if echo "$CAPTURED_OUTPUT" | grep -q "colima restart"; then
@@ -117,6 +127,7 @@ test_desktop_linux_context_hint_mentions_docker_desktop() {
     local tmpdir
     tmpdir="$(mktemp -d)"
     make_fake_docker "$tmpdir"
+    make_fake_uname "$tmpdir" "Darwin"
     FAKE_DOCKER_VERSION_RC=1 FAKE_DOCKER_CONTEXT="desktop-linux" \
         run_helper require_docker_daemon "$tmpdir" || true
     if echo "$CAPTURED_OUTPUT" | grep -q "Docker Desktop"; then
@@ -131,6 +142,7 @@ test_orbstack_context_hint_mentions_orbstack() {
     local tmpdir
     tmpdir="$(mktemp -d)"
     make_fake_docker "$tmpdir"
+    make_fake_uname "$tmpdir" "Darwin"
     FAKE_DOCKER_VERSION_RC=1 FAKE_DOCKER_CONTEXT="orbstack" \
         run_helper require_docker_daemon "$tmpdir" || true
     if echo "$CAPTURED_OUTPUT" | grep -qi "orbstack"; then

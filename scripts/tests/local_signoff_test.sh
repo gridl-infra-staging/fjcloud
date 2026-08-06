@@ -144,6 +144,7 @@ if [ "${1:-}" = "-c" ]; then
 fi
 exit 0
 '
+    make_command_path_without "$TEST_WORKSPACE/bin" docker curl jq
 }
 install_path_flapjack_binary() {
     write_mock_script "$TEST_WORKSPACE/bin/flapjack" 'sleep 60'
@@ -288,7 +289,7 @@ test_check_prerequisites_reports_missing_docker() {
     write_mock_script "$TEST_WORKSPACE/bin/curl" 'exit 0'
     write_mock_script "$TEST_WORKSPACE/bin/jq" 'exit 0'
     install_path_flapjack_binary
-    run_orchestrator --args "--check-prerequisites" "PATH=$TEST_WORKSPACE/bin:/bin"
+    run_orchestrator --args "--check-prerequisites" "PATH=$TEST_WORKSPACE/bin"
     assert_eq "$RUN_EXIT_CODE" "1" "missing docker should fail check-prerequisites"
     assert_contains "$RUN_OUTPUT" "ERROR: missing:docker" \
         "check-prerequisites should report docker by name + reason code"
@@ -303,7 +304,7 @@ test_check_prerequisites_reports_missing_curl() {
     write_mock_script "$TEST_WORKSPACE/bin/docker" 'exit 0'
     write_mock_script "$TEST_WORKSPACE/bin/jq" 'exit 0'
     install_path_flapjack_binary
-    run_orchestrator --args "--check-prerequisites" "PATH=$TEST_WORKSPACE/bin:/bin"
+    run_orchestrator --args "--check-prerequisites" "PATH=$TEST_WORKSPACE/bin"
     assert_eq "$RUN_EXIT_CODE" "1" "missing curl should fail check-prerequisites"
     assert_contains "$RUN_OUTPUT" "ERROR: missing:curl" \
         "check-prerequisites should report curl by name + reason code"
@@ -314,7 +315,7 @@ test_check_prerequisites_reports_missing_jq() {
     write_mock_script "$TEST_WORKSPACE/bin/docker" 'exit 0'
     write_mock_script "$TEST_WORKSPACE/bin/curl" 'exit 0'
     install_path_flapjack_binary
-    run_orchestrator --args "--check-prerequisites" "PATH=$TEST_WORKSPACE/bin:/bin"
+    run_orchestrator --args "--check-prerequisites" "PATH=$TEST_WORKSPACE/bin"
     assert_eq "$RUN_EXIT_CODE" "1" "missing jq should fail check-prerequisites"
     assert_contains "$RUN_OUTPUT" "ERROR: missing:jq" \
         "check-prerequisites should report jq by name + reason code"

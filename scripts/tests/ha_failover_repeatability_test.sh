@@ -281,7 +281,7 @@ JSON
         return
     fi
 
-    artifact_mode="$(stat -f '%OLp' "$artifact_dir")"
+    artifact_mode="$(stat -c '%a' "$artifact_dir" 2>/dev/null || stat -f '%OLp' "$artifact_dir")"
     assert_eq "$artifact_mode" "700" \
         "proof artifact directory should stay private even if parent shell umask is 022"
     rm -rf "$artifact_dir"

@@ -510,6 +510,30 @@ assert_job_contains_regex "rust-test" 'if:\s+always\(\)' "rust-test has an alway
 assert_job_contains_regex "rust-test" 'cargo test --workspace -- --list' "rust-test dumps the full test inventory so hung tests can be named by diff"
 assert_step_bound_below_job_bound "rust-test" "rust-test step timeout fires before the job timeout"
 assert_job_contains_regex "rust-test" 'DATABASE_URL:\s+postgres://fjcloud:password@127\.0\.0\.1:5432/fjcloud_test' "rust-test exposes PostgreSQL service URL to integration tests"
+# The seeded-source proof is intentionally part of the routine workspace gate.
+# Keep its real Flapjack subject in this job so the proof cannot silently lose
+# coverage through a missing environment precondition or a split CI owner.
+assert_step_contains_regex "rust-test" 'Download Flapjack for seeded source proof' 'source scripts/lib/flapjack_binary\.sh' "rust-test sources the canonical Flapjack dependency owner"
+assert_step_contains_regex "rust-test" 'Download Flapjack for seeded source proof' 'FLAPJACK_VERSION="v\$\{FJCLOUD_FLAPJACK_VERSION\}"' "rust-test derives the release tag from the canonical Flapjack version"
+assert_step_contains_regex "rust-test" 'Download Flapjack for seeded source proof' 'FLAPJACK_ASSET="flapjack-x86_64-unknown-linux-musl\.tar\.gz"' "rust-test downloads the Linux Flapjack release asset"
+assert_step_contains_regex "rust-test" 'Download Flapjack for seeded source proof' 'sha256sum -c "\$\{FLAPJACK_ASSET\}\.sha256"' "rust-test verifies the published Flapjack checksum"
+assert_step_contains_regex "rust-test" 'Download Flapjack for seeded source proof' '\$\{GITHUB_WORKSPACE\}/\.flapjack/target/release' "rust-test installs Flapjack at the canonical release-binary path"
+assert_step_contains_regex "rust-test" 'Start Flapjack for seeded source proof' 'source scripts/lib/env\.sh' "rust-test sources the canonical local admin-key owner"
+assert_step_contains_regex "rust-test" 'Start Flapjack for seeded source proof' 'FLAPJACK_ADMIN_KEY="\$DEFAULT_LOCAL_FLAPJACK_ADMIN_KEY"' "rust-test uses the canonical local Flapjack admin key"
+assert_step_contains_regex "rust-test" 'Start Flapjack for seeded source proof' 'FJCLOUD_ALGOLIA_SOURCE_BASE_URL="http://127\.0\.0\.1:7700"' "rust-test exports the seeded-source loopback URL"
+assert_step_contains_regex "rust-test" 'Start Flapjack for seeded source proof' 'FLAPJACK_DEV_DIR="\$\{GITHUB_WORKSPACE\}/\.flapjack"' "rust-test exports the downloaded Flapjack directory"
+assert_step_contains_regex "rust-test" 'Start Flapjack for seeded source proof' 'mktemp -d "\$\{GITHUB_WORKSPACE\}/\.local/flapjack-rust-test-data\.XXXXXX"' "rust-test creates an isolated Flapjack data directory"
+assert_step_contains_regex "rust-test" 'Start Flapjack for seeded source proof' '--data-dir "\$flapjack_data_dir"' "rust-test starts Flapjack with isolated data"
+assert_step_contains_regex "rust-test" 'Start Flapjack for seeded source proof' 'flapjack_log="\$\{GITHUB_WORKSPACE\}/\.local/flapjack-rust-test\.log"' "rust-test owns its Flapjack log under the local diagnostics directory"
+assert_step_contains_regex "rust-test" 'Start Flapjack for seeded source proof' '> "\$flapjack_log" 2>&1 &' "rust-test captures Flapjack output in its owned log"
+assert_step_contains_regex "rust-test" 'Start Flapjack for seeded source proof' 'curl -fsS "\$\{FJCLOUD_ALGOLIA_SOURCE_BASE_URL\}/health"' "rust-test waits for the Flapjack health endpoint"
+assert_step_contains_regex "rust-test" 'Start Flapjack for seeded source proof' 'cat "\$\{GITHUB_WORKSPACE\}/\.local/flapjack-rust-test\.log"' "rust-test dumps the Flapjack log when startup fails"
+assert_step_contains_regex "rust-test" 'Stop Flapjack for seeded source proof' 'if:\s+always\(\)' "rust-test always tears down its seeded-source Flapjack"
+assert_step_contains_regex "rust-test" 'Stop Flapjack for seeded source proof' 'kill "\$flapjack_pid"' "rust-test stops only the Flapjack PID it recorded"
+assert_step_order "rust-test" 'Download Flapjack for seeded source proof' 'Start Flapjack for seeded source proof' "rust-test downloads Flapjack before starting it"
+assert_step_order "rust-test" 'Start Flapjack for seeded source proof' 'Build rust tests' "rust-test starts Flapjack before compiling the workspace tests"
+assert_step_order "rust-test" 'Start Flapjack for seeded source proof' 'Run rust tests' "rust-test starts Flapjack before running the workspace tests"
+assert_job_line_order "rust-test" 'List full test inventory' 'Stop Flapjack for seeded source proof' "rust-test tears Flapjack down after the always-run inventory diagnostic"
 # tenant_isolation_proptest moved to nightly.yml on 2026-05-02 — kept out
 # of the per-push deploy gate to shave ~3-5 min off every CI cycle. See
 # nightly_workflow_test.sh for its new contract assertion.
@@ -571,6 +595,24 @@ assert_step_order "local-dev-up-smoke" 'Download flapjack release binary' 'Run f
 assert_step_order "local-dev-up-smoke" 'Run full local demo stack' 'Probe API health endpoint' "local-dev-up-smoke probes api after running local demo"
 assert_step_order "local-dev-up-smoke" 'Probe API health endpoint' 'Probe seeded authenticated indexes endpoint' "local-dev-up-smoke verifies seeded auth flow after health probe"
 assert_step_order "local-dev-up-smoke" 'Probe seeded authenticated indexes endpoint' 'Tear down' "local-dev-up-smoke tears down after e2e probes"
+
+# Failure-only diagnostic dump. local-dev-up-smoke was blind: on the 2026-08-05
+# staging-mirror run the job printed "API failed; see .local/api.log" and never
+# emitted that file, so the API startup cause was absent from the run page. This
+# step dumps api.log and every sibling log the local demo stack writes
+# (scripts/local_demo.sh -> api/web; scripts/local-dev-up.sh -> per-region
+# flapjack; scripts/start-metering.sh -> per-region metering-agent;
+# scripts/lib/local_source_providers.sh -> provider container logs), guarded by
+# if: failure() so green runs stay quiet, and ordered after the probes but
+# before Tear down so the logs still exist when it runs.
+assert_step_contains_regex "local-dev-up-smoke" 'Dump local demo logs on failure' 'if:\s+failure\(\)' "local-dev-up-smoke dumps demo logs only on failure"
+assert_step_contains_regex "local-dev-up-smoke" 'Dump local demo logs on failure' '\.local/api\.log' "local-dev-up-smoke failure dump includes api.log (the named-but-never-emitted cause file)"
+assert_step_contains_regex "local-dev-up-smoke" 'Dump local demo logs on failure' '\.local/web\.log' "local-dev-up-smoke failure dump includes web.log"
+assert_step_contains_regex "local-dev-up-smoke" 'Dump local demo logs on failure' '\.local/flapjack-' "local-dev-up-smoke failure dump includes per-region flapjack logs"
+assert_step_contains_regex "local-dev-up-smoke" 'Dump local demo logs on failure' '\.local/metering-agent-' "local-dev-up-smoke failure dump includes per-region metering-agent logs"
+assert_step_contains_regex "local-dev-up-smoke" 'Dump local demo logs on failure' 'provider_container_logs\.log' "local-dev-up-smoke failure dump includes source-provider container logs"
+assert_step_order "local-dev-up-smoke" 'Probe seeded authenticated indexes endpoint' 'Dump local demo logs on failure' "local-dev-up-smoke dumps logs after the seeded-auth probe"
+assert_step_order "local-dev-up-smoke" 'Dump local demo logs on failure' 'Tear down' "local-dev-up-smoke dumps logs before teardown"
 
 assert_job_contains_regex "web-lint" 'uses:\s+actions/checkout@' "web-lint has checkout step"
 assert_job_contains_regex "web-lint" 'uses:\s+actions/setup-node@' "web-lint has node setup step"

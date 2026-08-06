@@ -25,6 +25,8 @@ fn marketing_pricing_and_migrations_stay_in_parity_for_launch_contract() {
         include_str!("../../migrations/042_align_launch_rate_card_marketing_contract.sql");
     const MIGRATION_049: &str =
         include_str!("../../migrations/049_free_plan_zero_minimum_spend.sql");
+    const MIGRATION_072: &str =
+        include_str!("../../migrations/072_raise_paid_plan_minimum_to_15.sql");
 
     let marketing_snapshot = extract_marketing_snapshot(PRICING_TS);
     let migration_snapshot = extract_migration_snapshot(
@@ -33,6 +35,7 @@ fn marketing_pricing_and_migrations_stay_in_parity_for_launch_contract() {
         MIGRATION_036,
         MIGRATION_042,
         MIGRATION_049,
+        MIGRATION_072,
     );
 
     assert_eq!(
@@ -122,6 +125,7 @@ fn extract_migration_snapshot(
     migration_036: &str,
     migration_042: &str,
     migration_049: &str,
+    migration_072: &str,
 ) -> PricingSnapshot {
     let marketing_snapshot = extract_marketing_snapshot(pricing_ts);
     let display_name_by_region_id: HashMap<String, String> = marketing_snapshot
@@ -138,7 +142,13 @@ fn extract_migration_snapshot(
         migration_016,
         "cold_storage_rate_per_gb_month",
     ));
-    let minimum_sql = format!("{migration_042}\n{migration_049}");
+    // Concatenated in migration order, because `extract_last_sql_assignment` takes
+    // the LAST assignment for a column — that is how a later migration supersedes
+    // an earlier one. 049 supersedes 042's `minimum_spend_cents`; 072 supersedes
+    // 042's `shared_minimum_spend_cents`. Any future pricing migration must be
+    // appended here, in order, or this test will silently compare against a stale
+    // value instead of the live one.
+    let minimum_sql = format!("{migration_042}\n{migration_049}\n{migration_072}");
     let minimum_spend_cents = extract_last_sql_assignment(&minimum_sql, "minimum_spend_cents")
         .parse::<i64>()
         .expect("minimum_spend_cents assignment must be an integer");

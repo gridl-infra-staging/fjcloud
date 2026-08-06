@@ -20,6 +20,40 @@ new_mock_command_dir() {
     echo "$mock_dir"
 }
 
+# Build a deterministic command PATH that keeps the host's ordinary utilities
+# while excluding commands whose absence a test is exercising.  Appending
+# /bin or /usr/bin is not sufficient on Linux because those directories often
+# contain the very optional tools (for example psql or docker) under test.
+make_command_path_without() {
+    local destination="$1"
+    shift
+    local candidate command_name excluded_name excluded
+    local command_names=(
+        awk basename bash cat chmod cmp cp curl cut date dirname docker env
+        git grep head jq kill ln lsof mkdir mktemp mv nohup od openssl pgrep
+        ps psql python3 readlink realpath rg rm sed sh sha256sum shasum sleep
+        sort stat tail tee timeout tr uname wc xargs cargo rustc sqlx k6
+    )
+
+    mkdir -p "$destination"
+    for command_name in "${command_names[@]}"; do
+        excluded=0
+        for excluded_name in "$@"; do
+            if [ "$command_name" = "$excluded_name" ]; then
+                excluded=1
+                break
+            fi
+        done
+        [ "$excluded" -eq 0 ] || continue
+        if [ ! -e "$destination/$command_name" ] && [ ! -L "$destination/$command_name" ]; then
+            candidate="$(command -v "$command_name" 2>/dev/null || true)"
+            if [ -n "$candidate" ] && [ -f "$candidate" ] && [ -x "$candidate" ]; then
+                ln -s "$candidate" "$destination/$command_name"
+            fi
+        fi
+    done
+}
+
 backup_repo_env_file() {
     local backup_path="$1"
     local repo_root="${FJCLOUD_TEST_REPO_ROOT:-$REPO_ROOT}"

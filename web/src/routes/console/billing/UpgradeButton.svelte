@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { formatCents, planLabel } from '$lib/format';
+	import { MARKETING_PRICING, sharedPlanMinimumMonthlyLabel } from '$lib/pricing';
 
 	type UpgradeFixtureState = {
 		billing_plan: 'free' | 'shared';
@@ -200,7 +201,9 @@
 					class="inline-flex items-center rounded-md bg-flapjack-rose px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-flapjack-plum disabled:cursor-not-allowed disabled:opacity-60"
 					data-testid="upgrade-to-shared-button"
 				>
-					Upgrade to Paid ($5/mo minimum)
+					Upgrade to Paid ({sharedPlanMinimumMonthlyLabel(
+						MARKETING_PRICING.shared_minimum_spend_cents
+					)}/mo minimum)
 				</button>
 			</form>
 		{/if}

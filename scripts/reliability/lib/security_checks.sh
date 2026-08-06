@@ -86,13 +86,11 @@ SECURITY_EXCLUDED_FILES=(
     "*.test.*"
 )
 
-# `\<fj_` requires a word-boundary BEFORE the literal `fj_` so the regex does
-# NOT match inside an identifier chain like `apr29_pm_8_fj_metering_agent_…`
-# (filename slugs in checklists/roadmap docs). Real fj-prefixed secrets are
-# whole-token (e.g. `fj_local_dev_admin_key_…`, `fj_<random>`) and start at a
-# word boundary, so this preserves true-positive coverage. Word boundaries are
-# supported by both GNU grep (CI on Ubuntu) and BSD grep (local dev on macOS).
-SECURITY_SECRET_PATTERN='AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{24,}|sk_test_[A-Za-z0-9]{24,}|rk_live_[A-Za-z0-9]{24,}|rk_test_[A-Za-z0-9]{24,}|whsec_[A-Za-z0-9]{20,}|\<fj_[A-Za-z0-9_]{20,}'
+# Candidate discovery deliberately uses a broad fj_ branch. GNU and BSD grep
+# disagree about the `\<` word-boundary extension, so the authoritative,
+# portable boundary and placeholder classification lives in
+# _contains_non_placeholder_secret_token below.
+SECURITY_SECRET_PATTERN='AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{24,}|sk_test_[A-Za-z0-9]{24,}|rk_live_[A-Za-z0-9]{24,}|rk_test_[A-Za-z0-9]{24,}|whsec_[A-Za-z0-9]{20,}|fj_[A-Za-z0-9_]{20,}'
 
 # _ms_now is provided by live_gate.sh (shared across all gate libs)
 
@@ -130,21 +128,27 @@ _is_command_new_literal_arg() {
 
 _contains_non_placeholder_secret_token() {
     local path="$1"
-    local token
-    while IFS= read -r token; do
-        [ -z "$token" ] && continue
-        case "$token" in
-            fj_local_dev_*)
-                continue
-                ;;
-            *)
-                return 0
-                ;;
-        esac
-    done < <(grep -E -o \
-        "$SECURITY_SECRET_PATTERN" \
-        "$path" 2>/dev/null || true)
-    return 1
+    python3 - "$path" <<'PY'
+import re
+import sys
+
+text = open(sys.argv[1], "r", encoding="utf-8", errors="ignore").read()
+pattern = re.compile(
+    r"AKIA[0-9A-Z]{16}"
+    r"|sk_(?:live|test)_[A-Za-z0-9]{24,}"
+    r"|rk_(?:live|test)_[A-Za-z0-9]{24,}"
+    r"|whsec_[A-Za-z0-9]{20,}"
+    r"|(?<![A-Za-z0-9_])fj_[A-Za-z0-9_]{20,}"
+)
+for match in pattern.finditer(text):
+    token = match.group(0)
+    if token.startswith(("fj_local_dev_", "fj_ts_migration_", "fj_stage5_probe_")):
+        continue
+    if token.endswith("_placeholder"):
+        continue
+    raise SystemExit(0)
+raise SystemExit(1)
+PY
 }
 
 _path_matches_excluded_file_pattern() {

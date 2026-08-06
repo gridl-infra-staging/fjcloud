@@ -65,7 +65,9 @@ import type {
 	Synonym,
 	SynonymSearchResponse,
 	QsBuildStatus,
-	QsConfig
+	QsConfig,
+	PublicAlgoliaImportJob,
+	SourceProvider as MigrationSourceProvider
 } from '../../src/lib/api/types';
 import { formatBytes, formatDateTime, formatNumber, statusLabel } from '../../src/lib/format';
 import type {
@@ -6140,5 +6142,169 @@ DELETE FROM vm_inventory WHERE id = ${quoteSqlLiteral(entry.replicaVmId)}::uuid;
 		await use(factory);
 	}
 });
+
+// ---------------------------------------------------------------------------
+// Retained migration job arrange helpers.
+//
+// A completed retained import job normally requires a live third-party source
+// catalog, which no local proof can supply. These helpers seed the terminal row
+// the retained-job detail route reads, then prove it is genuinely readable
+// through the product API before any spec asserts on the rendered page — so a
+// seeded row that the API would reject fails here rather than as a confusing
+// page assertion.
+// ---------------------------------------------------------------------------
+
+/** Matches the `algolia_app_id ~ '^[A-Z0-9]+$'` column check for every provider. */
+const RETAINED_MIGRATION_JOB_SOURCE_APP_ID = 'E2ECUTOVERPROOF';
+
+export type SeedCompletedRetainedMigrationJobParams = {
+	/** API base URL of the stack that must be able to read the job back. */
+	apiUrl: string;
+	/** Owning customer, addressed by the credentials the proof logs in with. */
+	email: string;
+	password: string;
+	sourceProvider: MigrationSourceProvider;
+	/** Source index name shown as the job's source. */
+	sourceName: string;
+	/** Destination index name; also the job's tenant id and logical target. */
+	destinationTarget: string;
+	region?: string;
+};
+
+export type SeededRetainedMigrationJob = {
+	jobId: string;
+	sourceProvider: MigrationSourceProvider;
+	sourceName: string;
+	destinationTarget: string;
+};
+
+export async function seedCompletedRetainedMigrationJob({
+	apiUrl,
+	email,
+	password,
+	sourceProvider,
+	sourceName,
+	destinationTarget,
+	region = 'us-east-1'
+}: SeedCompletedRetainedMigrationJobParams): Promise<SeededRetainedMigrationJob> {
+	const context = `seedCompletedRetainedMigrationJob(${sourceProvider})`;
+	const idempotencyKey = `${context}-${destinationTarget}`;
+	const quotedTarget = quoteSqlLiteral(destinationTarget);
+	const quotedKey = quoteSqlLiteral(idempotencyKey);
+	// The terminal shape the table's public-row checks demand for a completed
+	// create-destination import: a committed dispatch with an acknowledged engine
+	// job, a promoted publication, and no resume state.
+	const insertOutput = runFixtureSql(
+		[
+			'INSERT INTO algolia_import_jobs (',
+			'  customer_id, tenant_id, source_provider, algolia_app_id, destination_kind,',
+			'  logical_target, destination_region, source_name, engine_job_id,',
+			'  dispatch_intent_state, lifecycle_generation, idempotency_key, canonical_fingerprint,',
+			'  source_size_bytes, reserved_index_count, reserved_customer_storage_bytes,',
+			'  reserved_node_transient_bytes, retryable, resume_intent_generation, resumable,',
+			'  resume_count, documents_expected, documents_imported, documents_rejected,',
+			'  settings_applied, settings_unsupported, synonyms_expected, synonyms_imported,',
+			'  synonyms_rejected, rules_expected, rules_imported, rules_rejected,',
+			'  warnings, status, publication_disposition, engine_ack_state,',
+			'  terminal_at, terminal_outcome_observed',
+			')',
+			'SELECT',
+			`  customers.id, ${quotedTarget}, ${quoteSqlLiteral(sourceProvider)},`,
+			`  ${quoteSqlLiteral(RETAINED_MIGRATION_JOB_SOURCE_APP_ID)}, 'create',`,
+			`  ${quotedTarget}, ${quoteSqlLiteral(region)}, ${quoteSqlLiteral(sourceName)},`,
+			'  gen_random_uuid(),',
+			`  'committed', customers.lifecycle_generation, ${quotedKey}, ${quotedKey},`,
+			'  1024, 1, 0,',
+			'  0, FALSE, 0, FALSE,',
+			'  0, 17, 17, 0,',
+			'  1, 0, 0, 0,',
+			'  0, 0, 0, 0,',
+			"  '[]'::jsonb, 'completed', 'promoted', 'acknowledged',",
+			'  NOW(), TRUE',
+			'FROM customers',
+			`WHERE customers.email = ${quoteSqlLiteral(email)}`,
+			"  AND customers.status <> 'deleted'",
+			'ON CONFLICT (customer_id, idempotency_key) DO UPDATE',
+			'  SET updated_at = NOW()',
+			'RETURNING id;'
+		].join('\n'),
+		context
+	);
+	// `psql -tA` prints the `INSERT 0 1` command tag alongside the RETURNING row,
+	// so take the returned id rather than the whole output. No matching customer
+	// inserts nothing and leaves no id to find.
+	const jobId = insertOutput.split('\n')[0]?.trim() ?? '';
+	if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(jobId)) {
+		throw new Error(
+			`${context} seeded no job row — no active customer matched ${email} (psql output: ${insertOutput})`
+		);
+	}
+
+	try {
+		await assertRetainedMigrationJobReadable({ apiUrl, email, password, sourceProvider, jobId });
+	} catch (readbackFailure) {
+		try {
+			deleteSeededRetainedMigrationJobs([jobId]);
+		} catch (cleanupFailure) {
+			// `errors` carries both failures; `cause` names the proximate one, so the
+			// rollback failure that turned a recoverable readback error into a leaked
+			// seeded row is not lost behind the aggregate summary message.
+			throw new AggregateError(
+				[readbackFailure, cleanupFailure],
+				`${context} readback and rollback both failed`,
+				{ cause: cleanupFailure }
+			);
+		}
+		throw readbackFailure;
+	}
+	return { jobId, sourceProvider, sourceName, destinationTarget };
+}
+
+async function assertRetainedMigrationJobReadable({
+	apiUrl,
+	email,
+	password,
+	sourceProvider,
+	jobId
+}: {
+	apiUrl: string;
+	email: string;
+	password: string;
+	sourceProvider: MigrationSourceProvider;
+	jobId: string;
+}): Promise<void> {
+	const context = `seedCompletedRetainedMigrationJob(${sourceProvider}) readback`;
+	const token = await loginAsUser({ apiUrl, email, password });
+	const response = await callJsonApi(
+		fetch,
+		requireLoopbackHttpUrl('API_URL', apiUrl),
+		'GET',
+		`/migration/${sourceProvider}/jobs/${encodeURIComponent(jobId)}`,
+		{ Authorization: `Bearer ${token}` }
+	);
+	if (!response.ok) {
+		throw new Error(`${context} failed: ${response.status} ${await response.text()}`);
+	}
+	const job = (await response.json()) as PublicAlgoliaImportJob;
+	if (job.id !== jobId || job.sourceProvider !== sourceProvider || job.status !== 'completed') {
+		throw new Error(
+			`${context} returned an unexpected job: ${JSON.stringify({
+				id: job.id,
+				sourceProvider: job.sourceProvider,
+				status: job.status
+			})}`
+		);
+	}
+}
+
+/** Remove seeded retained jobs so the shared database does not accumulate them. */
+export function deleteSeededRetainedMigrationJobs(jobIds: readonly string[]): void {
+	if (jobIds.length === 0) return;
+	const quotedIds = jobIds.map((jobId) => `${quoteSqlLiteral(jobId)}::uuid`).join(', ');
+	runFixtureSql(
+		`DELETE FROM algolia_import_jobs WHERE id IN (${quotedIds});`,
+		'deleteSeededRetainedMigrationJobs'
+	);
+}
 
 export { expect };

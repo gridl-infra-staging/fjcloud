@@ -1184,6 +1184,18 @@ assert_shared_stack_reachability_contract() {
         "shared-path reachability: scripts/local-dev-up.sh owns the Meilisearch health probe on LOCAL_MEILISEARCH_PORT"
     assert_phase_log_contains_command_literal "$RUN_ROOT/curl_calls.log" "local-dev-up" "http://127.0.0.1:18108/health" \
         "shared-path reachability: scripts/local-dev-up.sh owns the Typesense health probe on LOCAL_TYPESENSE_PORT"
+    assert_phase_log_contains_command_literal "$RUN_ROOT/curl_calls.log" "local-dev-up" "http://127.0.0.1:17800/health" \
+        "shared-path reachability: scripts/local-dev-up.sh owns the lane-local Flapjack health probe on FLAPJACK_PORT"
+    assert_contains "$LOCAL_DEV_UP_OUTPUT" "Algolia source:  http://127.0.0.1:17800" \
+        "shared-path reachability: local-dev-up.sh surfaces the deterministic lane-local Flapjack source URL"
+    assert_file_contains_literal "$RUN_ROOT/generated_cargo_config.toml" \
+        'FJCLOUD_ALGOLIA_SOURCE_BASE_URL = "http://127.0.0.1:17800"' \
+        "shared-path reachability: local-dev-up.sh persists the source URL for standalone cargo tests"
+    assert_file_contains_literal "$RUN_ROOT/generated_cargo_config.toml" \
+        'FLAPJACK_ADMIN_KEY = "fj_local_dev_admin_key_000000000000"' \
+        "shared-path reachability: local-dev-up.sh persists the shared Flapjack admin key for standalone cargo tests"
+    assert_eq "$RUN_POST_DOWN_CARGO_CONFIG_PRESENT" "0" \
+        "shared-path reachability: local-dev-down.sh retires generated source env with the runtime it stops"
     assert_phase_compose_down_ran "$RUN_ROOT/docker_calls.log" "local-dev-down" \
         "post-local-dev-down residue: scripts/local-dev-down.sh owns compose teardown"
     assert_teardown_observed_provider_transitions \
@@ -1395,6 +1407,9 @@ case "$args" in
     *"http://127.0.0.1:18108/health"*|*"http://localhost:8108/health"*)
         [ -f "'"$state_dir"'/typesense.started" ]
         ;;
+    *"http://127.0.0.1:17800/health"*)
+        printf "%s\n" "{\"status\":\"ok\",\"version\":\"1.0.10\",\"build\":{\"version\":\"1.0.10\",\"dirty\":false,\"capabilities\":{\"vectorSearch\":true,\"vectorSearchLocal\":true}}}"
+        ;;
     *)
         exit 0
         ;;
@@ -1405,7 +1420,7 @@ esac
 }
 
 run_shared_stack_specimen() {
-    local tmp_dir bin_dir state_dir env_backup local_backup stale_root
+    local tmp_dir bin_dir state_dir env_backup local_backup cargo_config_backup stale_root
     tmp_dir="$(mktemp -d)"
     RUN_ROOT="$tmp_dir"
     RUN_EVIDENCE_ROOT="$tmp_dir/evidence"
@@ -1429,7 +1444,8 @@ JSON
 
     env_backup="$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")"
     local_backup="$(backup_repo_path "$REPO_ROOT/.local" "$tmp_dir/.local.backup")"
-    trap 'restore_repo_path "'"$REPO_ROOT/.env.local"'" "'"$env_backup"'"; restore_repo_path "'"$REPO_ROOT/.local"'" "'"$local_backup"'"' EXIT
+    cargo_config_backup="$(backup_repo_path "$REPO_ROOT/infra/.cargo/config.toml" "$tmp_dir/cargo_config.backup")"
+    trap 'restore_repo_path "'"$REPO_ROOT/.env.local"'" "'"$env_backup"'"; restore_repo_path "'"$REPO_ROOT/.local"'" "'"$local_backup"'"; restore_repo_path "'"$REPO_ROOT/infra/.cargo/config.toml"'" "'"$cargo_config_backup"'"' EXIT
 
     mkdir -p "$REPO_ROOT/.local/source-migration/meilisearch" "$REPO_ROOT/.local/source-migration/typesense"
     stale_root="$REPO_ROOT/.local/source-migration"
@@ -1440,11 +1456,15 @@ JSON
     write_local_dev_env_file "$REPO_ROOT/.env.local" \
         "postgres://griddle:griddle_local@127.0.0.1:15432/fjcloud_dev"
     install_shared_stack_mocks "$bin_dir" "$state_dir"
+    mkdir -p "$tmp_dir/flapjack/target/debug"
+    write_mock_script "$tmp_dir/flapjack/target/debug/flapjack" 'exit 0'
 
     LOCAL_DEV_UP_OUTPUT=$(
         PATH="$bin_dir:/usr/bin:/bin" \
-        FLAPJACK_DEV_DIR="/nonexistent" \
+        FLAPJACK_DEV_DIR="$tmp_dir/flapjack" \
+        FLAPJACK_ADMIN_KEY="" \
         COMPOSE_PROFILES="source-providers" \
+        FLAPJACK_PORT=17800 \
         LOCAL_DB_PORT=15432 \
         LOCAL_S3_PORT=18333 \
         LOCAL_MAILPIT_UI_PORT=18025 \
@@ -1460,6 +1480,8 @@ JSON
         bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
     ) || LOCAL_DEV_UP_EXIT=$?
 
+    cp "$REPO_ROOT/infra/.cargo/config.toml" "$RUN_ROOT/generated_cargo_config.toml" 2>/dev/null || true
+
     LOCAL_DEV_DOWN_OUTPUT=$(
         PATH="$bin_dir:/usr/bin:/bin" \
         SOURCE_PROVIDER_EVIDENCE_ROOT="$RUN_EVIDENCE_ROOT" \
@@ -1469,11 +1491,18 @@ JSON
         bash "$REPO_ROOT/scripts/local-dev-down.sh" --clean 2>&1
     ) || LOCAL_DEV_DOWN_EXIT=$?
 
+    if [ -e "$REPO_ROOT/infra/.cargo/config.toml" ]; then
+        RUN_POST_DOWN_CARGO_CONFIG_PRESENT=1
+    else
+        RUN_POST_DOWN_CARGO_CONFIG_PRESENT=0
+    fi
+
     PATH="$bin_dir:/usr/bin:/bin" \
         docker compose logs --no-color meilisearch typesense > "$RUN_LOG_ROOT/provider_container_logs.log" 2>&1 || true
 
     restore_repo_path "$REPO_ROOT/.env.local" "$env_backup"
     restore_repo_path "$REPO_ROOT/.local" "$local_backup"
+    restore_repo_path "$REPO_ROOT/infra/.cargo/config.toml" "$cargo_config_backup"
     trap - EXIT
 }
 

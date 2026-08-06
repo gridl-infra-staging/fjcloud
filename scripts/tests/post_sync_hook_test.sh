@@ -110,7 +110,44 @@ create_git_fixture() {
     git -C "$target_repo" remote add origin "$bare_remote"
     git -C "$target_repo" push -u origin main >/dev/null 2>&1
 
+    create_publishable_dev_root "$root_dir"
+
     echo "$target_repo|$bare_remote"
+}
+
+# Build a hermetic dev root in a publishable state (on `main`, pushed), carrying
+# the real publish guard.
+#
+# WHY THIS EXISTS: `.debbie/post-sync.sh` now sources
+# `$DEBBIE_DEV_ROOT/scripts/lib/publish_guard.sh` and refuses to publish unless
+# that root's HEAD is reachable from its own `origin/main`. This test used to
+# pass `DEBBIE_DEV_ROOT="$REPO_ROOT"`, which was harmless while the hook never
+# read that variable — but with the guard in place it made the outcome depend on
+# whether the developer's local `main` happened to be pushed, so the suite went
+# red purely because this checkout was three commits ahead of origin. A fixture
+# dev root keeps these cases hermetic and about what they actually test: the
+# hook's strip-then-commit-push behaviour.
+#
+# Prints nothing on purpose: `create_git_fixture` returns its value on stdout,
+# so anything echoed here would be captured into that value by its caller's
+# command substitution.
+create_publishable_dev_root() {
+    local root_dir="$1"
+    local dev_repo="$root_dir/dev"
+    local dev_remote="$root_dir/dev_remote.git"
+
+    git init -b main "$dev_repo" >/dev/null 2>&1
+    git -C "$dev_repo" config user.name "Test User"
+    git -C "$dev_repo" config user.email "test@example.com"
+
+    mkdir -p "$dev_repo/scripts/lib"
+    cp "$REPO_ROOT/scripts/lib/publish_guard.sh" "$dev_repo/scripts/lib/publish_guard.sh"
+    git -C "$dev_repo" add scripts/lib/publish_guard.sh
+    git -C "$dev_repo" commit -m "dev baseline" >/dev/null 2>&1
+
+    git init --bare "$dev_remote" >/dev/null 2>&1
+    git -C "$dev_repo" remote add origin "$dev_remote"
+    git -C "$dev_repo" push -u origin main >/dev/null 2>&1
 }
 
 run_hook_with_mocks() {
@@ -123,7 +160,7 @@ run_hook_with_mocks() {
     REAL_GIT_BIN="$(command -v git)" \
     MOCK_STRIP_MODE="$strip_mode" \
     MATT_REPO_ROOT="/nonexistent" \
-    DEBBIE_DEV_ROOT="$REPO_ROOT" \
+    DEBBIE_DEV_ROOT="$(dirname "$target_repo")/dev" \
     DEBBIE_TARGET_ROOT="$target_repo" \
     DEBBIE_TARGET="staging" \
     PATH="$mock_dir:$PATH" \

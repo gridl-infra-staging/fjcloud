@@ -1,0 +1,35 @@
+{
+  "destinationIndex": "fjcloud-cutover-destination-20260805105314-13933",
+  "queries": [
+    {
+      "destinationOnly": [],
+      "hits": [
+        {
+          "destinationRank": 1,
+          "objectID": "doc-alpha",
+          "rankDelta": 0,
+          "sourceRank": 1
+        }
+      ],
+      "overlapCount": 1,
+      "query": "uniquealpha",
+      "sourceOnly": []
+    },
+    {
+      "destinationOnly": [],
+      "hits": [
+        {
+          "destinationRank": 1,
+          "objectID": "doc-shared",
+          "rankDelta": 0,
+          "sourceRank": 1
+        }
+      ],
+      "overlapCount": 1,
+      "query": "uniqueshared",
+      "sourceOnly": []
+    }
+  ],
+  "resultLimit": 3,
+  "sourceIndex": "fjcloud-cutover-probe-20260805105314-13933"
+}

@@ -1,6 +1,25 @@
 # CI Stripe Key Setup
 
-**Status:** Phase 0 step 5 (operator handoff).
+**Status:** **DONE and verified 2026-08-05.** The operator handoff below was completed; this file is now
+reference rather than a to-do. `STRIPE_SECRET_KEY` has existed in the `gridl-infra-staging/fjcloud`
+Actions secrets since 2026-07-17, and it demonstrably works: the `stripe-test-clock-live` job in
+`.github/workflows/nightly.yml` runs `cargo test -p api --test billing stripe_test_clock_full_cycle_test::`
+under `BACKEND_LIVE_GATE=1` — where `require_live!` **panics** rather than skips on an unusable key — and
+that job passes. Re-derive with `gh secret list --repo gridl-infra-staging/fjcloud` and
+`gh run list --workflow=nightly.yml`.
+
+> **Three secrets are referenced by `nightly.yml` but absent from the repo, so they expand to empty
+> strings: `STRIPE_WEBHOOK_SECRET`, `INTEGRATION_API_BASE`, `INTEGRATION_DB_URL`.** The jobs that
+> reference them currently pass, which means no passing assertion depends on them today — but that is a
+> property of the current test selection, not a guarantee. Adding a test that needs any of the three will
+> fail on an empty value rather than a missing-secret message. Step 2 below still describes adding
+> `STRIPE_WEBHOOK_SECRET`; it has not been done.
+>
+> Nightly is currently **red for an unrelated reason**: the `pricing-freshness` job fails on
+> `pricing_freshness_wall_clock_tripwire`, an `#[ignore]`d and explicitly non-deploy-gating wall-clock
+> tripwire in `infra/pricing-calculator/src/lib.rs` that fires when competitor pricing metadata is more
+> than 90 days unverified. That is the tripwire doing its job, not a Stripe-key fault.
+
 **Audience:** repo operator with Stripe dashboard + GitHub org-secrets-write access.
 **Goal:** unblock T1.4–T1.6 (Stripe webhook integration tests) without polluting the staging Stripe dashboard.
 
@@ -61,9 +80,40 @@ let email = format!("ci-{}-{}@test.flapjack.foo", env!("GITHUB_SHA")[..7], Uuid:
 
 This makes `stripe customers list --limit 100` filterable by prefix and lets the cleanup script (step 4) target only CI artifacts.
 
-### 4. Cleanup cron (deferred until first dashboard pollution)
+### 4. Cleanup cron (pollution has now occurred; cleanup still deliberately deferred)
 
-A `scripts/cleanup_ci_stripe_test_data.sh` is **not yet written** — defer until the dashboard actually shows pollution. Sketch when needed:
+**Measured 2026-08-05 with `STRIPE_SECRET_KEY_RESTRICTED` against the default sandbox:** paginating
+`/v1/customers` returned **6,000 customers without reaching the end**, accruing at a steady **~285/day**
+(2026-07-27 through 2026-08-05 each within 281–342), reaching back to at least 2026-06-27. Every sampled
+address matched a fixture shape. So the "after a few weeks of runs … thousands of `cus_*` records"
+scenario in *Why a dedicated CI key* above is no longer hypothetical — it has happened.
+
+**Root cause, which is not what this section assumed.** The leak is not a missing cron; it is that
+nothing ever deletes the Stripe side. `web/tests/fixtures/fixtures.ts::deleteTrackedCustomerForCleanup`
+issues `DELETE /admin/tenants/{customerId}`, which removes the **fjcloud tenant** and never the **Stripe
+customer**, so every fixture run that reaches Stripe leaves one behind permanently. A cron would mop up
+after a leak that the fixture layer could simply stop creating.
+
+**Correction to the sketch below — it would delete nothing as written.** It filters on
+`ci-*@test.flapjack.foo`, but the addresses actually produced are of the form
+`billing-portal-<seed>@e2e.griddle.test` and `<prefix>-<seed>@e2e.griddle.test`. Any cleanup built on the
+documented pattern would report success having matched zero rows — a silent no-op of exactly the kind the
+no-manual-QA rule forbids. Fix the pattern against real data before trusting any such script.
+
+**Decision (2026-08-05): still deferred, now with a stated reason rather than an unfired trigger.** The
+pollution is **noise, not a correctness risk**: nothing looks Stripe customers up by pattern. `grep` over
+`web/tests/`, `scripts/`, and `infra/api/src/` finds no `/v1/customers` list-or-search call and no
+email-pattern lookup — the `find_by_email` implementations are the Postgres customer repo, not Stripe. So
+the "CI run collides with another run's data" hazard listed above does not currently apply, and a
+destructive bulk-delete over 6,000+ objects is more risk than the noise justifies.
+
+**Promote this to real work when either becomes true:** (a) any test or product path starts resolving
+Stripe customers by list, search, or email pattern — at which point accumulated fixture rows become a
+correctness hazard, not clutter; or (b) an operator is actually impeded in the dashboard. The durable fix
+is (a)-proof anyway: have the fixture that creates a Stripe customer delete it, so cleanup lives with
+creation instead of in a cron.
+
+Sketch retained for when it is needed (pattern corrected per above):
 - List customers with email matching `ci-*@test.flapjack.foo`.
 - For each, delete subscriptions and detach payment methods, then `stripe customers delete`.
 - Schedule weekly via GHA cron OR run ad-hoc when the dashboard gets noisy.

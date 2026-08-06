@@ -88,6 +88,53 @@ run_post_strip_sync_commit_push() {
   git -C "$target_root" push origin "$current_branch"
 }
 
+# Publish guard runs FIRST, before scrai-strip, the openapi regeneration and
+# the commit+push below. Debbie has already copied files into the mirror
+# working tree by the time this hook runs, so the earliest thing this hook can
+# still protect is publication itself — and refusing here means no mirror
+# commit is created and nothing reaches the public remote.
+#
+# This is the single enforcement point for the rule, because debbie runs this
+# hook for every caller: `git_push_with_sync.sh`, `post_wave_a_sync_prod.sh`,
+# and a bare `debbie sync <target>` typed by a lane. See
+# scripts/lib/publish_guard.sh for why ancestry is the whole predicate.
+#
+# A refusal also restores the mirror working tree. Debbie has already copied the
+# dev tree over the mirror by the time this hook runs, and leaving those files
+# behind would recreate the exact harm the guard exists to prevent: the publish
+# step below is `git add -A`, and debbie's prune only considers TRACKED paths
+# (sync.py `_git_tracked_paths`), so an untracked file left by a refused sync
+# would be committed and published by the NEXT legitimate sync.
+#
+# Restoring is safe here specifically because the mirror is a derived,
+# debbie-owned target whose only source of truth is the dev repo: resetting to
+# HEAD restores exactly the last published state, and nothing else writes this
+# clone. `clean -fd` deliberately omits `-x`, so ignored build artefacts are
+# left alone.
+# A missing guard must not read as "nothing to enforce". Fail closed and say so
+# plainly, rather than letting `source` emit a bare "No such file or directory"
+# that looks like an unrelated path bug.
+publish_guard_lib="${DEBBIE_DEV_ROOT:?}/scripts/lib/publish_guard.sh"
+if [[ ! -f "$publish_guard_lib" ]]; then
+    echo "post-sync: publish guard missing at $publish_guard_lib; refusing to publish." >&2
+    exit 3
+fi
+# shellcheck source=../scripts/lib/publish_guard.sh
+source "$publish_guard_lib"
+# Capture the status with `|| guard_status=$?` rather than testing `if ! ...`.
+# Inside an `if !` condition, `$?` in the body is the status of the negated
+# test (0), not the function's return, so the refusal status would be lost and
+# the hook would exit 0 on a refusal — proving the opposite of what it means to.
+guard_status=0
+assert_dev_head_is_publishable "${DEBBIE_DEV_ROOT:?}" || guard_status=$?
+if [[ "$guard_status" -ne 0 ]]; then
+    git -C "${DEBBIE_TARGET_ROOT:?}" reset --hard HEAD >/dev/null 2>&1 || true
+    git -C "${DEBBIE_TARGET_ROOT:?}" clean -fd >/dev/null 2>&1 || true
+    echo "post-sync: refusing to publish; mirror was NOT committed or pushed," >&2
+    echo "post-sync: and its working tree was restored to the last published commit." >&2
+    exit "$guard_status"
+fi
+
 run_scrai_strip "${DEBBIE_TARGET_ROOT:?}"
 regenerate_openapi_artifact "${DEBBIE_TARGET_ROOT:?}"
 run_post_strip_sync_commit_push "${DEBBIE_TARGET_ROOT:?}"

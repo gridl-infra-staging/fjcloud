@@ -113,12 +113,12 @@ assert_nonterminating_suite_is_bounded_and_reported_as_timeout() {
     fixture_path="scripts/tests/fixture_${fixture_label}_never_exits_test.sh"
     result_stem="scripts_tests_fixture_${fixture_label}_never_exits_test.sh"
     mkdir -p "$TEST_TMPDIR/scripts/tests" "$TEST_TMPDIR/results"
-    printf '%s\n' \
-        '#!/usr/bin/env bash' \
-        "$term_trap" \
-        'python3 -c '\''import time; print(int(time.time() * 1000))'\'' > "$FIXTURE_STARTED_MARKER"' \
-        'while :; do sleep 0.05; done' \
-        >"$TEST_TMPDIR/$fixture_path"
+    cat >"$TEST_TMPDIR/$fixture_path" <<EOF
+#!/usr/bin/env bash
+$term_trap
+python3 -c 'import time; print(int(time.time() * 1000))' > "$TEST_TMPDIR/started"
+while :; do sleep 0.05; done
+EOF
     chmod +x "$TEST_TMPDIR/$fixture_path"
 
     bound_millis="$(( REACHABILITY_TIMEOUT_SECONDS * 1000 + REACHABILITY_TERM_GRACE_MILLIS + REACHABILITY_TIMEOUT_ALLOWANCE_MILLIS ))"
@@ -135,8 +135,6 @@ assert_nonterminating_suite_is_bounded_and_reported_as_timeout() {
         eval "$REACHABILITY_RESULT_STEM_BODY"
         eval "$REACHABILITY_TIMING_BODY"
         eval "$REACHABILITY_RUNNER_BODY"
-        FIXTURE_STARTED_MARKER="$TEST_TMPDIR/started"
-        export FIXTURE_STARTED_MARKER
         if [ "$scheduling_mode" = "backgrounded" ]; then
             run_reachability_suite "$fixture_path" "$TEST_TMPDIR/results" &
             wait "$!"
@@ -231,13 +229,13 @@ assert_term_cooperative_leader_cannot_leave_term_ignoring_descendant() {
     fixture_path="scripts/tests/fixture_term_cooperative_leader_child_ignores_term_test.sh"
     result_stem="scripts_tests_fixture_term_cooperative_leader_child_ignores_term_test.sh"
     mkdir -p "$TEST_TMPDIR/scripts/tests" "$TEST_TMPDIR/results"
-    printf '%s\n' \
-        '#!/usr/bin/env bash' \
-        'trap '\''exit 143'\'' TERM INT HUP' \
-        'python3 -c '\''import time; print(int(time.time() * 1000))'\'' > "$FIXTURE_STARTED_MARKER"' \
-        'bash -c '\''trap ":" TERM INT HUP; echo "$$" > "$FIXTURE_CHILD_PID_MARKER"; while :; do sleep 0.05; done'\'' &' \
-        'while :; do sleep 0.05; done' \
-        >"$TEST_TMPDIR/$fixture_path"
+    cat >"$TEST_TMPDIR/$fixture_path" <<EOF
+#!/usr/bin/env bash
+trap 'exit 143' TERM INT HUP
+python3 -c 'import time; print(int(time.time() * 1000))' > "$TEST_TMPDIR/started"
+bash -c 'trap ":" TERM INT HUP; echo "\$\$" > "$TEST_TMPDIR/child.pid"; while :; do sleep 0.05; done' &
+while :; do sleep 0.05; done
+EOF
     chmod +x "$TEST_TMPDIR/$fixture_path"
 
     bound_millis="$(( REACHABILITY_TIMEOUT_SECONDS * 1000 + REACHABILITY_TERM_GRACE_MILLIS + REACHABILITY_TIMEOUT_ALLOWANCE_MILLIS ))"
@@ -251,9 +249,6 @@ assert_term_cooperative_leader_cannot_leave_term_ignoring_descendant() {
         eval "$REACHABILITY_RESULT_STEM_BODY"
         eval "$REACHABILITY_TIMING_BODY"
         eval "$REACHABILITY_RUNNER_BODY"
-        FIXTURE_STARTED_MARKER="$TEST_TMPDIR/started"
-        FIXTURE_CHILD_PID_MARKER="$TEST_TMPDIR/child.pid"
-        export FIXTURE_STARTED_MARKER FIXTURE_CHILD_PID_MARKER
         if [ "$scheduling_mode" = "backgrounded" ]; then
             run_reachability_suite "$fixture_path" "$TEST_TMPDIR/results" &
             wait "$!"

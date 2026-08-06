@@ -69,7 +69,9 @@ export const MARKETING_PRICING: MarketingPricing = {
 	// snapshot must match the migration contract verified by
 	// `billing/tests/web_pricing_parity_test.rs`.
 	minimum_spend_cents: 0,
-	shared_minimum_spend_cents: 500,
+	// Raised $5 → $15 by migration 072. `web_pricing_parity_test.rs` pins this to
+	// the migration chain, so the two cannot drift.
+	shared_minimum_spend_cents: 1500,
 	cta_label: 'Get Started Free',
 	free_tier_promise: FREE_TIER_PROMISE,
 	tax_disclaimer:

@@ -294,8 +294,18 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-height="$(sips -g pixelHeight "$screenshot_path" 2>/dev/null | awk '/pixelHeight/ { print $2 }')"
-width="$(sips -g pixelWidth "$screenshot_path" 2>/dev/null | awk '/pixelWidth/ { print $2 }')"
+read -r width height < <(python3 - "$screenshot_path" <<'PY'
+import struct
+import sys
+
+with open(sys.argv[1], "rb") as handle:
+    header = handle.read(24)
+if header[:8] != b"\x89PNG\r\n\x1a\n" or header[12:16] != b"IHDR":
+    raise SystemExit(1)
+width, height = struct.unpack(">II", header[16:24])
+print(width, height)
+PY
+)
 if [[ "$height" -gt 8000 || "$width" -gt 8000 ]]; then
   exit 6
 fi

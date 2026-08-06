@@ -138,6 +138,14 @@ fi
 # ---------------------------------------------------------------------------
 # 3. Clean up
 # ---------------------------------------------------------------------------
+platform_test_cargo_config="$REPO_ROOT/infra/.cargo/config.toml"
+if [ -f "$platform_test_cargo_config" ] \
+    && grep -Fqx "$LOCAL_DEV_PLATFORM_TEST_CARGO_ENV_MARKER" "$platform_test_cargo_config"
+then
+    rm -f "$platform_test_cargo_config"
+    rmdir "$REPO_ROOT/infra/.cargo" 2>/dev/null || true
+    log "Removed generated lane-local platform-test Cargo env"
+fi
 rm -f "$PID_DIR"/*.log 2>/dev/null || true
 if [ -d "$PID_DIR" ]; then
     rmdir "$PID_DIR" 2>/dev/null || true

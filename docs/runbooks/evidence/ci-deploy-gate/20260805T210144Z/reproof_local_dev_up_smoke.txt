@@ -1,0 +1,244 @@
+LOCALITY: Linux ip-172-31-14-9 7.0.0-1009-aws #9~24.04.1-Ubuntu SMP PREEMPT Mon Jul 13 22:43:41 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+HEAD: dbdbcd55684ddf1b478407268c145cc8532996a6
+COMMAND: bash scripts/bootstrap-env-local.sh
+BOOTSTRAP_SKIP: .env.local already exists at /home/ubuntu/fjcloud_dev/.env.local
+BOOTSTRAP_EXIT=0
+COMMAND: cd web && npm ci
+npm warn deprecated mkdirp@0.3.0: Legacy versions of mkdirp are no longer supported. Please update to mkdirp 1.x. (Note that the API surface has changed to use Promises in 1.x.)
+
+> web@0.0.1 prepare
+> svelte-kit sync || echo ''
+
+
+added 469 packages, and audited 470 packages in 10s
+
+106 packages are looking for funding
+  run `npm fund` for details
+
+3 vulnerabilities (2 moderate, 1 high)
+
+To address all issues, run:
+  npm audit fix
+
+Run `npm audit` for details.
+NPM_CI_EXIT=0
+COMMAND: cd infra && cargo build -p api -p metering-agent
+   Compiling api v0.1.0 (/home/ubuntu/fjcloud_dev/infra/api)
+   Compiling metering-agent v0.1.0 (/home/ubuntu/fjcloud_dev/infra/metering-agent)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 46.02s
+PREBUILD_EXIT=0
+COMMAND: timeout 240 bash scripts/local_demo.sh
+[local-demo] Starting infra
+[local-dev-down] flapjack: no PID file found (not running)
+[local-dev-down] flapjack-fullrun not running (stale PID file)
+[local-dev-down] api: no PID file found (not running)
+[local-dev-down] web: no PID file found (not running)
+[local-dev-down] Local dev stack torn down
+[local-dev-up] Starting Postgres...
+ Network fjcloud_ubuntu_fjcloud_dev_default  Creating
+ Network fjcloud_ubuntu_fjcloud_dev_default  Created
+ Volume fjcloud_ubuntu_fjcloud_dev_pgdata  Creating
+ Volume fjcloud_ubuntu_fjcloud_dev_pgdata  Created
+ Container fjcloud_ubuntu_fjcloud_dev-postgres-1  Creating
+ Container fjcloud_ubuntu_fjcloud_dev-postgres-1  Created
+ Container fjcloud_ubuntu_fjcloud_dev-postgres-1  Starting
+ Container fjcloud_ubuntu_fjcloud_dev-postgres-1  Started
+[local-dev-up] Waiting for Postgres to be ready...
+[local-dev-up] Postgres is ready
+[local-dev-up] Starting seaweedfs...
+[local-dev-up]  Volume fjcloud_ubuntu_fjcloud_dev_s3data  Creating
+[local-dev-up]  Volume fjcloud_ubuntu_fjcloud_dev_s3data  Created
+[local-dev-up]  Container fjcloud_ubuntu_fjcloud_dev-seaweedfs-1  Creating
+[local-dev-up]  Container fjcloud_ubuntu_fjcloud_dev-seaweedfs-1  Created
+[local-dev-up]  Container fjcloud_ubuntu_fjcloud_dev-seaweedfs-1  Starting
+[local-dev-up]  Container fjcloud_ubuntu_fjcloud_dev-seaweedfs-1  Started
+[local-dev-up] seaweedfs is healthy (per docker compose health)
+[local-dev-up] S3 endpoint reachable at http://localhost:17519
+[local-dev-up] Starting mailpit...
+[local-dev-up]  Container fjcloud_ubuntu_fjcloud_dev-mailpit-1  Creating
+[local-dev-up]  Container fjcloud_ubuntu_fjcloud_dev-mailpit-1  Created
+[local-dev-up]  Container fjcloud_ubuntu_fjcloud_dev-mailpit-1  Starting
+[local-dev-up]  Container fjcloud_ubuntu_fjcloud_dev-mailpit-1  Started
+[local-dev-up] mailpit is healthy (http://localhost:15519/api/v1/info)
+[local-dev-up] Applying migrations to: postgres://griddle:***@127.0.0.1:19519/fjcloud_dev
+[local-dev-up] Applying: 001_customers.sql
+[local-dev-up] Applying: 002_deployments.sql
+[local-dev-up] Applying: 003_usage_records.sql
+[local-dev-up] Applying: 004_rate_cards.sql
+[local-dev-up] Applying: 005_invoices.sql
+[local-dev-up] Applying: 006_auth.sql
+[local-dev-up] Applying: 007_stripe_integration.sql
+[local-dev-up] Applying: 008_api_keys.sql
+[local-dev-up] Applying: 009_deployment_extensions.sql
+[local-dev-up] Applying: 010_alerts.sql
+[local-dev-up] Applying: 011_vm_inventory.sql
+[local-dev-up] Applying: 012_tenant_multitenant.sql
+[local-dev-up] Applying: 013_index_migrations.sql
+[local-dev-up] Applying: 014_billing_mode.sql
+[local-dev-up] Applying: 015_cold_tier.sql
+[local-dev-up] Applying: 016_cold_storage_pricing.sql
+[local-dev-up] Applying: 017_fix_restore_idempotency.sql
+[local-dev-up] Applying: 018_backfill_last_accessed.sql
+[local-dev-up] Applying: 019_hetzner_region_pricing.sql
+[local-dev-up] Applying: 020_add_oci_provider.sql
+[local-dev-up] Applying: 021_index_replicas.sql
+[local-dev-up] Applying: 022_canonicalize_replica_status.sql
+[local-dev-up] Applying: 023_drop_billing_mode.sql
+[local-dev-up] Applying: 024_billing_plan.sql
+[local-dev-up] Applying: 025_quota_warning_sent_at.sql
+[local-dev-up] Applying: 026_load_scraped_at.sql
+[local-dev-up] Applying: 027_add_cold_gb_months_unit.sql
+[local-dev-up] Applying: 028_subscriptions.sql
+[local-dev-up] Applying: 029_subscription_resubscribe_and_enterprise_price.sql
+[local-dev-up] Applying: 030_storage_service.sql
+[local-dev-up] Applying: 031_object_storage_pricing.sql
+[local-dev-up] Applying: 032_service_type.sql
+[local-dev-up] Applying: 033_invoice_pdf_url.sql
+[local-dev-up] Applying: 035_customer_fractional_egress_carryforward.sql
+[local-dev-up] Applying: 036_per_mb_pricing.sql
+[local-dev-up] Applying: 037_add_local_provider.sql
+[local-dev-up] Applying: 038_replica_suspended_status.sql
+[local-dev-up] Applying: 039_fix_invoice_unit_check.sql
+[local-dev-up] Applying: 040_customers_deleted_at.sql
+[local-dev-up] Applying: 041_audit_log.sql
+[local-dev-up] Applying: 042_align_launch_rate_card_marketing_contract.sql
+[local-dev-up] Applying: 043_email_log.sql
+[local-dev-up] Applying: 044_email_suppression.sql
+[local-dev-up] Applying: 045_email_log_suppressed_status.sql
+[local-dev-up] Applying: 046_drop_subscriptions.sql
+[local-dev-up] Applying: 047_resend_verification_cooldown.sql
+[local-dev-up] Applying: 048_oauth_identities.sql
+[local-dev-up] Applying: 049_free_plan_zero_minimum_spend.sql
+[local-dev-up] Applying: 050_quota_warnings_sent_jsonb.sql
+[local-dev-up] Applying: 051_customer_subscription_cycle_anchor.sql
+[local-dev-up] Applying: 052_auth_lockout_state.sql
+[local-dev-up] Applying: 053_disputes.sql
+[local-dev-up] Applying: 054_password_reset_resend_cooldown.sql
+[local-dev-up] Applying: 055_api_keys_managed_key_parity.sql
+[local-dev-up] Applying: 056_algolia_import_jobs.sql
+[local-dev-up] Applying: 057_catalog_lifecycle_intent_tiers.sql
+[local-dev-up] Applying: 058_deployment_failure_reason.sql
+[local-dev-up] Applying: 059_vm_inventory_reference_guard.sql
+psql:/migrations/059_vm_inventory_reference_guard.sql:187: NOTICE:  identifier "trg_algolia_import_jobs_destination_vm_id_vm_inventory_reference_guard" will be truncated to "trg_algolia_import_jobs_destination_vm_id_vm_inventory_referenc"
+[local-dev-up] Applying: 060_algolia_import_erased_ack_checks.sql
+[local-dev-up] Applying: 061_vm_host_metrics.sql
+[local-dev-up] Applying: 062_algolia_erased_vm_retirement_blocker.sql
+[local-dev-up] Applying: 063_algolia_create_terminal_deployment.sql
+[local-dev-up] Applying: 064_vm_lifecycle_events.sql
+[local-dev-up] Applying: 065_lifecycle_contract_repairs.sql
+[local-dev-up] Applying: 066_algolia_import_terminal_outcome_presence.sql
+[local-dev-up] Applying: 067_algolia_erased_tombstone_compaction.sql
+[local-dev-up] Applying: 068_provider_neutral_algolia_import_jobs.sql
+[local-dev-up] Applying: 069_widen_algolia_import_jobs_source_provider_check.sql
+[local-dev-up] Applying: 070_admin_users.sql
+[local-dev-up] Applying: 071_admin_sessions.sql
+[local-dev-up] All migrations applied (70 new, 0 skipped)
+[local-dev-up] Flapjack binary: /home/ubuntu/fjcloud_dev/.flapjack/target/release/flapjack
+[local-dev-up] Flapjack provenance: unknown
+[local-dev-up] Starting flapjack (us-east-1) on port 7700...
+[local-dev-up] flapjack-us-east-1 is healthy (http://127.0.0.1:7700/health)
+[local-dev-up] Starting flapjack (eu-west-1) on port 7701...
+[local-dev-up] flapjack-eu-west-1 is healthy (http://127.0.0.1:7701/health)
+[local-dev-up] Starting flapjack (eu-central-1) on port 7702...
+[local-dev-up] flapjack-eu-central-1 is healthy (http://127.0.0.1:7702/health)
+[local-dev-up]
+[local-dev-up] Local dev infrastructure is up!
+[local-dev-up]   Postgres:       127.0.0.1:19519 (via Docker Compose)
+[local-dev-up]   Flapjack us-east-1: http://localhost:7700
+[local-dev-up]   Flapjack eu-west-1: http://localhost:7701
+[local-dev-up]   Flapjack eu-central-1: http://localhost:7702
+[local-dev-up]   SeaweedFS S3:   http://localhost:17519
+[local-dev-up]   Mailpit UI:     http://localhost:15519
+[local-dev-up]   Admin key:      (explicit override set)
+[local-dev-up]   Database:       postgres://griddle:***@127.0.0.1:19519/fjcloud_dev
+[local-dev-up]
+[local-dev-up] Start the API:
+[local-dev-up]   scripts/api-dev.sh
+[local-dev-up]
+[local-dev-up] Start the web frontend:
+[local-dev-up]   scripts/web-dev.sh
+[local-dev-up]
+[local-dev-up] After seeding (scripts/seed_local.sh), start metering:
+[local-dev-up]   scripts/start-metering.sh          # single-region
+[local-dev-up]   scripts/start-metering.sh --multi-region  # multi-region
+[local-demo] Starting API...
+[local-demo]   Log: /home/ubuntu/fjcloud_dev/.local/api.log
+[local-demo] api is healthy (http://127.0.0.1:3001/health)
+[local-demo] Starting web...
+[local-demo]   Log: /home/ubuntu/fjcloud_dev/.local/web.log
+[local-demo] web is healthy (http://127.0.0.1:5173)
+[local-demo] Seeding customers, indexes, sample docs, usage, replicas
+[seed] API is healthy at http://127.0.0.1:3001
+INSERT 0 3
+UPDATE 0
+[seed] Verified VM inventory hostnames for 3 default regions
+[seed] Flapjack reachable at http://127.0.0.1:7700 — seeding indexes and sample documents
+[seed] Created user: dev@example.com
+[seed] Verified user email: dev@example.com
+[seed] Customer ID for dev@example.com: b69a8c07-020e-4094-b407-ef19f8b69c91
+[seed] Set billing plan to shared for dev@example.com
+[seed] Verified seeded account for dev@example.com (plan: shared)
+[seed] Stripe-synced dev@example.com: cus_local_370b309de481457d95f8af2c24c5aba2
+[seed] Created user: free@example.com
+[seed] Verified user email: free@example.com
+[seed] Customer ID for free@example.com: 552b9f40-fd10-4c59-9948-7f09c9c40c8f
+[seed] Verified seeded account for free@example.com (plan: free)
+[seed] Stripe-synced free@example.com: cus_local_c4e48334784a419c9c509df33df3910a
+INSERT 0 93
+[seed] Seeded current UTC month usage_daily rows for dev@example.com across 3 regions
+[seed] Created index test-index (us-east-1) for dev@example.com
+[seed] Created index test-index-eu (eu-west-1) for dev@example.com
+[seed] Created index test-index-eu2 (eu-central-1) for dev@example.com
+[seed] Created index free-test-index (us-east-1) for free@example.com
+[seed] Verified search result doc-1 in test-index
+[seed] Seeded 5 sample documents into test-index for dev@example.com
+[seed] Verified search result doc-1 in test-index-eu
+[seed] Seeded 5 sample documents into test-index-eu for dev@example.com
+[seed] Verified search result doc-1 in test-index-eu2
+[seed] Seeded 5 sample documents into test-index-eu2 for dev@example.com
+[seed] Verified search result doc-1 in free-test-index
+[seed] Seeded 5 sample documents into free-test-index for free@example.com
+[seed] Verified seeded index names for dev@example.com
+[seed] Verified seeded index names for free@example.com
+[seed] Verified /billing/estimate for dev@example.com (2026-08)
+[seed] Created replica: test-index -> eu-west-1
+[seed] Created replica: test-index-eu -> us-east-1
+[seed] Created replica: test-index-eu2 -> us-east-1
+UPDATE 3
+UPDATE 3
+[seed] Marked seed replicas as active (3 new)
+[seed]
+[seed] Local dev environment seeded successfully!
+[seed]   API:      http://127.0.0.1:3001
+[seed]   Shared:   dev@example.com
+[seed]   Free:     free@example.com
+[seed]   Indexes:  4 targets
+[local-demo] Auditing local dev seed state
+[dev-state-audit] dev@example.com tenants: 3 <= 53
+[dev-state-audit] free@example.com tenants: 1 <= 51
+[dev-state-audit] active e2e-seed-% VM rows: 0 <= 0
+[dev-state-audit] stale fixture tenants: 0 <= 0
+[dev-state-audit] Local dev state audit passed
+[local-demo] Starting multi-region metering agents
+[start-metering] Found shared customer: b69a8c07-020e-4094-b407-ef19f8b69c91
+[start-metering] Starting metering agent for us-east-1 (flapjack=http://127.0.0.1:7700, health=:9091)...
+[start-metering] Metering agent started for us-east-1 (PID 494581)
+[start-metering]   Log: /home/ubuntu/fjcloud_dev/.local/metering-agent-us-east-1.log
+[start-metering]   Health: http://127.0.0.1:9091/health
+[start-metering] Starting metering agent for eu-west-1 (flapjack=http://127.0.0.1:7701, health=:9092)...
+[start-metering] Metering agent started for eu-west-1 (PID 494583)
+[start-metering]   Log: /home/ubuntu/fjcloud_dev/.local/metering-agent-eu-west-1.log
+[start-metering]   Health: http://127.0.0.1:9092/health
+[start-metering] Starting metering agent for eu-central-1 (flapjack=http://127.0.0.1:7702, health=:9093)...
+[start-metering] Metering agent started for eu-central-1 (PID 494585)
+[start-metering]   Log: /home/ubuntu/fjcloud_dev/.local/metering-agent-eu-central-1.log
+[start-metering]   Health: http://127.0.0.1:9093/health
+[local-demo]
+[local-demo] Ready
+[local-demo]   App:       http://127.0.0.1:5173
+[local-demo]   Admin:     http://127.0.0.1:5173/admin
+[local-demo]   API:       http://127.0.0.1:3001
+[local-demo]   Mailpit:   http://localhost:15519
+[local-demo]   Users:     dev@example.com / localdev-password-1234
+[local-demo]              free@example.com / localdev-password-1234
+[local-demo]   Stop:      scripts/local-dev-down.sh

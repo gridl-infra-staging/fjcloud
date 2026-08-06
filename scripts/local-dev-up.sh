@@ -117,6 +117,54 @@ wait_until_success() {
     return 1
 }
 
+cargo_env_toml_escape() {
+    local value="$1"
+    value="${value//\\/\\\\}"
+    value="${value//\"/\\\"}"
+    printf '%s' "$value"
+}
+
+write_platform_test_cargo_env_config() {
+    local source_base_url="$1"
+    local config_dir="$REPO_ROOT/infra/.cargo"
+    local config_path="$config_dir/config.toml"
+    local source_base_url_toml admin_key_toml tmp
+
+    if [ -f "$config_path" ] \
+        && ! grep -Fqx "$LOCAL_DEV_PLATFORM_TEST_CARGO_ENV_MARKER" "$config_path"
+    then
+        log "WARNING: $config_path exists and is not local-dev-up generated; not overwriting standalone cargo env"
+        return 0
+    fi
+
+    mkdir -p "$config_dir"
+    source_base_url_toml="$(cargo_env_toml_escape "$source_base_url")"
+    admin_key_toml="$(cargo_env_toml_escape "$FLAPJACK_ADMIN_KEY")"
+    tmp="$(mktemp "$config_dir/config.toml.XXXXXX")"
+    {
+        printf '%s\n' "$LOCAL_DEV_PLATFORM_TEST_CARGO_ENV_MARKER"
+        printf '%s\n' '# Cargo reads this when invoked from infra/; keep runtime ownership in local-dev-up.sh.'
+        printf '%s\n' '[env]'
+        printf 'FJCLOUD_ALGOLIA_SOURCE_BASE_URL = "%s"\n' "$source_base_url_toml"
+        printf 'FLAPJACK_ADMIN_KEY = "%s"\n' "$admin_key_toml"
+    } > "$tmp"
+    mv "$tmp" "$config_path"
+}
+
+prepare_flapjack_auth_state() {
+    local data_dir="$1"
+    local admin_key_file="$data_dir/.admin_key"
+    local tmp
+
+    mkdir -p "$data_dir"
+    # Flapjack rotates the admin entry from this launch value while preserving
+    # non-admin API-key hashes and encrypted key material in the owned data dir.
+    tmp="$(mktemp "$data_dir/.admin_key.XXXXXX")"
+    printf '%s\n' "$FLAPJACK_ADMIN_KEY" > "$tmp"
+    chmod 600 "$tmp"
+    mv "$tmp" "$admin_key_file"
+}
+
 # Start an optional Docker Compose service and health-check it.
 # Returns 0 if healthy, 1 if not. This helper never exits the script so callers
 # can choose whether degraded startup is acceptable for their workflow.
@@ -458,7 +506,7 @@ start_one_flapjack() {
         || die "port $port is already in use (needed for flapjack-${region})"
 
     log "Starting flapjack (${region}) on port ${port}..."
-    mkdir -p "$data_dir"
+    prepare_flapjack_auth_state "$data_dir"
 
     FLAPJACK_ADMIN_KEY="$FLAPJACK_ADMIN_KEY" \
         nohup "$FLAPJACK_BIN" \
@@ -478,6 +526,7 @@ start_one_flapjack() {
 }
 
 FLAPJACK_STARTED_REGIONS=""
+PLATFORM_TEST_ALGOLIA_SOURCE_BASE_URL=""
 
 if [ -n "$FLAPJACK_BIN" ] && [ -x "$FLAPJACK_BIN" ]; then
     log "Flapjack binary: $FLAPJACK_BIN"
@@ -488,6 +537,7 @@ if [ -n "$FLAPJACK_BIN" ] && [ -x "$FLAPJACK_BIN" ]; then
         # Symlink the default PID for backward compat with old local-dev-down.sh.
         ln -sf "flapjack-default.pid" "$FLAPJACK_PID"
         FLAPJACK_STARTED_REGIONS="default:${FLAPJACK_PORT}"
+        PLATFORM_TEST_ALGOLIA_SOURCE_BASE_URL="http://127.0.0.1:${FLAPJACK_PORT}"
     else
         # Multi-region mode: start one Flapjack per region.
         for region_port in $FLAPJACK_REGIONS; do
@@ -496,11 +546,18 @@ if [ -n "$FLAPJACK_BIN" ] && [ -x "$FLAPJACK_BIN" ]; then
             data_dir="$PID_DIR/flapjack-data-${region}"
             start_one_flapjack "$region" "$port" "$data_dir"
             FLAPJACK_STARTED_REGIONS="${FLAPJACK_STARTED_REGIONS:+${FLAPJACK_STARTED_REGIONS} }${region}:${port}"
+            if [ -z "$PLATFORM_TEST_ALGOLIA_SOURCE_BASE_URL" ]; then
+                PLATFORM_TEST_ALGOLIA_SOURCE_BASE_URL="http://127.0.0.1:${port}"
+            fi
         done
     fi
 else
     log "WARNING: flapjack binary not found — skipping flapjack startup"
     log "  Set FLAPJACK_DEV_DIR to point to the flapjack_dev repo"
+fi
+
+if [ -n "$PLATFORM_TEST_ALGOLIA_SOURCE_BASE_URL" ]; then
+    write_platform_test_cargo_env_config "$PLATFORM_TEST_ALGOLIA_SOURCE_BASE_URL"
 fi
 
 # ---------------------------------------------------------------------------
@@ -514,6 +571,7 @@ if [ -n "$FLAPJACK_STARTED_REGIONS" ]; then
         region="${region_port%%:*}"
         port="${region_port##*:}"
         log "  Flapjack ${region}: http://localhost:${port}"
+        log "  Algolia source:  http://127.0.0.1:${port}"
     done
 fi
 # Show SeaweedFS/Mailpit only when health checks passed during startup.

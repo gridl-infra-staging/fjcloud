@@ -22,20 +22,26 @@ LOCAL_DEV_MIGRATE_PARSE_DB_URL="postgres://parse_user:parse_secret@localhost:543
 LOCAL_DEV_MIGRATE_BAD_DB_URL="postgres://bad_user:bad_secret@localhost:notaport/bad_db"
 LOCAL_DEV_PROBE_SCRIPT=""
 LOCAL_DEV_TEST_REPO_ROOT=""
+LOCAL_DEV_TEST_PATH=""
 
 setup_local_dev_repo_state() {
     local tmp_dir="$1"
     LOCAL_DEV_TEST_REPO_ROOT="$(create_local_dev_fixture_repo_root "$tmp_dir" "$LOCAL_DEV_MIGRATE_HOST_DB_URL")"
     mkdir -p "$LOCAL_DEV_TEST_REPO_ROOT/infra"
     cp -R "$REPO_ROOT/infra/migrations" "$LOCAL_DEV_TEST_REPO_ROOT/infra/"
+    mkdir -p "$tmp_dir/bin"
+    make_command_path_without "$tmp_dir/system-bin" psql docker
+    LOCAL_DEV_TEST_PATH="$tmp_dir/bin:$tmp_dir/system-bin"
 }
 
 restore_local_dev_repo_state() {
     LOCAL_DEV_PROBE_SCRIPT=""
     LOCAL_DEV_TEST_REPO_ROOT=""
+    LOCAL_DEV_TEST_PATH=""
 }
 
 run_local_dev_migrate() {
+    PATH="${LOCAL_DEV_TEST_PATH:-$PATH}" \
     FJCLOUD_REPO_ROOT="$LOCAL_DEV_TEST_REPO_ROOT" \
         bash "$REPO_ROOT/scripts/local-dev-migrate.sh"
 }

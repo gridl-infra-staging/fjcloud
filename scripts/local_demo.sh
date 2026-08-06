@@ -12,6 +12,10 @@ source "$SCRIPT_DIR/lib/env.sh"
 source "$SCRIPT_DIR/lib/health.sh"
 # shellcheck source=lib/docker.sh
 source "$SCRIPT_DIR/lib/docker.sh"
+# shellcheck source=lib/db_url.sh
+source "$SCRIPT_DIR/lib/db_url.sh"
+# shellcheck source=lib/playwright_port_plan.sh
+source "$SCRIPT_DIR/lib/playwright_port_plan.sh"
 
 PID_DIR="$REPO_ROOT/.local"
 ENV_FILE="$REPO_ROOT/.env.local"
@@ -116,6 +120,8 @@ run_demo_stack() {
 
     ensure_demo_env
     load_env_file "$ENV_FILE"
+    playwright_apply_manual_stack_port_defaults "$SCRIPT_DIR/.." "$REPO_ROOT" \
+        || { log "failed to derive local stack port defaults"; exit 1; }
 
     # Ports are env-overridable so a second worktree can run a parallel
     # demo stack without colliding:

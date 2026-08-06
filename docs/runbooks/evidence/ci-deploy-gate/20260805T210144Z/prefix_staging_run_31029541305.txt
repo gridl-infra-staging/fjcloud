@@ -1,0 +1,32 @@
+PRE-FIX STAGING-MIRROR RUN 31029541305 (read-only via gh, 2026-08-05T21:06:03Z)
+repo=gridl-infra-staging/fjcloud
+displayTitle=chore: debbie post-sync mirror update
+headSha=535b92832ae91b7a0dbd5591024b843c034ad7d8
+conclusion=failure
+createdAt=2026-08-05T17:20:14Z
+
+JOB CONCLUSIONS:
+failure	rust-test
+success	rust-lint
+success	migration-test
+success	check-sizes
+success	secret-scan
+failure	web-test
+success	shell-hygiene
+success	web-lint
+failure	local-dev-up-smoke
+skipped	deploy-prod
+skipped	deploy-staging
+skipped	e2e-deployed
+
+FAILING STEPS:
+rust-test :: step#10 Run rust tests
+web-test :: step#4 Run web tests
+local-dev-up-smoke :: step#10 Run full local demo stack
+
+RUST-TEST FAILURE SIGNATURE (exit 101, seeded-source panic):
+2026-08-05T17:28:34.8491037Z test migration_routes_test::verify::verify_seeded_local_source_red_proof ... FAILED
+2026-08-05T17:28:51.3519089Z thread 'migration_routes_test::verify::verify_seeded_local_source_red_proof' (10864) panicked at api/tests/integration/migration_routes_test/verify_support.rs:240:10:
+2026-08-05T17:28:51.3520406Z FJCLOUD_ALGOLIA_SOURCE_BASE_URL must point at lane-local Flapjack: NotPresent
+2026-08-05T17:28:51.3521714Z test result: FAILED. 1678 passed; 1 failed; 14 ignored; 0 measured; 0 filtered out; finished in 113.24s
+2026-08-05T17:28:51.3623760Z ##[error]Process completed with exit code 101.

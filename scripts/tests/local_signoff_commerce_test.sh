@@ -126,7 +126,8 @@ done
 echo '{"status":"ok"}'
 exit 0
 MOCK
-    sed -i '' "s|__CALL_LOG__|$call_log|g" "$path"
+    sed "s|__CALL_LOG__|$call_log|g" "$path" >"$path.tmp"
+    mv "$path.tmp" "$path"
     chmod +x "$path"
 }
 
@@ -143,7 +144,8 @@ for arg in "$@"; do
 done
 exit 1
 MOCK
-    sed -i '' "s|__CALL_LOG__|$call_log|g" "$path"
+    sed "s|__CALL_LOG__|$call_log|g" "$path" >"$path.tmp"
+    mv "$path.tmp" "$path"
     chmod +x "$path"
 }
 
@@ -387,7 +389,8 @@ esac
 echo "mock-curl: unhandled url: $url" >&2
 exit 1
 MOCK
-    sed -i '' "s|__CALL_LOG__|$call_log|g" "$path"
+    sed "s|__CALL_LOG__|$call_log|g" "$path" >"$path.tmp"
+    mv "$path.tmp" "$path"
     chmod +x "$path"
 }
 

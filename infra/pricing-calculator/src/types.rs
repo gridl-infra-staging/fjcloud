@@ -21,7 +21,7 @@ pub struct WorkloadProfile {
     pub write_operations_per_month: i64,
     /// Number of sort directions (0–10). Algolia standard replicas multiply record count.
     pub sort_directions: u8,
-    /// Number of indexes (reserved — no current calculator uses this).
+    /// Number of indexes. Flapjack Cloud uses this for Free-plan eligibility.
     pub num_indexes: i64,
     /// Whether high-availability (multi-node) deployment is required.
     pub high_availability: bool,
@@ -66,10 +66,16 @@ const MAX_STORAGE_INPUT_PRODUCT_BYTES: i128 = 600_213_352_380_790_436_249_651_63
 // bandwidth-based cent calculations inside `i64` across providers.
 const MAX_BANDWIDTH_INPUT_PRODUCT_BYTES: i128 = 30_744_573_456_182_586_023_333_333;
 
-/// Hours per month (365.25 days/year × 24 hours/day / 12 months ≈ 730.5,
+/// Default hours per month (365.25 days/year × 24 hours/day / 12 months ≈ 730.5,
 /// rounded to 730 — the industry-standard billing constant).
-/// Single source of truth — provider modules must use this for hourly→monthly
-/// conversions rather than declaring their own copy.
+///
+/// This is the fallback convention, not a universal rule: it applies to every
+/// provider that does not publish its own hourly→monthly conversion. A provider
+/// whose published monthly figures use a different divisor owns a documented
+/// module-local constant instead — see
+/// `providers::typesense_cloud::TYPESENSE_HOURS_PER_MONTH`, which is 720 because
+/// that is the number Typesense Cloud's own calculator quotes. Provider modules
+/// must never declare an undocumented duplicate of *this* 730-hour value.
 pub const HOURS_PER_MONTH: Decimal = dec!(730);
 
 impl WorkloadProfile {

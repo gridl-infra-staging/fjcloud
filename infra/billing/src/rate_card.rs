@@ -9,8 +9,27 @@ use uuid::Uuid;
 /// Pricing configuration used to compute customer invoices.
 ///
 /// A `RateCard` captures the per-unit rates for every billable dimension, optional per-region
-/// multipliers, and minimum spend floors. Multiple cards can coexist in the database; the active
-/// card is selected by matching `effective_from` / `effective_until` against the billing period.
+/// multipliers, and minimum spend floors.
+///
+/// # Card selection is NOT period-aware
+///
+/// Multiple cards can coexist in the database, but `RateCardRepo::get_active()` takes no billing
+/// period — it runs `WHERE effective_until IS NULL ORDER BY effective_from DESC LIMIT 1`, i.e. the
+/// newest open card at *execution* time. `invoicing::compute_invoice_for_customer` uses that path,
+/// and the `invoices` table has no `rate_card_id` column, so an invoice does not record which card
+/// priced it.
+///
+/// Consequences, which matter the moment a second card exists:
+/// - Recomputing a past period prices it at today's rates, not the rates in force then.
+/// - `invoicing::compute_invoice_for_customer_with_rate_card_id` (the replay/audit seam) cannot be
+///   used in production, because nothing persists the id it needs. It currently has test callers
+///   only.
+///
+/// Until `invoices.rate_card_id` exists, historical reproducibility rests entirely on the operating
+/// rule in `docs/design/pricing_contract.md`: never `UPDATE` a rate card that has already priced an
+/// invoice — supersede it by closing `effective_until` and `INSERT`ing a new row. Every pricing
+/// migration to date (016, 019, 031, 036, 042, 049) mutates the `launch-2026` row in place, which is
+/// safe only while no invoices have been issued against it.
 ///
 /// Pricing model summary:
 /// - Hot storage: flat `storage_rate_per_mb_month` USD per MB-month (currently $0.05).

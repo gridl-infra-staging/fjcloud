@@ -39,6 +39,8 @@ source "$SCRIPT_DIR/lib/assertions.sh"
 
 # shellcheck source=lib/integration_up_mocks.sh
 source "$SCRIPT_DIR/lib/integration_up_mocks.sh"
+# shellcheck source=lib/test_helpers.sh
+source "$SCRIPT_DIR/lib/test_helpers.sh"
 
 INTEGRATION_UP_TEST_REPO_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/integration-up-repo.XXXXXX")"
 export FJCLOUD_TEST_REPO_ROOT="$INTEGRATION_UP_TEST_REPO_ROOT"
@@ -145,9 +147,12 @@ MOCK
 
 test_prerequisite_detection_fails_on_missing_psql() {
     # integration-up.sh should fail with a clear message when psql is missing
-    local output exit_code=0
+    local tmp_dir output exit_code=0
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+    make_command_path_without "$tmp_dir" psql docker
     output=$(
-        PATH="/usr/bin:/bin" \
+        PATH="$tmp_dir" \
         FLAPJACK_DEV_DIR="/nonexistent" \
         bash "$REPO_ROOT/scripts/integration-up.sh" 2>&1
     ) || exit_code=$?
@@ -407,10 +412,11 @@ test_up_missing_psql_emits_reason_code() {
     write_mock_script "$tmp_dir/whoami" 'echo "tester"'
     write_mock_script "$tmp_dir/cargo" 'exit 0'
     write_mock_script "$tmp_dir/curl" 'exit 0'
+    make_command_path_without "$tmp_dir" psql docker
 
     local output exit_code=0
     output=$(
-        PATH="$tmp_dir:/usr/bin:/bin" \
+        PATH="$tmp_dir" \
         FLAPJACK_DEV_DIR="/nonexistent" \
         bash "$REPO_ROOT/scripts/integration-up.sh" 2>&1
     ) || exit_code=$?
@@ -858,10 +864,11 @@ if [ "${1:-}" = "compose" ] && [ "${2:-}" = "ps" ]; then
 fi
 exit 1
 '
+    make_command_path_without "$tmp_dir" psql
 
     local output exit_code=0
     output=$(
-        PATH="$tmp_dir:/usr/bin:/bin" \
+        PATH="$tmp_dir" \
         DATABASE_URL= \
         INTEGRATION_DB="fjcloud_integration_test" \
         FLAPJACK_DEV_DIR="/nonexistent" \

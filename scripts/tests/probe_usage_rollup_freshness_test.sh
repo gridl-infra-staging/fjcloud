@@ -328,8 +328,14 @@ test_local_ci_registration_is_complete() {
     gate_body="$(sed -n '/^gate_usage_rollup_freshness_contract()/,/^}/p' "$local_ci")"
     assert_contains "$gate_body" 'scripts/tests/probe_usage_rollup_freshness_test.sh' \
         "usage-rollup gate runs the standalone classifier contract"
-    assert_contains "$gate_body" 'scripts/test_probe_live_state.sh' \
-        "usage-rollup gate runs the integrated live-state contract"
+    assert_eq \
+        "$(grep -Fc 'PROBE_TEST_CASE=usage_rollup_' <<<"$gate_body" || true)" \
+        "4" \
+        "usage-rollup gate runs all four hermetic live-state integration contracts"
+    assert_eq \
+        "$(grep -Fxc '    bash "$REPO_ROOT/scripts/test_probe_live_state.sh" || return $?' <<<"$gate_body" || true)" \
+        "0" \
+        "usage-rollup gate does not enter the credential-dependent default live-state mode"
 }
 
 test_known_answer_contract

@@ -25,8 +25,12 @@ describe('pricing constants', () => {
 			// 049_free_plan_zero_minimum_spend set this to 0 and the
 			// rust contract test `billing/tests/web_pricing_parity_test.rs`
 			// enforces parity between MARKETING_PRICING and the migrations.
+			//
+			// The paid floor was raised $5 → $15 by migration
+			// 072_raise_paid_plan_minimum_to_15; rationale in
+			// decisions/2026-08-05_pricing_strategy_decision.md.
 			expect(MARKETING_PRICING.minimum_spend_cents).toBe(0);
-			expect(MARKETING_PRICING.shared_minimum_spend_cents).toBe(500);
+			expect(MARKETING_PRICING.shared_minimum_spend_cents).toBe(1500);
 		});
 
 		it('has 250 MB free tier', () => {
@@ -119,7 +123,7 @@ describe('pricing constants', () => {
 					'us-west-1': '0.80'
 				},
 				minimum_spend_cents: 0,
-				shared_minimum_spend_cents: 500,
+				shared_minimum_spend_cents: 1500,
 				has_override: false,
 				override_fields: {}
 			};

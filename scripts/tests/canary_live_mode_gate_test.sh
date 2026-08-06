@@ -43,6 +43,10 @@ quiet_window_active() {
     return 1
 }
 
+precheck_canary_probe_env() {
+    return 0
+}
+
 dispatch_failure_alert() {
     :
 }

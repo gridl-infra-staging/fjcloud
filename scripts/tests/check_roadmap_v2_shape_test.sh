@@ -25,6 +25,7 @@ OVER_BOUND_ROW_BYTES=$((MAX_ROW_BYTES + 1))
 UTF8_ROW_CHARACTERS=2001
 UTF8_ROW_BYTES=$((UTF8_ROW_CHARACTERS * 2))
 BYTE_BUDGET_ROW_LINE=38
+RETIRED_IMPLEMENTED_PATH="roadmap/""implemented"
 
 source "$SCRIPT_DIR/lib/test_runner.sh"
 source "$SCRIPT_DIR/lib/assertions.sh"
@@ -113,6 +114,34 @@ run_check() {
     RUN_EXIT_CODE=0
     RUN_STDERR="$(FJCLOUD_DOC_ROOT="$doc_root" bash "$CHECK_SCRIPT" 2>&1 1>/dev/null)" || RUN_EXIT_CODE=$?
     RUN_STDOUT="$(FJCLOUD_DOC_ROOT="$doc_root" bash "$CHECK_SCRIPT" 2>/dev/null)" || true
+}
+
+live_doc_script_paths() {
+    local repo_root="$1"
+    git -C "$repo_root" ls-files --cached --others --exclude-standard -- '*.md' '*.sh' '*.toml' \
+        | sed -e '/^chatting\//d' -e '/^chats\//d'
+}
+
+legacy_implemented_path_matches() {
+    local repo_root="$1"
+    local retired_path="$2"
+    local relative_paths
+    local relative_path
+
+    if ! relative_paths="$(live_doc_script_paths "$repo_root")"; then
+        return 1
+    fi
+    if [ -z "$relative_paths" ]; then
+        return 0
+    fi
+
+    while IFS= read -r relative_path; do
+        local grep_exit_code=0
+        grep -nH "$retired_path" "$repo_root/$relative_path" || grep_exit_code=$?
+        if [ "$grep_exit_code" -gt 1 ]; then
+            return "$grep_exit_code"
+        fi
+    done <<< "$relative_paths"
 }
 
 # ============================================================
@@ -269,15 +298,90 @@ PY
 # Test 10 — Live docs/scripts do not reference the retired path.
 # ============================================================
 test_live_docs_and_scripts_avoid_legacy_implemented_path() {
-    local retired_path
-    retired_path="roadmap/""implemented"
-    if grep -rn "$retired_path" "$REPO_ROOT" \
-        --include='*.md' --include='*.sh' --include='*.toml' \
-        | grep -v '/.git/' | grep -v '/chatting/' | grep -v '/chats/'; then
+    local matches
+    if ! matches="$(legacy_implemented_path_matches "$REPO_ROOT" "$RETIRED_IMPLEMENTED_PATH")"; then
+        fail "live docs/scripts could not be enumerated from Git"
+        return
+    fi
+    if [ -n "$matches" ]; then
+        printf '%s\n' "$matches"
         fail "live docs/scripts should not reference the retired implemented path"
     else
         pass "live docs/scripts avoid the retired implemented path"
     fi
+}
+
+test_tracked_live_doc_legacy_reference_is_detected() {
+    local dir; dir="$(mktemp -d)"
+
+    git -C "$dir" init -q
+    printf 'live document mentions %s\n' "$RETIRED_IMPLEMENTED_PATH" > "$dir/tracked.md"
+    git -C "$dir" add tracked.md
+
+    local matches
+    if ! matches="$(legacy_implemented_path_matches "$dir" "$RETIRED_IMPLEMENTED_PATH")"; then
+        fail "tracked live-doc fixture could not be enumerated from Git"
+        return
+    fi
+    assert_contains "$matches" "tracked.md:1" "tracked live-doc legacy references should be detected"
+}
+
+test_untracked_live_doc_legacy_reference_is_detected() {
+    local dir; dir="$(mktemp -d)"
+
+    git -C "$dir" init -q
+    printf 'new live document mentions %s\n' "$RETIRED_IMPLEMENTED_PATH" > "$dir/untracked.md"
+
+    local matches
+    if ! matches="$(legacy_implemented_path_matches "$dir" "$RETIRED_IMPLEMENTED_PATH")"; then
+        fail "untracked live-doc fixture could not be enumerated from Git"
+        return
+    fi
+    assert_contains "$matches" "untracked.md:1" "non-ignored untracked live-doc legacy references should be detected"
+}
+
+test_ignored_local_dependency_docs_are_not_live_docs() {
+    local dir; dir="$(mktemp -d)"
+
+    git -C "$dir" init -q
+    printf '.local/\n' > "$dir/.gitignore"
+    printf 'tracked document is clean\n' > "$dir/tracked.md"
+    mkdir -p "$dir/.local/flapjack-v1.0.10"
+    printf 'ignored dependency mentions %s\n' "$RETIRED_IMPLEMENTED_PATH" > "$dir/.local/flapjack-v1.0.10/README.md"
+    git -C "$dir" add .gitignore tracked.md
+
+    local raw_matches
+    raw_matches="$(grep -rn "$RETIRED_IMPLEMENTED_PATH" "$dir" --include='*.md' | grep -v '/.git/' || true)"
+    assert_contains "$raw_matches" ".local/flapjack-v1.0.10/README.md" "fixture should fail under an unbounded repo grep"
+
+    local matches
+    matches="$(legacy_implemented_path_matches "$dir" "$RETIRED_IMPLEMENTED_PATH")"
+    assert_eq "$matches" "" "ignored .local dependency docs should not count as live fjcloud documentation"
+}
+
+test_live_doc_enumeration_failure_fails_closed() {
+    local dir; dir="$(mktemp -d)"
+    local command_exit_code=0
+
+    legacy_implemented_path_matches "$dir" "$RETIRED_IMPLEMENTED_PATH" >/dev/null 2>&1 \
+        || command_exit_code=$?
+
+    assert_ne "$command_exit_code" "0" "live-doc scan should fail when its root is not a Git repository"
+}
+
+test_tracked_live_doc_read_failure_fails_closed() {
+    local dir; dir="$(mktemp -d)"
+
+    git -C "$dir" init -q
+    printf 'tracked document\n' > "$dir/unreadable.md"
+    git -C "$dir" add unreadable.md
+    rm "$dir/unreadable.md"
+
+    local command_exit_code=0
+    legacy_implemented_path_matches "$dir" "$RETIRED_IMPLEMENTED_PATH" >/dev/null 2>&1 \
+        || command_exit_code=$?
+
+    assert_ne "$command_exit_code" "0" "live-doc scan should fail when a tracked document cannot be read"
 }
 
 # ============================================================
@@ -312,6 +416,11 @@ test_over_row_byte_budget_fails
 test_multibyte_row_over_byte_budget_fails
 test_legacy_archive_pointer_fails
 test_live_docs_and_scripts_avoid_legacy_implemented_path
+test_tracked_live_doc_legacy_reference_is_detected
+test_untracked_live_doc_legacy_reference_is_detected
+test_ignored_local_dependency_docs_are_not_live_docs
+test_live_doc_enumeration_failure_fails_closed
+test_tracked_live_doc_read_failure_fails_closed
 test_missing_file_fails
 test_repo_actual_state_passes
 

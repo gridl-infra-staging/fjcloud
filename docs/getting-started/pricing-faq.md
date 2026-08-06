@@ -15,7 +15,7 @@ These values are defined in `web/src/lib/pricing.ts` (`MARKETING_PRICING`) and e
 
 ## Is there a minimum spend?
 
-Yes. Once usage exceeds the free tier, a $10/month floor applies (`minimum_spend_cents: 1000` in `RateCard`). Paid-plan customers have a $5/month floor (`shared_minimum_spend_cents: 500`).
+Free-plan estimate and invoice computation has a $0 minimum-spend floor, including when usage exceeds 250 MB. Automated batch billing skips Free customers before invoice creation, so it creates no Free invoice. Shared-plan billing instead applies the effective rate card's `shared_minimum_spend_cents`; the active `launch-2026` migration base is 500 cents ($5/month), and a per-customer rate-card override can change that value before invoice computation.
 
 ## Are searches and writes billed?
 
@@ -31,6 +31,10 @@ Example: a region configured at 1.3x means storage in that region costs 30% more
 
 ## Source Evidence
 
-- Presentation contract and free tier: `web/src/lib/pricing.ts` (`MARKETING_PRICING`, `free_tier_mb: 250`, `minimum_spend_cents: 1000`).
-- Region multiplier and minimum spend: `infra/billing/src/rate_card.rs` (`RateCard::region_multiplier`, `minimum_spend_cents`, `shared_minimum_spend_cents`).
+- Presentation contract and free tier: `web/src/lib/pricing.ts` (`MARKETING_PRICING`, including `free_tier_mb: 250`, `minimum_spend_cents: 0`, and `shared_minimum_spend_cents: 500`).
+- Launch minimum migrations: `infra/migrations/042_align_launch_rate_card_marketing_contract.sql` establishes the 500-cent Shared base, and `infra/migrations/049_free_plan_zero_minimum_spend.sql` later sets the active `launch-2026` Free minimum to zero without changing that Shared value.
+- Plan-specific invoice floor: `infra/api/src/invoicing/line_items.rs` (`invoice_total_with_minimum()` selects zero for Free and the effective card's `shared_minimum_spend_cents` for Shared).
+- Shared override path: `infra/api/src/invoicing.rs` (`compute_invoice_for_customer_with_shared_inputs()` applies the customer override before converting the effective card) and `infra/api/src/models/rate_card.rs` (`RateCardRow::with_overrides()`).
+- Free batch skip: `infra/api/src/routes/admin/invoices.rs` (`run_batch_billing()` skips Free customers before invoice computation and creation).
+- Region multiplier: `infra/billing/src/rate_card.rs` (`RateCard::region_multiplier`).
 - Billing calculator: `infra/billing/src/pricing.rs` (`calculate_invoice`; searches and writes not billed).

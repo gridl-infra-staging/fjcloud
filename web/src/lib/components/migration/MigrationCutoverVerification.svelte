@@ -1,11 +1,8 @@
 <script lang="ts">
-	import type {
-		PublicAlgoliaImportJob,
-		VerifySourceMigrationResponse,
-		SourceProvider
-	} from '$lib/api/types';
+	import type { PublicAlgoliaImportJob, VerifySourceMigrationResponse } from '$lib/api/types';
 	import {
 		describeMigrationVerificationFailure,
+		describeUnsupportedCutoverVerification,
 		type MigrationVerificationFailurePresentation
 	} from './job_presentation';
 	import type {
@@ -43,22 +40,11 @@
 	const completedJob = $derived(
 		job.status === 'completed' || job.status === 'completed_with_warnings'
 	);
-	const providerLabel = $derived(providerDisplayName(job.sourceProvider));
+	const unsupportedStatement = $derived(describeUnsupportedCutoverVerification(job.sourceProvider));
 	const failure = $derived<MigrationVerificationFailurePresentation | null>(
 		describeMigrationVerificationFailure(job.sourceProvider, error)
 	);
 	const hasReport = $derived(report !== null);
-
-	function providerDisplayName(sourceProvider: SourceProvider): string {
-		switch (sourceProvider) {
-			case 'algolia':
-				return 'Algolia';
-			case 'meilisearch':
-				return 'Meilisearch';
-			case 'typesense':
-				return 'Typesense';
-		}
-	}
 
 	function parsedQueries(): string[] {
 		return queriesText
@@ -185,8 +171,8 @@
 				</button>
 			</form>
 		{:else}
-			<p class="text-sm text-flapjack-ink/70">
-				{providerLabel} verification is not supported yet for retained migration jobs.
+			<p data-testid="cutover-verification-unsupported" class="text-sm text-flapjack-ink/70">
+				{unsupportedStatement}
 			</p>
 		{/if}
 

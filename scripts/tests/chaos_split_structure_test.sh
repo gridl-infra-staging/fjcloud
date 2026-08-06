@@ -26,6 +26,7 @@ readonly CHAOS_TESTS_DIRMAP_PATH="scripts/tests/DIRMAP.md"
 readonly TEST_REACHABILITY_MANIFEST_PATH="scripts/lib/test_reachability_manifest.sh"
 readonly TEST_REACHABILITY_PROBE_TEST_PATH="scripts/tests/probe_test_reachability_test.sh"
 readonly TEST_WIRING_AUDIT_DIR="docs/audits/test-wiring"
+readonly RUNBOOK_EVIDENCE_DIR="docs/runbooks/evidence"
 readonly CHAOS_HELPERS_PATH="scripts/tests/lib/chaos_test_helpers.sh"
 readonly SHARED_TEST_HELPERS_PATH="scripts/tests/lib/test_helpers.sh"
 readonly PROJECT_OVERVIEW_PATH="PROJECT_OVERVIEW.md"
@@ -302,6 +303,13 @@ is_path_allowed_for_focused_suite_reference() {
     local rel_path="$1"
     local allowed_path
     if [[ "$rel_path" = "$TEST_WIRING_AUDIT_DIR/"* ]]; then
+        return 0
+    fi
+    # Immutable command transcripts are evidence of a suite invocation, not a
+    # second dispatch owner. Auditing their literal output as executable
+    # references makes the structural guard fail precisely when CI preserves a
+    # required failure transcript.
+    if [[ "$rel_path" = "$RUNBOOK_EVIDENCE_DIR/"* ]]; then
         return 0
     fi
     for allowed_path in "${CHAOS_FOCUSED_SUITE_REFERENCE_ALLOWLIST[@]}"; do

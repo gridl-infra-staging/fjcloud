@@ -165,6 +165,17 @@ test_version_comes_from_the_shared_constant() {
     rm -rf "$dest"
 }
 
+test_inherited_version_env_does_not_override_shared_constant() {
+    local dest
+    dest="$(mktemp -d)"
+    FJCLOUD_FLAPJACK_VERSION=9.9.9-bogus run_fetch --dest "$dest"
+    assert_contains "$LAST_CURL_LOG" "v1.0.10" \
+        "the canonical dependency version ignores inherited shell values"
+    assert_not_contains "$LAST_CURL_LOG" "v9.9.9-bogus" \
+        "the devbox download URL is not retargeted by an inherited version"
+    rm -rf "$dest"
+}
+
 test_downloads_the_linux_asset_not_the_host_arch() {
     # The devbox is x86_64 Linux while the operator's machine is arm64 darwin.
     # Naming the asset explicitly keeps a future "just use uname" refactor from
@@ -212,6 +223,7 @@ for t in \
     test_checksum_mismatch_refuses_to_install \
     test_happy_path_installs_where_the_resolver_looks \
     test_version_comes_from_the_shared_constant \
+    test_inherited_version_env_does_not_override_shared_constant \
     test_downloads_the_linux_asset_not_the_host_arch \
     test_checksum_is_actually_downloaded_and_checked \
     test_download_failure_refuses \

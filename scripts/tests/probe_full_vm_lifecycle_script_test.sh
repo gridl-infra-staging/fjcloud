@@ -214,7 +214,7 @@ run_source_probe_with_trace() {
 #!/usr/bin/env bash
 set -euo pipefail
 target_script="$1"
-PS4='TRACE:${BASH_SOURCE}:${LINENO}:${FUNCNAME[0]:-TOP}:${BASH_COMMAND}\n'
+PS4='TRACE:${BASH_SOURCE}:${LINENO}:${FUNCNAME[0]:-TOP}:'
 set -x
 source "$target_script"
 set +x
@@ -514,7 +514,8 @@ trace_shows_sourced_top_level_function_dispatch() {
                 continue
                 ;;
         esac
-        if [[ "$command" =~ ^[A-Za-z_][A-Za-z0-9_]*([[:space:]].*)?$ ]]; then
+        if [[ "$command" =~ ^[A-Za-z_][A-Za-z0-9_]*([[:space:]].*)?$ ]] \
+            && file_declares_function_name "$sourced_script_path" "$first_token"; then
             return 0
         fi
     done <<< "$trace_output"

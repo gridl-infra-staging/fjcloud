@@ -1280,7 +1280,7 @@ read_file_or_empty() {
 }
 
 path_mode() {
-    stat -f '%Lp' "$1"
+    stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"
 }
 
 assert_summary_and_step_files_exist() {

@@ -79,6 +79,9 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 source "$REPO_ROOT/scripts/lib/contract_secret_env.sh"
 source "$REPO_ROOT/scripts/lib/local_ci_fast_lock.sh"
+source "$REPO_ROOT/scripts/lib/env.sh"
+source "$REPO_ROOT/scripts/lib/db_url.sh"
+source "$REPO_ROOT/scripts/lib/playwright_port_plan.sh"
 
 MODE="fast"
 SINGLE_GATE=""
@@ -375,6 +378,11 @@ gate_mirror_sync_contract() {
     # prod promotion gate (see docs/runbooks/git_push_with_sync.md).
     bash "$REPO_ROOT/scripts/tests/git_push_with_sync_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/post_wave_a_sync_prod_test.sh" || return $?
+    # Anchored 2026-08-05: the two tests above pin the *wrapper's* behaviour,
+    # and a lane that calls `debbie sync` directly never touches the wrapper.
+    # This one pins the guard in .debbie/post-sync.sh, which is the only
+    # enforcement point every sync path passes through.
+    bash "$REPO_ROOT/scripts/tests/publish_guard_test.sh" || return $?
 }
 
 gate_deploy_currency_check_contract() {
@@ -926,7 +934,19 @@ gate_mirror_ci_currency_probe_contract() {
 
 gate_usage_rollup_freshness_contract() {
     bash "$REPO_ROOT/scripts/tests/probe_usage_rollup_freshness_test.sh" || return $?
-    bash "$REPO_ROOT/scripts/test_probe_live_state.sh" || return $?
+    # test_probe_live_state.sh defaults to a real live-state collection and
+    # therefore requires the dev repo's secret file. This is a contract gate,
+    # so invoke the four existing stubbed integration cases explicitly. The
+    # live collector remains owned by scripts/probe_live_state.sh and is run
+    # only when live-state evidence is intentionally being refreshed.
+    PROBE_TEST_CASE=usage_rollup_mapping_contract \
+        bash "$REPO_ROOT/scripts/test_probe_live_state.sh" || return $?
+    PROBE_TEST_CASE=usage_rollup_collection_contract \
+        bash "$REPO_ROOT/scripts/test_probe_live_state.sh" || return $?
+    PROBE_TEST_CASE=usage_rollup_failure_contract \
+        bash "$REPO_ROOT/scripts/test_probe_live_state.sh" || return $?
+    PROBE_TEST_CASE=usage_rollup_missing_creds_contract \
+        bash "$REPO_ROOT/scripts/test_probe_live_state.sh" || return $?
 }
 
 gate_claim_freshness_contract() {
@@ -1092,16 +1112,6 @@ reachability_result_stem() {
     printf '%s' "$1" | tr '/' '_'
 }
 
-reachability_manifest_contains() {
-    local candidate="$1" registered
-    for registered in "${TEST_REACHABILITY_HERMETIC_TESTS[@]}"; do
-        if [ "$registered" = "$candidate" ]; then
-            return 0
-        fi
-    done
-    return 1
-}
-
 write_reachability_timing_row() {
     local results_dir="$1" result_stem="$2" elapsed="$3" test_path="$4" rc="$5"
     local tmp_path
@@ -1161,7 +1171,24 @@ run_reachability_suite() {
         fi
         exit 143
     ' TERM INT HUP
-    bash "$REPO_ROOT/$test_path" >"$results_dir/$result_stem.log" 2>&1 &
+    # These suites are classified as hermetic, so do not let a caller's live
+    # database, credentials, service URLs, or feature flags override their
+    # fixtures. Keep only the process environment needed to execute portable
+    # shell tests. Stdin is also closed: the serial-tail loop is fed by a
+    # heredoc, and a child that reads stdin must not consume later registry
+    # rows and silently prevent those suites from running.
+    env -i \
+        PATH="$PATH" \
+        HOME="${HOME:-}" \
+        TMPDIR="${TMPDIR:-/tmp}" \
+        USER="${USER:-}" \
+        LOGNAME="${LOGNAME:-${USER:-}}" \
+        SHELL="${SHELL:-/bin/bash}" \
+        TERM="${TERM:-}" \
+        LANG="${LANG:-C}" \
+        LC_ALL="${LC_ALL:-}" \
+        /bin/bash "$REPO_ROOT/$test_path" \
+        </dev/null >"$results_dir/$result_stem.log" 2>&1 &
     suite_pid="$!"
     (
         sleep "$timeout_seconds"
@@ -1286,7 +1313,7 @@ gate_test_reachability_contract() {
     # avoiding fixed max_jobs-wide batches, whose wait-for-the-slowest barriers
     # leave most slots idle during long probe suites.
     for test_path in "${TEST_REACHABILITY_HERMETIC_TESTS[@]}"; do
-        if grep -Fxq "$test_path" <<<"$serial_list"; then
+        if printf '%s\n' "$serial_list" | grep -Fxq "$test_path"; then
             continue
         fi
         throttle_parallel "$max_jobs"
@@ -1299,7 +1326,7 @@ gate_test_reachability_contract() {
     # defect this whole gate exists to prevent.
     while IFS= read -r test_path; do
         [ -n "$test_path" ] || continue
-        if ! reachability_manifest_contains "$test_path"; then
+        if ! printf '%s\n' "${TEST_REACHABILITY_HERMETIC_TESTS[@]}" | grep -Fxq "$test_path"; then
             echo "reachability gate: serial registry names a test not in the hermetic manifest: $test_path" >&2
             return 1
         fi
@@ -1385,8 +1412,56 @@ gate_rust_test() {
     # pitfall already handled in gate_web_lint/gate_web_test. Pinned by
     # scripts/tests/local_ci_gate_set_e_test.sh.
     bash "$REPO_ROOT/scripts/reliability/seed-test-profiles.sh" || return $?
-    cd "$REPO_ROOT/infra" || return $?
-    cargo test --workspace || return $?
+
+    # CI gives this job a real local Flapjack and a local Postgres service.
+    # Keep the local mirror gate self-contained while deriving the Flapjack port
+    # from this checkout so parallel merge-worktree lanes do not collide.
+    source "$REPO_ROOT/scripts/lib/env.sh"
+    source "$REPO_ROOT/scripts/lib/flapjack_binary.sh"
+    playwright_apply_manual_stack_port_defaults "$REPO_ROOT" "$REPO_ROOT" || return $?
+    local flapjack_bin flapjack_data_dir flapjack_log flapjack_pid rust_test_rc
+    FLAPJACK_DEV_DIR="${FLAPJACK_DEV_DIR:-$REPO_ROOT/.flapjack}"
+    FLAPJACK_ADMIN_KEY="${FLAPJACK_ADMIN_KEY:-$DEFAULT_LOCAL_FLAPJACK_ADMIN_KEY}"
+    FJCLOUD_ALGOLIA_SOURCE_BASE_URL="http://127.0.0.1:${FLAPJACK_PORT}"
+    export FLAPJACK_DEV_DIR FLAPJACK_ADMIN_KEY FJCLOUD_ALGOLIA_SOURCE_BASE_URL
+
+    flapjack_bin="$(find_restart_ready_flapjack_binary "${FLAPJACK_DEV_DIR:-}")" || return $?
+    mkdir -p "$REPO_ROOT/.local" || return $?
+    flapjack_data_dir="$(mktemp -d "$REPO_ROOT/.local/flapjack-rust-test-data.XXXXXX")" || return $?
+    flapjack_log="$REPO_ROOT/.local/flapjack-rust-test.log"
+    FLAPJACK_ADMIN_KEY="$FLAPJACK_ADMIN_KEY" \
+        "$flapjack_bin" --port "$FLAPJACK_PORT" --data-dir "$flapjack_data_dir" \
+        > "$flapjack_log" 2>&1 &
+    flapjack_pid="$!"
+
+    local flapjack_ready=0
+    for _ in {1..30}; do
+        if ! kill -0 "$flapjack_pid" 2>/dev/null; then
+            break
+        fi
+        if curl -fsS "${FJCLOUD_ALGOLIA_SOURCE_BASE_URL}/health" >/dev/null; then
+            flapjack_ready=1
+            break
+        fi
+        sleep 1
+    done
+    if [ "$flapjack_ready" -ne 1 ]; then
+        echo "Flapjack failed to become healthy; complete startup log follows:" >&2
+        cat "$flapjack_log" >&2
+        kill "$flapjack_pid" 2>/dev/null || true
+        wait "$flapjack_pid" 2>/dev/null || true
+        return 1
+    fi
+
+    rust_test_rc=0
+    cd "$REPO_ROOT/infra" || rust_test_rc=$?
+    if [ "$rust_test_rc" -eq 0 ]; then
+        DATABASE_URL="${DATABASE_URL:-postgres://fjcloud:password@127.0.0.1:5432/fjcloud_test}" \
+            cargo test --workspace || rust_test_rc=$?
+    fi
+    kill "$flapjack_pid" 2>/dev/null || true
+    wait "$flapjack_pid" 2>/dev/null || true
+    return "$rust_test_rc"
     # tenant_isolation_proptest moved out of CI rust-test to nightly.yml on
     # 2026-05-02 (defensive regression check, not a deploy gate). To keep
     # local-ci a faithful mirror of CI's deploy-staging needs[], we drop it

@@ -31,6 +31,41 @@ restore_repo_state() {
     LOCAL_DEMO_LOCAL_BACKUP=""
 }
 
+setup_local_demo_launch_mocks() {
+    local tmp_dir="$1"
+    local mock_bin="$tmp_dir/bin"
+
+    mkdir -p "$mock_bin"
+    cat > "$mock_bin/bash" <<'EOF'
+#!/bin/bash
+case "${1##*/}" in
+    local-dev-up.sh|web-dev.sh|seed_local.sh|dev_state_audit.sh|start-metering.sh)
+        exit 0
+        ;;
+esac
+exec /bin/bash "$@"
+EOF
+    cat > "$mock_bin/docker" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+    cat > "$mock_bin/lsof" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+    cat > "$mock_bin/curl" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+    cat > "$mock_bin/env" <<'EOF'
+#!/usr/bin/env bash
+printf 'DATABASE_URL=%s\nLOCAL_DB_PORT=%s\n' \
+    "${DATABASE_URL:-}" "${LOCAL_DB_PORT:-}" > "$LOCAL_DEMO_API_ENV_CAPTURE"
+    exit 0
+EOF
+    chmod +x "$mock_bin/bash" "$mock_bin/docker" "$mock_bin/lsof" "$mock_bin/curl" "$mock_bin/env"
+}
+
 test_prepare_env_honors_supplied_repo_root_without_mutating_checkout_root() {
     local tmp_dir fixture_root
     tmp_dir=$(mktemp -d)
@@ -195,6 +230,45 @@ test_api_start_exports_checked_ports_to_runtime() {
         "local demo should make the checked S3 sidecar port the runtime S3_LISTEN_ADDR"
 }
 
+test_api_start_inherits_rewritten_local_stack_database_url() {
+    local tmp_dir fixture_root api_env_capture captured_api_env launch_output
+    local capture_wait=0 launch_status=0
+    tmp_dir="$(mktemp -d)"
+    fixture_root="$(create_local_dev_fixture_repo_root \
+        "$tmp_dir" \
+        "postgres://local-test:local-pass@127.0.0.1:5432/local_demo_test")"
+    api_env_capture="$tmp_dir/api_env.txt"
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+    setup_local_demo_launch_mocks "$tmp_dir"
+
+    launch_output="$(env -u DATABASE_URL \
+        PATH="$tmp_dir/bin:/usr/bin:/bin" \
+        FJCLOUD_REPO_ROOT="$fixture_root" \
+        LOCAL_DB_PORT=15432 \
+        LOCAL_DEMO_API_ENV_CAPTURE="$api_env_capture" \
+        bash "$REPO_ROOT/scripts/local_demo.sh" 2>&1)" || launch_status=$?
+
+    if [ "$launch_status" -eq 0 ]; then
+        pass "local demo launch harness should reach API startup"
+    else
+        fail "local demo launch harness should reach API startup (output: $launch_output)"
+    fi
+    while [ ! -f "$api_env_capture" ] && [ "$capture_wait" -lt 50 ]; do
+        /bin/sleep 0.02
+        capture_wait=$((capture_wait + 1))
+    done
+    assert_file_exists "$api_env_capture" \
+        "local demo should invoke api-dev.sh through the launch path"
+    if [ -f "$api_env_capture" ]; then
+        captured_api_env="$(cat "$api_env_capture")"
+        assert_contains "$captured_api_env" \
+            "DATABASE_URL=postgres://local-test:local-pass@127.0.0.1:15432/local_demo_test" \
+            "api-dev should receive DATABASE_URL rewritten to the local stack database port"
+        assert_contains "$captured_api_env" "LOCAL_DB_PORT=15432" \
+            "api-dev should receive the same local stack database port"
+    fi
+}
+
 test_dev_state_audit_runs_after_seed_before_metering() {
     local script_text seed_line audit_line metering_line audit_count
     script_text="$(cat "$REPO_ROOT/scripts/local_demo.sh")"
@@ -241,6 +315,7 @@ test_web_start_contract_uses_strict_exact_port
 test_ports_are_env_overridable
 test_api_port_is_preflighted_before_start
 test_api_start_exports_checked_ports_to_runtime
+test_api_start_inherits_rewritten_local_stack_database_url
 test_dev_state_audit_runs_after_seed_before_metering
 test_help_mentions_one_command
 test_unknown_argument_exits_two

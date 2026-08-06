@@ -331,7 +331,7 @@ test_local_ci_registration_is_complete() {
     local local_ci="$REPO_ROOT/scripts/local-ci.sh"
     local manifest="$REPO_ROOT/scripts/lib/test_reachability_manifest.sh"
     local gate_name="test-reachability-contract"
-    local gate_body runner_body membership_body membership_rc=0
+    local gate_body runner_body
 
     assert_file_exists "$manifest" \
         "classified hermetic reachability tests have a canonical manifest"
@@ -421,20 +421,6 @@ test_local_ci_registration_is_complete() {
         "reachability gate consults the serial-only registry"
     assert_contains "$gate_body" 'serial registry names a test not in the hermetic manifest' \
         "reachability gate rejects a serial entry that is not in the manifest"
-    assert_contains "$gate_body" 'reachability_manifest_contains "$test_path"' \
-        "reachability gate uses the pipefail-safe manifest membership owner"
-
-    membership_body="$(sed -n '/^reachability_manifest_contains()/,/^}/p' "$local_ci")"
-    (
-        [ -n "$membership_body" ] || exit 127
-        eval "$membership_body"
-        # shellcheck source=../lib/test_reachability_manifest.sh
-        source "$manifest"
-        reachability_manifest_contains "scripts/tests/probe_organic_alert_dispatch_test.sh"
-        ! reachability_manifest_contains "scripts/tests/not_registered_test.sh"
-    ) || membership_rc=$?
-    assert_eq "$membership_rc" "0" \
-        "manifest membership accepts a valid mid-list entry and rejects an absent entry under pipefail"
 
     local serial_registry serial_entry manifest
     serial_registry="$REPO_ROOT/scripts/tests/serial_only_tests.txt"

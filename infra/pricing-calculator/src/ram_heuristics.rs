@@ -58,11 +58,11 @@ const MEILISEARCH_RAM_MULTIPLIER: Decimal = dec!(2.5);
 /// See also: <https://docs.aws.amazon.com/opensearch-service/latest/developerguide/bp-instances.html>
 const ELASTICSEARCH_RAM_MULTIPLIER: Decimal = dec!(0.5);
 
-/// Minimum RAM for Elasticsearch/OpenSearch: 4.0 GiB.
+/// Minimum RAM heuristic floor for Elasticsearch/OpenSearch: 4.0 GiB.
 ///
-/// The JVM needs a baseline heap to function properly for search operations.
-/// Below 4 GiB, garbage collection pauses and query processing bottlenecks
-/// degrade performance significantly.
+/// This is not source-backed by the AWS `bp-instances.html` guidance or
+/// Elastic's JVM settings page; it remains a conservative baseline for JVM heap
+/// and Lucene cache headroom on small search workloads.
 const ELASTICSEARCH_MIN_RAM_GIB: Decimal = dec!(4.0);
 
 // ============================================================================
@@ -110,13 +110,37 @@ pub struct TierSelection<'a, T> {
 /// is empty (precondition: all Stage 2 tier arrays are compile-time
 /// non-empty with test coverage).
 ///
-/// `tiers` must be sorted ascending by RAM (enforced by Stage 2 tests).
-/// `ram_accessor` extracts the `ram_gib: u16` field from the tier struct.
+/// `ram_accessor` returns a tier's RAM size in GiB. It yields `Decimal` rather
+/// than an integer because providers publish sub-GiB sizes — Typesense Cloud
+/// sells a 0.5 GB entry tier.
 pub fn pick_tier<T>(
     ram_needed_gib: Decimal,
     tiers: &[T],
-    ram_accessor: impl Fn(&T) -> u16,
+    ram_accessor: impl Fn(&T) -> Decimal,
 ) -> TierSelection<'_, T> {
+    pick_fitting_tier_by(ram_needed_gib, tiers, &ram_accessor, &ram_accessor)
+}
+
+/// Selects the least-expensive tier with enough RAM.
+///
+/// This differs from [`pick_tier`] only when a provider's published prices are
+/// non-monotonic by RAM. If no tier fits, both functions cap at the tier with
+/// the most RAM.
+pub fn pick_cheapest_fitting_tier<T>(
+    ram_needed_gib: Decimal,
+    tiers: &[T],
+    ram_accessor: impl Fn(&T) -> Decimal,
+    price_accessor: impl Fn(&T) -> Decimal,
+) -> TierSelection<'_, T> {
+    pick_fitting_tier_by(ram_needed_gib, tiers, &ram_accessor, &price_accessor)
+}
+
+fn pick_fitting_tier_by<'a, T>(
+    ram_needed_gib: Decimal,
+    tiers: &'a [T],
+    ram_accessor: &impl Fn(&T) -> Decimal,
+    ranking_accessor: &impl Fn(&T) -> Decimal,
+) -> TierSelection<'a, T> {
     assert!(
         ram_needed_gib >= Decimal::ZERO,
         "pick_tier requires non-negative RAM"
@@ -127,18 +151,23 @@ pub fn pick_tier<T>(
         "pick_tier requires a non-empty tier slice"
     );
 
-    for tier in tiers {
-        if Decimal::from(ram_accessor(tier)) >= ram_needed_gib {
-            return TierSelection {
-                tier,
-                capped: false,
-            };
-        }
+    if let Some(tier) = tiers
+        .iter()
+        .filter(|tier| ram_accessor(tier) >= ram_needed_gib)
+        .min_by_key(|tier| ranking_accessor(tier))
+    {
+        return TierSelection {
+            tier,
+            capped: false,
+        };
     }
 
-    // No tier is large enough — return the largest with capped flag.
+    // No tier is large enough — return the largest by capacity with capped flag.
     TierSelection {
-        tier: tiers.last().expect("non-empty checked above"),
+        tier: tiers
+            .iter()
+            .max_by_key(|tier| ram_accessor(tier))
+            .expect("non-empty checked above"),
         capped: true,
     }
 }
@@ -191,6 +220,7 @@ mod tests {
     use crate::providers::{
         aws_opensearch, elastic_cloud, meilisearch_resource_based, typesense_cloud,
     };
+    use crate::test_support::doc_comment_immediately_before;
     use crate::types::WorkloadProfile;
     use rust_decimal_macros::dec;
 
@@ -300,7 +330,7 @@ mod tests {
     #[test]
     fn pick_tier_exact_fit() {
         let tiers = fake_tiers();
-        let sel = pick_tier(dec!(8), &tiers, |t| t.ram_gib);
+        let sel = pick_tier(dec!(8), &tiers, |t| Decimal::from(t.ram_gib));
         assert_eq!(sel.tier.ram_gib, 8);
         assert!(!sel.capped);
     }
@@ -308,7 +338,7 @@ mod tests {
     #[test]
     fn pick_tier_between_tiers() {
         let tiers = fake_tiers();
-        let sel = pick_tier(dec!(9), &tiers, |t| t.ram_gib);
+        let sel = pick_tier(dec!(9), &tiers, |t| Decimal::from(t.ram_gib));
         assert_eq!(sel.tier.ram_gib, 16);
         assert!(!sel.capped);
     }
@@ -316,7 +346,7 @@ mod tests {
     #[test]
     fn pick_tier_fractional_requirement() {
         let tiers = fake_tiers();
-        let sel = pick_tier(dec!(7.5), &tiers, |t| t.ram_gib);
+        let sel = pick_tier(dec!(7.5), &tiers, |t| Decimal::from(t.ram_gib));
         assert_eq!(sel.tier.ram_gib, 8);
         assert!(!sel.capped);
     }
@@ -324,7 +354,7 @@ mod tests {
     #[test]
     fn pick_tier_exceeds_largest() {
         let tiers = fake_tiers();
-        let sel = pick_tier(dec!(64), &tiers, |t| t.ram_gib);
+        let sel = pick_tier(dec!(64), &tiers, |t| Decimal::from(t.ram_gib));
         assert_eq!(sel.tier.ram_gib, 32);
         assert!(sel.capped);
     }
@@ -332,46 +362,83 @@ mod tests {
     #[test]
     fn pick_tier_selects_smallest_fitting() {
         let tiers = fake_tiers();
-        let sel = pick_tier(dec!(1), &tiers, |t| t.ram_gib);
+        let sel = pick_tier(dec!(1), &tiers, |t| Decimal::from(t.ram_gib));
         assert_eq!(sel.tier.ram_gib, 4);
         assert!(!sel.capped);
+    }
+
+    #[test]
+    fn pick_cheapest_fitting_tier_skips_a_costlier_smaller_tier() {
+        #[derive(Debug)]
+        struct PricedTier {
+            ram_gib: u16,
+            hourly_cents: Decimal,
+        }
+
+        let tiers = vec![
+            PricedTier {
+                ram_gib: 8,
+                hourly_cents: dec!(100),
+            },
+            PricedTier {
+                ram_gib: 16,
+                hourly_cents: dec!(75),
+            },
+            PricedTier {
+                ram_gib: 32,
+                hourly_cents: dec!(150),
+            },
+        ];
+
+        let selection = pick_cheapest_fitting_tier(
+            dec!(7),
+            &tiers,
+            |tier| Decimal::from(tier.ram_gib),
+            |tier| tier.hourly_cents,
+        );
+
+        assert_eq!(selection.tier.ram_gib, 16);
+        assert_eq!(selection.tier.hourly_cents, dec!(75));
+        assert!(!selection.capped);
     }
 
     #[test]
     #[should_panic(expected = "non-empty")]
     fn pick_tier_panics_on_empty_slice() {
         let empty: Vec<FakeTier> = vec![];
-        pick_tier(dec!(1), &empty, |t| t.ram_gib);
+        pick_tier(dec!(1), &empty, |t| Decimal::from(t.ram_gib));
     }
 
     #[test]
     #[should_panic(expected = "non-negative RAM")]
     fn pick_tier_panics_on_negative_ram_requirement() {
         let tiers = fake_tiers();
-        let _ = pick_tier(dec!(-1), &tiers, |t| t.ram_gib);
+        let _ = pick_tier(dec!(-1), &tiers, |t| Decimal::from(t.ram_gib));
     }
 
     /// Confirms generic tier picking works with real provider tier catalogs, not just synthetic fixtures, so production RAM selection stays valid.
     #[test]
     fn pick_tier_accepts_real_provider_tables() {
         let typesense = pick_tier(dec!(12), typesense_cloud::RAM_TIERS, |tier| tier.ram_gib);
-        assert_eq!(typesense.tier.ram_gib, 16);
+        assert_eq!(typesense.tier.ram_gib, dec!(16));
         assert!(!typesense.capped);
 
         let meilisearch = pick_tier(
             dec!(3.5),
             meilisearch_resource_based::INSTANCE_TIERS,
-            |tier| tier.ram_gib,
+            |tier| Decimal::from(tier.ram_gib),
         );
         assert_eq!(meilisearch.tier.name, "M");
         assert!(!meilisearch.capped);
 
-        let elastic = pick_tier(dec!(17), elastic_cloud::INSTANCE_TIERS, |tier| tier.ram_gib);
+        let elastic = pick_tier(dec!(17), elastic_cloud::INSTANCE_TIERS, |tier| {
+            Decimal::from(tier.ram_gib)
+        });
         assert_eq!(elastic.tier.storage_gib, 960);
         assert!(!elastic.capped);
 
         let opensearch = pick_tier(dec!(96), aws_opensearch::INSTANCE_TYPES, |tier| {
-            tier.ram_gib
+            Decimal::from(tier.ram_gib)
         });
         assert_eq!(opensearch.tier.name, "r6g.4xlarge.search");
         assert!(!opensearch.capped);
@@ -439,7 +506,7 @@ mod tests {
     #[test]
     fn pick_tier_zero_ram() {
         let tiers = fake_tiers();
-        let sel = pick_tier(Decimal::ZERO, &tiers, |t| t.ram_gib);
+        let sel = pick_tier(Decimal::ZERO, &tiers, |t| Decimal::from(t.ram_gib));
         assert_eq!(sel.tier.ram_gib, 4);
         assert!(!sel.capped);
     }
@@ -447,7 +514,7 @@ mod tests {
     #[test]
     fn pick_tier_single_element_fits() {
         let tiers = vec![FakeTier { ram_gib: 8 }];
-        let sel = pick_tier(dec!(4), &tiers, |t| t.ram_gib);
+        let sel = pick_tier(dec!(4), &tiers, |t| Decimal::from(t.ram_gib));
         assert_eq!(sel.tier.ram_gib, 8);
         assert!(!sel.capped);
     }
@@ -455,7 +522,7 @@ mod tests {
     #[test]
     fn pick_tier_single_element_capped() {
         let tiers = vec![FakeTier { ram_gib: 8 }];
-        let sel = pick_tier(dec!(16), &tiers, |t| t.ram_gib);
+        let sel = pick_tier(dec!(16), &tiers, |t| Decimal::from(t.ram_gib));
         assert_eq!(sel.tier.ram_gib, 8);
         assert!(sel.capped);
     }
@@ -488,7 +555,7 @@ mod tests {
         let w = workload(1_000_000, 5120);
         let ram = estimate_ram_gib(&w, SearchEngine::Typesense);
         let sel = pick_tier(ram, typesense_cloud::RAM_TIERS, |t| t.ram_gib);
-        assert_eq!(sel.tier.ram_gib, 16);
+        assert_eq!(sel.tier.ram_gib, dec!(16));
         assert!(!sel.capped);
     }
 
@@ -498,7 +565,9 @@ mod tests {
         let w = workload(100_000, 2048);
         let ram = estimate_ram_gib(&w, SearchEngine::Elasticsearch);
         assert_eq!(ram, dec!(4.0));
-        let sel = pick_tier(ram, elastic_cloud::INSTANCE_TIERS, |t| t.ram_gib);
+        let sel = pick_tier(ram, elastic_cloud::INSTANCE_TIERS, |t| {
+            Decimal::from(t.ram_gib)
+        });
         assert_eq!(sel.tier.ram_gib, 4);
         assert!(!sel.capped);
     }
@@ -533,5 +602,20 @@ mod tests {
                 engine
             );
         }
+    }
+
+    #[test]
+    fn elasticsearch_min_ram_comment_labels_heuristic_floor() {
+        let source = include_str!("ram_heuristics.rs");
+        let comment = doc_comment_immediately_before(
+            source,
+            "const ELASTICSEARCH_MIN_RAM_GIB: Decimal = dec!(4.0);",
+        )
+        .expect("source should contain Elasticsearch minimum RAM constant");
+
+        assert!(comment.contains("heuristic floor"));
+        assert!(comment.contains("not source-backed"));
+        assert!(comment.contains("bp-instances.html"));
+        assert!(comment.contains("JVM settings"));
     }
 }

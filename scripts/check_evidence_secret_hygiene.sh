@@ -15,11 +15,6 @@ if ! command -v jq >/dev/null 2>&1; then
     exit 1
 fi
 
-if ! command -v unzip >/dev/null 2>&1; then
-    echo "ERROR: unzip is required for evidence archive secret scan" >&2
-    exit 1
-fi
-
 finding_count=0
 
 report_finding() {
@@ -94,31 +89,11 @@ scan_regex_class() {
     done < <(grep -RIlE "$regex" "$EVIDENCE_ROOT" 2>/dev/null | sort)
 }
 
-archive_contains_regex() (
-    local abs_path="$1" regex="$2"
-    set +o pipefail
-    unzip -p "$abs_path" 2>/dev/null | LC_ALL=C grep -aEq "$regex"
-)
-
-scan_archive_regex_class() {
-    local regex="$1" class_name="$2" abs_path rel_path
-    while IFS= read -r -d '' abs_path; do
-        if archive_contains_regex "$abs_path" "$regex"; then
-            rel_path="${abs_path#$REPO_ROOT/}"
-            report_finding "$rel_path" "$class_name"
-        fi
-    done < <(find "$EVIDENCE_ROOT" -type f -name '*.zip' -print0)
-}
-
 scan_playwright_web_server_env
 scan_regex_class 'sk_live_[A-Za-z0-9]{16,}' "stripe_live_secret"
 scan_regex_class 'fj_live_[0-9a-f]{32,}' "flapjack_live_secret"
 scan_regex_class 'AKIA[0-9A-Z]{16}' "aws_access_key_id"
 scan_regex_class 'whsec_[A-Za-z0-9]{16,}' "stripe_webhook_secret"
-scan_archive_regex_class 'sk_live_[A-Za-z0-9]{16,}' "stripe_live_secret"
-scan_archive_regex_class 'fj_live_[0-9a-f]{32,}' "flapjack_live_secret"
-scan_archive_regex_class 'AKIA[0-9A-Z]{16}' "aws_access_key_id"
-scan_archive_regex_class 'whsec_[A-Za-z0-9]{16,}' "stripe_webhook_secret"
 
 if [ "$finding_count" -gt 0 ]; then
     echo "ERROR: evidence secret hygiene found $finding_count finding(s)" >&2

@@ -170,7 +170,8 @@ pub(crate) fn stale_providers_from_metadata(
         .collect()
 }
 
-/// Returns providers whose pricing metadata is older than `threshold_days`.
+/// Returns providers whose pricing metadata is older than `threshold_days` or
+/// has never been verified.
 ///
 /// Staleness is derived solely from `all_metadata()` and `last_verified`,
 /// preserving registry order in the resulting list.
@@ -179,7 +180,7 @@ pub fn stale_providers_as_of(as_of: NaiveDate, threshold_days: i64) -> Vec<Provi
     stale_providers_from_metadata(&metadata, as_of, threshold_days)
 }
 
-/// Returns providers whose pricing metadata is older than `threshold_days` as of the current UTC date.
+/// Returns providers whose pricing metadata is too old or unverified as of the current UTC date.
 pub fn stale_providers(threshold_days: i64) -> Vec<ProviderFreshnessIssue> {
     stale_providers_as_of(Utc::now().date_naive(), threshold_days)
 }
@@ -376,16 +377,12 @@ mod tests {
 
     const STAGE_2_UNVERIFIED_COMPETITOR_EVIDENCE: &[(ProviderId, &str)] = &[
         (
-            ProviderId::TypesenseCloud,
-            "20260729T170845Z evidence: pricing page returned HTTP 200 after redirect to calculator and confirms modeled RAM options plus 3-node HA, but the fetched public page did not expose modeled hourly tier prices",
-        ),
-        (
             ProviderId::ElasticCloud,
-            "20260729T170845Z evidence: hosted pricing page confirms only the $99/month 120 GB 2-zone Standard baseline, not the modeled scaled hosted tiers",
+            "docs/audits/pricing-verification/20260805T155326Z/: source gap: hosted pricing page confirms the $99/month 120 GB 2-zone Standard baseline but does not expose the modeled RAM-indexed tier ladder or the baseline RAM figure",
         ),
         (
             ProviderId::AwsOpenSearch,
-            "20260729T170845Z evidence: AWS page confirms gp3 examples and one r6g.xlarge example, but did not source-back every modeled instance rate and delegates outbound transfer to standard AWS transfer charges",
+            "docs/audits/pricing-verification/20260805T155326Z/: source gap: AWS offer files back every priced constant, but fetched sources do not back DEDICATED_MASTER_INSTANCE_NAME, the seven instance RAM values, or ELASTICSEARCH_MIN_RAM_GIB",
         ),
     ];
 
@@ -423,16 +420,16 @@ mod tests {
             "competitor verification guard must inspect at least one provider"
         );
         assert_eq!(provider_count, provider_registry().len() - 1);
+        let expected_unverified: Vec<ProviderId> = STAGE_2_UNVERIFIED_COMPETITOR_EVIDENCE
+            .iter()
+            .map(|(id, _)| *id)
+            .collect();
         assert_eq!(
             unverified
                 .iter()
                 .map(|provider| provider.id)
                 .collect::<Vec<_>>(),
-            vec![
-                ProviderId::TypesenseCloud,
-                ProviderId::ElasticCloud,
-                ProviderId::AwsOpenSearch,
-            ]
+            expected_unverified
         );
         for provider in unverified {
             assert!(
@@ -452,9 +449,68 @@ mod tests {
                 id
             );
             assert!(
-                reason.contains("20260729T170845Z"),
-                "Stage 2 evidence reason for {:?} must point to the Stage 2 evidence bundle",
+                reason.contains("docs/audits/pricing-verification/20260805T155326Z/"),
+                "Stage 2 evidence reason for {:?} must point to the current evidence bundle",
                 id
+            );
+            assert!(
+                reason.contains("source gap"),
+                "Stage 2 evidence reason for {:?} must name the current source gap",
+                id
+            );
+        }
+    }
+
+    #[test]
+    fn pricing_audit_runbook_names_current_competitor_evidence_owners() {
+        const PRICING_AUDIT_RUNBOOK: &str =
+            include_str!("../../../../docs/runbooks/pricing-audit.md");
+        const STALE_OWNER_NAMES: &[&str] = &[
+            "TEMPORARILY_UNVERIFIED_COMPETITORS",
+            "all_competitor_metadata_is_verified_or_explicitly_allowlisted()",
+            "temporary_competitor_allowlist_reasons_record_observed_stage_2_status()",
+        ];
+        const CURRENT_OWNER_NAMES: &[&str] = &[
+            "STAGE_2_UNVERIFIED_COMPETITOR_EVIDENCE",
+            "undated_third_party_metadata_is_reported_as_never_verified()",
+            "unverified_competitor_evidence_reasons_record_observed_stage_2_status()",
+        ];
+        const CURRENT_FRESHNESS_BEHAVIOR: &[&str] = &[
+            "dated providers older than 90 days",
+            "undated providers as `NeverVerified`",
+            "`ensure_pricing_freshness(90)` returns an error when either kind is present",
+        ];
+        const STALE_FRESHNESS_CLAIMS: &[&str] =
+            &["returns providers with explicit verification dates older than 90 days"];
+
+        let _current_owner_tests: [fn(); 2] = [
+            undated_third_party_metadata_is_reported_as_never_verified,
+            unverified_competitor_evidence_reasons_record_observed_stage_2_status,
+        ];
+        assert!(!STAGE_2_UNVERIFIED_COMPETITOR_EVIDENCE.is_empty());
+
+        for stale_owner_name in STALE_OWNER_NAMES {
+            assert!(
+                !PRICING_AUDIT_RUNBOOK.contains(stale_owner_name),
+                "pricing-audit runbook still names stale identifier `{stale_owner_name}`"
+            );
+        }
+        for stale_freshness_claim in STALE_FRESHNESS_CLAIMS {
+            assert!(
+                !PRICING_AUDIT_RUNBOOK.contains(stale_freshness_claim),
+                "pricing-audit runbook still states dated-only freshness behavior `{stale_freshness_claim}`"
+            );
+        }
+        for current_owner_name in CURRENT_OWNER_NAMES {
+            assert!(
+                PRICING_AUDIT_RUNBOOK.contains(current_owner_name),
+                "pricing-audit runbook must name current owner `{current_owner_name}`"
+            );
+        }
+        for current_behavior in CURRENT_FRESHNESS_BEHAVIOR {
+            assert!(
+                PRICING_AUDIT_RUNBOOK.contains(current_behavior),
+                "pricing-audit runbook must describe freshness behavior `{current_behavior}`"
             );
         }
     }

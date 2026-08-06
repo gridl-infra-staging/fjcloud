@@ -87,6 +87,17 @@ EXCLUDES=(
     --exclude=.env.local
     --exclude=playwright-report
     --exclude=.git/objects
+    # 5. DESTINATION-OWNED RUNTIME STATE — Playwright's setup projects write
+    #    storage state to web/tests/fixtures/.auth/ ON THE BOX. It is gitignored
+    #    (web/.gitignore:26) so it never exists here, which means --delete would
+    #    remove it from the box on every sync. A sync landing during a live run
+    #    therefore pulled the auth state out from under it: three consecutive
+    #    runs scored 201-243 instead of 334, all failing on
+    #    `ENOENT tests/fixtures/.auth/*.json` while every setup project still
+    #    reported passed. That reads as a product regression and is not one.
+    #    Excluding it is what protects it, since --delete spares excluded paths.
+    --exclude=.auth
+    --exclude=_local_ci_set_e_regression_fixture.*.rs
 )
 
 rsync_args=(-a --delete "${EXCLUDES[@]}" ${EXTRA_EXCLUDES+"${EXTRA_EXCLUDES[@]}"})

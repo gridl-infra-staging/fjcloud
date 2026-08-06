@@ -301,6 +301,30 @@ test_check_secret_scan_ignores_fj_inside_identifier_chain() {
         "filename-slug references should not trigger SECURITY_SECRET_FOUND"
 }
 
+test_check_secret_scan_ignores_fj_application_identifiers() {
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    cat > "$tmpdir/application-identifiers.txt" <<'EOF'
+fj_ts_migration_products
+fj_ts_migration_categories
+fj_stage5_probe_payload_XXXXXX
+fj_live_operator_emit_placeholder
+EOF
+
+    local output exit_code
+    output="$(BACKEND_LIVE_GATE=1 bash -c "
+        source '$REPO_ROOT/scripts/reliability/lib/security_checks.sh'
+        check_secret_scan '$tmpdir'
+    " 2>&1)" || exit_code=$?
+
+    rm -rf "$tmpdir"
+
+    assert_eq "${exit_code:-0}" "0" \
+        "check_secret_scan should ignore known fj_ application identifiers"
+    assert_contains "$output" "SECURITY_SECRET_CLEAN" \
+        "application identifiers should not trigger SECURITY_SECRET_FOUND"
+}
+
 test_check_secret_scan_still_finds_word_boundary_fj_secret() {
     # Companion to the identifier-chain guard above: a true-positive `fj_*`
     # secret that DOES sit at a word boundary must still be detected.
@@ -1742,6 +1766,7 @@ test_check_secret_scan_excludes_secret_dir
 test_check_secret_scan_ignores_metrics_local_dev_placeholder
 test_check_secret_scan_ignores_env_local_example_placeholder
 test_check_secret_scan_ignores_fj_inside_identifier_chain
+test_check_secret_scan_ignores_fj_application_identifiers
 test_check_secret_scan_still_finds_word_boundary_fj_secret
 test_check_secret_scan_does_not_exclude_arbitrary_fixtures_dirs
 test_check_secret_scan_finds_tracked_markdown_secret

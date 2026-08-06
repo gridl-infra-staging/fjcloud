@@ -89,6 +89,11 @@ pub const DATA_TRANSFER_CENTS_PER_GB: Decimal = dec!(9); // ~$0.09/GB
 pub const DEDICATED_MASTER_NODE_COUNT: i64 = 3;
 
 /// Dedicated master instance type name (used in line-item and assumption text).
+///
+/// This is a modeling assumption, not a fetched AWS price recommendation:
+/// Stage 2 evidence
+/// found AWS examples using other cluster-manager types (`c6g.large.search`,
+/// `r8g.large.search`, `r6g.xlarge.search`) rather than this encoded type.
 pub const DEDICATED_MASTER_INSTANCE_NAME: &str = "m6g.large.search";
 
 fn dedicated_master_instance() -> &'static InstanceType {
@@ -106,9 +111,15 @@ fn dedicated_master_instance() -> &'static InstanceType {
 ///
 /// Line items: data node compute + EBS storage + data transfer,
 /// plus dedicated master nodes when HA is enabled.
+///
+/// The global 100 GB/month free egress allowance is deliberately not modeled.
+/// This conservative choice overstates small AWS workloads by up to $9/month
+/// while keeping this calculator's transfer line item on the published
+/// first-tier outbound rate.
 pub fn estimate(workload: &WorkloadProfile) -> EstimatedCost {
     let ram_needed = ram_heuristics::estimate_ram_gib(workload, SearchEngine::Elasticsearch);
-    let selection = ram_heuristics::pick_tier(ram_needed, INSTANCE_TYPES, |t| t.ram_gib);
+    let selection =
+        ram_heuristics::pick_tier(ram_needed, INSTANCE_TYPES, |t| Decimal::from(t.ram_gib));
     let instance = selection.tier;
 
     let data_node_count: i64 = if workload.high_availability {
@@ -215,6 +226,7 @@ pub fn estimate(workload: &WorkloadProfile) -> EstimatedCost {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::doc_comment_immediately_before;
 
     fn small_workload() -> WorkloadProfile {
         WorkloadProfile {
@@ -527,5 +539,36 @@ mod tests {
             .find(|instance| instance.name == DEDICATED_MASTER_INSTANCE_NAME)
             .expect("dedicated master instance must exist in instance table");
         assert_eq!(dedicated_master_instance(), expected);
+    }
+
+    #[test]
+    fn dedicated_master_instance_comment_labels_assumption() {
+        let source = include_str!("aws_opensearch.rs");
+        let comment = doc_comment_immediately_before(
+            source,
+            "pub const DEDICATED_MASTER_INSTANCE_NAME: &str = \"m6g.large.search\";",
+        )
+        .expect("source should contain dedicated master constant");
+
+        assert!(comment.contains("modeling assumption"));
+        assert!(comment.contains("not a fetched AWS price"));
+        assert!(comment.contains("c6g.large.search"));
+        assert!(comment.contains("r8g.large.search"));
+        assert!(comment.contains("r6g.xlarge.search"));
+    }
+
+    #[test]
+    fn estimate_docs_label_unmodeled_egress_free_tier() {
+        let source = include_str!("aws_opensearch.rs");
+        let docs = doc_comment_immediately_before(
+            source,
+            "pub fn estimate(workload: &WorkloadProfile) -> EstimatedCost {",
+        )
+        .expect("source should contain estimate function");
+
+        assert!(docs.contains("100 GB/month"));
+        assert!(docs.contains("free egress allowance"));
+        assert!(docs.contains("not modeled"));
+        assert!(docs.contains("overstates small AWS workloads by up to $9/month"));
     }
 }

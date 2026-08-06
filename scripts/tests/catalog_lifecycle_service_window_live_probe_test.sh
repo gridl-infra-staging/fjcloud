@@ -814,6 +814,7 @@ setup_workspace() {
   write_mock_curl
   cp "$WORK_DIR/bin/curl" "$WORK_DIR/no-psql-bin/curl"
   cp "$WORK_DIR/bin/docker" "$WORK_DIR/no-psql-bin/docker"
+  make_command_path_without "$WORK_DIR/no-psql-bin" psql
 }
 
 copy_probe_workspace() {
@@ -979,7 +980,7 @@ run_probe_without_host_psql() {
   : > "$WORK_DIR/docker.log"
   : > "$WORK_DIR/psql.log"
   RUN_STDOUT="$(
-    PATH="$WORK_DIR/no-psql-bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+    PATH="$WORK_DIR/no-psql-bin" \
     FLAPJACK_DEV_DIR="$WORK_DIR" \
     CATALOG_LIFECYCLE_SERVICE_WINDOW_API_BUILD_ROOT="$WORK_DIR" \
     CATALOG_LIFECYCLE_SERVICE_WINDOW_ENGINE_BUILD_ROOT="$WORK_DIR/flapjack-src" \

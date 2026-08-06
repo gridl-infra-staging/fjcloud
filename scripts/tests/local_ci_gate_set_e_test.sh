@@ -254,6 +254,71 @@ test_local_ci_migration_gate_uses_local_postgres_default_url() {
     fi
 }
 
+test_local_ci_rust_test_owns_lane_local_seeded_source_flapjack() {
+    local rust_test_block
+    rust_test_block="$(extract_function_block gate_rust_test)"
+
+    if [[ "$rust_test_block" == *'playwright_apply_manual_stack_port_defaults "$REPO_ROOT" "$REPO_ROOT"'* ]] \
+        && [[ "$rust_test_block" == *'find_restart_ready_flapjack_binary'* ]] \
+        && [[ "$rust_test_block" == *'FJCLOUD_ALGOLIA_SOURCE_BASE_URL="http://127.0.0.1:${FLAPJACK_PORT}"'* ]] \
+        && [[ "$rust_test_block" == *'FLAPJACK_ADMIN_KEY="${FLAPJACK_ADMIN_KEY:-$DEFAULT_LOCAL_FLAPJACK_ADMIN_KEY}"'* ]] \
+        && [[ "$rust_test_block" == *'--port "$FLAPJACK_PORT"'* ]] \
+        && [[ "$rust_test_block" == *'--data-dir "$flapjack_data_dir"'* ]] \
+        && [[ "$rust_test_block" == *'curl -fsS "${FJCLOUD_ALGOLIA_SOURCE_BASE_URL}/health"'* ]] \
+        && [[ "$rust_test_block" == *'DATABASE_URL="${DATABASE_URL:-postgres://fjcloud:password@127.0.0.1:5432/fjcloud_test}"'* ]] \
+        && [[ "$rust_test_block" == *'cargo test --workspace'* ]] \
+        && [[ "$rust_test_block" == *'kill "$flapjack_pid"'* ]]; then
+        pass "gate_rust_test owns a lane-local seeded-source Flapjack lifecycle and CI database URL"
+    else
+        fail "gate_rust_test must start, health-check, and stop its own lane-local seeded-source Flapjack with the CI database URL"
+    fi
+}
+
+test_local_ci_rust_test_fails_before_cargo_without_owned_source_runtime() {
+    local tmp_dir rust_test_block output status=0
+    tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/fjcloud-local-ci-source-owner.XXXXXX")"
+    rust_test_block="$(extract_function_block gate_rust_test)"
+
+    mkdir -p "$tmp_dir/scripts/lib" "$tmp_dir/infra" "$tmp_dir/.local"
+    cat > "$tmp_dir/scripts/lib/env.sh" <<'FIXTURE_EOF'
+DEFAULT_LOCAL_FLAPJACK_ADMIN_KEY="test-default-admin-key"
+FIXTURE_EOF
+    cat > "$tmp_dir/scripts/lib/flapjack_binary.sh" <<'FIXTURE_EOF'
+find_restart_ready_flapjack_binary() {
+    printf '%s\n' "$REPO_ROOT/flapjack-bin"
+}
+FIXTURE_EOF
+    cat > "$tmp_dir/flapjack-bin" <<'FIXTURE_EOF'
+#!/usr/bin/env bash
+while :; do
+    sleep 1
+done
+FIXTURE_EOF
+    chmod +x "$tmp_dir/flapjack-bin"
+
+    output=$({
+        eval "$rust_test_block"
+        REPO_ROOT="$tmp_dir"
+        bash() { return 0; }
+        playwright_apply_manual_stack_port_defaults() { FLAPJACK_PORT=17800; }
+        curl() { return 7; }
+        sleep() { :; }
+        cargo() { touch "$tmp_dir/cargo_called"; return 0; }
+        gate_rust_test
+    } 2>&1) || status=$?
+
+    if [[ "$status" -ne 1 ]]; then
+        fail "gate_rust_test returned $status without its owned Flapjack runtime becoming healthy; expected 1"
+    elif [[ -e "$tmp_dir/cargo_called" ]]; then
+        fail "gate_rust_test invoked cargo after its source-runtime reachability check failed"
+    elif [[ "$output" != *"Flapjack failed to become healthy"* ]]; then
+        fail "gate_rust_test did not print the owned Flapjack startup failure diagnostic"
+    else
+        pass "gate_rust_test fails closed before cargo when its owned source runtime is unhealthy"
+    fi
+    rm -rf "$tmp_dir"
+}
+
 test_secret_distinctness_gate_not_wired_by_default() {
     local out status known_gates_line
     status=0
@@ -461,6 +526,8 @@ main() {
     test_local_ci_rust_lint_includes_integration_test_layout_hook
     test_layout_hook_detection_rejects_comment_only_mentions
     test_local_ci_migration_gate_uses_local_postgres_default_url
+    test_local_ci_rust_test_owns_lane_local_seeded_source_flapjack
+    test_local_ci_rust_test_fails_before_cargo_without_owned_source_runtime
     test_secret_distinctness_gate_not_wired_by_default
     test_local_ci_source_pollution_gate_is_wired
     test_local_ci_ses_coverage_a1_runs_deployable_currency_contract

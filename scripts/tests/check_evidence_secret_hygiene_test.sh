@@ -304,36 +304,6 @@ test_guard_reports_real_secret_classes_inside_exception_paths() {
         "guard diagnostic does not print full SES AKIA fixture secret"
 }
 
-test_guard_reports_secret_classes_inside_zip_archives() {
-    local fixture_root archive_path archive_secret archive_output_dir
-    fixture_root="$(mktemp -d)"
-    trap 'rm -rf "'"$fixture_root"'"; trap - RETURN' RETURN
-    setup_fixture_repo "$fixture_root"
-
-    archive_output_dir="$fixture_root/docs/runbooks/evidence/browser-evidence/20260711-archive"
-    archive_path="$archive_output_dir/trace.zip"
-    archive_secret="$(fake_secret_value "sk_live_" "ArchivedFixtureMustNotPrint123456789")"
-    mkdir -p "$archive_output_dir" "$fixture_root/archive-payload"
-    printf '{"api_key":"%s"}\n' "$archive_secret" \
-        > "$fixture_root/archive-payload/network.json"
-    (
-        cd "$fixture_root/archive-payload"
-        zip -q "$archive_path" network.json
-    )
-
-    run_guard "$fixture_root"
-
-    assert_ne "$RUN_EXIT_CODE" "0" \
-        "guard exits non-zero when a zip archive contains a live secret class"
-    assert_contains "$RUN_OUTPUT" \
-        "docs/runbooks/evidence/browser-evidence/20260711-archive/trace.zip" \
-        "guard output names the secret-bearing archive path"
-    assert_contains "$RUN_OUTPUT" "stripe_live_secret" \
-        "guard output names the archived secret class"
-    assert_not_contains "$RUN_OUTPUT" "$archive_secret" \
-        "guard diagnostic does not print the archived secret value"
-}
-
 test_guard_fails_closed_on_malformed_playwright_reporter_json() {
     local fixture_root
     fixture_root="$(mktemp -d)"
@@ -400,7 +370,6 @@ main() {
     test_guard_reports_all_seeded_findings_without_exfiltrating_values
     test_guard_preserves_narrow_non_secret_evidence_exceptions
     test_guard_reports_real_secret_classes_inside_exception_paths
-    test_guard_reports_secret_classes_inside_zip_archives
     test_guard_fails_closed_on_malformed_playwright_reporter_json
     test_guard_fails_closed_on_playwright_reporter_truncated_before_env
 

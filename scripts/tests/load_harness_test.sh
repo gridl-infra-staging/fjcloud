@@ -1038,9 +1038,12 @@ test_run_load_harness_live_mode_fails_when_env_missing() {
     tmpdir="$(mktemp -d)"
     local baseline_dir="$tmpdir/baselines"
     _write_uniform_baselines "$baseline_dir" 10 20 30 100 0.0
+    mkdir -p "$tmpdir/bin"
+    _write_mock_k6_noop "$tmpdir/bin/k6"
 
     local output exit_code=0
-    output="$(LOAD_GATE_LIVE=1 \
+    output="$(PATH="$tmpdir/bin:$PATH" \
+        LOAD_GATE_LIVE=1 \
         LOAD_BASELINE_DIR="$baseline_dir" \
         "$BASH" "$REPO_ROOT/scripts/load/run_load_harness.sh" 2>/dev/null)" || exit_code=$?
 

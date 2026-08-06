@@ -43,7 +43,16 @@ for i in range(count):
         }
     )
 
-print(json.dumps({"requests": requests}))
+try:
+    print(json.dumps({"requests": requests}))
+except BrokenPipeError:
+    # A caller may intentionally terminate a background traffic loop after a
+    # sibling fails.  The payload consumer is then gone; suppress Python's
+    # cleanup traceback while preserving ordinary generator failures.
+    try:
+        sys.stdout.close()
+    except BrokenPipeError:
+        pass
 PY
 }
 

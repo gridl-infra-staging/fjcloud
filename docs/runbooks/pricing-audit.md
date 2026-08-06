@@ -50,36 +50,36 @@ Expected provider modules:
 - `elastic_cloud.rs`
 - `aws_opensearch.rs`
 
-## 3. Keep undated competitors explicitly allowlisted
+## 3. Keep undated third-party evidence explicit
 
 `provider_registry()` in `infra/pricing-calculator/src/providers/mod.rs` is the
 canonical provider list, and the competitor verification guard
-`all_competitor_metadata_is_verified_or_explicitly_allowlisted()` derives its
+`undated_third_party_metadata_is_reported_as_never_verified()` derives its
 denominator from that registry with `ProviderId::Griddle` filtered out. That
-leaves the five competitor entries as the only providers the guard inspects;
-Flapjack Cloud is our own product, not a competitor modeled from a public page.
+leaves five third-party competitors for the guard to inspect; Flapjack Cloud is
+our own product, not a competitor modeled from a public page.
 
-Every competitor whose `metadata().last_verified` is `None` must appear in the
-`TEMPORARILY_UNVERIFIED_COMPETITORS` table in the same file, or the guard fails.
-Each `(ProviderId, &str)` tuple needs both of:
+Every third-party competitor whose `metadata().last_verified` is `None` must
+appear in the `STAGE_2_UNVERIFIED_COMPETITOR_EVIDENCE` table in the same file,
+or the guard fails. That table is the guard's sole expected-provider list; each
+`(ProviderId, &str)` row records the observed source gap and the evidence bundle
+that demonstrates it.
 
-- A non-empty obstacle string naming the observed blocker and the evidence
-  bundle timestamp that recorded it. Both properties are machine-checked by
-  `temporary_competitor_allowlist_reasons_record_observed_stage_2_status()`, so
-  a placeholder like "pending verification" is rejected rather than reviewed.
-- A `// reason:` comment directly above the tuple restating that same obstacle
-  in one line, so a reader scanning the table sees why the entry exists without
-  reading the assertion string.
+`undated_third_party_metadata_is_reported_as_never_verified()` checks that the
+table matches the undated competitor metadata and that every listed provider is
+reported with `ProviderFreshnessReason::NeverVerified`.
+`unverified_competitor_evidence_reasons_record_observed_stage_2_status()` checks
+that every reason names the current evidence bundle and source gap instead of a
+placeholder status.
 
 Remove an entry only after that provider's metadata carries a source-backed
 `last_verified` date earned under section 4. Removing it while `last_verified`
 is still `None` turns the guard red, which is the intended failure.
 
 This is a separate concern from `stale_providers()` and `stale_providers_as_of()`,
-which report providers whose *existing* dates have aged past the threshold.
-Undated metadata is deliberately excluded from the stale set because it is
-unverified rather than stale; conflating the two would let a never-verified
-provider vanish from both reports.
+which report both dated providers older than the threshold and undated entries.
+Undated metadata is reported as `ProviderFreshnessReason::NeverVerified`; it is
+not excluded from freshness output.
 
 `last_verified` is customer-facing, not just an operator record: it feeds
 `ProviderMetadata::verification_label()`, which `/pricing/compare` passes
@@ -113,7 +113,7 @@ already returns.
 Only after that capture is complete may `metadata().last_verified` move from
 `None` to a date. When the fetch succeeded but the source did not expose every
 modeled input, the honest outcome is to leave `last_verified = None` and keep
-the provider allowlisted under section 3.
+the provider recorded in the evidence table under section 3.
 
 ## 5. Understand the nightly freshness tripwire
 
@@ -128,13 +128,15 @@ cd infra && cargo test -p pricing-calculator -- --ignored pricing_freshness_wall
 
 Freshness logic:
 
-- `stale_providers(90)` returns providers with explicit verification dates older than 90 days
-- `ensure_pricing_freshness(90)` returns an error message naming stale providers
-  and their verification labels
+- `stale_providers(90)` reports dated providers older than 90 days and
+  undated providers as `NeverVerified`
+- `ensure_pricing_freshness(90)` returns an error when either kind is present,
+  naming affected providers and their verification labels
 
-A red nightly means competitor pricing metadata may be older than the accepted
-90-day window. It does not block deploys. The correct operator response is to
-re-verify the affected provider source URLs before changing `last_verified`.
+A red nightly means competitor pricing metadata is either older than the
+accepted 90-day window or has never been verified. It does not block deploys.
+The correct operator response is to re-verify the affected provider source URLs
+before changing `last_verified`.
 
 ## 6. Run full validation commands
 

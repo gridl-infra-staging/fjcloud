@@ -377,7 +377,7 @@ _run_post_deploy_capture() {
     local stdout_file="$TEST_WORKSPACE/tmp/post_deploy_stdout.txt"
     local stderr_file="$TEST_WORKSPACE/tmp/post_deploy_stderr.txt"
 
-    env_args+=("PATH=$TEST_WORKSPACE/bin:/usr/bin:/bin:/usr/local/bin")
+    env_args+=("PATH=${POST_DEPLOY_TEST_PATH:-$TEST_WORKSPACE/bin:/usr/bin:/bin:/usr/local/bin}")
     env_args+=("HOME=$TEST_WORKSPACE")
     env_args+=("TMPDIR=$TEST_WORKSPACE/tmp")
 
@@ -714,12 +714,23 @@ test_live_mode_zero_warning_counts_do_not_abort() {
 
 test_live_mode_without_journalctl_still_runs_and_writes_zero_counts() {
     setup_workspace
-    local args run_dir stripe_count_path alert_count_path call_lines
+    local args run_dir stripe_count_path alert_count_path call_lines minbin command_path command_name
     args="$(common_required_args "$TEST_WORKSPACE/artifacts" "$TEST_WORKSPACE/inputs/credentials.env")"
 
     rm -f "$TEST_WORKSPACE/bin/journalctl"
 
-    _run_post_deploy_capture --args "$args" "MOCK_LAST_DEPLOY_SHA=cccccccccccccccccccccccccccccccccccccccc"
+    # `/bin` aliases `/usr/bin` on Ubuntu, where journalctl is installed. Use
+    # an explicit command set so this really exercises the missing-tool branch
+    # on both Linux and macOS instead of accidentally finding the host binary.
+    minbin="$TEST_WORKSPACE/no_journalctl_bin"
+    mkdir -p "$minbin"
+    for command_name in bash basename cat chmod cp date dirname env find grep head mkdir mktemp mv python3 rm sed sleep sort tail tr wc; do
+        command_path="$(command -v "$command_name")"
+        ln -s "$command_path" "$minbin/$command_name"
+    done
+
+    POST_DEPLOY_TEST_PATH="$TEST_WORKSPACE/bin:$minbin" \
+        _run_post_deploy_capture --args "$args" "MOCK_LAST_DEPLOY_SHA=cccccccccccccccccccccccccccccccccccccccc"
 
     assert_eq "$RUN_EXIT_CODE" "0" "live mode should not fail when host journalctl is unavailable"
     assert_contains "$RUN_STDERR" "WARNING: journalctl not found on host; writing fallback zero count for STRIPE_SECRET_KEY" "missing journalctl should emit stripe fallback warning"

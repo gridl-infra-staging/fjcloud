@@ -337,6 +337,10 @@ describe('MigrationCutoverVerification', () => {
 
 	// Capability is server-published, not provider-inferred: an omitted
 	// `verifySupported` must fail closed for every provider, Algolia included.
+	//
+	// The expected sentence is spelled out here rather than imported from
+	// `job_presentation.ts`, so this file is the one place the customer-visible
+	// wording is pinned; every other owner asserts through the shared builder.
 	it.each([
 		['algolia', 'Algolia'],
 		['meilisearch', 'Meilisearch'],
@@ -348,7 +352,9 @@ describe('MigrationCutoverVerification', () => {
 
 			expect(
 				screen.getByText(
-					`${providerLabel} verification is not supported yet for retained migration jobs.`
+					`Cutover verification is not available for this ${providerLabel} migration, ` +
+						'so you cannot compare source and fjcloud search results here. The completed ' +
+						'migration and any preview support published for it are unaffected.'
 				)
 			).toBeInTheDocument();
 			expect(screen.queryByLabelText(/api key/i)).not.toBeInTheDocument();

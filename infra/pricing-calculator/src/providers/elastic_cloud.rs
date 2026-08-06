@@ -68,7 +68,8 @@ pub const INSTANCE_TIERS: &[InstanceTier] = &[
 /// Standard pricing already includes 2-AZ deployment.
 pub fn estimate(workload: &WorkloadProfile) -> EstimatedCost {
     let ram_needed = ram_heuristics::estimate_ram_gib(workload, SearchEngine::Elasticsearch);
-    let selection = ram_heuristics::pick_tier(ram_needed, INSTANCE_TIERS, |t| t.ram_gib);
+    let selection =
+        ram_heuristics::pick_tier(ram_needed, INSTANCE_TIERS, |t| Decimal::from(t.ram_gib));
     let tier = selection.tier;
 
     let line_items = vec![CostLineItem {

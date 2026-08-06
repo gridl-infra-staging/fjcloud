@@ -40,6 +40,28 @@ jobs:
           sudo apt-get clean
           df -h /
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      # Stage 2 keeps the seeded local-source proof on the routine Rust gate.
+      # Extending this job reuses the existing Rust and public-release owners
+      # instead of splitting one proof's setup and assertions across CI jobs.
+      - name: Download Flapjack for seeded source proof
+        run: |
+          set -euo pipefail
+          REPO_ROOT="$GITHUB_WORKSPACE"
+          source scripts/lib/flapjack_binary.sh
+          FLAPJACK_VERSION="v${FJCLOUD_FLAPJACK_VERSION}"
+          FLAPJACK_ASSET="flapjack-x86_64-unknown-linux-musl.tar.gz"
+          base="https://github.com/flapjackhq/flapjack/releases/download/${FLAPJACK_VERSION}"
+          workdir="$(mktemp -d)"
+          trap 'rm -rf "$workdir"' EXIT
+          curl -fsSL --retry 5 --retry-delay 2 \
+              "${base}/${FLAPJACK_ASSET}" -o "$workdir/${FLAPJACK_ASSET}"
+          curl -fsSL --retry 5 --retry-delay 2 \
+              "${base}/${FLAPJACK_ASSET}.sha256" -o "$workdir/${FLAPJACK_ASSET}.sha256"
+          (cd "$workdir" && sha256sum -c "${FLAPJACK_ASSET}.sha256")
+          install_dir="${GITHUB_WORKSPACE}/.flapjack/target/release"
+          mkdir -p "$install_dir"
+          tar -xzf "$workdir/${FLAPJACK_ASSET}" -C "$install_dir"
+          chmod +x "$install_dir/flapjack"
       - name: Seed reliability profile artifacts
         run: bash scripts/reliability/seed-test-profiles.sh
       - name: Install Rust
@@ -58,6 +80,46 @@ jobs:
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
+      - name: Start Flapjack for seeded source proof
+        run: |
+          set -euo pipefail
+          source scripts/lib/env.sh
+          FLAPJACK_DEV_DIR="${GITHUB_WORKSPACE}/.flapjack"
+          FLAPJACK_ADMIN_KEY="$DEFAULT_LOCAL_FLAPJACK_ADMIN_KEY"
+          FJCLOUD_ALGOLIA_SOURCE_BASE_URL="http://127.0.0.1:7700"
+          export FLAPJACK_DEV_DIR FLAPJACK_ADMIN_KEY FJCLOUD_ALGOLIA_SOURCE_BASE_URL
+          {
+            printf 'FLAPJACK_DEV_DIR=%s\n' "$FLAPJACK_DEV_DIR"
+            printf 'FLAPJACK_ADMIN_KEY=%s\n' "$FLAPJACK_ADMIN_KEY"
+            printf 'FJCLOUD_ALGOLIA_SOURCE_BASE_URL=%s\n' "$FJCLOUD_ALGOLIA_SOURCE_BASE_URL"
+          } >> "$GITHUB_ENV"
+
+          mkdir -p "${GITHUB_WORKSPACE}/.local"
+          flapjack_data_dir="$(mktemp -d "${GITHUB_WORKSPACE}/.local/flapjack-rust-test-data.XXXXXX")"
+          flapjack_log="${GITHUB_WORKSPACE}/.local/flapjack-rust-test.log"
+          flapjack_pid_file="${GITHUB_WORKSPACE}/.local/flapjack-rust-test.pid"
+          FLAPJACK_ADMIN_KEY="$FLAPJACK_ADMIN_KEY" \
+            nohup "${FLAPJACK_DEV_DIR}/target/release/flapjack" \
+              --port 7700 \
+              --data-dir "$flapjack_data_dir" \
+              < /dev/null > "$flapjack_log" 2>&1 &
+          flapjack_pid="$!"
+          printf '%s\n' "$flapjack_pid" > "$flapjack_pid_file"
+
+          flapjack_ready=0
+          for _ in {1..30}; do
+            if curl -fsS "${FJCLOUD_ALGOLIA_SOURCE_BASE_URL}/health" >/dev/null; then
+              flapjack_ready=1
+              break
+            fi
+            kill -0 "$flapjack_pid" 2>/dev/null || break
+            sleep 1
+          done
+          if [ "$flapjack_ready" -ne 1 ]; then
+            echo "Flapjack failed to become healthy; complete startup log follows:" >&2
+            cat "${GITHUB_WORKSPACE}/.local/flapjack-rust-test.log" >&2
+            exit 1
+          fi
       # WHY (2026-07-23): a hung test in the `platform` target stalled this job
       # nine consecutive times. Each run reached the job-level `timeout-minutes`
       # and GitHub CANCELLED the job. A cancelled job discards its remaining
@@ -94,6 +156,25 @@ jobs:
         if: always()
         working-directory: infra
         run: cargo test --workspace -- --list
+      - name: Stop Flapjack for seeded source proof
+        if: always()
+        run: |
+          set -euo pipefail
+          flapjack_pid_file="${GITHUB_WORKSPACE}/.local/flapjack-rust-test.pid"
+          [ -f "$flapjack_pid_file" ] || exit 0
+          flapjack_pid="$(<"$flapjack_pid_file")"
+          if ! [[ "$flapjack_pid" =~ ^[0-9]+$ ]]; then
+            echo "Invalid rust-test Flapjack PID file: $flapjack_pid_file" >&2
+            exit 1
+          fi
+          if kill -0 "$flapjack_pid" 2>/dev/null; then
+            kill "$flapjack_pid"
+            for _ in {1..20}; do
+              kill -0 "$flapjack_pid" 2>/dev/null || exit 0
+              sleep 0.25
+            done
+            kill -KILL "$flapjack_pid"
+          fi
       # Tenant isolation proptest runs in nightly.yml's
       # `tenant-isolation-proptest` job. Moved out of the per-push deploy
       # gate 2026-05-02 because it is a defensive regression check (not a
@@ -280,6 +361,34 @@ jobs:
           user_token="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])' <<<"$login_body")"
           indexes_body="$(curl -fsS -H "Authorization: Bearer ${user_token}" "http://127.0.0.1:3001/indexes")"
           python3 -c 'import json,sys; payload=json.load(sys.stdin); rows=payload if isinstance(payload,list) else payload.get("items", []); names={row.get("name") for row in rows if isinstance(row,dict)}; assert "test-index" in names, f"expected test-index in seeded indexes, got: {sorted(names)}"' <<<"$indexes_body"
+      - name: Dump local demo logs on failure
+        # Diagnosability owner for local-dev-up-smoke. local_demo.sh prints
+        # "API failed; see .local/api.log" on a health-check timeout and then
+        # tears the stack down without surfacing that file, so a failure is
+        # blind from the run page alone. Dump api.log and every sibling log the
+        # local stack writes; if: failure() keeps a green run quiet, and running
+        # before Tear down guarantees the logs still exist. Missing optional
+        # logs are noted, not fatal, so a partial-startup failure still prints
+        # whatever the stack managed to write.
+        if: failure()
+        run: |
+          set -uo pipefail
+          dump_log() {
+            local label="$1" path="$2"
+            if [[ -f "$path" ]]; then
+              echo "===== ${label}: ${path} ====="
+              cat "$path"
+              echo "===== end ${label}: ${path} ====="
+            else
+              echo "===== ${label}: ${path} — absent, skipped ====="
+            fi
+          }
+          dump_log "api" ".local/api.log"
+          dump_log "web" ".local/web.log"
+          shopt -s nullglob
+          for f in .local/flapjack-*.log; do dump_log "flapjack" "$f"; done
+          for f in .local/metering-agent-*.log; do dump_log "metering-agent" "$f"; done
+          dump_log "source-provider" ".local/source-provider-evidence/provider_container_logs.log"
       - name: Tear down
         if: always()
         run: |

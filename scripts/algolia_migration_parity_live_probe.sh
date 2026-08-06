@@ -139,22 +139,12 @@ safe_opaque_token() {
     algolia_import_probe_safe_opaque_token "$1"
 }
 capture_http_response() {
-    local response="$1"
-    HTTP_STATUS="${response##*$'\n'}"
-    HTTP_BODY="${response%$'\n'*}"
-    [ "$HTTP_STATUS" != "$response" ] || HTTP_BODY=""
-    HTTP_STATUS="$(printf '%s' "$HTTP_STATUS" | tr -d '\r[:space:]')"
+    algolia_import_probe_capture_http_response "$1"
 }
 curl_http() {
     local expected_statuses="$1"
     shift
-    local response
-    response="$(curl -sS --connect-timeout 2 --max-time 20 -w "\n%{http_code}" "$@" || true)"
-    capture_http_response "$response"
-    case " $expected_statuses " in
-        *" $HTTP_STATUS "*) return 0 ;;
-        *) return 1 ;;
-    esac
+    algolia_import_probe_curl_http "$expected_statuses" 2 20 "$@"
 }
 
 parse_args() {
@@ -266,27 +256,15 @@ prepare_runtime() {
 }
 
 algolia_url() {
-    printf 'https://%s.algolia.net%s' "$(printf '%s' "$ALGOLIA_APP_ID" | tr '[:upper:]' '[:lower:]')" "$1"
+    algolia_import_probe_algolia_url "$1"
 }
 
 algolia_request() {
-    local expected="$1" method="$2" path="$3" data_file="${4:-}" args
-    args=(--config "$ALGOLIA_AUTH_CONFIG" -X "$method")
-    HTTP_REQUEST_TARGET="Algolia ${method} ${path}"
-    [ -z "$data_file" ] || args+=(--data @"$data_file")
-    curl_http "$expected" "${args[@]}" "$(algolia_url "$path")"
+    algolia_import_probe_algolia_request "$@"
 }
 
 api_request() {
-    local expected="$1" method="$2" path="$3" data_file="${4:-}" idempotency="${5:-}" args
-    args=(-X "$method")
-    HTTP_REQUEST_TARGET="${method} ${path}"
-    HTTP_HEADERS_FILE="$(secure_temp_file)"
-    args+=(-D "$HTTP_HEADERS_FILE")
-    [ -z "${TENANT_TOKEN:-}" ] || args+=(--config "$FJCLOUD_AUTH_CONFIG")
-    [ -z "$idempotency" ] || args+=(-H "Idempotency-Key: $idempotency")
-    [ -z "$data_file" ] || args+=(-H "content-type: application/json" --data @"$data_file")
-    curl_http "$expected" "${args[@]}" "${API_URL%/}${path}"
+    algolia_import_probe_api_request "$@"
 }
 
 finish_action_required() {

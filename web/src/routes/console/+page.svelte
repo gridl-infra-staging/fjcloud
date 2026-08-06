@@ -16,6 +16,7 @@
 		indexStatusBadgeColor,
 		indexStatusLabel
 	} from '$lib/format';
+	import { MARKETING_PRICING } from '$lib/pricing';
 
 	let { data } = $props();
 
@@ -169,7 +170,9 @@
 				</p>
 			</div>
 			{#if estimate.minimum_applied}
-				<p class="mt-1 text-sm text-flapjack-ink/80">Paid plan minimum applied ($5.00 per month)</p>
+				<p class="mt-1 text-sm text-flapjack-ink/80">
+					Paid plan minimum applied ({formatCents(MARKETING_PRICING.shared_minimum_spend_cents)} per month)
+				</p>
 			{/if}
 			{#if estimate.line_items.length > 0}
 				<details class="mt-3">

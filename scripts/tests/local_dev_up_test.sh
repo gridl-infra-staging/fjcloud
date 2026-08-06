@@ -1597,10 +1597,18 @@ test_explicit_flapjack_port_flows_through_startup_summary_and_checks() {
     local flapjack_dir="$tmp_dir/flapjack_dev/target/debug"
     mkdir -p "$flapjack_dir"
     write_mock_script "$flapjack_dir/flapjack" 'exit 0'
+    mkdir -p "$LOCAL_DEV_TEST_REPO_ROOT/.local/flapjack-data"
+    printf '%s\n' "stale-admin-key-from-prior-run" \
+        > "$LOCAL_DEV_TEST_REPO_ROOT/.local/flapjack-data/.admin_key"
+    printf '%s\n' "stale-keys-from-prior-run" \
+        > "$LOCAL_DEV_TEST_REPO_ROOT/.local/flapjack-data/keys.json"
+    printf '%s\n' "stale-key-material-from-prior-run" \
+        > "$LOCAL_DEV_TEST_REPO_ROOT/.local/flapjack-data/key_material.json"
 
     local output exit_code=0 calls wait_attempt
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
+        FLAPJACK_ADMIN_KEY="" \
         FLAPJACK_DEV_DIR="$tmp_dir/flapjack_dev" \
         FLAPJACK_PORT=17800 \
         run_local_dev_up 2>&1
@@ -1619,6 +1627,23 @@ test_explicit_flapjack_port_flows_through_startup_summary_and_checks() {
         "the explicit FLAPJACK_PORT should flow into Flapjack startup"
     assert_contains "$output" "Flapjack default: http://localhost:17800" \
         "the explicit FLAPJACK_PORT should flow into the startup summary"
+    assert_contains "$output" "Algolia source:  http://127.0.0.1:17800" \
+        "the explicit FLAPJACK_PORT should surface as the lane-local Algolia source URL"
+    assert_contains "$(cat "$LOCAL_DEV_TEST_REPO_ROOT/infra/.cargo/config.toml" 2>/dev/null || true)" \
+        'FJCLOUD_ALGOLIA_SOURCE_BASE_URL = "http://127.0.0.1:17800"' \
+        "local-dev-up should persist the lane-local Algolia source URL for later standalone cargo test invocations"
+    assert_contains "$(cat "$LOCAL_DEV_TEST_REPO_ROOT/infra/.cargo/config.toml" 2>/dev/null || true)" \
+        'FLAPJACK_ADMIN_KEY = "fj_local_dev_admin_key_000000000000"' \
+        "local-dev-up should persist the shared default Flapjack admin key for later standalone cargo test invocations"
+    assert_eq "$(cat "$LOCAL_DEV_TEST_REPO_ROOT/.local/flapjack-data/.admin_key" 2>/dev/null || true)" \
+        "fj_local_dev_admin_key_000000000000" \
+        "local-dev-up should reset stale lane-local Flapjack admin-key state before standalone cargo test invocations"
+    assert_eq "$(cat "$LOCAL_DEV_TEST_REPO_ROOT/.local/flapjack-data/keys.json" 2>/dev/null || true)" \
+        "stale-keys-from-prior-run" \
+        "local-dev-up should preserve persisted Flapjack API-key hashes while rotating the admin key"
+    assert_eq "$(cat "$LOCAL_DEV_TEST_REPO_ROOT/.local/flapjack-data/key_material.json" 2>/dev/null || true)" \
+        "stale-key-material-from-prior-run" \
+        "local-dev-up should preserve persisted encrypted Flapjack API-key material while rotating the admin key"
 }
 
 test_all_manual_host_ports_fail_collisions_before_teardown_or_startup() {
@@ -1699,7 +1724,7 @@ test_rejects_colliding_flapjack_and_source_provider_ports() {
         LOCAL_MEILISEARCH_PORT=17700 \
         LOCAL_TYPESENSE_PORT=18108 \
         FLAPJACK_DEV_DIR="/nonexistent" \
-        bash "$REPO_ROOT/scripts/local-dev-up.sh" 2>&1
+        run_local_dev_up 2>&1
     ) || exit_code=$?
     calls=$(cat "$call_log" 2>/dev/null || true)
 

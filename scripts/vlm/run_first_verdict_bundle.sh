@@ -120,14 +120,18 @@ normalize_screenshot_for_model() {
     return 0
   fi
 
-  if ! command -v sips >/dev/null 2>&1; then
-    echo "Screenshot ${artifact_filename} exceeds 8000px and no resizer is available (missing sips)." >&2
-    return 1
-  fi
-
   mkdir -p "${bundle_dir}/normalized_screens"
   normalized_path="${bundle_dir}/normalized_screens/${artifact_filename}"
-  sips -Z 8000 "${screenshot_path}" --out "${normalized_path}" >/dev/null
+  if command -v sips >/dev/null 2>&1; then
+    sips -Z 8000 "${screenshot_path}" --out "${normalized_path}" >/dev/null
+  elif command -v magick >/dev/null 2>&1; then
+    magick "${screenshot_path}" -resize '8000x8000>' "${normalized_path}"
+  elif command -v convert >/dev/null 2>&1; then
+    convert "${screenshot_path}" -resize '8000x8000>' "${normalized_path}"
+  else
+    echo "Screenshot ${artifact_filename} exceeds 8000px and no supported resizer is available (sips or ImageMagick)." >&2
+    return 1
+  fi
   printf '%s\n' "${normalized_path}"
 }
 

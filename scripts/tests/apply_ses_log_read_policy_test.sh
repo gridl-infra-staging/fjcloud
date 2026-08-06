@@ -775,7 +775,7 @@ test_secure_artifacts_and_no_secret_leak() {
     # Prior policy snapshot exists and is 0600.
     local snap="$RUN_ARTIFACT_ABS/prior_policy.json"
     if [ -f "$snap" ]; then
-        local mode; mode="$(stat -f '%Lp' "$snap" 2>/dev/null || stat -c '%a' "$snap")"
+        local mode; mode="$(stat -c '%a' "$snap" 2>/dev/null || stat -f '%Lp' "$snap")"
         assert_eq "$mode" "600" "prior policy snapshot is chmod 0600"
     else
         fail "prior policy snapshot written to artifact dir"

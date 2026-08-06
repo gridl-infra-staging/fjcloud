@@ -107,7 +107,8 @@ fn additional_storage_gib(workload: &WorkloadProfile) -> Decimal {
 /// No HA multiplier — resource-based plans are single-instance.
 pub fn estimate(workload: &WorkloadProfile) -> EstimatedCost {
     let ram_needed = ram_heuristics::estimate_ram_gib(workload, SearchEngine::Meilisearch);
-    let selection = ram_heuristics::pick_tier(ram_needed, INSTANCE_TIERS, |t| t.ram_gib);
+    let selection =
+        ram_heuristics::pick_tier(ram_needed, INSTANCE_TIERS, |t| Decimal::from(t.ram_gib));
     let tier = selection.tier;
 
     // Line item 1: instance tier

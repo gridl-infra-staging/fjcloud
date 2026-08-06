@@ -114,7 +114,8 @@ test_source_side_drift_fails_for_missing_fail_payload_field() {
   write_happy_billing_response_file "$tmp_dir"
 
   # Delete retryAfterSeconds field from resendCooldown fail payload.
-  sed -i '' 's/retryAfterSeconds//' "$tmp_dir/forgot_page.server.ts"
+  sed 's/retryAfterSeconds//' "$tmp_dir/forgot_page.server.ts" > "$tmp_dir/forgot_page.server.ts.tmp"
+  mv "$tmp_dir/forgot_page.server.ts.tmp" "$tmp_dir/forgot_page.server.ts"
 
   status=0
   out="$(run_contract_with_fixtures "$tmp_dir" 2>&1)" || status=$?
@@ -185,7 +186,8 @@ test_billing_source_drift_fails_for_missing_nested_identifier() {
   # +page.server.ts copy. The fixture-rides-on-this contract requires this
   # identifier to remain in the source; losing it means UpgradeButton.svelte's
   # fixture override can no longer map to the live page-load shape.
-  sed -i '' 's/has_default_payment_method//g' "$tmp_dir/billing_page.server.ts"
+  sed 's/has_default_payment_method//g' "$tmp_dir/billing_page.server.ts" > "$tmp_dir/billing_page.server.ts.tmp"
+  mv "$tmp_dir/billing_page.server.ts.tmp" "$tmp_dir/billing_page.server.ts"
 
   status=0
   out="$(run_contract_with_fixtures "$tmp_dir" 2>&1)" || status=$?
@@ -207,7 +209,8 @@ test_fixture_status_drift_fails_without_button_status_support() {
   write_happy_billing_response_file "$tmp_dir"
 
   # Rename one fixture status literal so UpgradeButton no longer references it.
-  sed -i '' "s/status: 'already_shared'/status: 'already_on_shared'/g" "$tmp_dir/upgrade_fixture.ts"
+  sed "s/status: 'already_shared'/status: 'already_on_shared'/g" "$tmp_dir/upgrade_fixture.ts" > "$tmp_dir/upgrade_fixture.ts.tmp"
+  mv "$tmp_dir/upgrade_fixture.ts.tmp" "$tmp_dir/upgrade_fixture.ts"
 
   status=0
   out="$(run_contract_with_fixtures "$tmp_dir" 2>&1)" || status=$?

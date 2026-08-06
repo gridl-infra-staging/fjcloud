@@ -324,6 +324,27 @@ export function describeMigrationVerificationFailure(
 	return { code, message: 'Cutover verification could not be completed.' };
 }
 
+/**
+ * Customer-visible copy for a retained job whose source provider has no
+ * server-published `capabilities.verify`.
+ *
+ * The wording deliberately states only what this panel cannot do. It must stay
+ * true when verification is withheld for a reason other than provider support
+ * (an operator-disabled platform withholds it for Algolia too), so it never
+ * names Algolia as the supported source or promises a future release.
+ *
+ * The single owner of this sentence. `MigrationCutoverVerification.test.ts`
+ * pins the literal wording; every other consumer asserts through this builder.
+ */
+export function describeUnsupportedCutoverVerification(sourceProvider: SourceProvider): string {
+	const providerLabel = migrationSourceProviderLabel(sourceProvider);
+	return (
+		`Cutover verification is not available for this ${providerLabel} migration, ` +
+		'so you cannot compare source and fjcloud search results here. The completed ' +
+		'migration and any preview support published for it are unaffected.'
+	);
+}
+
 export function algoliaImportSummaryRows(job: PublicAlgoliaImportJob): AlgoliaImportSummaryRow[] {
 	const { summary } = job;
 	const rows: AlgoliaImportSummaryRow[] = [

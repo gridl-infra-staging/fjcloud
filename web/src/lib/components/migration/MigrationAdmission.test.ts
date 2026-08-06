@@ -186,6 +186,11 @@ describe('Algolia import admission presentation', () => {
 	});
 
 	it('restores Start after repository backpressure without emitting duplicate intents', async () => {
+		let nowMillis = Date.parse('2026-07-18T10:00:00Z');
+		vi.spyOn(Date, 'now').mockImplementation(() => {
+			nowMillis += 1;
+			return nowMillis;
+		});
 		const createAlgoliaImportJob = vi.fn(
 			() => new Promise<PublicAlgoliaImportJob>(() => undefined)
 		);

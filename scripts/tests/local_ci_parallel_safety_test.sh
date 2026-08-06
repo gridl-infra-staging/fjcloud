@@ -271,9 +271,11 @@ test_reachability_suite_runner_records_receipt_timing_row() {
   release_marker="$tmpdir/release"
   mkdir -p "$tmpdir/scripts/tests" "$tmpdir/results"
   printf '%s\n' '#!/usr/bin/env bash' \
+    '[ -z "${DATABASE_URL:-}" ] || exit 91' \
+    'if read -r _; then exit 92; fi' \
     'printf "fixture timing output\n"' \
-    'touch "$FIXTURE_STARTED_MARKER"' \
-    'while [ ! -f "$FIXTURE_RELEASE_MARKER" ]; do sleep 0.05; done' \
+    'touch "'"$started_marker"'"' \
+    'while [ ! -f "'"$release_marker"'" ]; do sleep 0.05; done' \
     > "$tmpdir/$fixture_path"
   chmod +x "$tmpdir/$fixture_path"
 
@@ -282,9 +284,8 @@ test_reachability_suite_runner_records_receipt_timing_row() {
   eval "$stem_body"
   eval "$timing_row_body"
   eval "$runner_body"
-  FIXTURE_STARTED_MARKER="$started_marker" \
-    FIXTURE_RELEASE_MARKER="$release_marker" \
-    run_reachability_suite "$fixture_path" "$tmpdir/results" &
+  DATABASE_URL="postgres://ambient-must-not-leak.invalid/fjcloud" \
+    run_reachability_suite "$fixture_path" "$tmpdir/results" <<<"registry-row-must-not-be-consumed" &
   runner_pid="$!"
 
   for _ in 1 2 3 4 5 6 7 8 9 10; do
@@ -303,7 +304,7 @@ test_reachability_suite_runner_records_receipt_timing_row() {
   assert_eq "$(cat "$tmpdir/results/$result_stem.rc")" "0" \
     "reachability suite runner preserves the fixture return code"
   assert_eq "$(cat "$tmpdir/results/$result_stem.log")" "fixture timing output" \
-    "reachability suite runner preserves the fixture log"
+    "reachability suite runner preserves the fixture log while isolating ambient env and stdin"
   timing_row="$(cat "$tmpdir/results/$result_stem.timing")"
   if [[ "$timing_row" =~ ^[0-9]+$'\t'"$fixture_path"$'\t'0$ ]]; then
     pass "reachability suite runner records elapsed seconds, path, and return code"
@@ -343,8 +344,8 @@ test_reachability_interrupt_terminates_owned_suite() {
   mkdir -p "$tmpdir/scripts/tests" "$tmpdir/results"
   printf '%s\n' \
     '#!/usr/bin/env bash' \
-    'trap '\''touch "$FIXTURE_TERMINATED_MARKER"; exit 143'\'' TERM INT HUP' \
-    'touch "$FIXTURE_STARTED_MARKER"' \
+    'trap '\''touch "'"$tmpdir/terminated"'"; exit 143'\'' TERM INT HUP' \
+    'touch "'"$tmpdir/started"'"' \
     'while :; do sleep 0.05; done' \
     >"$tmpdir/$fixture_path"
   chmod +x "$tmpdir/$fixture_path"
@@ -358,9 +359,7 @@ test_reachability_interrupt_terminates_owned_suite() {
     eval "$report_body"
     eval "$terminate_body"
     trap 'terminate_reachability_workers "$REPO_ROOT/results"; exit 143' TERM INT HUP
-    FIXTURE_STARTED_MARKER="$tmpdir/started" \
-      FIXTURE_TERMINATED_MARKER="$tmpdir/terminated" \
-      run_reachability_suite "$fixture_path" "$tmpdir/results" &
+    run_reachability_suite "$fixture_path" "$tmpdir/results" &
     wait
   ) >"$tmpdir/harness.log" 2>&1 &
   harness_pid="$!"

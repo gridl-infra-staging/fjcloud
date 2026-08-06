@@ -3,6 +3,9 @@ pub mod providers;
 pub mod ram_heuristics;
 pub mod types;
 
+#[cfg(test)]
+mod test_support;
+
 use chrono::{NaiveDate, Utc};
 pub use presets::{preset_scenarios, PresetScenario};
 pub use providers::{stale_providers, stale_providers_as_of, ProviderFreshnessIssue};
@@ -181,7 +184,13 @@ mod tests {
             .iter()
             .find(|estimate| estimate["provider"] == "Flapjack Cloud")
             .expect("Flapjack Cloud estimate must be present");
-        assert_eq!(griddle["verification_label"], "unverified");
+        assert_eq!(griddle["verification_label"], "2026-08-05");
+
+        let typesense = estimates
+            .iter()
+            .find(|estimate| estimate["provider"] == "TypesenseCloud")
+            .expect("Typesense Cloud estimate must be present");
+        assert_eq!(typesense["verification_label"], "2026-08-05");
     }
 
     /// Locks in the public contract that compare_all returns estimates sorted by ascending monthly cost for deterministic ranking.

@@ -1,0 +1,228 @@
+LOCALITY: Linux ip-172-31-14-9 7.0.0-1009-aws #9~24.04.1-Ubuntu SMP PREEMPT Mon Jul 13 22:43:41 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+HEAD: dbdbcd55684ddf1b478407268c145cc8532996a6
+COMMAND: bash scripts/tests/ci_workflow_test.sh
+
+=== CI Workflow Contract Tests ===
+
+PASS: ci workflow file exists
+PASS: job rust-test exists
+PASS: job rust-lint exists
+PASS: job migration-test exists
+PASS: job web-test exists
+PASS: job check-sizes exists
+PASS: job shell-hygiene exists
+PASS: job local-dev-up-smoke exists
+PASS: job web-lint exists
+PASS: job e2e-deployed exists
+PASS: job secret-scan exists
+PASS: job deploy-staging exists
+PASS: job playwright does not exist
+PASS: workflow does not use playwright-ci mock secrets
+PASS: workflow does not carry stale advisory deploy comments
+PASS: rust-test has checkout step
+PASS: rust-test seeds reliability profile artifacts
+PASS: rust-test has rust toolchain setup
+PASS: rust-test bounds the cargo test command so a hang fails the step, not the job
+PASS: rust-test compiles in a separate unbounded step so the bound covers execution only
+PASS: rust-test compiles before the bounded run step (line 133 before 136)
+PASS: rust-test has bounded timeout
+PASS: rust-test has an always-run diagnostic step that survives a failed test step
+PASS: rust-test dumps the full test inventory so hung tests can be named by diff
+PASS: rust-test step timeout fires before the job timeout (step 900s < job 2700s)
+PASS: rust-test exposes PostgreSQL service URL to integration tests
+PASS: rust-test sources the canonical Flapjack dependency owner
+PASS: rust-test derives the release tag from the canonical Flapjack version
+PASS: rust-test downloads the Linux Flapjack release asset
+PASS: rust-test verifies the published Flapjack checksum
+PASS: rust-test installs Flapjack at the canonical release-binary path
+PASS: rust-test sources the canonical local admin-key owner
+PASS: rust-test uses the canonical local Flapjack admin key
+PASS: rust-test exports the seeded-source loopback URL
+PASS: rust-test exports the downloaded Flapjack directory
+PASS: rust-test creates an isolated Flapjack data directory
+PASS: rust-test starts Flapjack with isolated data
+PASS: rust-test owns its Flapjack log under the local diagnostics directory
+PASS: rust-test captures Flapjack output in its owned log
+PASS: rust-test waits for the Flapjack health endpoint
+PASS: rust-test dumps the Flapjack log when startup fails
+PASS: rust-test always tears down its seeded-source Flapjack
+PASS: rust-test stops only the Flapjack PID it recorded
+PASS: rust-test downloads Flapjack before starting it
+PASS: rust-test starts Flapjack before compiling the workspace tests
+PASS: rust-test starts Flapjack before running the workspace tests
+PASS: rust-test tears Flapjack down after the always-run inventory diagnostic (line 145 before 149)
+PASS: rust-test does not run tenant isolation proptest (nightly only)
+PASS: rust-lint has checkout step
+PASS: rust-lint runs generate_ssm_env contract test
+PASS: rust-lint runs local-ci rust-lint regression test
+PASS: rust-lint runs integration-test layout contract
+PASS: rust-lint has rust toolchain setup
+PASS: rust-lint has cargo clippy command
+PASS: rust-lint installs Rust before the local-ci regression test
+PASS: migration-test has checkout step
+PASS: migration-test has rust toolchain setup
+PASS: migration-test has migration test command
+PASS: web-test has checkout step
+PASS: web-test has node setup step
+PASS: web-test has test command
+PASS: check-sizes has checkout step
+PASS: check-sizes runs size check script
+PASS: shell-hygiene has checkout step
+PASS: shell-hygiene runs exec-bit regression test
+PASS: shell-hygiene runs port-collision diagnose test
+PASS: shell-hygiene runs compose-project resolver test
+PASS: shell-hygiene runs source-pollution contract test
+PASS: shell-hygiene runs mirror-sync wrapper contract test
+PASS: shell-hygiene runs prod-promotion gate contract test
+PASS: shell-hygiene runs local-dev contract regression test
+PASS: shell-hygiene runs clean-orphans regression test
+PASS: shell-hygiene runs local stack compatibility tests
+PASS: shell-hygiene runs browser preflight compatibility tests
+PASS: local-dev-up-smoke has checkout step
+PASS: local-dev-up-smoke has node setup step
+PASS: local-dev-up-smoke pins Node.js 22
+PASS: local-dev-up-smoke pulls flapjack from public release
+PASS: local-dev-up-smoke reads the canonical flapjack dependency version
+PASS: local-dev-up-smoke derives its release tag from the canonical dependency version
+PASS: local-dev-up-smoke does not duplicate a flapjack version literal
+PASS: local-dev-up-smoke fetches from public release artifact endpoint
+PASS: local-dev-up-smoke verifies flapjack checksum before extract
+PASS: local-dev-up-smoke does not depend on flapjack-acquisition secrets (flapjack is public)
+PASS: local-dev-up-smoke runs local_demo.sh end-to-end
+PASS: local-dev-up-smoke probes api /health after demo startup
+PASS: local-dev-up-smoke probes web / after demo startup
+PASS: local-dev-up-smoke verifies seeded authenticated /indexes behavior
+PASS: local-dev-up-smoke tears down with --clean
+PASS: local-dev-up-smoke teardown always runs
+PASS: local-dev-up-smoke downloads flapjack before running local demo
+PASS: local-dev-up-smoke probes api after running local demo
+PASS: local-dev-up-smoke verifies seeded auth flow after health probe
+PASS: local-dev-up-smoke tears down after e2e probes
+PASS: local-dev-up-smoke dumps demo logs only on failure
+PASS: local-dev-up-smoke failure dump includes api.log (the named-but-never-emitted cause file)
+PASS: local-dev-up-smoke failure dump includes web.log
+PASS: local-dev-up-smoke failure dump includes per-region flapjack logs
+PASS: local-dev-up-smoke failure dump includes per-region metering-agent logs
+PASS: local-dev-up-smoke failure dump includes source-provider container logs
+PASS: local-dev-up-smoke dumps logs after the seeded-auth probe
+PASS: local-dev-up-smoke dumps logs before teardown
+PASS: web-lint has checkout step
+PASS: web-lint has node setup step
+PASS: web-lint runs svelte-check
+PASS: web-lint runs eslint
+PASS: web-lint runs browser-unmocked lint
+PASS: web-lint runs screen spec coverage contract
+PASS: e2e-deployed depends on deploy-staging
+PASS: e2e-deployed keeps the staging-main push-only gate
+PASS: e2e-deployed sets timeout-minutes to 45
+PASS: e2e-deployed sets concurrency group by ref
+PASS: e2e-deployed does not cancel in-progress runs
+PASS: e2e-deployed declares explicit permissions
+PASS: e2e-deployed grants id-token: write for GitHub OIDC
+PASS: e2e-deployed grants contents: read
+PASS: e2e-deployed enables local Stripe mode for deployed Playwright
+PASS: e2e-deployed has checkout step
+PASS: e2e-deployed has node setup step
+PASS: e2e-deployed uses Node.js 22
+PASS: e2e-deployed pins AWS credentials action by commit SHA
+PASS: e2e-deployed assumes role from secret-backed role-to-assume
+PASS: e2e-deployed passes AWS region from env
+PASS: e2e-deployed installs web dependencies
+PASS: e2e-deployed installs chromium for Playwright
+PASS: e2e-deployed runs launch-verification wrapper
+PASS: timeout helper rejects unsafe near-equal step/job timeouts
+PASS: e2e-deployed browser wrapper leaves enough job budget for artifact upload and failure paging
+PASS: e2e-deployed uploads launch artifacts
+PASS: e2e-deployed artifact upload always runs
+PASS: e2e-deployed artifact upload uses upload-artifact action
+PASS: e2e-deployed failure paging runs only after failure
+PASS: e2e-deployed failure paging uses the staging Discord webhook secret
+PASS: e2e-deployed failure paging builds the run URL from GitHub context
+PASS: e2e-deployed failure paging warns inside the empty Discord webhook branch
+PASS: e2e-deployed installs dependencies before browsers
+PASS: e2e-deployed installs browsers before wrapper run
+PASS: e2e-deployed uploads artifacts after wrapper run
+PASS: e2e-deployed failure paging runs after artifact upload
+PASS: e2e-deployed failure paging is the final named step
+PASS: secret-scan has checkout step
+PASS: secret-scan declares explicit permissions
+PASS: secret-scan grants contents: read
+PASS: secret-scan uses gitleaks
+PASS: secret-scan has PR diff scan step
+PASS: secret-scan scopes diff scan to pull requests
+PASS: secret-scan passes GITHUB_TOKEN for PR scanning
+PASS: secret-scan downloads the pinned gitleaks archive without shell piping
+PASS: secret-scan downloads the upstream checksum manifest
+PASS: secret-scan verifies the gitleaks archive checksum before install
+PASS: secret-scan does not stream remote archives directly into tar
+PASS: secret-scan has main full-history scan step
+PASS: secret-scan scopes full-history scan to main pushes
+PASS: secret-scan runs gitleaks detect for main full-history scan
+PASS: secret-scan does not rely on unsupported args input
+PASS: main full-history scan does not use commit-range log opts
+PASS: deploy-staging has checkout step
+PASS: deploy-staging declares explicit permissions
+PASS: deploy-staging grants id-token: write for GitHub OIDC
+PASS: deploy-staging grants contents: read
+PASS: deploy-staging pins AWS credentials action by commit SHA
+PASS: deploy-staging assumes role from secret-backed role-to-assume
+PASS: deploy-staging has build step
+PASS: deploy-staging builds retention-job release binary
+PASS: deploy-prod builds retention-job release binary
+PASS: deploy-prod uses shared release artifact helper
+PASS: deploy-prod reruns reuse matching prod artifacts
+PASS: deploy-staging does not install curl package in Amazon Linux (curl-minimal conflict)
+PASS: deploy-staging avoids curl-pipe-shell remote installer execution
+PASS: deploy-staging installs rust/cargo from distro packages
+PASS: deploy-staging has S3 upload step
+PASS: deploy-staging has deploy trigger step
+PASS: deploy-staging declares required gate dependencies
+PASS: deploy-staging needs rust-test
+PASS: deploy-staging needs rust-lint
+PASS: deploy-staging needs migration-test
+PASS: deploy-staging needs web-test
+PASS: deploy-staging needs check-sizes
+PASS: deploy-staging needs shell-hygiene
+PASS: deploy-staging needs local-dev-up-smoke
+PASS: deploy-staging needs web-lint
+PASS: deploy-staging needs secret-scan
+PASS: deploy-staging is gated to main push on the staging mirror repo
+PASS: deploy-prod is gated to main push on the prod mirror repo
+PASS: deploy-staging scopes artifact prefix to staging SHA path
+PASS: deploy-staging uses shared release artifact helper
+PASS: deploy-staging checks existing staging artifacts through shared helper
+PASS: deploy-staging reruns reuse matching staging artifacts
+PASS: deploy-staging uploads fjcloud-api to staging SHA path
+PASS: deploy-staging uploads fj-metering-agent to staging SHA path
+PASS: deploy-staging uploads fjcloud-aggregation-job to staging SHA path
+PASS: deploy-staging uploads fjcloud-retention-job to staging SHA path
+PASS: deploy-prod uploads fjcloud-retention-job to prod SHA path
+PASS: deploy-staging uploads infra/migrations to staging SHA path
+PASS: deploy-staging uploads migrate.sh to staging SHA path
+PASS: deploy-staging uploads generate_ssm_env.sh to staging SHA path
+PASS: deploy-staging uploads fj-metering-agent.service to staging SHA path
+PASS: deploy-staging triggers staging deploy with GitHub SHA
+PASS: workflow includes cargo fmt --check
+PASS: all uses: entries pin exact 40-char commit SHA
+PASS: deploy-staging aws s3 upload paths include git SHA
+PASS: deploy-staging checks artifact existence before upload
+
+Summary: 202 passed, 0 failed
+GUARD_EXIT=0
+FLAPJACK_HEALTH_OK=1 PID=476559
+COMMAND: cd infra && timeout 600 cargo test -p api --test platform verify_seeded_local_source_red_proof
+   Compiling database-url v0.1.0 (/home/ubuntu/fjcloud_dev/infra/database-url)
+   Compiling api v0.1.0 (/home/ubuntu/fjcloud_dev/infra/api)
+   Compiling pricing-calculator v0.1.0 (/home/ubuntu/fjcloud_dev/infra/pricing-calculator)
+   Compiling billing v0.1.0 (/home/ubuntu/fjcloud_dev/infra/billing)
+   Compiling aggregation-job v0.1.0 (/home/ubuntu/fjcloud_dev/infra/aggregation-job)
+   Compiling retention-job v0.1.0 (/home/ubuntu/fjcloud_dev/infra/retention-job)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 55.23s
+     Running tests/platform.rs (target/debug/deps/platform-f3851ce3dd7a03c4)
+
+running 1 test
+test migration_routes_test::verify::verify_seeded_local_source_red_proof ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1692 filtered out; finished in 1.98s
+
+RUST_REPROOF_EXIT=0

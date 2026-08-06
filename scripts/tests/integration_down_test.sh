@@ -8,6 +8,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# shellcheck source=lib/test_helpers.sh
+source "$SCRIPT_DIR/lib/test_helpers.sh"
+
 PASS_COUNT=0
 FAIL_COUNT=0
 
@@ -256,10 +259,11 @@ test_down_succeeds_when_psql_unavailable() {
 echo "tester"
 MOCK
     chmod +x "$tmp_dir/whoami"
+    make_command_path_without "$tmp_dir" psql docker
 
     local output exit_code=0
     output=$(
-        PATH="$tmp_dir:/usr/bin:/bin" \
+        PATH="$tmp_dir" \
         bash "$REPO_ROOT/scripts/integration-down.sh" 2>&1
     ) || exit_code=$?
 

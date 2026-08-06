@@ -1,0 +1,20 @@
+Running 1 gate(s): web-lint
+Mode: fast  Max parallel: 8
+
+
+=== local-ci summary (wall 52s) ===
+GATE                STATUS   SECS  LOG
+----                ------   ----  ---
+web-lint            PASS       52  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/web-lint.log
+
+## Prod deploy drift (informational — does not affect exit code)
+Prod deploy drift:
+  dev_sha:            99262771479dc6b8c5aeb2c20403300854883b86
+  build_time:         2026-07-30T13:31:29Z (160h 36m ago)
+  commits_behind:     1752
+  deployable_drift:   true (behind)
+  doc_only_ahead:     false
+  dev_main_sha:       fe1c64a9fb4a
+
+Totals: pass=1 fail=0 skip=0
+Result: PASS

@@ -114,7 +114,8 @@ async fn pricing_compare_exposes_verification_labels() {
         .iter()
         .find(|estimate| estimate["provider"].as_str() == Some("Flapjack Cloud"))
         .expect("Flapjack Cloud estimate must be present");
-    assert_eq!(flapjack_cloud["verification_label"], "unverified");
+    // Stamped in 6c0638125; the date is the one carried by griddle.rs:14.
+    assert_eq!(flapjack_cloud["verification_label"], "2026-08-05");
 }
 
 #[tokio::test]
@@ -275,11 +276,15 @@ async fn pricing_compare_flapjack_cloud_contract() {
         .expect("Flapjack Cloud must be present in estimates");
 
     // valid_workload: 100k docs × 2048 bytes = 204,800,000 bytes = 204.8 MB
-    // 204.8 MB × 5 cents/MB = 1024 cents (above $10 minimum)
+    // 204.8 MB × 5 cents/MB = 1024 cents raw, which lands below the paid-plan
+    // monthly minimum, so the floor applies: SHARED_MINIMUM_MONTHLY_CENTS = 1500
+    // (infra/pricing-calculator/src/providers/griddle.rs:46, raised from $5 to
+    // $15 in 68b6d95e4). The billed total is the floor, not the raw cost.
     assert_eq!(
         flapjack_cloud["monthly_total_cents"].as_i64().unwrap(),
-        1024,
-        "Flapjack Cloud monthly total should be 204.8 MB × 5 cents = 1024 cents"
+        1500,
+        "Flapjack Cloud monthly total should be the 1500-cent monthly minimum, \
+         which floors the 1024-cent raw storage cost"
     );
 
     // No search or write line items — pricing is storage-only

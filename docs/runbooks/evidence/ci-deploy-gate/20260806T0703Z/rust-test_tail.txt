@@ -1,0 +1,60 @@
+test config::tests::missing_required_var_is_error ... ok
+test config::tests::rejects_plaintext_non_local_api_url ... ok
+test config::tests::invalid_numeric_input_is_error ... ok
+test config::tests::normalizes_api_url_trailing_slash_once ... ok
+test config::tests::accepts_systemd_binary_dry_run_flag ... ok
+test config::tests::defaults_dry_run_and_max_erasure_bound ... ok
+test config::tests::invalid_bool_input_is_error ... ok
+test config::tests::negative_retention_days_is_error ... ok
+test config::tests::allows_plaintext_loopback_api_url_for_local_runs ... ok
+test job::tests::summary_json_line_is_machine_readable_and_stable ... ok
+test job::tests::passes_cutoff_selection_input_through_unchanged ... ok
+test job::tests::rejects_negative_retention_days_before_listing_candidates ... ok
+test job::tests::dry_run_makes_zero_http_calls ... ok
+test job::tests::max_per_run_cap_counts_skipped_by_bound_before_erasing ... ok
+test job::tests::continue_on_error_reports_failed_and_attempts_later_customers ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/fjcloud_retention_job-d88e19baf3609d46)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests aggregation_job
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests api
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests billing
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests database_url
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests pricing_calculator
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests retention_job
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

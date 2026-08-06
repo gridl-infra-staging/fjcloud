@@ -1,0 +1,43 @@
+=== start-metering.sh tests ===
+
+PASS: single-region start should succeed
+PASS: should pass DATABASE_URL to cargo run
+PASS: single-region should default to flapjack on port 7700
+PASS: should pass the looked-up customer UUID to cargo run
+PASS: single-region should default to us-east-1
+PASS: single-region should use health port 9091
+PASS: should set a scrape interval
+PASS: should invoke cargo run with --manifest-path
+PASS: should run the metering-agent crate
+PASS: should succeed with psql available
+PASS: should use host psql when available for customer UUID lookup
+PASS: should log the found customer UUID
+PASS: SKIP: real psql found on system — cannot force docker fallback
+PASS: SKIP: docker compose exec fallback
+PASS: SKIP: customer UUID via docker
+PASS: multi-region start should succeed
+PASS: should start agent for us-east-1 on flapjack port 7700
+PASS: should start agent for eu-west-1 on flapjack port 7701
+PASS: should start agent for eu-central-1 on flapjack port 7702
+PASS: should set REGION=us-east-1 for first agent
+PASS: should set REGION=eu-west-1 for second agent
+PASS: should set REGION=eu-central-1 for third agent
+PASS: multi-region start should succeed
+PASS: first region health port should be 9091
+PASS: second region health port should be 9092
+PASS: third region health port should be 9093
+PASS: should succeed when agent is already running
+PASS: should report that the agent is already running
+PASS: should not start a new cargo run when agent is already running
+PASS: should fail when no shared customer is found
+PASS: should explain that seed_local.sh needs to be run first
+PASS: should fail when DATABASE_URL is missing
+PASS: should report that DATABASE_URL is missing
+PASS: start-metering honors FJCLOUD_REPO_ROOT override
+PASS: override root .env.local supplies DATABASE_URL
+PASS: override root invocation preserves the FLAPJACK_PORT seam
+PASS: override root owns the metering-agent PID file
+PASS: checkout-root sentinel remains untouched when FJCLOUD_REPO_ROOT is supplied
+PASS: checkout root does not receive metering-agent PID files under override
+
+=== Results: 39 passed, 0 failed ===

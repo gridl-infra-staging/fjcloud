@@ -169,7 +169,7 @@ test_inherited_version_env_does_not_override_shared_constant() {
     local dest
     dest="$(mktemp -d)"
     FJCLOUD_FLAPJACK_VERSION=9.9.9-bogus run_fetch --dest "$dest"
-    assert_contains "$LAST_CURL_LOG" "v1.0.10" \
+    assert_contains "$LAST_CURL_LOG" "v$(REPO_ROOT="$REPO_ROOT"; source "$REPO_ROOT/scripts/lib/flapjack_binary.sh"; printf '%s' "$FJCLOUD_FLAPJACK_VERSION")" \
         "the canonical dependency version ignores inherited shell values"
     assert_not_contains "$LAST_CURL_LOG" "v9.9.9-bogus" \
         "the devbox download URL is not retargeted by an inherited version"

@@ -6,12 +6,15 @@ use crate::types::{CostLineItem, EstimatedCost, ProviderId, ProviderMetadata, Wo
 
 /// Returns metadata for Elastic Cloud.
 pub fn metadata() -> ProviderMetadata {
-    ProviderMetadata {
-        id: ProviderId::ElasticCloud,
-        display_name: "Elastic Cloud".to_string(),
-        last_verified: None,
-        source_urls: vec!["https://www.elastic.co/pricing/cloud-hosted".to_string()],
-    }
+    // Keep unpublished: the current evidence bundle does not source the modeled RAM
+    // ladder or its shared sizing heuristic. See
+    // docs/audits/pricing-verification/20260806T151052Z/elastic_cloud.md.
+    super::provider_metadata(
+        ProviderId::ElasticCloud,
+        "Elastic Cloud",
+        None,
+        &["https://www.elastic.co/pricing/cloud-hosted"],
+    )
 }
 
 // ============================================================================

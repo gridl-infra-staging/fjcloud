@@ -168,6 +168,12 @@ mod tests {
         async fn count_by_customer(&self, _: Uuid) -> Result<i64, crate::repos::RepoError> {
             unimplemented!()
         }
+        async fn count_by_customers(
+            &self,
+            _: &[Uuid],
+        ) -> Result<std::collections::BTreeMap<Uuid, i64>, crate::repos::RepoError> {
+            unimplemented!()
+        }
         async fn find_by_deployment(
             &self,
             _: Uuid,

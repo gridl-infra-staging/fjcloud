@@ -38,10 +38,16 @@ export type PublicJobWithSourceProvider = PublicAlgoliaImportJob & {
 export type NeutralSourceListRequest =
 	| (ListAlgoliaIndexesRequest & { source_provider?: never })
 	| {
-			host: string;
+			endpoint: string;
 			apiKey: string;
-			cursor?: string;
-			hitsPerPage?: number;
+			offset?: number;
+			limit?: number;
+	  }
+	| {
+			node: string;
+			apiKey: string;
+			offset?: number;
+			limit?: number;
 	  };
 export type NeutralCreateRequest =
 	| (CreateAlgoliaImportJobRequest & { source_provider?: never })
@@ -104,12 +110,19 @@ export function neutralSourceListRequest(sourceProvider: SourceProvider): Neutra
 			hitsPerPage: 100
 		};
 	}
-	return {
-		host: `https://${sourceProvider}.example.test`,
-		apiKey: `${sourceProvider}-neutral-source-key`,
-		cursor: `${sourceProvider}/cursor`,
-		hitsPerPage: 100
-	};
+	return sourceProvider === 'meilisearch'
+		? {
+				endpoint: 'https://meilisearch.example.test',
+				apiKey: 'meilisearch-neutral-source-key',
+				offset: 20,
+				limit: 25
+			}
+		: {
+				node: 'https://typesense.example.test',
+				apiKey: 'typesense-neutral-source-key',
+				offset: 20,
+				limit: 25
+			};
 }
 
 export function neutralCreateRequest(sourceProvider: SourceProvider): NeutralCreateRequest {
@@ -358,3 +371,62 @@ export function fullSourceMetadata(
 		...overrides
 	};
 }
+
+export const HOSTED_SOURCE_INDEXES_WIRE_RESPONSE = {
+	indexes: [
+		{
+			name: 'meili_products',
+			primaryKey: 'sku',
+			entries: 5,
+			documentCount: 41,
+			createdAt: '2026-07-18T10:00:00Z',
+			updatedAt: '2026-07-18T10:05:00Z',
+			defaultSortingField: null
+		},
+		{
+			name: 'meili_orders',
+			primaryKey: null,
+			entries: 7,
+			documentCount: null,
+			createdAt: null,
+			updatedAt: null,
+			defaultSortingField: null
+		}
+	],
+	limit: 100,
+	offset: 0,
+	total: 2
+} as const;
+
+export const HOSTED_SOURCE_INDEX_EXPECTED_PAIRS = [
+	{ name: 'meili_products', entries: 41 },
+	{ name: 'meili_orders', entries: 7 }
+] as const;
+
+export const HOSTED_SOURCE_INDEXES_NORMALIZED_RESPONSE: AlgoliaSourceListResponse = {
+	items: [
+		{
+			name: 'meili_products',
+			entries: 41,
+			dataSize: 0,
+			fileSize: 0,
+			updatedAt: '2026-07-18T10:05:00Z',
+			lastBuildTimeS: 0,
+			pendingTask: false,
+			primary: null,
+			replicas: []
+		},
+		{
+			name: 'meili_orders',
+			entries: 7,
+			dataSize: 0,
+			fileSize: 0,
+			updatedAt: '',
+			lastBuildTimeS: 0,
+			pendingTask: false,
+			primary: null,
+			replicas: []
+		}
+	],
+	nextCursor: null
+};

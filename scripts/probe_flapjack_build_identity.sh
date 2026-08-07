@@ -122,6 +122,11 @@ reason, installed_sha, expected_sha, build_info_sha = sys.argv[1:5]
 
 concrete_mismatch = {
     "version_mismatch",
+    # An engine (or pin) whose version is not a strict MAJOR.MINOR.PATCH cannot be
+    # ordered against the floor at all. That is a concrete defect to fix, not an
+    # evidence inconsistency to investigate — see flapjack_classify_health_json in
+    # scripts/lib/local_stack_contract.sh.
+    "version_unparseable",
     "revision_mismatch",
     "build_id_mismatch",
     "checksum_mismatch",

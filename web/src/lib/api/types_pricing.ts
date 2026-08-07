@@ -29,8 +29,15 @@ export interface PricingEstimate {
 	plan_name: string | null;
 }
 
+export interface PricingWithheldProvider {
+	provider: string;
+	display_name: string;
+	reason: string;
+}
+
 export interface PricingCompareResponse {
 	workload: PricingCompareRequest;
 	estimates: PricingEstimate[];
+	withheld_providers: PricingWithheldProvider[];
 	generated_at: string;
 }

@@ -53,8 +53,10 @@
 #   AWS_IDENTITY_ACCOUNT     12-digit account id (valid/recovered only)
 #   AWS_IDENTITY_ARN         caller ARN (valid/recovered only)
 #   AWS_IDENTITY_SOURCE      ambient | <secret-file path>
+#   AWS_IDENTITY_CAPABILITY  capable | insufficient_capability | not_found |
+#                            probe_failed (set by aws_identity_require_capability)
 #   AWS_IDENTITY_DIAGNOSTIC  one canonical human-readable line
-#   AWS_IDENTITY_RAW_ERROR   last raw STS error text (for detail/logging)
+#   AWS_IDENTITY_RAW_ERROR   last raw AWS error text (for detail/logging)
 
 # Resolve this library's directory once so we can locate sibling libs and the
 # default secret file without depending on the caller's cwd.
@@ -65,7 +67,8 @@ AWS_IDENTITY_REPO_ROOT="$(cd "$AWS_IDENTITY_LIB_DIR/../.." && pwd)"
 # source it if the caller has not already — sourcing is idempotent but this
 # avoids clobbering an already-configured environment loader.
 if ! declare -f load_env_file >/dev/null 2>&1; then
-    # shellcheck source=scripts/lib/env.sh
+    # The path is resolved from this library, not the caller's cwd.
+    # shellcheck disable=SC1091
     source "$AWS_IDENTITY_LIB_DIR/env.sh"
 fi
 
@@ -138,6 +141,40 @@ _aws_identity_resolve_secret_file() {
         printf '%s\n' "$FJCLOUD_SECRET_FILE"
     else
         printf '%s\n' "$AWS_IDENTITY_REPO_ROOT/.secret/.env.secret"
+    fi
+}
+
+# Build an actionable capability remedy from the backups that exist now. A
+# hardcoded timestamped backup rots on the next credential rotation, and naming
+# a file that no longer exists is worse than offering no credential fallback.
+_aws_identity_capability_remedy() {
+    local parameter_name="$1"
+    local secret_file backup backup_arn backup_descriptions=""
+    secret_file="$(_aws_identity_resolve_secret_file "")"
+
+    for backup in "${secret_file}.bak."*; do
+        [ -f "$backup" ] || continue
+        backup_arn="$(
+            unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+            load_env_file "$backup"
+            if _aws_identity_probe; then
+                printf '%s' "$AWS_IDENTITY_ARN"
+            fi
+        )" || backup_arn=""
+
+        [ -n "$backup_descriptions" ] && backup_descriptions="${backup_descriptions}, "
+        if [ -n "$backup_arn" ]; then
+            backup_descriptions="${backup_descriptions}${backup} authenticates as ${backup_arn}"
+        else
+            backup_descriptions="${backup_descriptions}${backup} does not authenticate"
+        fi
+    done
+
+    if [ -n "$backup_descriptions" ]; then
+        printf 'grant ssm:GetParameter on %s to %s, or evaluate discovered credential backups: %s' \
+            "$parameter_name" "$AWS_IDENTITY_ARN" "$backup_descriptions"
+    else
+        printf 'grant ssm:GetParameter on %s to %s' "$parameter_name" "$AWS_IDENTITY_ARN"
     fi
 }
 
@@ -222,6 +259,48 @@ aws_identity_ensure() {
         AWS_IDENTITY_STATUS="invalid_credentials"
         AWS_IDENTITY_DIAGNOSTIC="aws credentials rejected by STS and no secret-file key available to recover: ${first_error}"
     fi
+    return 1
+}
+
+# Require one concrete SSM read capability without changing identity validity
+# semantics. Returns 0 only when the current usable identity can read the named
+# parameter; callers inspect AWS_IDENTITY_CAPABILITY for all other outcomes.
+aws_identity_require_capability() {
+    local parameter_name="$1"
+    local raw_error rc=0 remedy
+
+    AWS_IDENTITY_CAPABILITY=""
+    if ! aws_identity_ensure; then
+        return 1
+    fi
+
+    # Capture stderr only: successful SecureString contents go directly to
+    # /dev/null and therefore never enter diagnostics, logs, or shell variables.
+    raw_error="$(AWS_PAGER="" AWS_DEFAULT_OUTPUT=json aws ssm get-parameter \
+        --name "$parameter_name" --with-decryption 2>&1 >/dev/null)" || rc=$?
+    AWS_IDENTITY_RAW_ERROR="$raw_error"
+
+    if [ "$rc" -eq 0 ]; then
+        AWS_IDENTITY_CAPABILITY="capable"
+        AWS_IDENTITY_DIAGNOSTIC="aws identity ${AWS_IDENTITY_ARN} can read SSM parameter ${parameter_name}"
+        return 0
+    fi
+
+    case "$raw_error" in
+        *AccessDenied*)
+            AWS_IDENTITY_CAPABILITY="insufficient_capability"
+            remedy="$(_aws_identity_capability_remedy "$parameter_name")"
+            AWS_IDENTITY_DIAGNOSTIC="aws identity ${AWS_IDENTITY_ARN} cannot read SSM parameter ${parameter_name}: ${remedy}"
+            ;;
+        *ParameterNotFound*)
+            AWS_IDENTITY_CAPABILITY="not_found"
+            AWS_IDENTITY_DIAGNOSTIC="SSM parameter ${parameter_name} was not found for aws identity ${AWS_IDENTITY_ARN}"
+            ;;
+        *)
+            AWS_IDENTITY_CAPABILITY="probe_failed"
+            AWS_IDENTITY_DIAGNOSTIC="SSM capability probe for ${parameter_name} failed for aws identity ${AWS_IDENTITY_ARN}: ${raw_error}"
+            ;;
+    esac
     return 1
 }
 

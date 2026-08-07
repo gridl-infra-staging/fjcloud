@@ -183,6 +183,7 @@ export type {
 	PricingCompareRequest,
 	PricingCostLineItem,
 	PricingEstimate,
+	PricingWithheldProvider,
 	PricingCompareResponse
 } from './types_pricing';
 
@@ -192,7 +193,11 @@ export type {
 	AlgoliaMigrationAvailabilityResponse,
 	AlgoliaMigrationAvailabilityWire,
 	ListAlgoliaIndexesRequest,
-	ListHostedSearchIndexesRequest,
+	HostedSourceIndexesPageRequest,
+	ListMeilisearchIndexesRequest,
+	ListMeilisearchSourceIndexesRequest,
+	ListTypesenseIndexesRequest,
+	ListTypesenseSourceIndexesRequest,
 	ListMigrationSourceIndexesRequest,
 	AlgoliaIndexMetadata,
 	AlgoliaSourceListResponse,

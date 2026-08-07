@@ -6,6 +6,9 @@ use crate::types::{CostLineItem, EstimatedCost, ProviderId, ProviderMetadata, Wo
 
 /// Returns metadata for AWS OpenSearch Service.
 pub fn metadata() -> ProviderMetadata {
+    // Keep unpublished: the current evidence bundle does not source every load-bearing
+    // sizing and transfer input. See
+    // docs/audits/pricing-verification/20260806T151052Z/aws_opensearch.md.
     super::provider_metadata(
         ProviderId::AwsOpenSearch,
         "AWS OpenSearch Service",

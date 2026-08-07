@@ -9,6 +9,7 @@ pub mod providers;
 pub mod rate_cards;
 pub mod replicas;
 pub mod sessions;
+pub mod tenant_quotas;
 pub mod tenants;
 pub mod tokens;
 pub mod usage;
@@ -72,7 +73,7 @@ pub fn admin_routes() -> Router<AppState> {
         )
         .route(
             "/tenants/:id/quotas",
-            get(tenants::get_quotas).put(tenants::update_quotas),
+            get(tenant_quotas::get_quotas).put(tenant_quotas::update_quotas),
         )
         .route(
             "/tenants/:id/invoices",

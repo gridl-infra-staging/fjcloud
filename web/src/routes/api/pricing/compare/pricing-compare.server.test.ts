@@ -53,6 +53,18 @@ const comparisonResponse: PricingCompareResponse = {
 			plan_name: 'Pro'
 		}
 	],
+	withheld_providers: [
+		{
+			provider: 'ElasticCloud',
+			display_name: 'Elastic Cloud',
+			reason: 'unverified'
+		},
+		{
+			provider: 'AwsOpenSearch',
+			display_name: 'AWS OpenSearch Service',
+			reason: 'unverified'
+		}
+	],
 	generated_at: '2026-03-19T00:00:00Z'
 };
 

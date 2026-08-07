@@ -19,6 +19,20 @@ async fn body_json(resp: axum::response::Response) -> serde_json::Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
+fn tenant_id_name_status_rows(json: &serde_json::Value) -> Vec<(String, String, String)> {
+    json.as_array()
+        .expect("tenant response should be an array")
+        .iter()
+        .map(|tenant| {
+            (
+                tenant["id"].as_str().unwrap().to_string(),
+                tenant["name"].as_str().unwrap().to_string(),
+                tenant["status"].as_str().unwrap().to_string(),
+            )
+        })
+        .collect()
+}
+
 fn assert_customer_identity_and_non_lifecycle_fields_unchanged(
     before: &api::models::Customer,
     after: &api::models::Customer,
@@ -258,7 +272,7 @@ async fn list_tenants_returns_billing_health_from_invoice_signals() {
 
     let app = crate::common::TestStateBuilder::new()
         .with_customer_repo(repo)
-        .with_invoice_repo(invoice_repo)
+        .with_invoice_repo(invoice_repo.clone())
         .build_app();
 
     let req = Request::builder()
@@ -286,7 +300,20 @@ async fn list_tenants_returns_billing_health_from_invoice_signals() {
     assert_eq!(find_tenant("Red Overdue")["billing_health"], "red");
     assert_eq!(find_tenant("Grey Deleted")["billing_health"], "grey");
 
-    let _ = grey_deleted;
+    let invoice_batch_ids = invoice_repo
+        .latest_payment_summaries_by_customers_ids()
+        .expect("the listing should issue one non-empty invoice batch");
+    assert_eq!(
+        invoice_batch_ids,
+        vec![
+            green_never_billed.id,
+            green_recent_paid.id,
+            yellow_stale_billing.id,
+            red_overdue.id,
+        ],
+        "invoice batching must include every active customer and exclude deleted customers"
+    );
+    assert!(!invoice_batch_ids.contains(&grey_deleted.id));
 }
 
 #[tokio::test]
@@ -381,6 +408,441 @@ async fn list_tenants_returns_index_count() {
         find_tenant(customer_b.id)["index_count"],
         1,
         "index_count must remain tenant-isolated"
+    );
+}
+
+#[tokio::test]
+async fn list_tenants_issues_at_most_three_repo_calls_for_twenty_five_customers() {
+    let customer_repo = crate::common::mock_repo();
+    let invoice_repo = crate::common::mock_invoice_repo();
+    let tenant_repo = crate::common::mock_tenant_repo();
+
+    for i in 0..25 {
+        customer_repo.seed(
+            &format!("Scale Customer {i:02}"),
+            &format!("scale-{i:02}@example.com"),
+        );
+    }
+
+    let app = crate::common::TestStateBuilder::new()
+        .with_customer_repo(customer_repo.clone())
+        .with_invoice_repo(invoice_repo.clone())
+        .with_tenant_repo(tenant_repo.clone())
+        .build_app();
+
+    let req = Request::builder()
+        .uri("/admin/tenants")
+        .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    assert_eq!(
+        customer_repo.list_call_count(),
+        1,
+        "admin tenant listing must list customers exactly once"
+    );
+    let expected = 3;
+    let actual = crate::common::admin_tenant_list_repo_call_total(
+        &customer_repo,
+        &invoice_repo,
+        &tenant_repo,
+    );
+    assert!(
+        actual <= expected,
+        "admin tenant listing issued {actual} repo calls for 25 customers; \
+         batched design allows at most {expected} (1 customer list + \
+         1 batched invoice-signal fetch + 1 batched index-count fetch)"
+    );
+}
+
+#[tokio::test]
+async fn list_tenants_response_body_is_unchanged_for_seeded_fixture() {
+    let customer_repo = crate::common::mock_repo();
+    let invoice_repo = crate::common::mock_invoice_repo();
+    let tenant_repo = crate::common::mock_tenant_repo();
+
+    let now = Utc::now();
+    let never_billed_last_accessed = now - Duration::minutes(40);
+    let paid_last_accessed = now - Duration::minutes(30);
+    let overdue_last_accessed = now - Duration::minutes(20);
+
+    let never_billed = customer_repo.seed_billing_health_inputs(
+        customer_repo
+            .seed("Never Billed", "never-billed@example.com")
+            .id,
+        Some(never_billed_last_accessed),
+        0,
+    );
+    let recent_paid = customer_repo.seed_billing_health_inputs(
+        customer_repo
+            .seed("Recent Paid", "recent-paid@example.com")
+            .id,
+        Some(paid_last_accessed),
+        0,
+    );
+    invoice_repo.seed_paid(
+        recent_paid.id,
+        NaiveDate::from_ymd_opt(2026, 5, 1).unwrap(),
+        NaiveDate::from_ymd_opt(2026, 5, 31).unwrap(),
+        now - Duration::days(10),
+    );
+    let overdue = customer_repo.seed_billing_health_inputs(
+        customer_repo.seed("Overdue", "overdue@example.com").id,
+        Some(overdue_last_accessed),
+        2,
+    );
+    let deleted = customer_repo.seed_deleted("Deleted Tenant", "deleted@example.com");
+    let indexed = customer_repo.seed("Indexed Tenant", "indexed@example.com");
+
+    let deleted_deployment = Uuid::new_v4();
+    tenant_repo.seed_deployment(
+        deleted_deployment,
+        "us-east-1",
+        Some("https://deleted.flapjack.test"),
+        "running",
+        "running",
+    );
+    tenant_repo
+        .create(deleted.id, "retained", deleted_deployment)
+        .await
+        .unwrap();
+
+    let indexed_deployment = Uuid::new_v4();
+    tenant_repo.seed_deployment(
+        indexed_deployment,
+        "us-east-1",
+        Some("https://indexed.flapjack.test"),
+        "running",
+        "running",
+    );
+    tenant_repo
+        .create(indexed.id, "primary", indexed_deployment)
+        .await
+        .unwrap();
+
+    let app = crate::common::TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_invoice_repo(invoice_repo)
+        .with_tenant_repo(tenant_repo)
+        .build_app();
+
+    let req = Request::builder()
+        .uri("/admin/tenants")
+        .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let json = body_json(resp).await;
+    let expected = serde_json::json!([
+        {
+            "id": never_billed.id,
+            "name": never_billed.name,
+            "email": never_billed.email,
+            "status": never_billed.status,
+            "billing_plan": never_billed.billing_plan,
+            "index_count": 0,
+            "last_accessed_at": never_billed.last_accessed_at,
+            "overdue_invoice_count": 0,
+            "billing_health": "green",
+            "created_at": never_billed.created_at,
+            "updated_at": never_billed.updated_at,
+        },
+        {
+            "id": recent_paid.id,
+            "name": recent_paid.name,
+            "email": recent_paid.email,
+            "status": recent_paid.status,
+            "billing_plan": recent_paid.billing_plan,
+            "index_count": 0,
+            "last_accessed_at": recent_paid.last_accessed_at,
+            "overdue_invoice_count": 0,
+            "billing_health": "green",
+            "created_at": recent_paid.created_at,
+            "updated_at": recent_paid.updated_at,
+        },
+        {
+            "id": overdue.id,
+            "name": overdue.name,
+            "email": overdue.email,
+            "status": overdue.status,
+            "billing_plan": overdue.billing_plan,
+            "index_count": 0,
+            "last_accessed_at": overdue.last_accessed_at,
+            "overdue_invoice_count": 2,
+            "billing_health": "red",
+            "created_at": overdue.created_at,
+            "updated_at": overdue.updated_at,
+        },
+        {
+            "id": deleted.id,
+            "name": deleted.name,
+            "email": deleted.email,
+            "status": deleted.status,
+            "billing_plan": deleted.billing_plan,
+            "index_count": 1,
+            "last_accessed_at": deleted.last_accessed_at,
+            "overdue_invoice_count": deleted.overdue_invoice_count,
+            "billing_health": "grey",
+            "created_at": deleted.created_at,
+            "updated_at": deleted.updated_at,
+        },
+        {
+            "id": indexed.id,
+            "name": indexed.name,
+            "email": indexed.email,
+            "status": indexed.status,
+            "billing_plan": indexed.billing_plan,
+            "index_count": 1,
+            "last_accessed_at": indexed.last_accessed_at,
+            "overdue_invoice_count": indexed.overdue_invoice_count,
+            "billing_health": "green",
+            "created_at": indexed.created_at,
+            "updated_at": indexed.updated_at,
+        }
+    ]);
+
+    assert_eq!(json, expected);
+
+    let tenants = json.as_array().expect("response should be an array");
+    let observed_ids = tenants
+        .iter()
+        .map(|tenant| tenant["id"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    let expected_ids = [
+        never_billed.id.to_string(),
+        recent_paid.id.to_string(),
+        overdue.id.to_string(),
+        deleted.id.to_string(),
+        indexed.id.to_string(),
+    ];
+    assert_eq!(
+        observed_ids,
+        expected_ids.iter().map(String::as_str).collect::<Vec<_>>()
+    );
+
+    let expected_keys = [
+        "billing_health",
+        "billing_plan",
+        "created_at",
+        "email",
+        "id",
+        "index_count",
+        "last_accessed_at",
+        "name",
+        "overdue_invoice_count",
+        "status",
+        "updated_at",
+    ];
+    for tenant in tenants {
+        let object = tenant.as_object().expect("tenant should be an object");
+        let keys = object.keys().map(String::as_str).collect::<Vec<_>>();
+        assert_eq!(keys, expected_keys);
+    }
+}
+
+#[tokio::test]
+async fn list_tenants_limit_and_offset_return_exact_created_desc_id_desc_page() {
+    let customer_repo = crate::common::mock_repo();
+    let base = Utc::now();
+    let older = customer_repo.seed_with_status_and_created_at(
+        "Page Older",
+        "page-older@example.com",
+        "active",
+        base - Duration::minutes(30),
+    );
+    let tie_a = customer_repo.seed_with_status_and_created_at(
+        "Page Tie A",
+        "page-tie-a@example.com",
+        "suspended",
+        base - Duration::minutes(10),
+    );
+    let tie_b = customer_repo.seed_with_status_and_created_at(
+        "Page Tie B",
+        "page-tie-b@example.com",
+        "active",
+        tie_a.created_at,
+    );
+    let newest = customer_repo.seed_with_status_and_created_at(
+        "Page Newest",
+        "page-newest@example.com",
+        "deleted",
+        base,
+    );
+    let oldest = customer_repo.seed_with_status_and_created_at(
+        "Page Oldest",
+        "page-oldest@example.com",
+        "active",
+        base - Duration::minutes(60),
+    );
+
+    let mut expected_customers = vec![older, tie_a, tie_b, newest, oldest];
+    expected_customers.sort_by(|left, right| {
+        right
+            .created_at
+            .cmp(&left.created_at)
+            .then_with(|| right.id.cmp(&left.id))
+    });
+    let expected_first_page = expected_customers[0..2]
+        .iter()
+        .map(|customer| {
+            (
+                customer.id.to_string(),
+                customer.name.clone(),
+                customer.status.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let expected_second_page = expected_customers[2..4]
+        .iter()
+        .map(|customer| {
+            (
+                customer.id.to_string(),
+                customer.name.clone(),
+                customer.status.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    let app = crate::common::test_app_with_repo(customer_repo);
+
+    let first_page = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/admin/tenants?limit=2")
+                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(first_page.status(), StatusCode::OK);
+    assert_eq!(
+        tenant_id_name_status_rows(&body_json(first_page).await),
+        expected_first_page
+    );
+
+    let second_page = app
+        .oneshot(
+            Request::builder()
+                .uri("/admin/tenants?limit=2&offset=2")
+                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(second_page.status(), StatusCode::OK);
+    assert_eq!(
+        tenant_id_name_status_rows(&body_json(second_page).await),
+        expected_second_page
+    );
+}
+
+#[tokio::test]
+async fn list_tenants_status_filter_returns_exact_rows_for_each_status() {
+    let customer_repo = crate::common::mock_repo();
+    let base = Utc::now();
+    let active = customer_repo.seed_with_status_and_created_at(
+        "Filter Active",
+        "filter-active@example.com",
+        "active",
+        base,
+    );
+    let suspended = customer_repo.seed_with_status_and_created_at(
+        "Filter Suspended",
+        "filter-suspended@example.com",
+        "suspended",
+        base - Duration::minutes(1),
+    );
+    let deleted = customer_repo.seed_with_status_and_created_at(
+        "Filter Deleted",
+        "filter-deleted@example.com",
+        "deleted",
+        base - Duration::minutes(2),
+    );
+
+    let app = crate::common::test_app_with_repo(customer_repo);
+
+    for (status, customer) in [
+        ("active", active),
+        ("suspended", suspended),
+        ("deleted", deleted),
+    ] {
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/admin/tenants?status={status}"))
+                    .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            tenant_id_name_status_rows(&body_json(resp).await),
+            vec![(
+                customer.id.to_string(),
+                customer.name.clone(),
+                customer.status.clone()
+            )],
+            "status={status} must return only matching tenants"
+        );
+    }
+}
+
+#[tokio::test]
+async fn list_tenants_rejects_limit_over_max() {
+    let repo = crate::common::mock_repo();
+    repo.seed("Tenant A", "limit-overflow@example.com");
+    let app = crate::common::test_app_with_repo(repo);
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/admin/tenants?limit=101")
+                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let json = body_json(resp).await;
+    assert_eq!(json["error"], "limit must be between 1 and 100");
+}
+
+#[tokio::test]
+async fn list_tenants_rejects_unknown_status() {
+    let repo = crate::common::mock_repo();
+    repo.seed("Tenant A", "unknown-status@example.com");
+    let app = crate::common::test_app_with_repo(repo);
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/admin/tenants?status=archived")
+                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let json = body_json(resp).await;
+    assert_eq!(
+        json["error"],
+        "invalid status 'archived'; expected one of: active, suspended, deleted"
     );
 }
 

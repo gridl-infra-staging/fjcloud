@@ -234,12 +234,33 @@ pub struct EstimatedCost {
     pub plan_name: Option<String>,
 }
 
+/// A registered provider omitted from public estimate output because its pricing source is not publishable.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WithheldProvider {
+    pub provider: ProviderId,
+    pub display_name: String,
+    pub reason: String,
+}
+
+impl From<ProviderMetadata> for WithheldProvider {
+    fn from(metadata: ProviderMetadata) -> Self {
+        let reason = metadata.verification_label();
+        Self {
+            provider: metadata.id,
+            display_name: metadata.display_name,
+            reason,
+        }
+    }
+}
+
 /// The result of comparing all providers for a given workload.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ComparisonResult {
     pub workload: WorkloadProfile,
     /// Estimates sorted cheapest-first by `monthly_total_cents`.
     pub estimates: Vec<EstimatedCost>,
+    /// Registered providers withheld from public estimates because they are not publishable.
+    pub withheld_providers: Vec<WithheldProvider>,
     pub generated_at: DateTime<Utc>,
 }
 

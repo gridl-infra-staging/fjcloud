@@ -47,19 +47,33 @@ TENANT_A_WRITES_PER_MINUTE=10
 TENANT_A_SEARCHES_PER_MINUTE=1
 TENANT_A_EXPECTED_MIN_CENTS=500     # $5 shared minimum floor
 
+# B and C were "dedicated" until 2026-08-07. The API has never had that plan:
+# BillingPlan is Free|Shared (infra/api/src/models/customer.rs) and the string
+# "dedicated" appears nowhere in infra/api/src, so BillingPlan::from_str rejected
+# it and the admin tenant update returned 400 -- a fatal `die` here, reached only
+# after tenant A had already been provisioned and written to. The NAMEs keep their
+# "dedicated" wording deliberately: they key live staging tenants, and renaming
+# them would strand that state and provision duplicates.
+# scripts/tests/seeder_billing_plan_contract_test.sh now pins every plan here to
+# BillingPlan::from_str so this cannot drift again.
 TENANT_B_NAME="demo-small-dedicated"
-TENANT_B_PLAN="dedicated"
+TENANT_B_PLAN="shared"
 TENANT_B_TARGET_STORAGE_MB=2048
 TENANT_B_WRITES_PER_MINUTE=100
 TENANT_B_SEARCHES_PER_MINUTE=10
-TENANT_B_EXPECTED_MIN_CENTS=1000    # $10 dedicated minimum floor
+# Display-only: run_tenant logs this as "expected floor" and asserts nothing. The
+# value still carries the retired dedicated-plan floor and does not match any live
+# rate-card field (rate_card.rs defaults are minimum_spend_cents=500,
+# shared_minimum_spend_cents=200). Reconciling it belongs to the pricing-owner
+# lane, not here, so it is left alone rather than guessed at.
+TENANT_B_EXPECTED_MIN_CENTS=1000    # UNRECONCILED — see note above
 
 TENANT_C_NAME="demo-medium-dedicated"
-TENANT_C_PLAN="dedicated"
+TENANT_C_PLAN="shared"
 TENANT_C_TARGET_STORAGE_MB=20480
 TENANT_C_WRITES_PER_MINUTE=1000
 TENANT_C_SEARCHES_PER_MINUTE=50
-TENANT_C_EXPECTED_MIN_CENTS=1000    # $10 dedicated min — actual usage will dominate
+TENANT_C_EXPECTED_MIN_CENTS=1000    # UNRECONCILED — see note above
 
 # ---------------------------------------------------------------------------
 # CLI parsing and safety gates
@@ -203,8 +217,40 @@ tenant_mapping_path() {
   printf '%s/seed-synthetic-%s.json' "$(seed_synthetic_state_dir)" "$(tenant_field "$letter" NAME)"
 }
 
+# Encode stdin verbatim as a JSON string literal. This is the single JSON-string
+# encoder for this script; it reads stdin rather than argv so secret-bearing
+# values never appear on a child process command line (visible to any local `ps`).
+json_string_from_stdin() {
+  python3 -c 'import json, sys; print(json.dumps(sys.stdin.read()))'
+}
+
 json_string() {
-  python3 -c 'import json, sys; print(json.dumps(sys.argv[1]))' "$1"
+  printf '%s' "$1" | json_string_from_stdin
+}
+
+curl_config_string_from_stdin() {
+  python3 -c 'import sys
+value = sys.stdin.read()
+escaped = []
+for char in value:
+    if char == "\\":
+        escaped.append("\\\\")
+    elif char == "\"":
+        escaped.append("\\\"")
+    elif char == "\t":
+        escaped.append("\\t")
+    elif char == "\n":
+        escaped.append("\\n")
+    elif char == "\r":
+        escaped.append("\\r")
+    elif char == "\v":
+        escaped.append("\\v")
+    elif ord(char) < 32:
+        raise SystemExit("unsupported control character in curl config value")
+    else:
+        escaped.append(char)
+print("\"" + "".join(escaped) + "\"")
+'
 }
 
 parse_json_field() {
@@ -232,10 +278,15 @@ http_response_body() {
 
 admin_call() {
   local method="$1" path="$2"
+  local admin_header_config
   shift 2
+  # printf is a shell builtin and the curl-config encoder reads stdin, so the key
+  # reaches curl (via -K -) without ever hitting a child argv.
+  admin_header_config="$(printf '%s' "x-admin-key: ${ADMIN_KEY}" | curl_config_string_from_stdin)"
+  printf 'header = %s\n' "$admin_header_config" | \
   curl -sS -X "$method" "${API_URL}${path}" \
+    -K - \
     -H "Content-Type: application/json" \
-    -H "x-admin-key: ${ADMIN_KEY}" \
     "$@" \
     -w '\n%{http_code}'
 }
@@ -429,22 +480,44 @@ probe_owner_read_numeric_or_zero() {
   printf '%s' "$value"
 }
 
+# Single source of truth for "this restart window cannot bound anything", used
+# by every restart-window counter so they never disagree about scope. Degenerate
+# means the pair is not a positive, ordered epoch range — including the (0,0) the
+# probe wrapper passes when no restart was invoked. Each bound is screened
+# separately: joining them first lets a missing bound ("":"" -> ":") or an
+# embedded colon ("12:00") slip past the digit screen and then blow up the
+# numeric comparisons, which would classify unusable bounds as a valid window
+# and zero the counters instead of falling back to full scope.
+probe_owner_restart_window_is_degenerate() {
+  local window_start_epoch="$1" window_end_epoch="$2"
+  case "$window_start_epoch" in
+    ''|*[!0-9]*) return 0 ;;
+  esac
+  case "$window_end_epoch" in
+    ''|*[!0-9]*) return 0 ;;
+  esac
+  [ "$window_start_epoch" -le 0 ] \
+    || [ "$window_end_epoch" -le 0 ] \
+    || [ "$window_end_epoch" -lt "$window_start_epoch" ]
+}
+
 probe_owner_count_fail_fast_events_in_window() {
   local tenant_letter="$1" window_start_epoch="$2" window_end_epoch="$3"
-  local write_events_log fail_fast_count
+  local write_events_log fail_fast_count include_full_scope
   write_events_log="$(probe_owner_event_log_path "write")"
+  include_full_scope="false"
+  if probe_owner_restart_window_is_degenerate "$window_start_epoch" "$window_end_epoch"; then
+    include_full_scope="true"
+  fi
   fail_fast_count="$(
-    python3 - "$tenant_letter" "$window_start_epoch" "$window_end_epoch" "$write_events_log" <<'PY'
+    python3 - "$tenant_letter" "$window_start_epoch" "$window_end_epoch" "$include_full_scope" "$write_events_log" <<'PY'
 import sys
 
 tenant_letter = sys.argv[1]
 window_start = int(sys.argv[2]) if sys.argv[2].isdigit() else 0
 window_end = int(sys.argv[3]) if sys.argv[3].isdigit() else 0
-paths = [sys.argv[4]]
-
-if window_start <= 0 or window_end <= 0 or window_end < window_start:
-    print("0")
-    raise SystemExit(0)
+include_full_scope = sys.argv[4] == "true"
+paths = [sys.argv[5]]
 
 count = 0
 for path in paths:
@@ -467,7 +540,7 @@ for path in paths:
                     status_code = int(status_raw)
                 except ValueError:
                     continue
-                if event_epoch < window_start or event_epoch > window_end:
+                if not include_full_scope and (event_epoch < window_start or event_epoch > window_end):
                     continue
                 if status_code not in (200, 202):
                     count += 1
@@ -550,21 +623,22 @@ probe_owner_fail_fast_during_restart_window_count() {
 
 probe_owner_writes_attempted_during_restart_window_count() {
   local flapjack_url="$1" flapjack_uid="$2" window_start_epoch="$3" window_end_epoch="$4" tenant_letter="$5"
-  local write_events_log attempted_count
+  local write_events_log attempted_count include_full_scope
   : "$flapjack_url" "$flapjack_uid"
   write_events_log="$(probe_owner_event_log_path "write")"
+  include_full_scope="false"
+  if probe_owner_restart_window_is_degenerate "$window_start_epoch" "$window_end_epoch"; then
+    include_full_scope="true"
+  fi
   attempted_count="$(
-    python3 - "$tenant_letter" "$window_start_epoch" "$window_end_epoch" "$write_events_log" <<'PY'
+    python3 - "$tenant_letter" "$window_start_epoch" "$window_end_epoch" "$include_full_scope" "$write_events_log" <<'PY'
 import sys
 
 tenant_letter = sys.argv[1]
 window_start = int(sys.argv[2]) if sys.argv[2].isdigit() else 0
 window_end = int(sys.argv[3]) if sys.argv[3].isdigit() else 0
-path = sys.argv[4]
-
-if window_start <= 0 or window_end <= 0 or window_end < window_start:
-    print("0")
-    raise SystemExit(0)
+include_full_scope = sys.argv[4] == "true"
+path = sys.argv[5]
 
 count = 0
 try:
@@ -583,7 +657,7 @@ try:
                 event_epoch = int(event_epoch_raw)
             except ValueError:
                 continue
-            if event_epoch < window_start or event_epoch > window_end:
+            if not include_full_scope and (event_epoch < window_start or event_epoch > window_end):
                 continue
             count += 1
 except FileNotFoundError:
@@ -622,19 +696,30 @@ probe_owner_query_exact_object_hit_count() {
 
 probe_owner_visible_in_search_after_count() {
   local flapjack_url="$1" flapjack_uid="$2" window_start_epoch="$3" window_end_epoch="$4" tenant_letter="$5"
-  local write_events_log visible_count doc_ids doc_id hit_count
+  local write_events_log visible_count doc_ids doc_id hit_count include_full_scope
   write_events_log="$(probe_owner_event_log_path "write")"
   visible_count=0
   if [ ! -f "$write_events_log" ]; then
     printf '0'
     return 0
   fi
+  include_full_scope="false"
+  if probe_owner_restart_window_is_degenerate "$window_start_epoch" "$window_end_epoch"; then
+    include_full_scope="true"
+  fi
   doc_ids="$(
-    awk -F'|' -v tenant="$tenant_letter" -v start="$window_start_epoch" -v end="$window_end_epoch" '
+    awk -F'|' -v tenant="$tenant_letter" -v start="$window_start_epoch" -v end="$window_end_epoch" -v full_scope="$include_full_scope" '
       NF==4 {
         epoch=$1+0
         status=$4+0
-        if ($2==tenant && epoch>=start && epoch<=end && (status==200 || status==202) && $3 ~ /^doc-/) {
+        s=start+0
+        e=end+0
+        # full_scope is decided by probe_owner_restart_window_is_degenerate,
+        # the single owner of that rule. A degenerate window is not "measure
+        # nothing" for visibility-after: it selects the full successful-write
+        # scope, mirroring the fallback probe_silent_drop_writes_scope makes to
+        # the full attempted-writes scope. Only a usable window bounds by epoch.
+        if ($2==tenant && (full_scope=="true" || (epoch>=s && epoch<=e)) && (status==200 || status==202) && $3 ~ /^doc-/) {
           print $3
         }
       }

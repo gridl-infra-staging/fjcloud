@@ -1,6 +1,10 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::str::FromStr;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::models::{AlgoliaSealScrubWork, Customer, IngestQuotaWarningMetric};
@@ -8,6 +12,52 @@ use crate::repos::error::RepoError;
 use crate::services::audit_log::{AuditEntry, CustomerHardDeleteAuditPolicy};
 
 pub const RESEND_VERIFICATION_COOLDOWN_SECONDS: i64 = 60;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum AdminCustomerStatus {
+    Active,
+    Suspended,
+    Deleted,
+}
+
+impl AdminCustomerStatus {
+    pub const VALUES: &'static [&'static str] = &["active", "suspended", "deleted"];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Active => "active",
+            Self::Suspended => "suspended",
+            Self::Deleted => "deleted",
+        }
+    }
+}
+
+impl fmt::Display for AdminCustomerStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl FromStr for AdminCustomerStatus {
+    type Err = ();
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "active" => Ok(Self::Active),
+            "suspended" => Ok(Self::Suspended),
+            "deleted" => Ok(Self::Deleted),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct AdminCustomerListQuery {
+    pub status: Option<AdminCustomerStatus>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResendVerificationReservation {
@@ -69,6 +119,7 @@ pub enum CustomerHardDeleteOutcome {
 #[async_trait]
 pub trait CustomerRepo {
     async fn list(&self) -> Result<Vec<Customer>, RepoError>;
+    async fn list_admin(&self, query: AdminCustomerListQuery) -> Result<Vec<Customer>, RepoError>;
     async fn find_by_id(&self, id: Uuid) -> Result<Option<Customer>, RepoError>;
     async fn find_by_email(&self, email: &str) -> Result<Option<Customer>, RepoError>;
     async fn create(&self, name: &str, email: &str) -> Result<Customer, RepoError>;

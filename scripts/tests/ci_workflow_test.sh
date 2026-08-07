@@ -567,6 +567,7 @@ assert_job_contains_regex "shell-hygiene" 'scripts/tests/compose_project_test\.s
 assert_job_contains_regex "shell-hygiene" 'scripts/tests/source_pollution_contract_test\.sh' "shell-hygiene runs source-pollution contract test"
 assert_job_contains_regex "shell-hygiene" 'scripts/tests/git_push_with_sync_test\.sh' "shell-hygiene runs mirror-sync wrapper contract test"
 assert_job_contains_regex "shell-hygiene" 'scripts/tests/post_wave_a_sync_prod_test\.sh' "shell-hygiene runs prod-promotion gate contract test"
+assert_job_contains_regex "shell-hygiene" 'scripts/tests/publish_guard_test\.sh' "shell-hygiene runs publish guard contract test"
 assert_job_contains_regex "shell-hygiene" 'scripts/tests/local_dev_runbook_currency_test\.sh' "shell-hygiene runs local-dev contract regression test"
 assert_job_contains_regex "shell-hygiene" 'scripts/tests/clean_orphans_test\.sh' "shell-hygiene runs clean-orphans regression test"
 assert_job_contains_regex "shell-hygiene" 'scripts/tests/local_stack_contract_test\.sh' "shell-hygiene runs local stack compatibility tests"

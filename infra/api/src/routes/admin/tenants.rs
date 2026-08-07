@@ -1,4 +1,4 @@
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
@@ -15,13 +15,14 @@ use crate::helpers::require_active_customer;
 use crate::models::{BillingPlan, Customer, InvoiceRow};
 use crate::repos::usage_repo::UsageSummary;
 use crate::repos::{
-    CustomerHardDeleteAuditPolicy, CustomerHardDeleteKind, CustomerHardDeleteOutcome,
+    AdminCustomerListQuery, AdminCustomerStatus, CustomerHardDeleteAuditPolicy,
+    CustomerHardDeleteKind, CustomerHardDeleteOutcome,
 };
 use crate::routes::invoices::InvoiceListItem;
 use crate::services::audit_log::{
     list_audit_log_for_target_tenant, write_audit_log, AuditEntry, AuditLogRow,
-    ACTION_CUSTOMER_REACTIVATED, ACTION_CUSTOMER_SUSPENDED, ACTION_QUOTAS_UPDATED,
-    ACTION_STRIPE_SYNC, ACTION_TENANT_CREATED, ACTION_TENANT_DELETED, ACTION_TENANT_UPDATED,
+    ACTION_CUSTOMER_REACTIVATED, ACTION_CUSTOMER_SUSPENDED, ACTION_STRIPE_SYNC,
+    ACTION_TENANT_CREATED, ACTION_TENANT_DELETED, ACTION_TENANT_UPDATED,
 };
 use crate::services::billing_health::{self, BillingHealth, BillingHealthSignals, InvoiceSignals};
 use crate::state::AppState;
@@ -44,7 +45,17 @@ pub struct UpdateTenantRequest {
     pub billing_plan: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+const ADMIN_TENANT_LIST_MAX_LIMIT: i64 = 100;
+
+#[derive(Debug, Default, Deserialize, utoipa::ToSchema)]
+pub struct AdminTenantListQuery {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+    #[schema(value_type = Option<AdminCustomerStatus>)]
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TenantResponse {
     pub id: Uuid,
     pub name: String,
@@ -57,36 +68,6 @@ pub struct TenantResponse {
     pub billing_health: BillingHealth,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateTenantQuotasRequest {
-    pub max_query_rps: Option<u32>,
-    pub max_write_rps: Option<u32>,
-    pub max_storage_bytes: Option<u64>,
-    pub max_indexes: Option<u32>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct QuotaValues {
-    pub max_query_rps: u32,
-    pub max_write_rps: u32,
-    pub max_storage_bytes: u64,
-    pub max_indexes: u32,
-}
-
-#[derive(Debug, Serialize)]
-pub struct TenantIndexQuota {
-    pub index_name: String,
-    pub effective: QuotaValues,
-    #[serde(rename = "override")]
-    pub override_quota: Value,
-}
-
-#[derive(Debug, Serialize)]
-pub struct TenantQuotasResponse {
-    pub defaults: QuotaValues,
-    pub indexes: Vec<TenantIndexQuota>,
 }
 
 #[derive(Debug, Serialize)]
@@ -141,7 +122,7 @@ async fn fetch_invoice_signals(
     customer_id: Uuid,
     customer_status: &str,
 ) -> Result<InvoiceSignals, ApiError> {
-    if customer_status == "deleted" {
+    if billing_health::skips_invoice_signals(customer_status) {
         return Ok(InvoiceSignals::default());
     }
     let signals = billing_health::invoice_signals_for_customer(
@@ -173,20 +154,6 @@ fn message_response(message: &str) -> Json<Value> {
     Json(json!({ "message": message }))
 }
 
-fn quota_values(
-    max_query_rps: u32,
-    max_write_rps: u32,
-    max_storage_bytes: u64,
-    max_indexes: u32,
-) -> QuotaValues {
-    QuotaValues {
-        max_query_rps,
-        max_write_rps,
-        max_storage_bytes,
-        max_indexes,
-    }
-}
-
 fn update_tenant_changed_fields(req: &UpdateTenantRequest) -> Vec<&'static str> {
     let mut changed = Vec::with_capacity(3);
     if req.name.is_some() {
@@ -212,6 +179,48 @@ fn open_invoices_for_snapshot(invoices: &[InvoiceRow]) -> Vec<InvoiceListItem> {
         .filter(|invoice| is_open_invoice_status(&invoice.status))
         .map(InvoiceListItem::from)
         .collect()
+}
+
+fn parse_tenant_list_query(
+    query: AdminTenantListQuery,
+) -> Result<AdminCustomerListQuery, ApiError> {
+    let limit = match query.limit {
+        None => None,
+        Some(value) if (1..=ADMIN_TENANT_LIST_MAX_LIMIT).contains(&value) => Some(value),
+        Some(_) => {
+            return Err(ApiError::BadRequest(format!(
+                "limit must be between 1 and {ADMIN_TENANT_LIST_MAX_LIMIT}"
+            )));
+        }
+    };
+    let offset = match query.offset {
+        None => None,
+        Some(value) if value >= 0 => Some(value),
+        Some(_) => {
+            return Err(ApiError::BadRequest(
+                "offset must be a non-negative integer".into(),
+            ));
+        }
+    };
+    let status = query
+        .status
+        .as_deref()
+        .map(|value| {
+            AdminCustomerStatus::from_str(value).map_err(|_| {
+                ApiError::BadRequest(format!(
+                    "invalid status '{}'; expected one of: {}",
+                    value,
+                    AdminCustomerStatus::VALUES.join(", ")
+                ))
+            })
+        })
+        .transpose()?;
+
+    Ok(AdminCustomerListQuery {
+        status,
+        limit,
+        offset,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -261,20 +270,78 @@ pub async fn create_tenant(
     Ok((StatusCode::CREATED, Json(response)))
 }
 
+#[utoipa::path(
+    get,
+    path = "/admin/tenants",
+    params(
+        ("limit" = Option<i64>, Query, description = "Maximum tenants to return. Must be between 1 and 100."),
+        ("offset" = Option<i64>, Query, description = "Number of tenants to skip. Must be non-negative."),
+        ("status" = Option<AdminCustomerStatus>, Query, description = "Optional customer status filter.")
+    ),
+    responses(
+        (status = 200, description = "Admin tenant list", body = [TenantResponse]),
+        (status = 400, description = "Invalid pagination or status filter", body = crate::errors::ErrorResponse),
+        (status = 401, description = "Missing or invalid admin credential", body = crate::errors::ErrorResponse)
+    ),
+    security(("bearer_jwt" = []))
+)]
 pub async fn list_tenants(
     _auth: AdminAuth,
     State(state): State<AppState>,
+    Query(query): Query<AdminTenantListQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let customers = state.customer_repo.list().await?;
-    let mut tenants: Vec<TenantResponse> = Vec::with_capacity(customers.len());
-    for customer in customers {
-        let signals = fetch_invoice_signals(&state, customer.id, &customer.status).await?;
-        let index_count = state.tenant_repo.count_by_customer(customer.id).await?;
-        tenants.push(tenant_response_from_signals(customer, signals, index_count));
-    }
+    let customers = state
+        .customer_repo
+        .list_admin(parse_tenant_list_query(query)?)
+        .await?;
+
+    // Batched fan-out avoidance: the staging customers table is ~10,574 rows,
+    // so the old per-row loop (`1 + 2N` reads) issued ~21k queries. Instead we
+    // issue exactly three reads regardless of N — one customer list plus one
+    // batched invoice-signal fetch plus one batched index-count fetch — and
+    // join the results back in memory below.
+    let all_customer_ids: Vec<Uuid> = customers.iter().map(|customer| customer.id).collect();
+    // Customers whose billing health ignores invoice history stay on default
+    // signals and are excluded from the invoice batch.
+    let non_deleted_customer_ids: Vec<Uuid> = customers
+        .iter()
+        .filter(|customer| !billing_health::skips_invoice_signals(&customer.status))
+        .map(|customer| customer.id)
+        .collect();
+
+    let signals_by_customer = billing_health::invoice_signals_for_customers(
+        state.invoice_repo.as_ref(),
+        &non_deleted_customer_ids,
+        Utc::now(),
+    )
+    .await?;
+    let index_counts = state
+        .tenant_repo
+        .count_by_customers(&all_customer_ids)
+        .await?;
+
+    let tenants: Vec<TenantResponse> = customers
+        .into_iter()
+        .map(|customer| {
+            let signals = signals_by_customer
+                .get(&customer.id)
+                .copied()
+                .unwrap_or_default();
+            let index_count = index_counts.get(&customer.id).copied().unwrap_or(0);
+            tenant_response_from_signals(customer, signals, index_count)
+        })
+        .collect();
     Ok(Json(tenants))
 }
 
+/// `GET /admin/tenants/{id}` — single-tenant detail.
+///
+/// This endpoint intentionally stays on the single-row calls to
+/// `fetch_invoice_signals` and `count_by_customer`, rather than the batched
+/// readers used by `list_tenants`. It resolves exactly one customer, so the
+/// batched `= ANY($1)` forms (whose payoff is amortizing one query across the
+/// ~10,574-row listing) would add slice-wrapping overhead with no fan-out to
+/// avoid.
 pub async fn get_tenant(
     _auth: AdminAuth,
     State(state): State<AppState>,
@@ -660,163 +727,4 @@ pub async fn get_customer_snapshot(
         open_invoices,
         recent_audit,
     }))
-}
-
-pub async fn get_quotas(
-    _auth: AdminAuth,
-    State(state): State<AppState>,
-    Path(customer_id): Path<Uuid>,
-) -> Result<impl IntoResponse, ApiError> {
-    require_active_customer(state.customer_repo.as_ref(), customer_id).await?;
-
-    let response = quotas_response(&state, customer_id).await?;
-    Ok(Json(response))
-}
-
-/// `PUT /admin/tenants/{id}/quotas` — update quotas for all tenant indexes.
-///
-/// **Auth:** `AdminAuth`.
-/// Applies the partial quota update to every index (tenant) owned by the
-/// customer, then invalidates the in-memory quota cache for each. Returns
-/// the full quotas response (defaults + per-index effective values).
-pub async fn update_quotas(
-    auth: AdminAuth,
-    State(state): State<AppState>,
-    Path(customer_id): Path<Uuid>,
-    Json(req): Json<UpdateTenantQuotasRequest>,
-) -> Result<impl IntoResponse, ApiError> {
-    require_active_customer(state.customer_repo.as_ref(), customer_id).await?;
-
-    let update_payload = quota_update_payload(&req)?;
-    let mut quota_keys = update_payload
-        .as_object()
-        .map(|map| map.keys().cloned().collect::<Vec<_>>())
-        .unwrap_or_default();
-    quota_keys.sort();
-
-    let tenants = state.tenant_repo.list_raw_by_customer(customer_id).await?;
-    for tenant in &tenants {
-        state
-            .tenant_repo
-            .set_resource_quota(customer_id, &tenant.tenant_id, update_payload.clone())
-            .await?;
-        state
-            .tenant_quota_service
-            .invalidate_quota(customer_id, &tenant.tenant_id);
-    }
-
-    if !tenants.is_empty() {
-        if let Err(err) = write_audit_log(
-            &state.pool,
-            auth.operator_id,
-            ACTION_QUOTAS_UPDATED,
-            Some(customer_id),
-            json!({ "quota_keys": quota_keys }),
-        )
-        .await
-        {
-            tracing::error!(
-                error = %err,
-                customer_id = %customer_id,
-                "failed to write quotas_updated audit_log row"
-            );
-        }
-    }
-
-    let response = quotas_response(&state, customer_id).await?;
-    Ok(Json(response))
-}
-
-/// Validate quota fields and build a partial JSON update object.
-///
-/// At least one field must be provided; all provided values must be > 0.
-/// Returns a `serde_json::Value::Object` containing only the fields to update.
-fn quota_update_payload(req: &UpdateTenantQuotasRequest) -> Result<Value, ApiError> {
-    if req.max_query_rps.is_none()
-        && req.max_write_rps.is_none()
-        && req.max_storage_bytes.is_none()
-        && req.max_indexes.is_none()
-    {
-        return Err(ApiError::BadRequest("no fields to update".into()));
-    }
-
-    if req.max_query_rps.is_some_and(|v| v == 0) {
-        return Err(ApiError::BadRequest(
-            "max_query_rps must be greater than 0".into(),
-        ));
-    }
-    if req.max_write_rps.is_some_and(|v| v == 0) {
-        return Err(ApiError::BadRequest(
-            "max_write_rps must be greater than 0".into(),
-        ));
-    }
-    if req.max_storage_bytes.is_some_and(|v| v == 0) {
-        return Err(ApiError::BadRequest(
-            "max_storage_bytes must be greater than 0".into(),
-        ));
-    }
-    if req.max_indexes.is_some_and(|v| v == 0) {
-        return Err(ApiError::BadRequest(
-            "max_indexes must be greater than 0".into(),
-        ));
-    }
-
-    let mut map = serde_json::Map::new();
-    if let Some(v) = req.max_query_rps {
-        map.insert("max_query_rps".into(), json!(v));
-    }
-    if let Some(v) = req.max_write_rps {
-        map.insert("max_write_rps".into(), json!(v));
-    }
-    if let Some(v) = req.max_storage_bytes {
-        map.insert("max_storage_bytes".into(), json!(v));
-    }
-    if let Some(v) = req.max_indexes {
-        map.insert("max_indexes".into(), json!(v));
-    }
-    Ok(Value::Object(map))
-}
-
-/// Build the full quotas response: system defaults plus per-index effective values.
-///
-/// Lists all tenant (index) records for the customer, resolves each index's
-/// effective quota by merging overrides with defaults, and returns them sorted
-/// by `index_name`.
-async fn quotas_response(
-    state: &AppState,
-    customer_id: Uuid,
-) -> Result<TenantQuotasResponse, ApiError> {
-    let defaults = state.tenant_quota_service.defaults().clone();
-    let tenants = state.tenant_repo.list_raw_by_customer(customer_id).await?;
-
-    let mut indexes = tenants
-        .into_iter()
-        .map(|tenant| {
-            let effective = state
-                .tenant_quota_service
-                .resolve_quota(&tenant.resource_quota);
-            TenantIndexQuota {
-                index_name: tenant.tenant_id,
-                effective: quota_values(
-                    effective.max_query_rps,
-                    effective.max_write_rps,
-                    effective.max_storage_bytes,
-                    effective.max_indexes,
-                ),
-                override_quota: tenant.resource_quota,
-            }
-        })
-        .collect::<Vec<_>>();
-
-    indexes.sort_by(|a, b| a.index_name.cmp(&b.index_name));
-
-    Ok(TenantQuotasResponse {
-        defaults: quota_values(
-            defaults.max_query_rps,
-            defaults.max_write_rps,
-            defaults.max_storage_bytes,
-            defaults.max_indexes,
-        ),
-        indexes,
-    })
 }

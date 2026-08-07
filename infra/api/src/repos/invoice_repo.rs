@@ -6,6 +6,8 @@ use uuid::Uuid;
 use crate::models::{InvoiceLineItemRow, InvoiceRow};
 use crate::repos::error::RepoError;
 
+pub const PAID_INVOICE_STATUS: &str = "paid";
+
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct AdminInvoiceSummaryRow {
     pub id: Uuid,
@@ -26,6 +28,16 @@ pub struct AdminInvoiceSummaryRow {
     pub created_at: DateTime<Utc>,
     pub finalized_at: Option<DateTime<Utc>>,
     pub paid_at: Option<DateTime<Utc>>,
+}
+
+/// Paid-invoice facts needed to derive billing health for one customer.
+/// Batch listing returns one row per customer that has any invoice, avoiding
+/// materializing complete invoice histories in the API process.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::FromRow)]
+pub struct CustomerInvoicePaymentSummary {
+    pub customer_id: Uuid,
+    pub has_ever_been_billed: bool,
+    pub latest_paid_at: Option<DateTime<Utc>>,
 }
 
 pub struct NewInvoice {
@@ -61,6 +73,19 @@ pub trait InvoiceRepo {
     ) -> Result<(InvoiceRow, Vec<InvoiceLineItemRow>), RepoError>;
 
     async fn list_by_customer(&self, customer_id: Uuid) -> Result<Vec<InvoiceRow>, RepoError>;
+
+    /// Return aggregate paid-invoice facts for the given customers in one
+    /// query, so admin listing over N customers costs one bounded read instead
+    /// of N reads or one unbounded transfer of every invoice row.
+    ///
+    /// Contract: an empty `customer_ids` slice returns an empty `Vec` WITHOUT
+    /// issuing any query (there is nothing to match), and every implementation
+    /// must honor that early-return so the admin-listing query-count oracle
+    /// stays accurate.
+    async fn payment_summaries_by_customers(
+        &self,
+        customer_ids: &[Uuid],
+    ) -> Result<Vec<CustomerInvoicePaymentSummary>, RepoError>;
 
     async fn revenue_summary(&self) -> Result<Vec<AdminInvoiceSummaryRow>, RepoError>;
 

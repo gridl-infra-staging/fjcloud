@@ -47,6 +47,7 @@
 #                    engine-exposure-probe-contract,
 #                    fleet-dataplane-probe-contract,
 #                    mirror-ci-currency-probe-contract,
+#                    scheduled-alarm-liveness-contract,
 #                    usage-rollup-freshness-contract,
 #                    launch-evidence-freshness-contract,
 #                    claim-freshness-contract,
@@ -213,7 +214,7 @@ render_prod_drift() {
 # preserved and no gates are scheduled or executed.
 if [ "$SUMMARY_ONLY" -eq 1 ]; then
     printf '=== local-ci summary (summary-only) ===\n'
-    printf 'Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape handover-consumption web-lint secret-scan dep-audit baseline-integrity web-audit security-suite evidence-secret-hygiene index-export-clientside-contract api-client-route-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract mirror-ci-currency-probe-contract usage-rollup-freshness-contract launch-evidence-freshness-contract claim-freshness-contract test-reachability-contract local-real-pipeline-contract local-schema-drift-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver script-exec-bits port-collision-diagnose compose-project\n'
+    printf 'Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape handover-consumption web-lint secret-scan dep-audit baseline-integrity web-audit security-suite evidence-secret-hygiene index-export-clientside-contract api-client-route-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract mirror-ci-currency-probe-contract scheduled-alarm-liveness-contract usage-rollup-freshness-contract launch-evidence-freshness-contract claim-freshness-contract test-reachability-contract local-real-pipeline-contract local-schema-drift-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver script-exec-bits port-collision-diagnose compose-project\n'
     render_prod_drift
     exit 0
 fi
@@ -932,6 +933,66 @@ gate_mirror_ci_currency_probe_contract() {
     bash "$REPO_ROOT/scripts/tests/mirror_ci_currency_probe_test.sh" || return $?
 }
 
+scheduled_alarm_liveness_probe_exit_is_shadowable() {
+    local probe_stdout="$1" summary
+    summary="$(printf '%s\n' "$probe_stdout" | awk '/^summary / {line=$0} END {print line}')"
+    [ -n "$summary" ] || return 1
+    case "$summary" in
+        *" reason=api_failure"|*" reason=registry_mismatch")
+            return 1
+            ;;
+    esac
+    if printf '%s\n' "$probe_stdout" | grep -Eq '(^|[[:space:]])reason=(api_failure|auth_missing)([[:space:]]|$)'; then
+        return 1
+    fi
+    if printf '%s\n' "$probe_stdout" | grep -Eq '^registry_error '; then
+        return 1
+    fi
+    if ! printf '%s\n' "$probe_stdout" \
+        | grep -E '^mirror=' \
+        | grep -Eq '(^|[[:space:]])reason=(schedule_run_missing|stale|timestamp_in_future|not_completed|unexpected_skip|expected_skip_missing|red_unacknowledged|failing_job_missing)([[:space:]]|$)'; then
+        return 1
+    fi
+    ! printf '%s\n' "$probe_stdout" \
+        | grep -E '^mirror=' \
+        | grep -Ev '(^|[[:space:]])reason=(green|skip_expected|red_acknowledged|schedule_run_missing|stale|timestamp_in_future|not_completed|unexpected_skip|expected_skip_missing|red_unacknowledged|failing_job_missing)([[:space:]]|$)' \
+        >/dev/null
+}
+
+gate_scheduled_alarm_liveness_contract() {
+    local probe_status=0 probe_stdout probe_stderr stderr_file
+    bash "$REPO_ROOT/scripts/tests/scheduled_alarm_liveness_probe_test.sh" || return $?
+    bash "$REPO_ROOT/scripts/tests/alerting_scheduled_alarm_runbook_test.sh" || return $?
+    stderr_file="$(mktemp)"
+    set +e
+    probe_stdout="$(bash "$REPO_ROOT/scripts/probe_scheduled_alarm_liveness.sh" 2>"$stderr_file")"
+    probe_status=$?
+    set -e
+    probe_stderr="$(cat "$stderr_file")"
+    rm -f "$stderr_file"
+    if [ -n "$probe_stdout" ]; then
+        printf '%s\n' "$probe_stdout"
+    fi
+    if [ -n "$probe_stderr" ]; then
+        printf '%s\n' "$probe_stderr" >&2
+    fi
+    if [ "$probe_status" -ne 0 ]; then
+        if [ "$probe_status" -eq 1 ] && scheduled_alarm_liveness_probe_exit_is_shadowable "$probe_stdout"; then
+            echo "SHADOW_WARN: scheduled alarm liveness probe found an unhealthy mirror workflow; see the per-workflow verdicts above"
+        else
+            echo "scheduled alarm liveness gate: probe evidence could not be trusted; this is never shadowed" >&2
+            return "$probe_status"
+        fi
+    fi
+    # Promotion owner: aug05_12pm_3_flapjack_pin_bump_and_drift_guard removes
+    # this first-batch shadow after this lane's full --fast receipt and that
+    # batch's pre-edit single-gate receipt both show the exact live summary
+    # `summary checked=6 passed=6 failed=0` with no SHADOW_WARN. Those two
+    # independent routine-local executions are the required zero-false-kill
+    # evidence; missing or different evidence keeps the gate warning-only.
+    return 0
+}
+
 gate_usage_rollup_freshness_contract() {
     bash "$REPO_ROOT/scripts/tests/probe_usage_rollup_freshness_test.sh" || return $?
     # test_probe_live_state.sh defaults to a real live-state collection and
@@ -1530,6 +1591,7 @@ schedule flapjack-ami-pointer-contract
 schedule engine-exposure-probe-contract
 schedule fleet-dataplane-probe-contract
 schedule mirror-ci-currency-probe-contract
+schedule scheduled-alarm-liveness-contract
 schedule usage-rollup-freshness-contract
 schedule launch-evidence-freshness-contract
 schedule claim-freshness-contract
@@ -1598,7 +1660,7 @@ if [ "${#SCHEDULED_GATES[@]}" -eq 0 ] \
     && [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 0 ]; then
     if [ -n "$SINGLE_GATE" ]; then
         echo "ERROR: --gate '$SINGLE_GATE' did not match any known gate" >&2
-        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape handover-consumption web-lint secret-scan dep-audit baseline-integrity web-audit security-suite evidence-secret-hygiene index-export-clientside-contract api-client-route-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract mirror-ci-currency-probe-contract usage-rollup-freshness-contract launch-evidence-freshness-contract claim-freshness-contract test-reachability-contract local-real-pipeline-contract local-schema-drift-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver script-exec-bits port-collision-diagnose compose-project" >&2
+        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape handover-consumption web-lint secret-scan dep-audit baseline-integrity web-audit security-suite evidence-secret-hygiene index-export-clientside-contract api-client-route-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract mirror-ci-currency-probe-contract scheduled-alarm-liveness-contract usage-rollup-freshness-contract launch-evidence-freshness-contract claim-freshness-contract test-reachability-contract local-real-pipeline-contract local-schema-drift-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver script-exec-bits port-collision-diagnose compose-project" >&2
         exit 2
     fi
     echo "ERROR: no gates scheduled" >&2
@@ -1690,6 +1752,7 @@ if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
             engine-exposure-probe-contract) run_gate engine-exposure-probe-contract gate_engine_exposure_probe_contract ;;
             fleet-dataplane-probe-contract) run_gate fleet-dataplane-probe-contract gate_fleet_dataplane_probe_contract ;;
             mirror-ci-currency-probe-contract) run_gate mirror-ci-currency-probe-contract gate_mirror_ci_currency_probe_contract ;;
+            scheduled-alarm-liveness-contract) run_gate scheduled-alarm-liveness-contract gate_scheduled_alarm_liveness_contract ;;
             usage-rollup-freshness-contract) run_gate usage-rollup-freshness-contract gate_usage_rollup_freshness_contract ;;
             launch-evidence-freshness-contract) run_gate launch-evidence-freshness-contract gate_launch_evidence_freshness_contract ;;
             claim-freshness-contract) run_gate claim-freshness-contract gate_claim_freshness_contract ;;

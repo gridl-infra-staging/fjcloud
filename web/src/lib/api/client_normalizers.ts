@@ -2,6 +2,8 @@ import type {
 	AlgoliaMigrationAvailabilityResponse,
 	AlgoliaMigrationAvailabilityWire,
 	AlgoliaMigrationCapabilities,
+	AlgoliaIndexMetadata,
+	AlgoliaSourceListResponse,
 	FreeTierLimits,
 	ListAlgoliaIndexesRequest,
 	OnboardingStatus
@@ -86,5 +88,69 @@ export function algoliaSourceListRequest(
 		apiKey: request.apiKey,
 		...(request.cursor != null ? { cursor: request.cursor } : {}),
 		...(request.hitsPerPage != null ? { hitsPerPage: request.hitsPerPage } : {})
+	};
+}
+
+type HostedSourceIndexSummary = {
+	name: string;
+	entries?: number | null;
+	documentCount?: number | null;
+	updatedAt?: string | null;
+};
+
+type HostedSourceListResponse = {
+	indexes: HostedSourceIndexSummary[];
+	limit?: number | null;
+	offset?: number | null;
+	total?: number | null;
+};
+
+function isHostedSourceListResponse(payload: unknown): payload is HostedSourceListResponse {
+	return (
+		typeof payload === 'object' &&
+		payload !== null &&
+		Array.isArray((payload as Partial<HostedSourceListResponse>).indexes)
+	);
+}
+
+function normalizeHostedSourceIndex(index: HostedSourceIndexSummary): AlgoliaIndexMetadata {
+	return {
+		name: index.name,
+		entries: index.documentCount ?? index.entries ?? 0,
+		dataSize: 0,
+		fileSize: 0,
+		updatedAt: index.updatedAt ?? '',
+		lastBuildTimeS: 0,
+		pendingTask: false,
+		primary: null,
+		replicas: []
+	};
+}
+
+function hostedNextCursor(response: HostedSourceListResponse): string | null {
+	if (
+		typeof response.offset !== 'number' ||
+		typeof response.limit !== 'number' ||
+		typeof response.total !== 'number'
+	) {
+		return null;
+	}
+	const nextOffset = response.offset + response.limit;
+	return nextOffset > response.offset && nextOffset < response.total ? String(nextOffset) : null;
+}
+
+/**
+ * The Rust response is an untagged union and carries no provider discriminator.
+ * An `indexes` array identifies the hosted arm. Hosted `documentCount` wins over
+ * fallback `entries`, missing counts become zero, and offset pagination leaves
+ * this boundary as the canonical string cursor consumed by the create flow.
+ */
+export function normalizeMigrationSourceListResponse(payload: unknown): AlgoliaSourceListResponse {
+	if (!isHostedSourceListResponse(payload)) {
+		return payload as AlgoliaSourceListResponse;
+	}
+	return {
+		items: payload.indexes.map(normalizeHostedSourceIndex),
+		nextCursor: hostedNextCursor(payload)
 	};
 }

@@ -9,7 +9,11 @@ import type {
 	CreateMigrationImportJobRequest,
 	ListAlgoliaImportJobsRequest,
 	ListAlgoliaIndexesRequest,
+	ListMeilisearchIndexesRequest,
+	ListMeilisearchSourceIndexesRequest,
 	ListMigrationSourceIndexesRequest,
+	ListTypesenseIndexesRequest,
+	ListTypesenseSourceIndexesRequest,
 	MigrationPreviewArguments,
 	MigrationPreviewResponse,
 	PublicAlgoliaImportJob,
@@ -23,7 +27,8 @@ import { ApiRequestError } from './api_request_error';
 import { BaseClient } from './base-client';
 import {
 	algoliaSourceListRequest,
-	normalizeAlgoliaMigrationAvailability
+	normalizeAlgoliaMigrationAvailability,
+	normalizeMigrationSourceListResponse
 } from './client_normalizers';
 import { buildQueryString, pathSegment } from './client_paths';
 
@@ -67,6 +72,52 @@ function sanitizeErrorPayload(value: unknown): unknown {
 		);
 	}
 	return value;
+}
+
+function hostedSourceListQuery(
+	request: ListMeilisearchSourceIndexesRequest | ListTypesenseSourceIndexesRequest
+): string {
+	return buildQueryString([
+		['offset', request.offset ?? undefined],
+		['limit', request.limit ?? undefined]
+	]);
+}
+
+function meilisearchSourceListBody(
+	request: ListMeilisearchSourceIndexesRequest
+): ListMeilisearchIndexesRequest {
+	return {
+		endpoint: request.endpoint,
+		apiKey: request.apiKey
+	};
+}
+
+function typesenseSourceListBody(
+	request: ListTypesenseSourceIndexesRequest
+): ListTypesenseIndexesRequest {
+	return {
+		node: request.node,
+		apiKey: request.apiKey
+	};
+}
+
+function hostedSourceListRequest(
+	sourceProvider: SourceProvider,
+	request: ListMigrationSourceIndexesRequest
+): ListMeilisearchSourceIndexesRequest | ListTypesenseSourceIndexesRequest {
+	if (sourceProvider === 'meilisearch') {
+		return request as ListMeilisearchSourceIndexesRequest;
+	}
+	return request as ListTypesenseSourceIndexesRequest;
+}
+
+function hostedSourceListBody(
+	sourceProvider: SourceProvider,
+	request: ListMeilisearchSourceIndexesRequest | ListTypesenseSourceIndexesRequest
+): ListMeilisearchIndexesRequest | ListTypesenseIndexesRequest {
+	return sourceProvider === 'meilisearch'
+		? meilisearchSourceListBody(request as ListMeilisearchSourceIndexesRequest)
+		: typesenseSourceListBody(request as ListTypesenseSourceIndexesRequest);
 }
 
 /** Shared authenticated transport plus the migration API surface. */
@@ -136,7 +187,20 @@ export class MigrationClient extends BaseClient {
 		sourceProvider: SourceProvider,
 		request: ListMigrationSourceIndexesRequest
 	): Promise<AlgoliaSourceListResponse> {
-		return this.api('POST', `/migration/${pathSegment(sourceProvider)}/list-indexes`, request);
+		if (sourceProvider === 'algolia') {
+			return this.api<unknown>(
+				'POST',
+				`/migration/${pathSegment(sourceProvider)}/list-indexes`,
+				algoliaSourceListRequest(request as ListAlgoliaIndexesRequest)
+			).then(normalizeMigrationSourceListResponse);
+		}
+		const hostedRequest = hostedSourceListRequest(sourceProvider, request);
+		const query = hostedSourceListQuery(hostedRequest);
+		return this.api<unknown>(
+			'POST',
+			`/migration/${pathSegment(sourceProvider)}/list-indexes${query}`,
+			hostedSourceListBody(sourceProvider, hostedRequest)
+		).then(normalizeMigrationSourceListResponse);
 	}
 
 	checkAlgoliaDestinationEligibility(

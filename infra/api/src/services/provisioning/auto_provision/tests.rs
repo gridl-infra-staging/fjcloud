@@ -2,9 +2,21 @@
 
 use super::*;
 use crate::vm_providers::VALID_VM_PROVIDERS;
+use std::io::{self, Write};
+#[cfg(unix)]
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 
 const MANAGED_SHARED_VM_PROVIDERS: &[&str] = &["aws"];
 const DISABLED_MANAGED_SHARED_VM_PROVIDERS: &[&str] = &["hetzner", "gcp", "oci", "bare_metal"];
+
+fn assert_url_host(url: &str, expected_hostname: &str) {
+    let parsed = Url::parse(url).expect("engine base URL should parse");
+    assert_eq!(
+        parsed.host_str(),
+        Some(expected_hostname),
+        "engine base URL must preserve the requested hostname: {url}"
+    );
+}
 
 fn assert_caddy_runtime_present(script: &str, hostname: &str) {
     assert!(script.contains(&format!("CADDY_SERVED_HOSTNAME='{hostname}'")));
@@ -37,6 +49,28 @@ fn assert_core_flapjack_and_metering_script(script: &str) {
     assert!(script.contains("FLAPJACK_BIND_ADDR=0.0.0.0:7700"));
     assert!(script.contains("FLAPJACK_URL=http://$NODE_ID:7700"));
     assert!(script.contains("systemctl enable --now flapjack fj-metering-agent"));
+}
+
+fn write_operator_emit_file(path: &std::path::Path, contents: &str) -> io::Result<()> {
+    let parent = path.parent().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "FJCLOUD_USER_DATA_EMIT_PATH must include a parent directory",
+        )
+    })?;
+    if !parent.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "FJCLOUD_USER_DATA_EMIT_PATH parent directory must already exist",
+        ));
+    }
+
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)?;
+    file.write_all(contents.as_bytes())
 }
 
 #[test]
@@ -105,7 +139,38 @@ fn emit_aws_user_data_for_operator() {
     assert!(!script.contains("fj_live_operator_emit_placeholder"));
     assert_caddy_runtime_present(&script, &hostname);
 
-    std::fs::write(&emit_path, script).expect("failed to write FJCLOUD_USER_DATA_EMIT_PATH");
+    write_operator_emit_file(&emit_path, &script)
+        .expect("failed to securely write FJCLOUD_USER_DATA_EMIT_PATH");
+}
+
+#[test]
+fn operator_emit_file_uses_owner_only_permissions_and_refuses_overwrite() {
+    let unique = format!(
+        "fjcloud-user-data-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system time should be after epoch")
+            .as_nanos()
+    );
+    let emit_path = std::env::temp_dir().join(unique);
+
+    write_operator_emit_file(&emit_path, "bootstrap").expect("fresh file should be created");
+    #[cfg(unix)]
+    assert_eq!(
+        std::fs::metadata(&emit_path)
+            .expect("created file should exist")
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600
+    );
+
+    let overwrite_error = write_operator_emit_file(&emit_path, "replacement")
+        .expect_err("existing file must not be overwritten");
+    assert_eq!(overwrite_error.kind(), io::ErrorKind::AlreadyExists);
+
+    std::fs::remove_file(&emit_path).expect("temp operator emit file should be removed");
 }
 
 /// Verifies that managed Hetzner shared VM provisioning is rejected
@@ -338,6 +403,7 @@ fn shared_vm_draft_builds_fresh_cleartext_identity() {
     let draft = shared_vm_draft("aws", "flapjack.foo", None).expect("fresh draft should succeed");
 
     assert_eq!(draft.flapjack_url, engine_base_url("aws", &draft.hostname));
+    assert_url_host(&draft.flapjack_url, &draft.hostname);
     assert!(draft.flapjack_url.starts_with("http://vm-shared-"));
     assert!(draft.flapjack_url.ends_with(":7700"));
     assert_eq!(draft.node_id, draft.hostname);
@@ -436,33 +502,33 @@ fn build_user_data_capacity_has_required_fields() {
 fn engine_base_url_defaults_to_cleartext_when_tls_switch_unset_for_aws() {
     let _lock = super::super::ENGINE_TLS_ENV_LOCK.lock().unwrap();
     let _tls_guard = EnvVarGuard::set("FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED", None);
+    let hostname = "vm-x.example.com";
+    let url = engine_base_url("aws", hostname);
 
-    assert_eq!(
-        engine_base_url("aws", "vm-x.example.com"),
-        "http://vm-x.example.com:7700"
-    );
+    assert_eq!(url, "http://vm-x.example.com:7700");
+    assert_url_host(&url, hostname);
 }
 
 #[test]
 fn engine_base_url_requires_switch_and_caddy_runtime_for_https() {
     let _lock = super::super::ENGINE_TLS_ENV_LOCK.lock().unwrap();
+    let hostname = "vm-x.example.com";
 
     let false_guard = EnvVarGuard::set("FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED", Some("false"));
-    assert_eq!(
-        engine_base_url("aws", "vm-x.example.com"),
-        "http://vm-x.example.com:7700"
-    );
+    let cleartext_url = engine_base_url("aws", hostname);
+    assert_eq!(cleartext_url, "http://vm-x.example.com:7700");
+    assert_url_host(&cleartext_url, hostname);
     drop(false_guard);
 
     let true_guard = EnvVarGuard::set("FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED", Some("true"));
-    let url = engine_base_url("aws", "vm-x.example.com");
+    let url = engine_base_url("aws", hostname);
     assert_eq!(url, "https://vm-x.example.com");
+    assert_url_host(&url, hostname);
     assert!(!url.contains(":7700"));
     assert!(!url.contains(":443"));
-    assert_eq!(
-        engine_base_url("hetzner", "vm-x.example.com"),
-        "http://vm-x.example.com:7700"
-    );
+    let unavailable_caddy_url = engine_base_url("hetzner", hostname);
+    assert_eq!(unavailable_caddy_url, "http://vm-x.example.com:7700");
+    assert_url_host(&unavailable_caddy_url, hostname);
     drop(true_guard);
 }
 
@@ -470,13 +536,15 @@ fn engine_base_url_requires_switch_and_caddy_runtime_for_https() {
 fn engine_base_url_fails_safe_to_cleartext_for_unsupported_provider() {
     let _lock = super::super::ENGINE_TLS_ENV_LOCK.lock().unwrap();
     let _tls_guard = EnvVarGuard::set("FJCLOUD_ENGINE_DATA_PLANE_TLS_ENABLED", Some("true"));
+    let hostname = "vm-x.example.com";
 
     for provider in ["gcp", "oci", "bare_metal", "totally-bogus"] {
+        let url = engine_base_url(provider, hostname);
         assert_eq!(
-            engine_base_url(provider, "vm-x.example.com"),
-            "http://vm-x.example.com:7700",
+            url, "http://vm-x.example.com:7700",
             "{provider} must not select HTTPS"
         );
+        assert_url_host(&url, hostname);
     }
 }
 

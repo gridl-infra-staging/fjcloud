@@ -115,6 +115,30 @@ def first_string(payload, *names):
     return ""
 
 
+def parse_version(value):
+    """Parse a strict MAJOR.MINOR.PATCH numeric version, or return None.
+
+    Deliberately strict, and deliberately NOT lenient about suffixes. fjcloud
+    pins published flapjack releases, which are always three numeric components.
+    A `-rc` suffix is refused rather than stripped: semver orders 1.0.12-rc.1
+    BELOW 1.0.12, so a suffix-stripping parser would rank a release candidate as
+    equal to the finished release and let it satisfy a floor it does not meet.
+    Anything unparseable fails closed at the call site.
+
+    isascii() guards against non-ASCII digit characters, which isdigit() accepts
+    and int() would then happily convert.
+    """
+    parts = value.split(".")
+    if len(parts) != 3:
+        return None
+    numbers = []
+    for part in parts:
+        if not part.isascii() or not part.isdigit():
+            return None
+        numbers.append(int(part))
+    return tuple(numbers)
+
+
 try:
     health = json.loads(sys.argv[1])
 except (json.JSONDecodeError, TypeError):
@@ -143,8 +167,30 @@ required_version, required_revision, required_build_id, required_sha, required_c
 exact_identity_required = bool(required_revision or required_build_id)
 if not version:
     fail("legacy_malformed_health")
-if required_version and version != required_version:
-    fail("version_mismatch")
+# FJCLOUD_FLAPJACK_VERSION is a FLOOR, not an equality target. An engine that
+# reports the pinned release or anything newer is accepted; older is refused.
+#
+# It cannot be an equality target, because the same constant is ALSO the exact
+# release tag CI downloads (.github/workflows/ci.yml, scripts/devbox/
+# fetch_flapjack_release.sh). flapjack `main` bumps its version the moment work
+# lands and the matching release is cut later, so between those two moments no
+# value of the pin satisfies both consumers: pointing it at the unpublished
+# version 404s CI's download (which gates both deploy jobs), and leaving it
+# behind rejects every locally source-built engine. Equality was measured
+# rejecting correct checkouts and provoking lanes to repoint FLAPJACK_DEV_DIR at
+# a stale checkout instead — a false green. A floor closes that window while
+# still refusing genuinely too-old engines.
+#
+# The shared spec for this rule, read by this suite AND by the Rust
+# implementation in infra/api/src/services/flapjack_proxy/mod.rs, lives at
+# scripts/tests/fixtures/flapjack_version_floor_cases.json.
+if required_version:
+    observed_version = parse_version(version)
+    floor_version = parse_version(required_version)
+    if observed_version is None or floor_version is None:
+        fail("version_unparseable")
+    if observed_version < floor_version:
+        fail("version_mismatch")
 if dirty is True:
     fail("dirty_local_build")
 if exact_identity_required and not isinstance(dirty, bool):
@@ -193,6 +239,59 @@ flapjack_runtime_identity_reason() {
         return
     fi
     flapjack_classify_health_json "$body"
+}
+
+# Build the operator-facing text for a rejected Flapjack runtime identity.
+#
+# ONE owner, because the two launchers used to print two different messages and
+# both were wrong the same way: they told the reader to "rebuild the checkout",
+# which cannot change a version, and neither named the version actually
+# observed. The measured consequence of an unactionable rejection was a lane
+# repointing FLAPJACK_DEV_DIR at an older checkout and reporting a green whose
+# engine nobody can reproduce — so the remedy text is part of the contract here,
+# not decoration.
+#
+# Args: <reason> <base_url> [binary_path]
+flapjack_identity_rejection_message() {
+    local reason="$1" base_url="$2" binary_path="${3:-}"
+    local observed provenance
+    # The engine answered health a moment ago (that is how we got a reason), so
+    # a failure here means it just went away; say so rather than printing blank.
+    observed="$(flapjack_runtime_version "$base_url" 2>/dev/null || printf 'unreported')"
+    # Provenance lives in scripts/lib/flapjack_binary.sh, which every real caller
+    # sources; guard so this file stays usable on its own.
+    if command -v flapjack_source_provenance_summary >/dev/null 2>&1; then
+        provenance="$(flapjack_source_provenance_summary 2>/dev/null || printf 'unknown')"
+    else
+        provenance="unknown"
+    fi
+
+    printf 'Flapjack engine at %s rejected: %s\n' "$base_url" "$reason"
+    printf '  engine reports version : %s\n' "$observed"
+    printf '  fjcloud minimum (floor): %s  (owner: scripts/lib/flapjack_binary.sh)\n' \
+        "${FJCLOUD_FLAPJACK_VERSION:-<unset>}"
+    printf '  selected binary        : %s\n' "${binary_path:-<not recorded>}"
+    printf '  binary provenance      : %s\n' "$provenance"
+    printf '  The pin is a MINIMUM. An engine NEWER than it is accepted.\n'
+    case "$reason" in
+        version_mismatch)
+            printf '  Remedy: update the FLAPJACK_DEV_DIR checkout to a release at or above the\n'
+            printf '          floor, or lower the floor - but only to a version that already has a\n'
+            printf '          published flapjack release, because CI downloads that exact tag.\n'
+            ;;
+        version_unparseable)
+            printf '  Remedy: this engine reports a version fjcloud cannot order against the floor\n'
+            printf '          (a prerelease, or not MAJOR.MINOR.PATCH). Run a published release\n'
+            printf '          build, or correct the pin.\n'
+            ;;
+        *)
+            printf '  Remedy: rebuild or reselect the checkout so its runtime identity matches the\n'
+            printf '          receipt fjcloud recorded when it selected that binary.\n'
+            ;;
+    esac
+    printf '  NOT a remedy: repointing FLAPJACK_DEV_DIR at an OLDER checkout. That changes\n'
+    printf '          what is under test and yields evidence for an engine nobody can\n'
+    printf '          reproduce. It has happened before; do not do it.\n'
 }
 
 flapjack_required_runtime_identity_evidence_available() {

@@ -3,7 +3,7 @@ use api::repos::invoice_repo::NewLineItem;
 use api::repos::CustomerRepo;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use chrono::{NaiveDate, Utc};
+use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use http_body_util::BodyExt;
 use rust_decimal_macros::dec;
 use tower::ServiceExt;
@@ -1351,4 +1351,273 @@ async fn get_invoice_detail_pdf_url_null_when_not_set() {
         body["pdf_url"].is_null(),
         "pdf_url should be null for draft invoices"
     );
+}
+
+// ===========================================================================
+// Batched invoice payment summaries for admin tenant listing
+// ===========================================================================
+
+#[test]
+fn pg_invoice_payment_summaries_by_customers_is_single_aggregate_query() {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/repos/pg_invoice_repo.rs"),
+    )
+    .expect("read pg_invoice_repo source");
+    let body =
+        crate::common::source_assertions::function_body(&source, "payment_summaries_by_customers")
+            .expect("PgInvoiceRepo must implement payment_summaries_by_customers");
+
+    assert!(
+        body.contains("ANY($1)"),
+        "payment_summaries_by_customers must use a single PostgreSQL ANY($1) lookup"
+    );
+    assert_eq!(
+        body.matches("sqlx::query_as::<_, CustomerInvoicePaymentSummary>")
+            .count(),
+        1,
+        "payment_summaries_by_customers must construct one aggregate query"
+    );
+    assert!(
+        body.contains("BOOL_OR(status = $2)")
+            && body.contains("MAX(paid_at) FILTER (WHERE status = $2)")
+            && body.contains("GROUP BY customer_id")
+            && body.contains("bind(PAID_INVOICE_STATUS)"),
+        "payment_summaries_by_customers must aggregate paid status per customer"
+    );
+    assert!(
+        !body.contains("SELECT *") && !body.contains("ORDER BY"),
+        "payment_summaries_by_customers must not transfer or sort raw invoice rows"
+    );
+    assert!(
+        !body.contains("list_by_customer("),
+        "payment_summaries_by_customers must not fan out through list_by_customer"
+    );
+}
+
+#[tokio::test]
+async fn payment_summaries_by_customers_empty_slice_returns_empty_without_query() {
+    use api::repos::InvoiceRepo;
+
+    let repo = mock_invoice_repo();
+    repo.seed_paid(
+        Uuid::new_v4(),
+        NaiveDate::from_ymd_opt(2026, 5, 1).unwrap(),
+        NaiveDate::from_ymd_opt(2026, 5, 31).unwrap(),
+        Utc::now(),
+    );
+
+    let rows = repo.payment_summaries_by_customers(&[]).await.unwrap();
+    assert!(rows.is_empty(), "empty customer slice must return no rows");
+    assert_eq!(
+        repo.payment_summaries_by_customers_call_count(),
+        0,
+        "empty-slice batch call must not issue a query"
+    );
+}
+
+#[tokio::test]
+async fn payment_summaries_by_customers_mock_matches_single_customer_fold() {
+    use api::repos::InvoiceRepo;
+    use std::collections::BTreeMap;
+
+    let repo = mock_invoice_repo();
+    let paid_with_date = Uuid::new_v4();
+    let paid_without_date = Uuid::new_v4();
+    let only_draft = Uuid::new_v4();
+    let no_invoice = Uuid::new_v4();
+    let latest_paid_at = Utc.with_ymd_and_hms(2026, 5, 20, 12, 0, 0).unwrap();
+
+    repo.seed_paid(
+        paid_with_date,
+        NaiveDate::from_ymd_opt(2026, 5, 1).unwrap(),
+        NaiveDate::from_ymd_opt(2026, 5, 31).unwrap(),
+        latest_paid_at,
+    );
+    repo.seed_paid_without_timestamp(
+        paid_without_date,
+        NaiveDate::from_ymd_opt(2026, 4, 1).unwrap(),
+        NaiveDate::from_ymd_opt(2026, 4, 30).unwrap(),
+    );
+    repo.seed(
+        only_draft,
+        NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
+        NaiveDate::from_ymd_opt(2026, 3, 31).unwrap(),
+        1000,
+        1000,
+        false,
+        Vec::new(),
+    );
+
+    let ids = [paid_with_date, paid_without_date, only_draft, no_invoice];
+    let batched = repo
+        .payment_summaries_by_customers(&ids)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|summary| {
+            (
+                summary.customer_id,
+                (summary.has_ever_been_billed, summary.latest_paid_at),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    let mut per_customer = BTreeMap::new();
+    for customer_id in ids {
+        let invoices = repo.list_by_customer(customer_id).await.unwrap();
+        if invoices.is_empty() {
+            continue;
+        }
+        per_customer.insert(
+            customer_id,
+            (
+                invoices.iter().any(|invoice| invoice.status == "paid"),
+                invoices
+                    .iter()
+                    .filter(|invoice| invoice.status == "paid")
+                    .filter_map(|invoice| invoice.paid_at)
+                    .max(),
+            ),
+        );
+    }
+
+    let expected = BTreeMap::from([
+        (paid_with_date, (true, Some(latest_paid_at))),
+        (paid_without_date, (true, None)),
+        (only_draft, (false, None)),
+    ]);
+    assert_eq!(batched, expected, "mock aggregate must match seeded facts");
+    assert_eq!(batched, per_customer, "batch must match single-row folds");
+}
+
+#[tokio::test]
+async fn invoice_mock_failure_injection_is_method_specific() {
+    use api::repos::InvoiceRepo;
+
+    let customer_id = Uuid::new_v4();
+    let single_failure_repo = mock_invoice_repo();
+    single_failure_repo.force_list_by_customer_failure();
+    assert!(single_failure_repo
+        .list_by_customer(customer_id)
+        .await
+        .is_err());
+    assert!(single_failure_repo
+        .payment_summaries_by_customers(&[customer_id])
+        .await
+        .is_ok());
+
+    let batch_failure_repo = mock_invoice_repo();
+    batch_failure_repo.force_payment_summaries_by_customers_failure();
+    assert!(batch_failure_repo
+        .payment_summaries_by_customers(&[customer_id])
+        .await
+        .is_err());
+    assert!(batch_failure_repo
+        .list_by_customer(customer_id)
+        .await
+        .is_ok());
+}
+
+#[tokio::test]
+async fn pg_invoice_list_by_customers_matches_per_customer_lists() {
+    use api::repos::{InvoiceRepo, PgInvoiceRepo};
+
+    let Some(db) =
+        crate::common::support::pg_schema_harness::connect_and_migrate("invoice_list_by_customers")
+            .await
+    else {
+        return;
+    };
+    let repo = PgInvoiceRepo::new(db.pool.clone());
+
+    let customer_a = Uuid::new_v4();
+    let customer_b = Uuid::new_v4();
+    let customer_never_paid = Uuid::new_v4();
+    let customer_zero = Uuid::new_v4();
+    for (idx, id) in [customer_a, customer_b, customer_never_paid, customer_zero]
+        .into_iter()
+        .enumerate()
+    {
+        crate::common::support::pg_schema_harness::insert_active_customer(
+            &db.pool,
+            id,
+            idx as i64 + 1,
+        )
+        .await;
+    }
+
+    async fn insert_invoice(
+        pool: &sqlx::PgPool,
+        customer_id: Uuid,
+        month: u32,
+        status: &str,
+        paid_at: Option<DateTime<Utc>>,
+    ) {
+        sqlx::query(
+            "INSERT INTO invoices (customer_id, period_start, period_end, subtotal_cents, total_cents, status, paid_at) \
+             VALUES ($1, $2, $3, 1000, 1000, $4, $5)",
+        )
+        .bind(customer_id)
+        .bind(NaiveDate::from_ymd_opt(2026, month, 1).unwrap())
+        .bind(NaiveDate::from_ymd_opt(2026, month, 28).unwrap())
+        .bind(status)
+        .bind(paid_at)
+        .execute(pool)
+        .await
+        .expect("insert invoice row");
+    }
+
+    let customer_a_latest_paid_at = Utc.with_ymd_and_hms(2026, 1, 20, 12, 0, 0).unwrap();
+    insert_invoice(
+        &db.pool,
+        customer_a,
+        1,
+        "paid",
+        Some(customer_a_latest_paid_at),
+    )
+    .await;
+    insert_invoice(&db.pool, customer_a, 2, "draft", None).await;
+    insert_invoice(&db.pool, customer_b, 3, "paid", None).await;
+    insert_invoice(&db.pool, customer_never_paid, 4, "finalized", None).await;
+    // customer_zero has no invoices.
+
+    let ids = [customer_a, customer_b, customer_never_paid, customer_zero];
+    let batched = repo
+        .payment_summaries_by_customers(&ids)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|summary| {
+            (
+                summary.customer_id,
+                (summary.has_ever_been_billed, summary.latest_paid_at),
+            )
+        })
+        .collect::<std::collections::BTreeMap<_, _>>();
+
+    let mut per_customer = std::collections::BTreeMap::new();
+    for id in ids {
+        let invoices = repo.list_by_customer(id).await.unwrap();
+        if invoices.is_empty() {
+            continue;
+        }
+        let has_ever_been_billed = invoices.iter().any(|invoice| invoice.status == "paid");
+        let latest_paid_at = invoices
+            .iter()
+            .filter(|invoice| invoice.status == "paid")
+            .filter_map(|invoice| invoice.paid_at)
+            .max();
+        per_customer.insert(id, (has_ever_been_billed, latest_paid_at));
+    }
+
+    let expected = std::collections::BTreeMap::from([
+        (customer_a, (true, Some(customer_a_latest_paid_at))),
+        (customer_b, (true, None)),
+        (customer_never_paid, (false, None)),
+    ]);
+    assert_eq!(
+        batched, expected,
+        "aggregate values must match seeded facts"
+    );
+    assert_eq!(batched, per_customer, "batch must match single-row reads");
 }

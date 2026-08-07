@@ -104,6 +104,13 @@ const pricing = {
 		high_availability: false
 	},
 	estimates: [],
+	withheld_providers: [
+		{
+			provider: 'ElasticCloud',
+			display_name: 'Elastic Cloud',
+			reason: 'unverified'
+		}
+	],
 	generated_at: '2026-01-01T00:00:00Z'
 } satisfies PricingCompareResponse;
 

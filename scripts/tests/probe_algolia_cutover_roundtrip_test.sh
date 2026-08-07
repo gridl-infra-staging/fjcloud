@@ -386,13 +386,22 @@ test_runtime_ignores_stale_inherited_db_url() {
     assert_contains "$(cat "$WORK_DIR/up.log")" "fjcloud_cutover_probe_test_123" "integration-up receives run-scoped DB URL"
 }
 
-test_runtime_uses_selected_engine_version() {
+test_runtime_uses_canonical_engine_version() {
     setup_workspace
     run_probe
-    assert_contains "$(cat "$WORK_DIR/up.log")" "override=1.0.11" "probe hands the selected engine version to integration-up through the override seam"
+    # The probe used to hand integration-up the SELECTED BINARY'S OWN version
+    # through an override seam, which made the runtime version check tautological
+    # for this lane: it compared the engine against itself and could not fail.
+    # That seam existed only to work around exact-version equality; the pin is now
+    # a floor, so the probe's engine passes on its own merits and the bypass is
+    # gone. integration-up must receive the canonical pin, and no override.
+    assert_contains "$(cat "$WORK_DIR/up.log")" "override=" \
+        "probe must not hand integration-up an engine-derived version override"
+    assert_not_contains "$(cat "$WORK_DIR/up.log")" "override=1." \
+        "no version value may be passed through the retired override seam"
 }
 
-test_integration_up_maps_version_override_to_api_runtime() {
+test_integration_up_ignores_inherited_version_override() {
     setup_workspace
     local api_bin="$WORK_DIR/api-bin" flapjack_bin="$WORK_DIR/flapjack-bin" nohup_log="$WORK_DIR/nohup.log"
     write_fake_command "$api_bin" '#!/usr/bin/env bash
@@ -426,10 +435,17 @@ exit 0
         FJCLOUD_INTEGRATION_SKIP_METERING_AGENT=1 \
         INTEGRATION_DB="fjcloud_cutover_probe_integration_up" \
         INTEGRATION_DB_URL="postgres://localhost/fjcloud_cutover_probe_integration_up" \
-        FJCLOUD_FLAPJACK_VERSION_OVERRIDE="1.0.11" \
+        FJCLOUD_FLAPJACK_VERSION_OVERRIDE="1.0.99" \
         bash "$REPO_ROOT/scripts/integration-up.sh" >/dev/null
-    assert_contains "$(cat "$nohup_log")" "command=$api_bin version=1.0.11" \
-        "integration-up maps FJCLOUD_FLAPJACK_VERSION_OVERRIDE into the API runtime env"
+    # Regression guard against reintroducing the bypass. The retired override let
+    # a caller lower the version the API enforced, which under floor semantics
+    # means admitting an engine OLDER than the repository supports. An inherited
+    # value must now be ignored outright, exactly as an inherited
+    # FJCLOUD_FLAPJACK_VERSION already is.
+    assert_contains "$(cat "$nohup_log")" "command=$api_bin version=$(REPO_ROOT="$REPO_ROOT"; source "$REPO_ROOT/scripts/lib/flapjack_binary.sh"; printf '%s' "$FJCLOUD_FLAPJACK_VERSION")" \
+        "integration-up enforces the canonical pin even when an override is inherited"
+    assert_not_contains "$(cat "$nohup_log")" "version=1.0.99" \
+        "an inherited version override must not reach the API runtime env"
 
     : > "$nohup_log"
     PATH="$WORK_DIR/bin:$PATH" NOHUP_LOG="$nohup_log" \
@@ -440,7 +456,10 @@ exit 0
         INTEGRATION_DB="fjcloud_cutover_probe_integration_up" \
         INTEGRATION_DB_URL="postgres://localhost/fjcloud_cutover_probe_integration_up" \
         bash "$REPO_ROOT/scripts/integration-up.sh" >/dev/null
-    assert_contains "$(cat "$nohup_log")" "command=$api_bin version=1.0.10" \
+    # Read the pin from its canonical owner rather than restating it: a restated
+    # literal here silently disagrees with the code under test the moment the pin
+    # advances, which is the exact class of drift this file's subject exists for.
+    assert_contains "$(cat "$nohup_log")" "command=$api_bin version=$(REPO_ROOT="$REPO_ROOT"; source "$REPO_ROOT/scripts/lib/flapjack_binary.sh"; printf '%s' "$FJCLOUD_FLAPJACK_VERSION")" \
         "integration-up keeps the canonical Flapjack version when no override is set"
 }
 
@@ -632,8 +651,8 @@ test_network_and_response_classifications_are_distinct
 test_mismatched_verify_report_fails_closed
 test_success_match_mutation_restore_and_cleanup_are_proven
 test_runtime_ignores_stale_inherited_db_url
-test_runtime_uses_selected_engine_version
-test_integration_up_maps_version_override_to_api_runtime
+test_runtime_uses_canonical_engine_version
+test_integration_up_ignores_inherited_version_override
 test_cleanup_runs_on_failure
 test_cleanup_continues_after_destination_delete_failure
 test_cleanup_continues_after_warmup_delete_failure

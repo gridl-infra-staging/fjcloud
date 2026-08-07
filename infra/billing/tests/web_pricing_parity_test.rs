@@ -38,6 +38,14 @@ fn marketing_pricing_and_migrations_stay_in_parity_for_launch_contract() {
         MIGRATION_072,
     );
 
+    // Replaces the calculator-local literal self-check with a cross-owner guard
+    // that reuses the ordered migration snapshot instead of parsing SQL again.
+    assert_eq!(
+        pricing_calculator::providers::griddle::SHARED_MINIMUM_MONTHLY_CENTS,
+        migration_snapshot.shared_minimum_spend_cents,
+        "pricing-calculator Griddle paid minimum must match the migration-derived shared_minimum_spend_cents owner",
+    );
+
     assert_eq!(
         migration_snapshot, marketing_snapshot,
         "launch migration snapshot must match MARKETING_PRICING for overlapping pricing contract fields",

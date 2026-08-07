@@ -1168,6 +1168,62 @@ JSON
   assert_contains "$(cat "$output_file")" 'runtime counters were not collected' "invalid restart-window write-scope callback must mark runtime counters incomplete"
 }
 
+run_non_dry_no_restart_real_owner_counters_case() {
+  local out_dir
+  out_dir="$(mktemp -d)"
+  local output_file
+  output_file="$(mktemp)"
+  local exit_code=0
+
+  (
+    MULTI_TENANT_ISOLATION_PROBE_NO_AUTO_RUN=1 source "$REPO_ROOT/scripts/launch/multi_tenant_isolation_probe.sh" >/dev/null 2>&1
+
+    PROBE_OUTPUT_DIR="$out_dir"
+    ensure_customer_and_tenant() {
+      local letter="$1" mapping_path
+      mapping_path="$(tenant_mapping_path "$letter")"
+      ENSURE_CUSTOMER_AND_TENANT_CREATED_THIS_CALL="false"
+      cat > "$mapping_path" <<JSON
+{"customer_id":"customer-${letter}","flapjack_url":"http://node-${letter}.test","flapjack_uid":"tenant-${letter}"}
+JSON
+    }
+    tenant_mapping_path() { printf '%s/%s.mapping.json' "$out_dir" "$1"; }
+    node_api_key_for_url() { printf 'node-key-%s' "$1"; }
+    run_direct_write_loop() {
+      local count_path="$5"
+      printf '3\n' > "$count_path"
+      cat >> "$out_dir/probe_owner_write_events.log" <<'EOF'
+101|A|doc-visible-1|200
+102|A|doc-visible-2|202
+103|A|doc-rejected|503
+EOF
+    }
+    run_direct_search_loop() { printf '2\n' > "$5"; }
+    probe_owner_query_exact_object_hit_count() { printf '1'; }
+    probe_owner_cross_tenant_leak_count() { printf '0'; }
+    probe_owner_noisy_neighbor_violation_count() { printf '0'; }
+    admin_call() { printf '{"ok":true}\n200'; }
+
+    PROBE_ENV="staging"
+    PROBE_TENANTS_CSV="A"
+    PROBE_DURATION_MINUTES="30"
+    PROBE_RESTART_API_ONCE="false"
+    PROBE_ASSERT_MODE="true"
+    PROBE_DRY_RUN="false"
+    probe_run
+  ) >"$output_file" 2>&1 || exit_code=$?
+
+  assert_eq "$exit_code" "0" "no-restart real-owner counter case should pass when non-2xx writes are fail-fast, not silent drops"
+  local summary_content
+  summary_content="$(cat "$out_dir/summary.json")"
+  assert_contains "$summary_content" '"restart_window_start_epoch":0' "no-restart counter case should keep the degenerate start epoch"
+  assert_contains "$summary_content" '"restart_window_end_epoch":0' "no-restart counter case should keep the degenerate end epoch"
+  assert_contains "$summary_content" '"writes_attempted":3' "no-restart counter case should use full attempted-write scope"
+  assert_contains "$summary_content" '"fail_fast_responses_during_window":1' "no-restart real owner counter should count non-2xx writes in full scope"
+  assert_contains "$summary_content" '"visible_in_search_after":2' "no-restart real owner counter should count visible successful writes in full scope"
+  assert_contains "$summary_content" '"silent_drops":0' "no-restart real owner counters should not misattribute rejected writes to silent drops"
+}
+
 run_flag_parse_case() {
   local out_dir
   out_dir="$(mktemp -d)"
@@ -1206,9 +1262,135 @@ run_flag_parse_rejects_non_staging_env_case() {
   assert_contains "$(cat "$output_file")" '--env must be staging for this probe entrypoint' "flag parse should explain the staging-only env restriction"
 }
 
+run_staging_api_url_guard_requires_hydration_case() {
+  # STAGING_API_URL is set only by scripts/launch/hydrate_seeder_env_from_ssm.sh
+  # (it prints `export STAGING_API_URL=...`). An unset value therefore means the
+  # staging inputs were never hydrated, so there is no trustworthy target to
+  # compare API_URL against. The guard must refuse rather than fall back to
+  # whatever API_URL the ambient shell happens to carry.
+  local output_file exit_code=0
+  output_file="$(mktemp)"
+
+  (
+    MULTI_TENANT_ISOLATION_PROBE_NO_AUTO_RUN=1 source "$REPO_ROOT/scripts/launch/multi_tenant_isolation_probe.sh" >/dev/null 2>&1
+    unset STAGING_API_URL
+    API_URL="https://api.flapjack.foo"
+    probe_require_staging_api_url
+  ) >"$output_file" 2>&1 || exit_code=$?
+
+  assert_eq "$exit_code" "1" "unhydrated staging inputs must refuse the run instead of trusting ambient API_URL"
+  assert_contains "$(cat "$output_file")" 'STAGING_API_URL' "refusal should name the missing hydration contract var"
+}
+
+run_staging_api_url_guard_rejects_production_host_case() {
+  # The regression this guard exists for: .secret/.env.secret and its .bak
+  # siblings export API_URL=https://api.flapjack.foo (production). A lane that
+  # sourced a secret file and skipped hydration would drive the full synthetic
+  # write load at production while labelling the result staging evidence.
+  # Runs the function directly, so no request is ever issued to either host.
+  local output_file exit_code=0
+  output_file="$(mktemp)"
+
+  (
+    MULTI_TENANT_ISOLATION_PROBE_NO_AUTO_RUN=1 source "$REPO_ROOT/scripts/launch/multi_tenant_isolation_probe.sh" >/dev/null 2>&1
+    STAGING_API_URL="https://api.staging.flapjack.foo"
+    API_URL="https://api.flapjack.foo"
+    probe_require_staging_api_url
+  ) >"$output_file" 2>&1 || exit_code=$?
+
+  assert_eq "$exit_code" "1" "a production API_URL must be refused when the hydrated staging host differs"
+  assert_contains "$(cat "$output_file")" 'https://api.flapjack.foo' "refusal should name the rejected host so the operator can see what it was pointed at"
+}
+
+run_staging_api_url_guard_binds_validated_host_case() {
+  # On the success path the guard must also BIND API_URL. Downstream admin_call
+  # owners read API_URL at call time, so leaving it merely "validated" would let
+  # a later assignment inside the run retarget the probe after the check passed.
+  # Asserting the exported value is what makes this a behavioural test rather
+  # than a restatement of the comparison above.
+  local output_file exit_code=0
+  output_file="$(mktemp)"
+
+  (
+    MULTI_TENANT_ISOLATION_PROBE_NO_AUTO_RUN=1 source "$REPO_ROOT/scripts/launch/multi_tenant_isolation_probe.sh" >/dev/null 2>&1
+    STAGING_API_URL="https://api.staging.flapjack.foo"
+    API_URL="https://api.staging.flapjack.foo"
+    probe_require_staging_api_url && printf 'BOUND=%s\n' "$API_URL"
+  ) >"$output_file" 2>&1 || exit_code=$?
+
+  assert_eq "$exit_code" "0" "a matching hydrated staging host must be accepted"
+  assert_contains "$(cat "$output_file")" 'BOUND=https://api.staging.flapjack.foo' "the validated staging host must be bound into API_URL for downstream callers"
+}
+
+run_staging_api_url_guard_tolerates_trailing_slash_case() {
+  # False-positive guard. The hydrator emits no trailing slash, but operators and
+  # .env files routinely add one. Refusing https://host/ against https://host
+  # would block correctly-targeted staging runs, so the two must compare equal.
+  local output_file exit_code=0
+  output_file="$(mktemp)"
+
+  (
+    MULTI_TENANT_ISOLATION_PROBE_NO_AUTO_RUN=1 source "$REPO_ROOT/scripts/launch/multi_tenant_isolation_probe.sh" >/dev/null 2>&1
+    STAGING_API_URL="https://api.staging.flapjack.foo"
+    API_URL="https://api.staging.flapjack.foo/"
+    probe_require_staging_api_url
+  ) >"$output_file" 2>&1 || exit_code=$?
+
+  assert_eq "$exit_code" "0" "a cosmetic trailing slash must not be treated as a different host"
+}
+
+run_staging_api_url_guard_entrypoint_wiring_case() {
+  # The unit cases above prove the function behaves; this proves the entrypoint
+  # actually CALLS it on a live (non-dry) run. Without this, the guard could be
+  # defined and never reached -- a guard that cannot fire.
+  #
+  # Both hosts here are deliberately unroutable (127.0.0.1:1). If the guard were
+  # absent this case would still make no request to any real environment, so the
+  # red phase of this test cannot itself generate production traffic.
+  local out_dir output_file exit_code=0
+  out_dir="$(mktemp -d)"
+  output_file="$(mktemp)"
+
+  (
+    STAGING_API_URL="https://127.0.0.1:1"
+    API_URL="https://127.0.0.2:1"
+    export STAGING_API_URL API_URL
+    bash "$REPO_ROOT/scripts/launch/multi_tenant_isolation_probe.sh" \
+      --env staging --tenants A --duration-minutes 1 --out "$out_dir"
+  ) >"$output_file" 2>&1 || exit_code=$?
+
+  assert_eq "$exit_code" "1" "a live run whose API_URL is not the hydrated staging host must die at the entrypoint"
+  assert_contains "$(cat "$output_file")" '127.0.0.2' "the entrypoint refusal should name the host it refused"
+  assert_not_contains "$(cat "$output_file")" 'ADMIN_KEY' "the refusal must land before admin_call builds a request, not after"
+}
+
+run_staging_api_url_guard_exempts_dry_run_case() {
+  # No-false-positive guard, and the reason the entrypoint check is conditional:
+  # --dry-run issues no live request, and the existing dry-run contract cases
+  # run with no hydrated staging env at all. Applying the guard to dry runs
+  # would fail them for an exposure that cannot occur.
+  local out_dir output_file exit_code=0
+  out_dir="$(mktemp -d)"
+  output_file="$(mktemp)"
+
+  (
+    unset STAGING_API_URL API_URL
+    bash "$REPO_ROOT/scripts/launch/multi_tenant_isolation_probe.sh" \
+      --env staging --tenants A --duration-minutes 1 --out "$out_dir" --dry-run
+  ) >"$output_file" 2>&1 || exit_code=$?
+
+  assert_eq "$exit_code" "0" "a dry run must stay runnable without hydrated staging credentials"
+}
+
 echo "=== multi-tenant isolation probe contract ==="
 run_flag_parse_case
 run_flag_parse_rejects_non_staging_env_case
+run_staging_api_url_guard_requires_hydration_case
+run_staging_api_url_guard_rejects_production_host_case
+run_staging_api_url_guard_binds_validated_host_case
+run_staging_api_url_guard_tolerates_trailing_slash_case
+run_staging_api_url_guard_entrypoint_wiring_case
+run_staging_api_url_guard_exempts_dry_run_case
 run_contract_case pass 0
 run_contract_case silent_drops_fail 1
 run_contract_case leakage_fail 1
@@ -1230,6 +1412,7 @@ run_non_dry_leak_counter_rejects_loose_fulltext_case
 run_non_dry_empty_restart_window_visible_count_is_zero_case
 run_non_dry_invalid_visibility_callback_rejects_assert_case
 run_non_dry_invalid_restart_window_writes_callback_rejects_assert_case
+run_non_dry_no_restart_real_owner_counters_case
 
 echo ""
 echo "Summary: $PASS_COUNT passed, $FAIL_COUNT failed"

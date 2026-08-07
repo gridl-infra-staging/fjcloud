@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 use crate::models::tenant::{CustomerTenant, CustomerTenantSummary};
@@ -68,6 +69,20 @@ pub trait TenantRepo {
 
     /// Count of indexes for a customer (for limit enforcement).
     async fn count_by_customer(&self, customer_id: Uuid) -> Result<i64, RepoError>;
+
+    /// Batch variant of `count_by_customer`: return per-customer index counts
+    /// for the given customers in a single query, keyed by `customer_id`, so
+    /// admin listing over N customers costs one read instead of N.
+    ///
+    /// Contract: an empty `customer_ids` slice returns an empty map WITHOUT
+    /// issuing any query. Customers with zero non-terminated indexes are absent
+    /// from the map (mirroring `GROUP BY`); callers treat a missing key as `0`.
+    /// The count uses the same terminated-deployment exclusion as
+    /// `count_by_customer`.
+    async fn count_by_customers(
+        &self,
+        customer_ids: &[Uuid],
+    ) -> Result<BTreeMap<Uuid, i64>, RepoError>;
 
     /// Count logical index slots consumed by published catalog rows and
     /// unpublished create reservations. PostgreSQL overrides this with the

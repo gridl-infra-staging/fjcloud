@@ -47,6 +47,181 @@ fn pg_tenant_bulk_lookup_is_single_any_query() {
     );
 }
 
+#[test]
+fn pg_tenant_count_by_customers_is_single_any_query() {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/repos/pg_tenant_repo.rs"),
+    )
+    .expect("read pg_tenant_repo source");
+    let body = crate::common::source_assertions::function_body(&source, "count_by_customers")
+        .expect("PgTenantRepo must implement count_by_customers");
+
+    assert!(
+        body.contains("ANY($1)"),
+        "PgTenantRepo::count_by_customers must use a single PostgreSQL ANY($1) lookup"
+    );
+    assert!(
+        body.contains("GROUP BY"),
+        "PgTenantRepo::count_by_customers must aggregate with a single GROUP BY query"
+    );
+    assert!(
+        !body.contains("count_by_customer("),
+        "PgTenantRepo::count_by_customers must not fan out through count_by_customer"
+    );
+}
+
+#[tokio::test]
+async fn count_by_customers_empty_slice_returns_empty_map_without_query() {
+    let (repo, customer_id, deployment_id) = setup();
+    repo.create(customer_id, "idx-1", deployment_id)
+        .await
+        .unwrap();
+
+    let counts = repo.count_by_customers(&[]).await.unwrap();
+    assert!(
+        counts.is_empty(),
+        "empty customer slice must return an empty map"
+    );
+    assert_eq!(
+        repo.count_by_customers_call_count(),
+        0,
+        "empty-slice batch call must not issue a query"
+    );
+}
+
+#[tokio::test]
+async fn count_by_customers_mock_matches_per_customer_counts() {
+    let repo = Arc::new(MockTenantRepo::new());
+    let customer_a = Uuid::new_v4();
+    let customer_b = Uuid::new_v4();
+    let customer_zero = Uuid::new_v4();
+
+    let running_dep = Uuid::new_v4();
+    let terminated_dep = Uuid::new_v4();
+    repo.seed_deployment(
+        running_dep,
+        "us-east-1",
+        Some("https://vm-1.flapjack.foo"),
+        "healthy",
+        "running",
+    );
+    repo.seed_deployment(terminated_dep, "eu-west-1", None, "unknown", "terminated");
+
+    repo.create(customer_a, "a1", running_dep).await.unwrap();
+    repo.create(customer_a, "a2", running_dep).await.unwrap();
+    repo.create(customer_a, "a-dead", terminated_dep)
+        .await
+        .unwrap();
+    repo.create(customer_b, "b1", running_dep).await.unwrap();
+
+    let ids = [customer_a, customer_b, customer_zero];
+    let counts = repo.count_by_customers(&ids).await.unwrap();
+
+    // Terminated deployments are excluded, so customer_a has 2 live indexes.
+    assert_eq!(counts.get(&customer_a).copied(), Some(2));
+    assert_eq!(counts.get(&customer_b).copied(), Some(1));
+    // Customer with zero live indexes is absent from the map (GROUP BY parity).
+    assert_eq!(counts.get(&customer_zero).copied(), None);
+    assert_eq!(repo.count_by_customers_call_count(), 1);
+
+    // Each present entry equals the per-customer count.
+    for id in [customer_a, customer_b] {
+        assert_eq!(
+            counts.get(&id).copied().unwrap_or(0),
+            repo.count_by_customer(id).await.unwrap()
+        );
+    }
+}
+
+#[tokio::test]
+async fn pg_tenant_count_by_customers_matches_per_customer_counts() {
+    let Some(db) =
+        crate::common::support::pg_schema_harness::connect_and_migrate("tenant_count_by_customers")
+            .await
+    else {
+        return;
+    };
+    let repo = PgTenantRepo::new(db.pool.clone());
+
+    let customer_two = Uuid::new_v4();
+    let customer_one = Uuid::new_v4();
+    let customer_zero = Uuid::new_v4();
+    for (idx, customer_id) in [customer_two, customer_one, customer_zero]
+        .into_iter()
+        .enumerate()
+    {
+        crate::common::support::pg_schema_harness::insert_active_customer(
+            &db.pool,
+            customer_id,
+            idx as i64 + 1,
+        )
+        .await;
+    }
+
+    let running_dep_a = Uuid::new_v4();
+    let running_dep_b = Uuid::new_v4();
+    let running_dep_c = Uuid::new_v4();
+    let terminated_dep = Uuid::new_v4();
+    insert_deployment(
+        &db.pool,
+        running_dep_a,
+        customer_two,
+        "cnt-a",
+        "running",
+        None,
+    )
+    .await;
+    insert_deployment(
+        &db.pool,
+        running_dep_b,
+        customer_two,
+        "cnt-b",
+        "running",
+        None,
+    )
+    .await;
+    insert_deployment(
+        &db.pool,
+        running_dep_c,
+        customer_one,
+        "cnt-c",
+        "running",
+        None,
+    )
+    .await;
+    insert_deployment(
+        &db.pool,
+        terminated_dep,
+        customer_two,
+        "cnt-dead",
+        "terminated",
+        None,
+    )
+    .await;
+
+    let vm = Uuid::new_v4();
+    insert_vm_inventory(&db.pool, vm, "cnt-vm").await;
+    insert_tenant(&db.pool, customer_two, "t-a", running_dep_a, vm).await;
+    insert_tenant(&db.pool, customer_two, "t-b", running_dep_b, vm).await;
+    insert_tenant(&db.pool, customer_two, "t-dead", terminated_dep, vm).await;
+    insert_tenant(&db.pool, customer_one, "t-c", running_dep_c, vm).await;
+
+    let ids = [customer_two, customer_one, customer_zero];
+    let batched = repo.count_by_customers(&ids).await.unwrap();
+
+    // Terminated deployment excluded → customer_two has 2 live indexes.
+    assert_eq!(batched.get(&customer_two).copied(), Some(2));
+    assert_eq!(batched.get(&customer_one).copied(), Some(1));
+    // Zero-index customer absent from the grouped result.
+    assert_eq!(batched.get(&customer_zero).copied(), None);
+
+    // Known-answer parity: batched value equals the per-customer count query.
+    for id in ids {
+        let per_customer = repo.count_by_customer(id).await.unwrap();
+        assert_eq!(batched.get(&id).copied().unwrap_or(0), per_customer);
+    }
+}
+
 #[tokio::test]
 async fn pg_tenant_bulk_lookup_matches_raw_per_vm_semantics() {
     let Some(db) =

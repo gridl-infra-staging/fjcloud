@@ -78,9 +78,9 @@ mod tests {
     use crate::errors::ApiError;
     use crate::models::{Customer, IngestQuotaWarningMetric, IngestQuotaWarningsSentState};
     use crate::repos::{
-        CustomerHardDeleteKind, CustomerHardDeleteOutcome, CustomerRepo, RepoError,
-        ResendPasswordResetOutcome, ResendPasswordResetReservation, ResendVerificationOutcome,
-        ResendVerificationReservation,
+        AdminCustomerListQuery, CustomerHardDeleteKind, CustomerHardDeleteOutcome, CustomerRepo,
+        RepoError, ResendPasswordResetOutcome, ResendPasswordResetReservation,
+        ResendVerificationOutcome, ResendVerificationReservation,
     };
     use crate::services::audit_log::AuditEntry;
     use async_trait::async_trait;
@@ -240,6 +240,13 @@ mod tests {
     #[async_trait]
     impl CustomerRepo for MockCustomerRepo {
         async fn list(&self) -> Result<Vec<Customer>, RepoError> {
+            panic!("not used in this test");
+        }
+
+        async fn list_admin(
+            &self,
+            _query: AdminCustomerListQuery,
+        ) -> Result<Vec<Customer>, RepoError> {
             panic!("not used in this test");
         }
 

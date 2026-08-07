@@ -9,7 +9,9 @@ mod test_support;
 use chrono::{NaiveDate, Utc};
 pub use presets::{preset_scenarios, PresetScenario};
 pub use providers::{stale_providers, stale_providers_as_of, ProviderFreshnessIssue};
-use types::{ComparisonResult, ProviderMetadata, ValidationError, WorkloadProfile};
+use types::{
+    ComparisonResult, ProviderMetadata, ValidationError, WithheldProvider, WorkloadProfile,
+};
 
 /// Compare all registered search providers for the given workload.
 ///
@@ -20,10 +22,16 @@ pub fn compare_all(workload: &WorkloadProfile) -> Result<ComparisonResult, Valid
 
     let mut estimates = providers::all_estimates(workload);
     estimates.sort_by_key(|e| e.monthly_total_cents);
+    let withheld_providers = providers::all_metadata()
+        .into_iter()
+        .filter(|metadata| !providers::is_published(metadata))
+        .map(WithheldProvider::from)
+        .collect();
 
     Ok(ComparisonResult {
         workload: workload.clone(),
         estimates,
+        withheld_providers,
         generated_at: Utc::now(),
     })
 }
@@ -67,9 +75,17 @@ fn ensure_pricing_freshness_from_metadata(
     Err(stale_provider_failure_message(threshold_days, &stale))
 }
 
-/// Enforces pricing metadata freshness for all registered providers as of a deterministic date.
+/// Enforces pricing metadata freshness for all *published* providers as of a deterministic date.
+///
+/// Scopes to published metadata (`providers::is_published`) before delegating, so a
+/// never-verified (withheld) provider does not hold the gate red — it never reaches
+/// customers to be stale about. `_from_metadata` stays unscoped so synthetic-metadata tests
+/// can still exercise never-verified inputs directly.
 pub fn ensure_pricing_freshness_as_of(as_of: NaiveDate, threshold_days: i64) -> Result<(), String> {
-    let metadata = providers::all_metadata();
+    let metadata: Vec<ProviderMetadata> = providers::all_metadata()
+        .into_iter()
+        .filter(providers::is_published)
+        .collect();
     ensure_pricing_freshness_from_metadata(&metadata, as_of, threshold_days)
 }
 
@@ -150,8 +166,11 @@ mod tests {
         );
     }
 
-    fn registered_provider_count() -> usize {
-        crate::providers::all_metadata().len()
+    fn published_provider_count() -> usize {
+        crate::providers::all_metadata()
+            .into_iter()
+            .filter(crate::providers::is_published)
+            .count()
     }
 
     // --- Comparison contract ---------------------------------------------------
@@ -161,8 +180,8 @@ mod tests {
         let result = compare_all(&valid_workload()).unwrap();
         assert_eq!(
             result.estimates.len(),
-            registered_provider_count(),
-            "Expected one estimate per registered provider"
+            published_provider_count(),
+            "Expected one estimate per published provider"
         );
     }
 
@@ -329,6 +348,48 @@ mod tests {
                 .iter()
                 .any(|issue| issue.provider.id == ProviderId::TypesenseCloud),
             "undated metadata should appear in the freshness issue set"
+        );
+    }
+
+    /// (c) The real freshness gate scopes to *published* providers before checking dates.
+    /// Asserts BOTH halves: a never-verified (unpublished) provider does NOT hold the gate
+    /// red, while a published provider dated older than the threshold STILL fails it.
+    #[test]
+    fn ensure_pricing_freshness_scopes_to_published_providers() {
+        let has_unpublished = crate::providers::all_metadata()
+            .iter()
+            .any(|metadata| !crate::providers::is_published(metadata));
+        assert!(
+            has_unpublished,
+            "guard is only meaningful when the registry carries an unpublished provider"
+        );
+
+        // Half 1: with published providers all within threshold, the never-verified
+        // providers must NOT hold the gate red — they are dropped before the date check.
+        let fresh_as_of = NaiveDate::from_ymd_opt(2026, 7, 10).expect("valid date");
+        assert_eq!(
+            ensure_pricing_freshness_as_of(fresh_as_of, 90),
+            Ok(()),
+            "never-verified providers must not hold the freshness gate red once publication-scoped"
+        );
+
+        // Half 2: a published provider dated older than the threshold STILL fails the gate.
+        let stale_as_of = NaiveDate::from_ymd_opt(2027, 1, 1).expect("valid date");
+        let published_are_stale = crate::providers::all_metadata()
+            .into_iter()
+            .filter(crate::providers::is_published)
+            .any(|metadata| {
+                metadata
+                    .last_verified
+                    .is_some_and(|date| (stale_as_of - date).num_days() > 90)
+            });
+        assert!(
+            published_are_stale,
+            "half-2 fixture requires at least one published provider stale at {stale_as_of}"
+        );
+        assert!(
+            ensure_pricing_freshness_as_of(stale_as_of, 90).is_err(),
+            "a published provider older than the threshold must still fail the gate"
         );
     }
 

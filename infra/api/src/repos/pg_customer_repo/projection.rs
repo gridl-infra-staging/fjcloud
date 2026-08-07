@@ -41,7 +41,10 @@ COALESCE((to_jsonb(customers)->>'failed_reset_count')::int, 0) AS failed_reset_c
     )
 }
 
-pub(super) fn list_customers_sql() -> String {
+pub(super) const ADMIN_CUSTOMER_LIST_ORDER_BY: &str =
+    " ORDER BY customers.created_at DESC, customers.id DESC";
+
+pub(super) fn list_customers_select_sql() -> String {
     let customer_columns = customer_columns();
     format!(
         "SELECT {customer_columns}, \
@@ -58,8 +61,14 @@ pub(super) fn list_customers_sql() -> String {
             FROM invoices \
             WHERE status = 'failed' \
             GROUP BY customer_id \
-         ) AS invoice_summary ON invoice_summary.customer_id = customers.id \
-         ORDER BY customers.created_at DESC"
+         ) AS invoice_summary ON invoice_summary.customer_id = customers.id"
+    )
+}
+
+pub(super) fn list_customers_sql() -> String {
+    format!(
+        "{}{ADMIN_CUSTOMER_LIST_ORDER_BY}",
+        list_customers_select_sql()
     )
 }
 
@@ -122,6 +131,15 @@ mod tests {
         assert!(
             !sql.contains("subscriptions"),
             "customer list query must not read subscriptions after subscription seam removal"
+        );
+    }
+
+    #[test]
+    fn list_sql_uses_deterministic_created_at_id_order_for_paging() {
+        let sql = list_customers_sql();
+        assert!(
+            sql.contains("ORDER BY customers.created_at DESC, customers.id DESC"),
+            "admin customer listing must use a total order before LIMIT/OFFSET"
         );
     }
 }

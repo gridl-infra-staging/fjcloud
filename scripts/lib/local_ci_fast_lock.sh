@@ -52,15 +52,46 @@ FAST_LOCK_DEFAULT_WAIT_SECONDS=300
 # scripts/local-ci.sh --fast` recorded `real 2385.98`. Its failed gates
 # short-circuited, so retain it as the conservative applicable specimen and
 # round up to whole seconds so the budget arithmetic never under-counts it.
+#
+# TREAT THIS AS A FLOOR, NOT A CURRENT FIGURE. The gate's cost is a function of
+# how many lanes share the host, and that measurement was taken against three
+# concurrent lanes; on 2026-08-06 the same host carried seven fjcloud lanes plus
+# three in mike_dev. It was not re-measured that day because a whole-suite run
+# takes the clone-scoped lock for 20-40 minutes and would have stalled every one
+# of them. The budget below carries deliberate headroom for that gap. Re-measure
+# with the command above on a quiet host before treating this number as current,
+# and re-derive the budget rather than rounding it up again.
 FAST_LOCK_MEASURED_FAST_RUN_SECONDS=2386
 
 # Wall-clock budget of the caller session that invokes the gate, in seconds.
-# Provenance: the orchestrator caps a session at `timeout=2400`
-# (matt_root/matt/llm.py:760). fjcloud cannot import that orchestrator value —
-# it lives in a different repo with no shared config seam — so the number is
-# mirrored here solely as the reference bound for the local default-wait budget
-# test. It is not consumed by lock acquisition or any runtime path.
-FAST_LOCK_CALLER_SESSION_BUDGET_SECONDS=2400
+#
+# Provenance: the orchestrator caps a `build` / `review_remediation` session at
+# `matt_root/matt/auth_runtime_retry.py::_PROMPT_TIMEOUT_BY_TYPE`, which was
+# raised from 2400 to 4800 on 2026-08-06 and sized against this repo's measured
+# gate. Cited by symbol rather than by line number because the line moves.
+#
+# fjcloud cannot import that orchestrator value — it lives in a different repo
+# with no shared config seam — so the number is mirrored here solely as the
+# reference bound for the local default-wait budget test. It is not consumed by
+# lock acquisition or any runtime path. The mirror is unenforced in both
+# directions: if the orchestrator value changes and this one does not, the
+# budget test below asserts against a number matt no longer uses, and nothing
+# will say so.
+FAST_LOCK_CALLER_SESSION_BUDGET_SECONDS=4800
+
+# Percentage of the caller session budget matt reserves for its pre-timeout
+# wrap-up, expressed as a whole number because this file is sourced by bash 3.2
+# harnesses with no floating point.
+#
+# Provenance: `matt_root/matt/_adapter_stream_runtime.py::timeout_wrapup_lead_seconds`
+# returns `max(DEFAULT_TIMEOUT_WRAPUP_LEAD_SECONDS=45, timeout * 0.10)`, capped
+# at `timeout * 0.20`. For any session budget above 450 seconds the 10% term
+# dominates, so 10 is the applicable figure here and the 45-second floor never
+# binds. This matters because a gate does not get the whole session: matt
+# interrupts the agent for wrap-up at this margin before the hard timeout, so
+# the deadline a whole-suite run must beat is 90% of the budget, not 100%. The
+# budget test read 100% until 2026-08-06 and therefore understated the problem.
+FAST_LOCK_CALLER_SESSION_WRAPUP_LEAD_PERCENT=10
 
 # A live holder can be a real long-running --fast gate, but the Stage-1 wedge
 # evidence showed orphaned live holders can survive far past any useful wait.

@@ -15,6 +15,7 @@ mod chat;
 mod debug;
 mod dictionaries;
 mod documents;
+mod engine_compatibility;
 mod experiments;
 mod index_metrics_scrape;
 mod lifecycle;
@@ -31,6 +32,21 @@ mod synonyms;
 
 pub use migration::SourceIndexDiscoveryRequest;
 pub use sensitive_request::SensitiveFlapjackHttpRequest;
+
+// Engine runtime-identity classification lives in `engine_compatibility`; it is
+// re-exported here so `crate::services::flapjack_proxy::FlapjackEngineRequirements`
+// (and the other three names algolia_import imports) keep working unchanged.
+use engine_compatibility::{
+    classify_flapjack_health, flapjack_base_url_is_loopback, flapjack_health_url,
+};
+pub use engine_compatibility::{
+    FlapjackEngineCompatibilityResult, FlapjackEngineRequirements, FlapjackEngineRequirementsError,
+    FlapjackRuntimeIdentityReason,
+};
+// Test-only: `engine_compatibility_tests` is declared in THIS module and reaches
+// its helpers through `use super::*`, so the name has to be in scope here.
+#[cfg(test)]
+use engine_compatibility::observed_identity;
 
 /// Default time-to-live for cached admin keys. On cache miss, the key is fetched
 /// from SSM and stored for this duration to avoid per-request SSM reads.
@@ -49,152 +65,6 @@ pub enum ProxyError {
 
     #[error("request timed out")]
     Timeout,
-}
-
-const REQUIRED_FLAPJACK_IDENTITY_ENV_NAMES: [&str; 4] = [
-    "FJCLOUD_FLAPJACK_VERSION",
-    "FJCLOUD_FLAPJACK_REQUIRED_REVISION",
-    "FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID",
-    "FJCLOUD_FLAPJACK_REQUIRED_SHA256",
-];
-
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-#[error("incomplete Flapjack engine identity configuration; missing {missing_variables:?}")]
-pub struct FlapjackEngineRequirementsError {
-    missing_variables: Vec<&'static str>,
-}
-
-impl FlapjackEngineRequirementsError {
-    pub fn missing_variables(&self) -> &[&'static str] {
-        &self.missing_variables
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FlapjackEngineRequirements {
-    pub expected_version: Option<String>,
-    pub required_revision: Option<String>,
-    pub required_build_id: Option<String>,
-    pub required_sha256: Option<String>,
-    pub required_capability: Option<String>,
-}
-
-impl FlapjackEngineRequirements {
-    pub fn new(
-        expected_version: Option<&str>,
-        required_revision: Option<&str>,
-        required_build_id: Option<&str>,
-        required_sha256: Option<&str>,
-        required_capability: Option<&str>,
-    ) -> Self {
-        Self {
-            expected_version: non_empty_string(expected_version),
-            required_revision: non_empty_string(required_revision),
-            required_build_id: non_empty_string(required_build_id),
-            required_sha256: non_empty_string(required_sha256),
-            required_capability: non_empty_string(required_capability),
-        }
-    }
-
-    pub fn from_env() -> Result<Self, FlapjackEngineRequirementsError> {
-        Self::from_lookup(|name| std::env::var(name).ok())
-    }
-
-    fn from_lookup(
-        mut lookup: impl FnMut(&str) -> Option<String>,
-    ) -> Result<Self, FlapjackEngineRequirementsError> {
-        let mut configured_value =
-            |name| lookup(name).and_then(|value| non_empty_string(Some(value.as_str())));
-        let requirements = Self {
-            expected_version: configured_value("FJCLOUD_FLAPJACK_VERSION"),
-            required_revision: configured_value("FJCLOUD_FLAPJACK_REQUIRED_REVISION"),
-            required_build_id: configured_value("FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID"),
-            required_sha256: configured_value("FJCLOUD_FLAPJACK_REQUIRED_SHA256"),
-            // No capability is required by DEFAULT. fjcloud's search path forwards
-            // opaque query bodies and uses no engine feature (see search.rs), and NO
-            // shipped flapjack build advertises a vector capability — not the release
-            // Linux musl assets fjcloud downloads/bakes, not the Docker image, not the
-            // prod AMI (flapjack-1.0.2-pl13). A hard default of "vectorSearchLocal"
-            // could therefore never be satisfied by any real engine, turning the
-            // identity + Algolia-import admission gate into a permanent MissingCapability
-            // failure (this was the local-dev-up-smoke blocker). Identity stays anchored
-            // on version/revision/build_id/sha256; a specific required capability is
-            // opt-in via FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY, ready to re-enable when
-            // local vector search is actually productized.
-            required_capability: configured_value("FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY"),
-        };
-        let configured_identity = [
-            requirements.expected_version.as_ref(),
-            requirements.required_revision.as_ref(),
-            requirements.required_build_id.as_ref(),
-            requirements.required_sha256.as_ref(),
-        ];
-        let missing_variables = REQUIRED_FLAPJACK_IDENTITY_ENV_NAMES
-            .into_iter()
-            .zip(configured_identity)
-            .filter_map(|(name, value)| value.is_none().then_some(name))
-            .collect::<Vec<_>>();
-        if missing_variables.is_empty() {
-            Ok(requirements)
-        } else {
-            Err(FlapjackEngineRequirementsError { missing_variables })
-        }
-    }
-
-    fn exact_identity_required(&self) -> bool {
-        self.required_revision.is_some() || self.required_build_id.is_some()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FlapjackEngineCompatibilityResult {
-    pub reason: FlapjackRuntimeIdentityReason,
-}
-
-impl FlapjackEngineCompatibilityResult {
-    fn new(reason: FlapjackRuntimeIdentityReason) -> Self {
-        Self { reason }
-    }
-
-    pub fn is_match(&self) -> bool {
-        self.reason == FlapjackRuntimeIdentityReason::Match
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FlapjackRuntimeIdentityReason {
-    Match,
-    VersionMismatch,
-    RevisionMismatch,
-    BuildIdMismatch,
-    ChecksumMismatch,
-    DirtyLocalBuild,
-    MissingCapability,
-    LegacyMalformedHealth,
-    RuntimeUnreachable,
-}
-
-impl FlapjackRuntimeIdentityReason {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Match => "match",
-            Self::VersionMismatch => "version_mismatch",
-            Self::RevisionMismatch => "revision_mismatch",
-            Self::BuildIdMismatch => "build_id_mismatch",
-            Self::ChecksumMismatch => "checksum_mismatch",
-            Self::DirtyLocalBuild => "dirty_local_build",
-            Self::MissingCapability => "missing_capability",
-            Self::LegacyMalformedHealth => "legacy_malformed_health",
-            Self::RuntimeUnreachable => "runtime_unreachable",
-        }
-    }
-}
-
-fn non_empty_string(value: Option<&str>) -> Option<String> {
-    value
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -564,220 +434,6 @@ impl FlapjackProxy {
         }
         encoded
     }
-}
-
-fn flapjack_health_url(flapjack_base_url: &str) -> String {
-    format!("{}/health", flapjack_base_url.trim_end_matches('/'))
-}
-
-fn flapjack_base_url_is_loopback(flapjack_base_url: &str) -> bool {
-    reqwest::Url::parse(flapjack_base_url)
-        .ok()
-        .and_then(|url| url.host_str().map(str::to_owned))
-        .is_some_and(|host| {
-            host == "localhost"
-                || host
-                    .parse::<std::net::IpAddr>()
-                    .is_ok_and(|ip| ip.is_loopback())
-        })
-}
-
-fn classify_flapjack_health(
-    body: &str,
-    requirements: &FlapjackEngineRequirements,
-    allow_loopback_legacy_identity: bool,
-) -> FlapjackRuntimeIdentityReason {
-    let Ok(health) = serde_json::from_str::<serde_json::Value>(body) else {
-        return FlapjackRuntimeIdentityReason::LegacyMalformedHealth;
-    };
-    let Some(health) = health.as_object() else {
-        return FlapjackRuntimeIdentityReason::LegacyMalformedHealth;
-    };
-    let build = health
-        .get("build")
-        .and_then(serde_json::Value::as_object)
-        .unwrap_or(health);
-
-    classify_flapjack_identity(
-        requirements,
-        observed_identity(build, health),
-        allow_loopback_legacy_identity,
-    )
-}
-
-/// Build the observed identity for a parsed health payload.
-///
-/// Runtime identity is anchored on the fields Flapjack actually self-reports:
-/// version, revision, build_id, dirty, and capabilities. The configured binary
-/// SHA is verified by source/launch tooling before API startup; if a runtime
-/// health payload does report a SHA, this classifier still checks it for drift.
-/// The `runtime_security` seam is resolved the same way `capabilities` is
-/// (build object first, then the top-level health object) but is
-/// *forward-compatible only*: it carries non-build runtime security
-/// observations and is never consulted by `classify_flapjack_identity`.
-fn observed_identity<'a>(
-    build: &'a serde_json::Map<String, serde_json::Value>,
-    health: &'a serde_json::Map<String, serde_json::Value>,
-) -> ObservedFlapjackIdentity<'a> {
-    let version = first_string(build, &["version"]).or_else(|| first_string(health, &["version"]));
-    ObservedFlapjackIdentity {
-        version,
-        revision: first_string(build, &["producer_revision", "revision"]),
-        build_id: first_string(build, &["build_id", "workspaceDigest"]),
-        binary_sha: first_string(build, &["binary_sha256", "sha256"]),
-        dirty: build.get("dirty").and_then(serde_json::Value::as_bool),
-        capabilities: build
-            .get("capabilities")
-            .or_else(|| health.get("capabilities")),
-        runtime_security: build
-            .get("runtime_security")
-            .or_else(|| health.get("runtime_security"))
-            .and_then(|value| {
-                serde_json::from_value::<ObservedRuntimeSecurity>(value.clone()).ok()
-            }),
-    }
-}
-
-struct ObservedFlapjackIdentity<'a> {
-    version: Option<&'a str>,
-    revision: Option<&'a str>,
-    build_id: Option<&'a str>,
-    binary_sha: Option<&'a str>,
-    dirty: Option<bool>,
-    capabilities: Option<&'a serde_json::Value>,
-    /// Forward-compatible runtime security observations. Populated from the
-    /// health payload but intentionally NOT consulted by
-    /// `classify_flapjack_identity`; build/capability compatibility is decided
-    /// solely by the immutable-identity fields above. See
-    /// [`ObservedRuntimeSecurity`].
-    ///
-    /// Not yet read by production code — this is a deliberate forward seam for
-    /// future runtime-security enforcement.
-    #[allow(dead_code)]
-    runtime_security: Option<ObservedRuntimeSecurity>,
-}
-
-/// Typed, forward-compatible view of an engine's *runtime* security posture as
-/// reported by its health payload.
-///
-/// This is a deliberate seam for FUTURE non-build security observations. It is
-/// never consulted for build/capability decisions (those stay owned by
-/// `FlapjackEngineRequirements`, `FlapjackRuntimeIdentityReason`, and
-/// `classify_flapjack_identity`). Unknown/future runtime-security fields are
-/// tolerated on purpose — there is no `#[serde(deny_unknown_fields)]` — so
-/// newer engines can report additional posture signals without regressing
-/// build-identity classification. Field names are intentionally generic
-/// runtime-posture observations, not build-identity or issuance concepts.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
-struct ObservedRuntimeSecurity {
-    #[serde(default)]
-    posture: Option<String>,
-    #[serde(default)]
-    enforced: Option<bool>,
-}
-
-// Typed accessors for the forward seam. Exercised by tests today; production
-// enforcement will consume them in a later stage.
-#[allow(dead_code)]
-impl ObservedRuntimeSecurity {
-    /// Reported runtime security posture label, if the engine advertised one.
-    fn posture(&self) -> Option<&str> {
-        self.posture.as_deref()
-    }
-
-    /// Whether the engine reports runtime security enforcement active, if
-    /// advertised.
-    fn enforced(&self) -> Option<bool> {
-        self.enforced
-    }
-}
-
-fn classify_flapjack_identity(
-    requirements: &FlapjackEngineRequirements,
-    observed: ObservedFlapjackIdentity<'_>,
-    allow_loopback_legacy_identity: bool,
-) -> FlapjackRuntimeIdentityReason {
-    if observed.version.is_none() {
-        return FlapjackRuntimeIdentityReason::LegacyMalformedHealth;
-    }
-    if requirements
-        .expected_version
-        .as_deref()
-        .is_some_and(|expected| observed.version != Some(expected))
-    {
-        return FlapjackRuntimeIdentityReason::VersionMismatch;
-    }
-    if observed.dirty == Some(true) {
-        return FlapjackRuntimeIdentityReason::DirtyLocalBuild;
-    }
-    if requirements
-        .required_revision
-        .as_deref()
-        .is_some_and(|expected| observed.revision.is_some_and(|actual| actual != expected))
-    {
-        return FlapjackRuntimeIdentityReason::RevisionMismatch;
-    }
-    if requirements
-        .required_build_id
-        .as_deref()
-        .is_some_and(|expected| observed.build_id.is_some_and(|actual| actual != expected))
-    {
-        return FlapjackRuntimeIdentityReason::BuildIdMismatch;
-    }
-    if requirements
-        .required_sha256
-        .as_deref()
-        .is_some_and(|expected| observed.binary_sha.is_some_and(|actual| actual != expected))
-    {
-        return FlapjackRuntimeIdentityReason::ChecksumMismatch;
-    }
-    if missing_required_runtime_identity(requirements, &observed, allow_loopback_legacy_identity) {
-        return FlapjackRuntimeIdentityReason::LegacyMalformedHealth;
-    }
-    if !required_capability_present(requirements, observed.capabilities) {
-        return FlapjackRuntimeIdentityReason::MissingCapability;
-    }
-    FlapjackRuntimeIdentityReason::Match
-}
-
-fn missing_required_runtime_identity(
-    requirements: &FlapjackEngineRequirements,
-    observed: &ObservedFlapjackIdentity<'_>,
-    allow_loopback_legacy_identity: bool,
-) -> bool {
-    let missing_runtime_identity = requirements.exact_identity_required()
-        && (observed.dirty.is_none() || observed.revision.is_none() || observed.build_id.is_none());
-    missing_runtime_identity && !allow_loopback_legacy_identity
-}
-
-fn required_capability_present(
-    requirements: &FlapjackEngineRequirements,
-    capabilities: Option<&serde_json::Value>,
-) -> bool {
-    let Some(required_capability) = requirements.required_capability.as_deref() else {
-        return true;
-    };
-    match capabilities {
-        Some(serde_json::Value::Array(items)) => items
-            .iter()
-            .any(|item| item.as_str() == Some(required_capability)),
-        Some(serde_json::Value::Object(map)) => map
-            .get(required_capability)
-            .is_some_and(|value| value.as_bool() == Some(true)),
-        _ => false,
-    }
-}
-
-fn first_string<'a>(
-    payload: &'a serde_json::Map<String, serde_json::Value>,
-    names: &[&str],
-) -> Option<&'a str> {
-    names.iter().find_map(|name| {
-        payload
-            .get(*name)
-            .and_then(serde_json::Value::as_str)
-            .filter(|value| !value.is_empty())
-    })
 }
 
 #[cfg(test)]

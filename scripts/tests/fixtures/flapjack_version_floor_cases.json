@@ -1,0 +1,126 @@
+{
+  "purpose": [
+    "Shared specification for the Flapjack runtime version check, which is implemented",
+    "TWICE and in two languages: scripts/lib/local_stack_contract.sh (Python, used by the",
+    "local/browser/integration stack launchers) and",
+    "infra/api/src/services/flapjack_proxy/mod.rs (Rust, used by Algolia import admission).",
+    "",
+    "Both implementations MUST read this file in their tests. That is the only thing",
+    "stopping them drifting apart: before this file existed the Rust side had two version",
+    "cases and the shell side had ZERO, so a change to one could not fail the other.",
+    "",
+    "SEMANTICS. FJCLOUD_FLAPJACK_VERSION is a FLOOR (minimum supported flapjack release),",
+    "not an equality target. An engine that reports the floor or anything newer is",
+    "accepted; older is refused. See scripts/lib/flapjack_binary.sh for why the pin cannot",
+    "be an equality target for both of its consumers at once."
+  ],
+  "expect_values": {
+    "match": "engine satisfies the floor",
+    "version_mismatch": "engine is OLDER than the floor",
+    "version_unparseable": "either side is not a strict MAJOR.MINOR.PATCH numeric version"
+  },
+  "cases": [
+    {
+      "observed": "1.0.11",
+      "floor": "1.0.11",
+      "expect": "match",
+      "why": "equal satisfies a floor"
+    },
+    {
+      "observed": "1.0.12",
+      "floor": "1.0.11",
+      "expect": "match",
+      "why": "newer patch: the release-window case this whole change exists for. flapjack main moves ahead of the pinned release by design, so a locally source-built engine is routinely newer than the floor."
+    },
+    {
+      "observed": "1.1.0",
+      "floor": "1.0.11",
+      "expect": "match",
+      "why": "newer minor"
+    },
+    {
+      "observed": "2.0.0",
+      "floor": "1.0.11",
+      "expect": "match",
+      "why": "newer major. DELIBERATE: there is no upper bound. fjcloud has no evidence-based ceiling to enforce -- flapjack publishes no compatibility promise fjcloud can check -- and a guessed 'same major' rule would be a branch with no reachable specimen. Engine incompatibility is caught by fjcloud's own test suite exercising the engine, not by a version number. If flapjack ever announces a breaking major, add a ceiling THEN, with a real specimen."
+    },
+    {
+      "observed": "1.0.10",
+      "floor": "1.0.11",
+      "expect": "version_mismatch",
+      "why": "older patch is refused: this is the guard still doing real work. It is what stops a lane repointing FLAPJACK_DEV_DIR at a stale checkout to get past a rejection."
+    },
+    {
+      "observed": "1.0.11",
+      "floor": "1.1.0",
+      "expect": "version_mismatch",
+      "why": "older minor"
+    },
+    {
+      "observed": "0.9.9",
+      "floor": "1.0.11",
+      "expect": "version_mismatch",
+      "why": "older major"
+    },
+    {
+      "observed": "1.0.9",
+      "floor": "1.0.10",
+      "expect": "version_mismatch",
+      "why": "STRING-COMPARE TRAP. Lexically \"1.0.9\" > \"1.0.10\", so an implementation that compares these as strings wrongly ACCEPTS an engine that is one release too old. This row fails on any lexical implementation."
+    },
+    {
+      "observed": "1.0.10",
+      "floor": "1.0.9",
+      "expect": "match",
+      "why": "STRING-COMPARE TRAP, reversed. Lexically \"1.0.10\" < \"1.0.9\", so a lexical implementation wrongly REJECTS a valid newer engine. Both directions are needed: each catches a lexical bug the other misses."
+    },
+    {
+      "observed": "1.0.100",
+      "floor": "1.0.99",
+      "expect": "match",
+      "why": "multi-digit components must compare numerically, not lexically"
+    },
+    {
+      "observed": "1.0",
+      "floor": "1.0.11",
+      "expect": "version_unparseable",
+      "why": "two components. Refused rather than zero-padded: fjcloud pins published releases, which are always three components, so a short version means something unexpected produced this engine."
+    },
+    {
+      "observed": "1.0.11.1",
+      "floor": "1.0.11",
+      "expect": "version_unparseable",
+      "why": "four components"
+    },
+    {
+      "observed": "1.0.12-rc.1",
+      "floor": "1.0.11",
+      "expect": "version_unparseable",
+      "why": "PRERELEASE. Refused, NOT suffix-stripped. Semver orders 1.0.12-rc.1 BELOW 1.0.12, so a parser that strips the suffix would rank a release candidate equal to the finished release and let it satisfy a floor it does not actually meet. Refusing is both safer and honest: fjcloud has never tested against a prerelease engine."
+    },
+    {
+      "observed": "abc",
+      "floor": "1.0.11",
+      "expect": "version_unparseable",
+      "why": "non-numeric"
+    },
+    {
+      "observed": "1.0.11",
+      "floor": "not-a-version",
+      "expect": "version_unparseable",
+      "why": "an unparseable FLOOR must fail closed too. A misconfigured pin must not silently disable the check -- that would be a guard that cannot fail."
+    },
+    {
+      "observed": "nightly",
+      "floor": "nightly",
+      "expect": "version_unparseable",
+      "why": "BEHAVIOUR CHANGE, recorded deliberately. Under the previous string-equality rule this pair was accepted because the strings matched. Under floor semantics it is refused, because two values that cannot be ordered cannot establish that one satisfies the other. This is the only case where the new rule rejects something the old rule accepted."
+    },
+    {
+      "observed": "1.0.11",
+      "floor": "",
+      "expect": "match",
+      "why": "no floor configured means no version requirement. Both implementations skip the check. This is safe only because every production caller sets it: the shell classifier sources the pin from scripts/lib/flapjack_binary.sh, and the Rust side's FlapjackEngineRequirements::from_env refuses to build unless FJCLOUD_FLAPJACK_VERSION is non-blank."
+    }
+  ]
+}

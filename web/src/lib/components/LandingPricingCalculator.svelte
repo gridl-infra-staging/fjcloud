@@ -1,5 +1,9 @@
 <script lang="ts">
-	import type { PricingCompareResponse, PricingEstimate } from '$lib/api/types';
+	import type {
+		PricingCompareResponse,
+		PricingEstimate,
+		PricingWithheldProvider
+	} from '$lib/api/types';
 	import {
 		createDefaultLandingPricingInputs,
 		formatLandingCurrency,
@@ -10,14 +14,20 @@
 	interface DisplayEstimateRow {
 		provider: string;
 		planName: string;
-		verificationLabel: string;
+		pricingSourceLabel: string;
 		monthlyTotalLabel: string;
 		assumptions: string[];
 		isGriddle: boolean;
 	}
 
+	interface DisplayWithheldProvider {
+		displayName: string;
+		reason: string;
+	}
+
 	let inputs = $state<LandingPricingInputs>(createDefaultLandingPricingInputs());
 	let resultRows = $state<DisplayEstimateRow[]>([]);
+	let withheldProviders = $state<DisplayWithheldProvider[]>([]);
 	let isSubmitting = $state(false);
 	let errorMessage = $state<string | null>(null);
 	let generatedAt = $state<string | null>(null);
@@ -29,7 +39,7 @@
 	}
 
 	function toCustomerVerificationLabel(verificationLabel: string): string {
-		return verificationLabel === 'unverified' ? 'Modelled pricing' : verificationLabel;
+		return verificationLabel === 'unverified' ? 'Modeled pricing' : `Verified ${verificationLabel}`;
 	}
 
 	function toDisplayRow(estimate: PricingEstimate, isFlapjack: boolean): DisplayEstimateRow {
@@ -37,16 +47,31 @@
 		return {
 			provider: isFlapjack ? 'Flapjack Cloud' : estimate.provider,
 			planName: isFlapjack ? planName.replaceAll('Griddle', 'Flapjack Cloud') : planName,
-			verificationLabel: toCustomerVerificationLabel(estimate.verification_label),
+			pricingSourceLabel: toCustomerVerificationLabel(estimate.verification_label),
 			monthlyTotalLabel: formatLandingCurrency(estimate.monthly_total_cents),
 			assumptions: estimate.assumptions,
 			isGriddle: isFlapjack
 		};
 	}
 
+	function toDisplayWithheldProvider(provider: PricingWithheldProvider): DisplayWithheldProvider {
+		return {
+			displayName: provider.display_name,
+			reason: provider.reason
+		};
+	}
+
+	function formatWithheldProvidersNotice(providers: DisplayWithheldProvider[]): string {
+		const entries = providers
+			.map((provider) => `${provider.displayName} (${provider.reason})`)
+			.join(', ');
+		return `Withheld from this comparison: ${entries}.`;
+	}
+
 	function clearResults(message: string): void {
 		errorMessage = message;
 		resultRows = [];
+		withheldProviders = [];
 		generatedAt = null;
 	}
 
@@ -79,6 +104,19 @@
 		);
 	}
 
+	function isWithheldProvider(payload: unknown): payload is PricingWithheldProvider {
+		if (typeof payload !== 'object' || payload === null) {
+			return false;
+		}
+
+		const provider = payload as Partial<PricingWithheldProvider>;
+		return (
+			typeof provider.provider === 'string' &&
+			typeof provider.display_name === 'string' &&
+			typeof provider.reason === 'string'
+		);
+	}
+
 	function isPricingCompareResponse(payload: unknown): payload is PricingCompareResponse {
 		if (typeof payload !== 'object' || payload === null) {
 			return false;
@@ -100,6 +138,8 @@
 			typeof workload.high_availability === 'boolean' &&
 			Array.isArray(response.estimates) &&
 			response.estimates.every((estimate) => isPricingEstimate(estimate)) &&
+			Array.isArray(response.withheld_providers) &&
+			response.withheld_providers.every((provider) => isWithheldProvider(provider)) &&
 			typeof response.generated_at === 'string'
 		);
 	}
@@ -132,6 +172,7 @@
 			resultRows = comparison.estimates.map((estimate) =>
 				toDisplayRow(estimate, isFlapjackCloudEstimate(estimate))
 			);
+			withheldProviders = comparison.withheld_providers.map(toDisplayWithheldProvider);
 			generatedAt = comparison.generated_at;
 		} catch {
 			clearResults('Unable to compare pricing right now');
@@ -241,8 +282,9 @@
 					<tr class="border-b border-flapjack-ink/20">
 						<th class="px-4 py-3 text-left text-sm font-semibold text-flapjack-ink">Provider</th>
 						<th class="px-4 py-3 text-left text-sm font-semibold text-flapjack-ink">Plan</th>
+						<!-- Published estimates are verified at the API seam; the fallback label keeps legacy unverified payloads truthful if parsed. -->
 						<th class="px-4 py-3 text-left text-sm font-semibold text-flapjack-ink"
-							>Pricing status</th
+							>Pricing source</th
 						>
 						<th class="px-4 py-3 text-right text-sm font-semibold text-flapjack-ink"
 							>Monthly estimate</th
@@ -257,7 +299,7 @@
 						>
 							<td class="px-4 py-3 text-sm font-medium text-flapjack-ink">{row.provider}</td>
 							<td class="px-4 py-3 text-sm text-flapjack-ink/70">{row.planName}</td>
-							<td class="px-4 py-3 text-sm text-flapjack-ink/70">{row.verificationLabel}</td>
+							<td class="px-4 py-3 text-sm text-flapjack-ink/70">{row.pricingSourceLabel}</td>
 							<td class="px-4 py-3 text-right text-sm font-semibold text-flapjack-ink"
 								>{row.monthlyTotalLabel}</td
 							>
@@ -271,5 +313,13 @@
 				</p>
 			{/if}
 		</div>
+		{#if withheldProviders.length > 0}
+			<p
+				class="mt-3 rounded-md border border-flapjack-ink/15 bg-white px-4 py-2 text-sm text-flapjack-ink/70"
+				data-testid="pricing-withheld-providers"
+			>
+				{formatWithheldProvidersNotice(withheldProviders)}
+			</p>
+		{/if}
 	{/if}
 </section>

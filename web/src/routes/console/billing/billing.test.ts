@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, within } from '@testing-library/svelte';
 import { layoutTestDefaults } from '../layout-test-context';
-import { LEGAL_SUPPORT_MAILTO, SUPPORT_EMAIL } from '$lib/format';
+import { LEGAL_SUPPORT_MAILTO, SUPPORT_EMAIL, formatCents } from '$lib/format';
 import { MARKETING_PRICING, sharedPlanMinimumMonthlyLabel } from '$lib/pricing';
 import { getAccessibilityViolations } from '../../../tests/a11y';
 
@@ -486,5 +486,41 @@ describe('Billing page', () => {
 
 		expect(screen.getByTestId('upgrade-3ds-banner')).toBeInTheDocument();
 		expect(screen.queryByTestId('upgrade-success-banner')).not.toBeInTheDocument();
+	});
+
+	it('renders the success first-charge from the paid-plan minimum owner, not the retired $5 literal', () => {
+		render(BillingPage, {
+			data: {
+				...layoutTestDefaults,
+				planContext: {
+					...layoutTestDefaults.planContext,
+					billing_plan: 'free' as const
+				},
+				user: null,
+				billingUnavailable: false,
+				setupIntentClientSecret: 'seti_secret_123',
+				setupIntentError: null,
+				upgradeStatus: {
+					stripe_customer_id: 'cus_123',
+					has_default_payment_method: true,
+					upgrade_ready: true
+				},
+				paymentMethods: []
+			},
+			form: {
+				upgradeOutcome: {
+					status: 'success',
+					activationAmountCents: MARKETING_PRICING.shared_minimum_spend_cents
+				}
+			}
+		});
+
+		const banner = screen.getByTestId('upgrade-success-banner');
+		expect(
+			within(banner).getByText(
+				`First charge cleared: ${formatCents(MARKETING_PRICING.shared_minimum_spend_cents)}. Your next bill is due in 30 days.`
+			)
+		).toBeInTheDocument();
+		expect(banner).not.toHaveTextContent('$5.00');
 	});
 });

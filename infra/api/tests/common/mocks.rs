@@ -14,7 +14,10 @@ use api::provisioner::mock::MockVmProvisioner;
 use api::repos::api_key_repo::{ApiKeyManagedKeyParams, ApiKeyRepo};
 use api::repos::dispute_repo::{DisputeRepo, DisputeRow, DisputeUpsertInput};
 use api::repos::index_migration_repo::IndexMigrationRepo;
-use api::repos::invoice_repo::{AdminInvoiceSummaryRow, InvoiceRepo, NewInvoice, NewLineItem};
+use api::repos::invoice_repo::{
+    AdminInvoiceSummaryRow, CustomerInvoicePaymentSummary, InvoiceRepo, NewInvoice, NewLineItem,
+    PAID_INVOICE_STATUS,
+};
 use api::repos::tenant_repo::TenantRepo;
 use api::repos::usage_repo::{rolling_window_for_days, AdminUsageMutation, UsageSummary};
 use api::repos::vm_inventory_repo::{
@@ -27,11 +30,12 @@ use api::repos::vm_lifecycle_event_repo::{
 };
 use api::repos::webhook_event_repo::{WebhookEventRepo, WebhookEventRow};
 use api::repos::{
-    CatalogLifecycleTargetIdentity, CustomerRepo, DeploymentRepo, InMemoryColdSnapshotRepo,
-    InMemoryIndexReplicaRepo, RateCardRepo, RepoError, ResendPasswordResetOutcome,
-    ResendPasswordResetReservation, ResendVerificationOutcome, ResendVerificationReservation,
-    UsageRepo, VmDecommissionResult, VmHostMetricsRepo, VmLifecycleEventRepo,
-    VmRetirementAssessment, VmRetirementConflict, RESEND_VERIFICATION_COOLDOWN_SECONDS,
+    AdminCustomerListQuery, CatalogLifecycleTargetIdentity, CustomerRepo, DeploymentRepo,
+    InMemoryColdSnapshotRepo, InMemoryIndexReplicaRepo, RateCardRepo, RepoError,
+    ResendPasswordResetOutcome, ResendPasswordResetReservation, ResendVerificationOutcome,
+    ResendVerificationReservation, UsageRepo, VmDecommissionResult, VmHostMetricsRepo,
+    VmLifecycleEventRepo, VmRetirementAssessment, VmRetirementConflict,
+    RESEND_VERIFICATION_COOLDOWN_SECONDS,
 };
 use api::secrets::mock::MockNodeSecretManager;
 use api::services::alerting::MockAlertService;
@@ -59,7 +63,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sqlx::types::Json;
-use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::sync::Notify;
@@ -220,6 +224,30 @@ impl MockCustomerRepo {
         self.list_calls.load(Ordering::SeqCst)
     }
 
+    fn customers_for_admin_list_query(&self, query: AdminCustomerListQuery) -> Vec<Customer> {
+        let customers = self.customers.lock().unwrap();
+        let mut rows = customers.iter().cloned().collect::<Vec<_>>();
+        if query.status.is_none() && query.limit.is_none() && query.offset.is_none() {
+            return rows;
+        }
+
+        if let Some(status) = query.status {
+            rows.retain(|customer| customer.status == status.as_str());
+        }
+        rows.sort_by(|left, right| {
+            right
+                .created_at
+                .cmp(&left.created_at)
+                .then_with(|| right.id.cmp(&left.id))
+        });
+        let offset = query.offset.unwrap_or(0) as usize;
+        let limit = query
+            .limit
+            .map(|limit| limit as usize)
+            .unwrap_or(usize::MAX);
+        rows.into_iter().skip(offset).take(limit).collect()
+    }
+
     /// Force the next soft-delete call to report "not found" without mutating state.
     pub fn fail_next_soft_delete(&self) {
         self.fail_next_soft_delete.store(true, Ordering::SeqCst);
@@ -279,6 +307,21 @@ impl MockCustomerRepo {
     pub fn seed(&self, name: &str, email: &str) -> Customer {
         let mut customers = self.customers.lock().unwrap();
         let customer = Self::build_customer(name, email, "active", None);
+        customers.push(customer.clone());
+        customer
+    }
+
+    pub fn seed_with_status_and_created_at(
+        &self,
+        name: &str,
+        email: &str,
+        status: &str,
+        created_at: DateTime<Utc>,
+    ) -> Customer {
+        let mut customers = self.customers.lock().unwrap();
+        let mut customer = Self::build_customer(name, email, status, None);
+        customer.created_at = created_at;
+        customer.updated_at = created_at;
         customers.push(customer.clone());
         customer
     }
@@ -449,6 +492,11 @@ impl CustomerRepo for MockCustomerRepo {
         self.list_calls.fetch_add(1, Ordering::SeqCst);
         let customers = self.customers.lock().unwrap();
         Ok(customers.iter().cloned().collect())
+    }
+
+    async fn list_admin(&self, query: AdminCustomerListQuery) -> Result<Vec<Customer>, RepoError> {
+        self.list_calls.fetch_add(1, Ordering::SeqCst);
+        Ok(self.customers_for_admin_list_query(query))
     }
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<Customer>, RepoError> {
@@ -2208,9 +2256,13 @@ pub struct MockInvoiceRepo {
     line_items: Mutex<Vec<InvoiceLineItemRow>>,
     revenue_summary_rows: Mutex<Vec<AdminInvoiceSummaryRow>>,
     revenue_summary_calls: AtomicUsize,
+    list_by_customer_calls: AtomicUsize,
+    payment_summaries_by_customers_calls: AtomicUsize,
+    payment_summaries_by_customers_inputs: Mutex<Vec<Vec<Uuid>>>,
     fail_next_finalize: Mutex<bool>,
     fail_next_mark_paid: Mutex<bool>,
     fail_list_by_customer: AtomicBool,
+    fail_payment_summaries_by_customers: AtomicBool,
     pause_next_mark_paid: AtomicBool,
     mark_paid_calls: AtomicUsize,
     mark_paid_started_notify: Notify,
@@ -2230,9 +2282,13 @@ impl MockInvoiceRepo {
             line_items: Mutex::new(Vec::new()),
             revenue_summary_rows: Mutex::new(Vec::new()),
             revenue_summary_calls: AtomicUsize::new(0),
+            list_by_customer_calls: AtomicUsize::new(0),
+            payment_summaries_by_customers_calls: AtomicUsize::new(0),
+            payment_summaries_by_customers_inputs: Mutex::new(Vec::new()),
             fail_next_finalize: Mutex::new(false),
             fail_next_mark_paid: Mutex::new(false),
             fail_list_by_customer: AtomicBool::new(false),
+            fail_payment_summaries_by_customers: AtomicBool::new(false),
             pause_next_mark_paid: AtomicBool::new(false),
             mark_paid_calls: AtomicUsize::new(0),
             mark_paid_started_notify: Notify::new(),
@@ -2323,11 +2379,37 @@ impl MockInvoiceRepo {
         self.revenue_summary_calls.load(Ordering::SeqCst)
     }
 
+    pub fn list_by_customer_call_count(&self) -> usize {
+        self.list_by_customer_calls.load(Ordering::SeqCst)
+    }
+
+    /// Number of batched payment-summary queries issued. An empty-slice call
+    /// is a no-op and does NOT increment this counter.
+    pub fn payment_summaries_by_customers_call_count(&self) -> usize {
+        self.payment_summaries_by_customers_calls
+            .load(Ordering::SeqCst)
+    }
+
+    /// Customer IDs supplied to the latest non-empty payment-summary query.
+    pub fn latest_payment_summaries_by_customers_ids(&self) -> Option<Vec<Uuid>> {
+        self.payment_summaries_by_customers_inputs
+            .lock()
+            .unwrap()
+            .last()
+            .cloned()
+    }
+
     /// Force every subsequent `list_by_customer` call to error. Used to
     /// prove admin tenant write paths do not surface invoice-read failures
     /// after the customer mutation has already committed.
     pub fn force_list_by_customer_failure(&self) {
         self.fail_list_by_customer.store(true, Ordering::SeqCst);
+    }
+
+    /// Force every subsequent `payment_summaries_by_customers` call to error.
+    pub fn force_payment_summaries_by_customers_failure(&self) {
+        self.fail_payment_summaries_by_customers
+            .store(true, Ordering::SeqCst);
     }
 
     /// Seed a fully-paid invoice in one shot (for billing-health tests that
@@ -2340,7 +2422,28 @@ impl MockInvoiceRepo {
         period_end: NaiveDate,
         paid_at: DateTime<Utc>,
     ) -> InvoiceRow {
+        self.seed_paid_with_optional_timestamp(customer_id, period_start, period_end, Some(paid_at))
+    }
+
+    /// Seed a paid invoice whose source did not supply a payment timestamp.
+    pub fn seed_paid_without_timestamp(
+        &self,
+        customer_id: Uuid,
+        period_start: NaiveDate,
+        period_end: NaiveDate,
+    ) -> InvoiceRow {
+        self.seed_paid_with_optional_timestamp(customer_id, period_start, period_end, None)
+    }
+
+    fn seed_paid_with_optional_timestamp(
+        &self,
+        customer_id: Uuid,
+        period_start: NaiveDate,
+        period_end: NaiveDate,
+        paid_at: Option<DateTime<Utc>>,
+    ) -> InvoiceRow {
         let mut invoices = self.invoices.lock().unwrap();
+        let lifecycle_timestamp = paid_at.unwrap_or_else(Utc::now);
         let invoice = InvoiceRow {
             id: Uuid::new_v4(),
             customer_id,
@@ -2355,9 +2458,9 @@ impl MockInvoiceRepo {
             stripe_invoice_id: None,
             hosted_invoice_url: None,
             pdf_url: None,
-            created_at: paid_at,
-            finalized_at: Some(paid_at),
-            paid_at: Some(paid_at),
+            created_at: lifecycle_timestamp,
+            finalized_at: Some(lifecycle_timestamp),
+            paid_at,
         };
         invoices.push(invoice.clone());
         invoice
@@ -2497,6 +2600,7 @@ impl InvoiceRepo for MockInvoiceRepo {
     }
 
     async fn list_by_customer(&self, customer_id: Uuid) -> Result<Vec<InvoiceRow>, RepoError> {
+        self.list_by_customer_calls.fetch_add(1, Ordering::SeqCst);
         if self.fail_list_by_customer.load(Ordering::SeqCst) {
             return Err(RepoError::Other("injected list_by_customer failure".into()));
         }
@@ -2508,6 +2612,52 @@ impl InvoiceRepo for MockInvoiceRepo {
             .collect();
         result.sort_by_key(|row| std::cmp::Reverse(row.period_start));
         Ok(result)
+    }
+
+    async fn payment_summaries_by_customers(
+        &self,
+        customer_ids: &[Uuid],
+    ) -> Result<Vec<CustomerInvoicePaymentSummary>, RepoError> {
+        // Empty slice is a no-op: no query is issued, so the counter is not
+        // touched. This mirrors the Postgres implementation.
+        if customer_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        self.payment_summaries_by_customers_calls
+            .fetch_add(1, Ordering::SeqCst);
+        self.payment_summaries_by_customers_inputs
+            .lock()
+            .unwrap()
+            .push(customer_ids.to_vec());
+        if self
+            .fail_payment_summaries_by_customers
+            .load(Ordering::SeqCst)
+        {
+            return Err(RepoError::Other(
+                "injected payment_summaries_by_customers failure".into(),
+            ));
+        }
+        let wanted: BTreeSet<Uuid> = customer_ids.iter().copied().collect();
+        let invoices = self.invoices.lock().unwrap();
+        let mut summaries = BTreeMap::new();
+        for invoice in invoices
+            .iter()
+            .filter(|invoice| wanted.contains(&invoice.customer_id))
+        {
+            let summary =
+                summaries
+                    .entry(invoice.customer_id)
+                    .or_insert(CustomerInvoicePaymentSummary {
+                        customer_id: invoice.customer_id,
+                        has_ever_been_billed: false,
+                        latest_paid_at: None,
+                    });
+            if invoice.status == PAID_INVOICE_STATUS {
+                summary.has_ever_been_billed = true;
+                summary.latest_paid_at = summary.latest_paid_at.max(invoice.paid_at);
+            }
+        }
+        Ok(summaries.into_values().collect())
     }
 
     async fn revenue_summary(&self) -> Result<Vec<AdminInvoiceSummaryRow>, RepoError> {
@@ -4456,6 +4606,8 @@ pub struct MockTenantRepo {
     deployments: Mutex<HashMap<Uuid, DeploymentInfo>>,
     list_by_vm_calls: AtomicUsize,
     list_by_vms_calls: AtomicUsize,
+    count_by_customer_calls: AtomicUsize,
+    count_by_customers_calls: AtomicUsize,
     find_by_name_calls: AtomicUsize,
     find_raw_calls: Mutex<usize>,
     last_accessed_updates: Mutex<Vec<(Uuid, String, DateTime<Utc>)>>,
@@ -4471,6 +4623,8 @@ impl MockTenantRepo {
             deployments: Mutex::new(HashMap::new()),
             list_by_vm_calls: AtomicUsize::new(0),
             list_by_vms_calls: AtomicUsize::new(0),
+            count_by_customer_calls: AtomicUsize::new(0),
+            count_by_customers_calls: AtomicUsize::new(0),
             find_by_name_calls: AtomicUsize::new(0),
             find_raw_calls: Mutex::new(0),
             last_accessed_updates: Mutex::new(Vec::new()),
@@ -4490,6 +4644,16 @@ impl MockTenantRepo {
 
     pub fn list_by_vms_call_count(&self) -> usize {
         self.list_by_vms_calls.load(Ordering::SeqCst)
+    }
+
+    pub fn count_by_customer_call_count(&self) -> usize {
+        self.count_by_customer_calls.load(Ordering::SeqCst)
+    }
+
+    /// Number of batched `count_by_customers` queries issued. An empty-slice
+    /// call is a no-op and does NOT increment this counter.
+    pub fn count_by_customers_call_count(&self) -> usize {
+        self.count_by_customers_calls.load(Ordering::SeqCst)
     }
 
     pub fn find_by_name_call_count(&self) -> usize {
@@ -4790,6 +4954,7 @@ impl TenantRepo for MockTenantRepo {
     }
 
     async fn count_by_customer(&self, customer_id: Uuid) -> Result<i64, RepoError> {
+        self.count_by_customer_calls.fetch_add(1, Ordering::SeqCst);
         let tenants = self.tenants.lock().unwrap();
         let deployments = self.deployments.lock().unwrap();
         let count = tenants
@@ -4803,6 +4968,37 @@ impl TenantRepo for MockTenantRepo {
             })
             .count();
         Ok(count as i64)
+    }
+
+    async fn count_by_customers(
+        &self,
+        customer_ids: &[Uuid],
+    ) -> Result<BTreeMap<Uuid, i64>, RepoError> {
+        // Empty slice is a no-op: no query is issued, so the counter is not
+        // touched. This mirrors `PgTenantRepo::count_by_customers`.
+        if customer_ids.is_empty() {
+            return Ok(BTreeMap::new());
+        }
+        self.count_by_customers_calls.fetch_add(1, Ordering::SeqCst);
+        let wanted: BTreeSet<Uuid> = customer_ids.iter().copied().collect();
+        let tenants = self.tenants.lock().unwrap();
+        let deployments = self.deployments.lock().unwrap();
+        let mut counts: BTreeMap<Uuid, i64> = BTreeMap::new();
+        for tenant in tenants.iter() {
+            if !wanted.contains(&tenant.customer_id) {
+                continue;
+            }
+            let on_live_deployment = deployments
+                .get(&tenant.deployment_id)
+                .map(|d| d.status != "terminated")
+                .unwrap_or(false);
+            if on_live_deployment {
+                *counts.entry(tenant.customer_id).or_insert(0) += 1;
+            }
+        }
+        // Customers with zero non-terminated indexes are absent from the map,
+        // matching the SQL `GROUP BY` result set.
+        Ok(counts)
     }
 
     async fn find_by_deployment(
@@ -5130,6 +5326,21 @@ impl TenantRepo for MockTenantRepo {
 
 pub fn mock_tenant_repo() -> Arc<MockTenantRepo> {
     Arc::new(MockTenantRepo::new())
+}
+
+pub fn admin_tenant_list_repo_call_total(
+    customer: &MockCustomerRepo,
+    invoice: &MockInvoiceRepo,
+    tenant: &MockTenantRepo,
+) -> usize {
+    // The two batched-method counters are folded into this same sum, so the
+    // oracle keeps counting every repo call and cannot be gamed by moving work
+    // to a new method.
+    customer.list_call_count()
+        + invoice.list_by_customer_call_count()
+        + invoice.payment_summaries_by_customers_call_count()
+        + tenant.count_by_customer_call_count()
+        + tenant.count_by_customers_call_count()
 }
 
 pub fn mock_cold_snapshot_repo() -> Arc<InMemoryColdSnapshotRepo> {

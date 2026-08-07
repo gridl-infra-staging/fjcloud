@@ -93,10 +93,13 @@
 			effectiveUpgradeReady &&
 			effectiveUpgradeOutcome?.status !== 'requires_action'
 	);
+	// Only the success banner renders this; other states fall back to the paid-plan
+	// minimum (the charge an activation clears) sourced from MARKETING_PRICING so no
+	// retired price literal can linger the way the old hardcoded $5 floor did.
 	let activationAmountCents = $derived(
 		effectiveUpgradeOutcome?.status === 'success'
 			? effectiveUpgradeOutcome.activationAmountCents
-			: 500
+			: MARKETING_PRICING.shared_minimum_spend_cents
 	);
 </script>
 

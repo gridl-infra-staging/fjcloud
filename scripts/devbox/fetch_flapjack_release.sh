@@ -21,9 +21,12 @@
 #
 # VERSION OWNERSHIP
 #   FJCLOUD_FLAPJACK_VERSION in scripts/lib/flapjack_binary.sh is the single
-#   owner. The engine identity check at stack startup rejects a mismatched
-#   build, so a hardcoded version here would surface as a confusing runtime
-#   rejection rather than an obvious drift.
+#   owner. This script is one of its EXACT-tag consumers: it downloads
+#   precisely v${FJCLOUD_FLAPJACK_VERSION}, so that value must always name a
+#   published release. The runtime identity check treats the same value as a
+#   FLOOR and accepts newer engines, so a hardcoded version here would not
+#   necessarily be rejected at startup — it could silently install an engine
+#   other than the one the repository pins, which is worse than a loud failure.
 #
 # USAGE
 #   fetch_flapjack_release.sh --dest <flapjack_dev_dir>

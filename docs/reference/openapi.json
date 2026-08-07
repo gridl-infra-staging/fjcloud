@@ -307,6 +307,85 @@
         }
       }
     },
+    "/admin/tenants": {
+      "get": {
+        "tags": [
+          "crate::routes::admin::tenants"
+        ],
+        "operationId": "list_tenants",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum tenants to return. Must be between 1 and 100.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Number of tenants to skip. Must be non-negative.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Optional customer status filter.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/AdminCustomerStatus"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Admin tenant list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TenantResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid pagination or status filter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid admin credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_jwt": []
+          }
+        ]
+      }
+    },
     "/api-keys": {
       "get": {
         "tags": [
@@ -8136,6 +8215,43 @@
           }
         }
       },
+      "AdminCustomerStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "suspended",
+          "deleted"
+        ]
+      },
+      "AdminTenantListQuery": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AdminCustomerStatus"
+              }
+            ]
+          }
+        }
+      },
       "AlgoliaDestinationEligibilityRequest": {
         "type": "object",
         "required": [
@@ -8710,6 +8826,15 @@
           }
         },
         "additionalProperties": false
+      },
+      "BillingHealth": {
+        "type": "string",
+        "enum": [
+          "red",
+          "yellow",
+          "grey",
+          "green"
+        ]
       },
       "BillingPlan": {
         "type": "string",
@@ -10821,6 +10946,65 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "TenantResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "email",
+          "status",
+          "billing_plan",
+          "index_count",
+          "overdue_invoice_count",
+          "billing_health",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "billing_health": {
+            "$ref": "#/components/schemas/BillingHealth"
+          },
+          "billing_plan": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "index_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "last_accessed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "name": {
+            "type": "string"
+          },
+          "overdue_invoice_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },

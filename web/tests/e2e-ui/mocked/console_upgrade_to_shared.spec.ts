@@ -1,5 +1,7 @@
 import { test, expect } from '../../fixtures/fixtures';
 import { installUpgradeFixture } from '../../fixtures/upgrade_fixture';
+import { formatCents } from '../../../src/lib/format';
+import { MARKETING_PRICING } from '../../../src/lib/pricing';
 
 test.describe('Billing upgrade flow (mocked)', () => {
 	test('free customer with default card sees upgrade CTA when upgrade-ready', async ({ page }) => {
@@ -19,14 +21,18 @@ test.describe('Billing upgrade flow (mocked)', () => {
 			has_payment_method: true,
 			upgrade_outcome: {
 				status: 'success',
-				activationAmountCents: 500
+				// The activation clears the paid-plan minimum; assert against the owner so
+				// this never re-pins a retired floor (the raise to $15 left the old $5 here).
+				activationAmountCents: MARKETING_PRICING.shared_minimum_spend_cents
 			}
 		});
 
 		await page.goto('/console/billing');
 		await expect(page.getByTestId('upgrade-success-banner')).toBeVisible();
 		await expect(page.getByTestId('upgrade-success-banner')).toContainText("You're on Paid");
-		await expect(page.getByTestId('upgrade-success-banner')).toContainText('$5.00');
+		await expect(page.getByTestId('upgrade-success-banner')).toContainText(
+			formatCents(MARKETING_PRICING.shared_minimum_spend_cents)
+		);
 		await expect(page.getByRole('heading', { name: 'Paid plan active' })).toBeVisible();
 		await expect(page.getByTestId('current-plan-label')).toContainText('Paid');
 		await expect(page.getByTestId('upgrade-to-shared-button')).toHaveCount(0);

@@ -15,10 +15,34 @@
 # - Restart-critical callers may fall back to PATH (`flapjack`, then
 #   `flapjack-http`) only after directory candidates fail.
 
-# Canonical fjcloud engine dependency. Runtime checks and CI artifact
-# acquisition consume this value instead of carrying version literals.
+# Canonical fjcloud engine dependency. One constant, TWO derivations, and they
+# are not the same rule — reading this as a single "required version" is what
+# produced the 2026-08-05 false green, so it is spelled out here:
+#
+#   EXACT, for acquisition. `.github/workflows/ci.yml` and
+#   `scripts/devbox/fetch_flapjack_release.sh` build `v${FJCLOUD_FLAPJACK_VERSION}`
+#   and download that precise release tag. It must therefore always name a
+#   PUBLISHED flapjack release carrying the musl asset and its `.sha256`. Setting
+#   it to an unreleased version 404s `local-dev-up-smoke`, which sits in both
+#   `deploy-staging` and `deploy-prod` `needs[]`.
+#
+#   FLOOR, at runtime. `scripts/lib/local_stack_contract.sh` and
+#   `infra/api/src/services/flapjack_proxy/mod.rs` accept an engine reporting
+#   this version OR NEWER, and refuse older. Shared spec (both implementations
+#   read it): scripts/tests/fixtures/flapjack_version_floor_cases.json.
+#
+# This value LAGGING flapjack `main` is BY DESIGN, not drift. flapjack bumps its
+# version when work lands and cuts the release later; during that window a local
+# source build is legitimately newer than the pin, and the floor accepts it. Do
+# not "fix" that lag by pinning an unpublished version — that breaks the deploy
+# pipeline. Advance this only to a version that has a published release.
+#
+# Accepting anything at or above the floor means fjcloud has no upper bound on
+# engine version. That is deliberate: flapjack publishes no compatibility
+# promise fjcloud could check, so incompatibility is caught by fjcloud's own
+# suite exercising the engine, not by a version number.
 # shellcheck disable=SC2034
-FJCLOUD_FLAPJACK_VERSION="1.0.10"
+FJCLOUD_FLAPJACK_VERSION="1.0.11"
 FJCLOUD_FLAPJACK_BUILD_PACKAGE="flapjack-server"
 FJCLOUD_FLAPJACK_LEGACY_RELEASE_SHA256="a3af301593a3dfddd2925011a46bc7d561c5ce607692733cae6740e04949207a"
 FJCLOUD_FLAPJACK_SOURCE_RESOLUTION_FAILURE_STATUS=2

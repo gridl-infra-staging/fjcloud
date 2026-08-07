@@ -120,6 +120,60 @@ probe_parse_args() {
   fi
 }
 
+# Fail closed unless staging hydration ran and this probe is bound to its result.
+#
+# WHY THIS EXISTS. `--env staging` used to validate only a label: probe_parse_args
+# rejected `--env prod`, but nothing checked where the run actually pointed. The
+# live request builder `admin_call` (scripts/launch/seed_synthetic_traffic.sh)
+# reads the ambient API_URL at call time, and the canonical secret files --
+# .secret/.env.secret and its .bak siblings -- export
+# API_URL=https://api.flapjack.foo, the PRODUCTION host. A lane that sourced a
+# secret file and then skipped or botched hydration would drive this probe's full
+# synthetic write load (~1110 writes at the standard tenant mix) into production
+# while recording the result as staging evidence.
+#
+# WHY STAGING_API_URL IS THE ORACLE RATHER THAN A HOST PATTERN CHECKED HERE.
+# The staging API host is not a fixed shape. scripts/launch/hydrate_seeder_env_from_ssm.sh
+# derives it from the SSM `dns_domain` value and branches: `api.${DNS_DOMAIN}` when
+# DNS_DOMAIN already begins with `staging.`, and `api.staging.${DNS_DOMAIN}`
+# otherwise. That hydrator is the single owner of the derivation, and it publishes
+# the answer as the STAGING_API_URL contract var. Re-deriving the host here would
+# duplicate that branch -- and get it wrong for the `staging.`-prefixed form, which
+# would resolve to api.staging.staging.<domain>. So this compares against the
+# hydrator's output instead of re-deriving anything.
+#
+# Requiring STAGING_API_URL to be present is also what proves hydration actually
+# happened: the hydrator is what sets it. An unset value means the staging inputs
+# were never loaded, so there is no trustworthy target to compare against and the
+# only safe answer is to refuse. Note this probe deliberately does not source
+# scripts/lib/env.sh, whose derive_staging_contract_env_aliases() would copy a
+# production API_URL into STAGING_API_URL and defeat the comparison.
+probe_require_staging_api_url() {
+  local staging_url effective
+  # Normalize a single trailing slash on both sides. The hydrator emits none, but
+  # operator-authored env files routinely add one, and refusing https://host/
+  # against https://host would block a correctly targeted staging run.
+  staging_url="${STAGING_API_URL:-}"
+  staging_url="${staging_url%/}"
+  effective="${API_URL:-}"
+  effective="${effective%/}"
+
+  if [ -z "$staging_url" ]; then
+    probe_die "--env staging requires hydrated staging inputs: STAGING_API_URL is unset. Hydrate with 'scripts/launch/hydrate_seeder_env_from_ssm.sh staging' before running this probe; refusing rather than trusting the ambient API_URL, which the canonical secret files point at production."
+  fi
+  if [ -z "$effective" ]; then
+    probe_die "--env staging requires API_URL bound to the hydrated staging host '${staging_url}'; API_URL is unset."
+  fi
+  if [ "$effective" != "$staging_url" ]; then
+    probe_die "--env staging refuses to run: API_URL '${effective}' is not the hydrated staging host '${staging_url}'"
+  fi
+
+  # Bind the validated host. admin_call reads API_URL at call time, so validating
+  # without binding would leave a later assignment free to retarget the probe
+  # after the check had already passed.
+  export API_URL="$staging_url"
+}
+
 probe_output_base_without_suffix() {
   local out_arg="$1"
   case "$out_arg" in
@@ -629,4 +683,10 @@ if [ -n "${MULTI_TENANT_ISOLATION_PROBE_NO_AUTO_RUN:-}" ]; then
 fi
 
 probe_parse_args "$@"
+# Bind and verify the staging target before probe_run, which is the first
+# thing that can issue a live request. Dry runs are exempt: they make no
+# request at all, and the dry-run contract cases run with no hydrated env.
+if [ "$PROBE_DRY_RUN" != "true" ]; then
+  probe_require_staging_api_url
+fi
 probe_run

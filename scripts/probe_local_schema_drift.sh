@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Compare the local database's public columns with a schema built from migrations.
+# Compare the local database with a migration-built oracle for public columns
+# and migration-seeded reference values.
 
 set -euo pipefail
 
@@ -15,10 +16,30 @@ log() {
     printf '%s\n' "$*"
 }
 
+require_local_database_host() {
+    local database_url="$1" host
+
+    host="$(require_db_url_part "$database_url" db_url_host)" || {
+        log "DATABASE_URL must include a hostname"
+        return 1
+    }
+
+    case "$host" in
+        localhost|127.0.0.1|[::1])
+            return 0
+            ;;
+    esac
+
+    log "DATABASE_URL must point to a local PostgreSQL host (localhost, 127.0.0.1, or [::1])"
+    return 1
+}
+
 if [ -z "${DATABASE_URL:-}" ]; then
     log "DATABASE_URL is not set. Run: source .env.local"
     exit 1
 fi
+
+require_local_database_host "$DATABASE_URL" || exit 1
 
 build_scratch_database_url() {
     local database_url="$1"
@@ -105,9 +126,22 @@ if ! target_columns="$(psql "$DATABASE_URL" -tAc "$schema_columns_sql")"; then
     exit 1
 fi
 
+reference_table="rate_cards"
+reference_row_key="launch-2026"
+reference_column="shared_minimum_spend_cents"
+
+reference_values_sql="
+SELECT '$reference_table', name, '$reference_column', $reference_column
+FROM $reference_table
+WHERE name = '$reference_row_key'
+  AND effective_until IS NULL
+ORDER BY name"
+
 comparison_dir="$(mktemp -d "${TMPDIR:-/tmp}/fjcloud_schema_drift.XXXXXX")"
 comparison_input="$comparison_dir/columns"
+reference_values_input="$comparison_dir/reference_values"
 differences_file="$comparison_dir/differences"
+unsorted_differences_file="$comparison_dir/differences_unsorted"
 
 printf '%s\n' "$oracle_columns" |
     awk -F'|' 'NF >= 3 { print "oracle|" $2 "|" $3 }' > "$comparison_input"
@@ -143,7 +177,74 @@ awk -F'|' '
             }
         }
     }
-' "$comparison_input" | LC_ALL=C sort -t'|' -k1,1 > "$differences_file"
+' "$comparison_input" > "$unsorted_differences_file"
+
+oracle_reference_status=0
+target_reference_status=0
+oracle_reference_values=""
+target_reference_values=""
+
+if ! oracle_reference_values="$(psql "$scratch_database_url" -tAc "$reference_values_sql")"; then
+    oracle_reference_status=1
+fi
+if ! target_reference_values="$(psql "$DATABASE_URL" -tAc "$reference_values_sql")"; then
+    target_reference_status=1
+fi
+
+if [ "$oracle_reference_status" -ne 0 ]; then
+    printf '%s\n' \
+        "reference_values.oracle|Failed to inspect scratch reference-value oracle|fatal" \
+        >> "$unsorted_differences_file"
+fi
+if [ "$target_reference_status" -ne 0 ]; then
+    printf '%s\n' \
+        "reference_values.target|Failed to inspect target reference values|fatal" \
+        >> "$unsorted_differences_file"
+fi
+
+# run_migrations_with_runner seeds migration history for pre-tracking databases,
+# so a target can claim migrations ran without receiving reference-row updates.
+if [ "$oracle_reference_status" -eq 0 ] && [ "$target_reference_status" -eq 0 ]; then
+    printf '%s\n' "$oracle_reference_values" |
+        awk -F'|' 'NF >= 4 { print "oracle|" $1 "|" $2 "|" $3 "|" $4 }' > "$reference_values_input"
+    printf '%s\n' "$target_reference_values" |
+        awk -F'|' 'NF >= 4 { print "target|" $1 "|" $2 "|" $3 "|" $4 }' >> "$reference_values_input"
+
+    awk -F'|' \
+        -v required_table="$reference_table" \
+        -v required_row="$reference_row_key" \
+        -v required_column="$reference_column" '
+        $1 == "oracle" {
+            oracle_row_count++
+            oracle_value = $5
+            next
+        }
+        $1 == "target" {
+            target_row_count++
+            target_value = $5
+        }
+        END {
+            required_key = required_table "." required_row "." required_column
+            if (oracle_row_count == 0) {
+                print required_key "|missing oracle row " required_table " row " required_row " column " required_column " expected <present> found <missing>|fatal"
+            } else if (oracle_row_count > 1) {
+                print required_key "|duplicate oracle rows " required_table " row " required_row " column " required_column " expected exactly 1 found " oracle_row_count "|fatal"
+            }
+
+            if (target_row_count == 0 && oracle_row_count > 0) {
+                print required_key "|missing row " required_table " row " required_row " column " required_column " expected " oracle_value " found <missing>|fatal"
+            } else if (target_row_count > 1) {
+                print required_key "|duplicate target rows " required_table " row " required_row " column " required_column " expected exactly 1 found " target_row_count "|fatal"
+            }
+
+            if (oracle_row_count == 1 && target_row_count == 1 && target_value != oracle_value) {
+                print required_key "|value mismatch " required_table " row " required_row " column " required_column " expected " oracle_value " found " target_value "|fatal"
+            }
+        }
+    ' "$reference_values_input" >> "$unsorted_differences_file"
+fi
+
+LC_ALL=C sort -t'|' -k1,1 "$unsorted_differences_file" > "$differences_file"
 
 while IFS='|' read -r _ message _; do
     [ -n "$message" ] || continue

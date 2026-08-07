@@ -64,9 +64,22 @@ assert_not_contains() {
 make_fixture_root() {
     local root
     root="$(mktemp -d)"
-    mkdir -p "$root/chatting" "$root/implemented"
+    # chats/icg is a required input for the same reason chatting/ is: the probe
+    # now also measures `## ROADMAP CORRECTION REQUIRED` sections written inside
+    # lane checklists there, and a root without that directory has an unmeasured
+    # denominator rather than a clean one.
+    mkdir -p "$root/chatting" "$root/implemented" "$root/chats/icg"
     printf '# Roadmap\n\n## Active\n\n## Planned\n\n## Archive\n' >"$root/ROADMAP.md"
     printf '%s' "$root"
+}
+
+# Write a lane checklist that carries an inline `## ROADMAP CORRECTION REQUIRED`
+# section -- the newer handover shape every aug05 batch uses instead of a
+# separate chatting/ document.
+write_lane_with_correction() {
+    local root="$1" filename="$2"
+    printf '# lane\n\n## ROADMAP CORRECTION REQUIRED\n\nRow title, verbatim: **"some row"**\n' \
+        >"$root/chats/icg/$filename"
 }
 
 run_probe() {
@@ -244,6 +257,120 @@ test_unsafe_handover_filename_fails_without_terminal_injection() {
         "the diagnostic must not replay terminal control bytes from a filename"
 }
 
+# ---------------------------------------------------------------------------
+# Inline `## ROADMAP CORRECTION REQUIRED` sections (chats/icg/<lane>.md).
+#
+# Every aug05 batch instructs its lanes to append this section to their OWN
+# checklist instead of writing a separate chatting/ handover, so the chatting/
+# enumeration above is structurally blind to the channel currently in use.
+# Measured 2026-08-06 on origin/main: three lane files carried such a section and
+# the probe reported handover_total over the chatting/ population alone.
+# ---------------------------------------------------------------------------
+
+test_inline_roadmap_correction_named_in_roadmap_is_consumed() {
+    local root output exit_code=0
+    root="$(make_fixture_root)"
+    write_lane_with_correction "$root" "aug05_1pm_1_source_index_picker.md"
+    # ROADMAP.md cites lanes by their id, not by the full checklist basename, so
+    # the id is the oracle. This is the shape a real reconciliation writes.
+    printf 'Narrowed by `aug05_1pm_1` (merge `60dcd3159`).\n' >>"$root/ROADMAP.md"
+
+    output="$(run_probe "$root")" || exit_code=$?
+    rm -rf "$root"
+
+    assert_eq "$exit_code" "0" "an inline correction whose lane id is in ROADMAP.md should exit 0"
+    assert_contains "$output" "inline_corrections=1" "the report must expose the inline-correction denominator"
+    assert_contains "$output" "consumed=1" "a lane id named in ROADMAP.md counts as consumed"
+    assert_contains "$output" "unconsumed=0" "nothing should remain unconsumed"
+}
+
+test_inline_roadmap_correction_absent_from_roadmap_is_reported() {
+    local root output exit_code=0
+    root="$(make_fixture_root)"
+    write_lane_with_correction "$root" "aug05_12pm_2_pricing_registry_verification.md"
+
+    output="$(run_probe "$root")" || exit_code=$?
+    rm -rf "$root"
+
+    assert_eq "$exit_code" "1" "an unapplied inline correction must exit non-zero"
+    assert_contains "$output" "inline_corrections=1" "the denominator must count the inline correction"
+    assert_contains "$output" "unconsumed=1" "the count must be exact, not merely non-zero"
+    assert_contains "$output" "UNCONSUMED chats/icg/aug05_12pm_2_pricing_registry_verification.md" \
+        "the report must name the unconsumed lane file by its real path"
+}
+
+test_lane_file_without_correction_heading_is_not_counted() {
+    local root output exit_code=0
+    root="$(make_fixture_root)"
+    # chats/icg holds ~800 ordinary checklists. Counting them would drown the
+    # signal, so only files carrying the heading enter the denominator.
+    printf '# lane\n\nAppend a `ROADMAP CORRECTION REQUIRED` section to this file.\n' \
+        >"$root/chats/icg/aug05_9am_1_ordinary_lane.md"
+
+    output="$(run_probe "$root")" || exit_code=$?
+    rm -rf "$root"
+
+    assert_eq "$exit_code" "0" "a lane that merely mentions the phrase must not be counted"
+    assert_contains "$output" "inline_corrections=0" "only a real heading enters the denominator"
+}
+
+test_inline_correction_reference_from_sibling_lane_does_not_count() {
+    local root output exit_code=0
+    root="$(make_fixture_root)"
+    write_lane_with_correction "$root" "aug05_12pm_2_pricing_registry_verification.md"
+    # Lane-to-lane chatter is not application to the SSOT -- same rule the
+    # chatting/ population already enforces. An orchestration naming its own
+    # roster must not be able to satisfy this probe.
+    printf 'roster: aug05_12pm_2 pricing lane\n' >"$root/chats/icg/aug05_12pm_0_orchestration.md"
+
+    output="$(run_probe "$root")" || exit_code=$?
+    rm -rf "$root"
+
+    assert_eq "$exit_code" "1" "a sibling lane reference must not count as consumption"
+    assert_contains "$output" "unconsumed=1" "the correction is still unapplied"
+}
+
+test_inline_correction_lane_id_match_respects_digit_boundary() {
+    local root output exit_code=0
+    root="$(make_fixture_root)"
+    write_lane_with_correction "$root" "aug05_1pm_1_picker.md"
+    # `aug05_1pm_1` is a literal prefix of `aug05_1pm_10`. A substring oracle
+    # would call this consumed and silently lose the correction.
+    printf 'Applied `aug05_1pm_10` this pass.\n' >>"$root/ROADMAP.md"
+
+    output="$(run_probe "$root")" || exit_code=$?
+    rm -rf "$root"
+
+    assert_eq "$exit_code" "1" "a longer sibling id must not consume the shorter one"
+    assert_contains "$output" "unconsumed=1" "the shorter lane id is still unapplied"
+}
+
+test_inline_correction_with_underivable_lane_id_fails_closed() {
+    local root output exit_code=0
+    root="$(make_fixture_root)"
+    # No numeric lane index, so no id can be derived. The probe must say so
+    # rather than report a denominator it did not actually measure.
+    write_lane_with_correction "$root" "notalaneid.md"
+
+    output="$(run_probe "$root")" || exit_code=$?
+    rm -rf "$root"
+
+    assert_eq "$exit_code" "2" "an underivable lane id must fail closed"
+    assert_contains "$output" "lane id" "the diagnostic must name the derivation boundary"
+}
+
+test_missing_chats_icg_directory_is_not_silently_clean() {
+    local root output exit_code=0
+    root="$(make_fixture_root)"
+    rm -rf "$root/chats"
+
+    output="$(run_probe "$root")" || exit_code=$?
+    rm -rf "$root"
+
+    assert_eq "$exit_code" "2" "a missing chats/icg must fail closed, not report zero"
+    assert_contains "$output" "chats/icg" "the diagnostic must name the missing input"
+}
+
 main() {
     echo "=== check_handover_consumption.sh tests ==="
     echo ""
@@ -258,6 +385,13 @@ main() {
     test_missing_chatting_directory_is_not_silently_clean
     test_handover_enumeration_failure_is_not_silently_clean
     test_unsafe_handover_filename_fails_without_terminal_injection
+    test_inline_roadmap_correction_named_in_roadmap_is_consumed
+    test_inline_roadmap_correction_absent_from_roadmap_is_reported
+    test_lane_file_without_correction_heading_is_not_counted
+    test_inline_correction_reference_from_sibling_lane_does_not_count
+    test_inline_correction_lane_id_match_respects_digit_boundary
+    test_inline_correction_with_underivable_lane_id_fails_closed
+    test_missing_chats_icg_directory_is_not_silently_clean
 
     echo ""
     echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="

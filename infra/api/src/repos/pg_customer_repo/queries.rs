@@ -1,15 +1,42 @@
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, QueryBuilder};
 use uuid::Uuid;
 
 use crate::models::{Customer, IngestQuotaWarningMetric};
+use crate::repos::customer_repo::AdminCustomerListQuery;
 use crate::repos::error::RepoError;
-use crate::repos::pg_customer_repo::projection::{customer_columns, list_customers_sql};
+use crate::repos::pg_customer_repo::projection::{
+    customer_columns, list_customers_select_sql, list_customers_sql, ADMIN_CUSTOMER_LIST_ORDER_BY,
+};
 
 /// Fetch all customers with the shared list projection.
 pub(super) async fn list(pool: &PgPool) -> Result<Vec<Customer>, RepoError> {
     let sql = list_customers_sql();
     sqlx::query_as::<_, Customer>(&sql)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| RepoError::Other(e.to_string()))
+}
+
+pub(super) async fn list_admin(
+    pool: &PgPool,
+    query: AdminCustomerListQuery,
+) -> Result<Vec<Customer>, RepoError> {
+    let mut builder = QueryBuilder::<Postgres>::new(list_customers_select_sql());
+    if let Some(status) = query.status {
+        builder
+            .push(" WHERE customers.status = ")
+            .push_bind(status.as_str());
+    }
+    builder.push(ADMIN_CUSTOMER_LIST_ORDER_BY);
+    if let Some(limit) = query.limit {
+        builder.push(" LIMIT ").push_bind(limit);
+    }
+    if let Some(offset) = query.offset {
+        builder.push(" OFFSET ").push_bind(offset);
+    }
+    builder
+        .build_query_as::<Customer>()
         .fetch_all(pool)
         .await
         .map_err(|e| RepoError::Other(e.to_string()))

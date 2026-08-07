@@ -1,6 +1,7 @@
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
+use std::collections::BTreeSet;
 use tower::ServiceExt;
 
 fn json_post(uri: &str, body: serde_json::Value) -> Request<Body> {
@@ -116,6 +117,80 @@ async fn pricing_compare_exposes_verification_labels() {
         .expect("Flapjack Cloud estimate must be present");
     // Stamped in 6c0638125; the date is the one carried by griddle.rs:14.
     assert_eq!(flapjack_cloud["verification_label"], "2026-08-05");
+}
+
+#[tokio::test]
+async fn pricing_compare_exposes_withheld_providers_from_publication_rule() {
+    let app = crate::common::test_app();
+    let req = json_post("/pricing/compare", valid_workload());
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = body_json(resp).await;
+    let estimates = body["estimates"]
+        .as_array()
+        .expect("estimates must be an array");
+    let withheld = body["withheld_providers"]
+        .as_array()
+        .expect("withheld_providers must be an array");
+
+    let expected_withheld: Vec<_> = pricing_calculator::providers::all_metadata()
+        .into_iter()
+        .filter(|metadata| !pricing_calculator::providers::is_published(metadata))
+        .collect();
+    assert_eq!(
+        withheld.len(),
+        expected_withheld.len(),
+        "withheld_providers must expose every registered provider withheld by is_published"
+    );
+
+    let estimate_providers: BTreeSet<&str> = estimates
+        .iter()
+        .map(|estimate| {
+            estimate["provider"]
+                .as_str()
+                .expect("estimate provider must be serialized")
+        })
+        .collect();
+
+    for metadata in &expected_withheld {
+        let serialized_provider = serde_json::to_value(metadata.id)
+            .expect("provider id must serialize")
+            .as_str()
+            .expect("provider id must serialize as a string")
+            .to_string();
+        assert!(
+            !estimate_providers.contains(serialized_provider.as_str()),
+            "withheld provider {} must not appear in estimates",
+            serialized_provider
+        );
+        assert!(
+            withheld.iter().any(|entry| {
+                entry["provider"] == serialized_provider
+                    && entry["display_name"] == metadata.display_name
+                    && entry["reason"] == metadata.verification_label()
+            }),
+            "withheld_providers must include provider id, display name, and reason for {}",
+            metadata.display_name
+        );
+    }
+
+    for metadata in pricing_calculator::providers::all_metadata()
+        .into_iter()
+        .filter(pricing_calculator::providers::is_published)
+    {
+        let serialized_provider = serde_json::to_value(metadata.id)
+            .expect("provider id must serialize")
+            .as_str()
+            .expect("provider id must serialize as a string")
+            .to_string();
+        assert!(
+            estimate_providers.contains(serialized_provider.as_str()),
+            "published provider {} must remain present in estimates",
+            serialized_provider
+        );
+    }
 }
 
 #[tokio::test]
@@ -239,10 +314,18 @@ async fn pricing_compare_omits_retired_meilisearch_usage_provider() {
         .as_array()
         .expect("estimates must be an array");
 
+    // The compare surface publishes exactly the source-verified providers. Derive the
+    // expected count from the calculator's own publication predicate (the single owner of
+    // "published") rather than a magic number, so withholding unverified providers — e.g.
+    // Elastic Cloud / AWS OpenSearch, currently never-verified — keeps this test honest.
+    let published_count = pricing_calculator::providers::all_metadata()
+        .into_iter()
+        .filter(pricing_calculator::providers::is_published)
+        .count();
     assert_eq!(
         estimates.len(),
-        6,
-        "compare output should expose only the 6 active providers after the Meilisearch usage-based retirement"
+        published_count,
+        "compare output must expose exactly the published (source-verified) providers"
     );
 
     for estimate in estimates {

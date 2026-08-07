@@ -1,0 +1,22 @@
+rust-test	Run rust tests	2026-08-06T07:15:55.9232582Z 
+rust-test	Run rust tests	2026-08-06T07:15:55.9232963Z thread 'pricing_compare_test::pricing_compare_exposes_verification_labels' (11848) panicked at api/tests/integration/pricing_compare_test.rs:117:5:
+rust-test	Run rust tests	2026-08-06T07:15:55.9233425Z assertion `left == right` failed
+rust-test	Run rust tests	2026-08-06T07:15:55.9233661Z   left: String("2026-08-05")
+rust-test	Run rust tests	2026-08-06T07:15:55.9233891Z  right: "unverified"
+rust-test	Run rust tests	2026-08-06T07:15:55.9233985Z 
+rust-test	Run rust tests	2026-08-06T07:15:55.9234137Z ---- pricing_compare_test::pricing_compare_flapjack_cloud_contract stdout ----
+rust-test	Run rust tests	2026-08-06T07:15:55.9234343Z 
+rust-test	Run rust tests	2026-08-06T07:15:55.9234629Z thread 'pricing_compare_test::pricing_compare_flapjack_cloud_contract' (11849) panicked at api/tests/integration/pricing_compare_test.rs:279:5:
+rust-test	Run rust tests	2026-08-06T07:15:55.9235507Z assertion `left == right` failed: Flapjack Cloud monthly total should be 204.8 MB × 5 cents = 1024 cents
+rust-test	Run rust tests	2026-08-06T07:15:55.9235832Z   left: 1500
+rust-test	Run rust tests	2026-08-06T07:15:55.9235974Z  right: 1024
+rust-test	Run rust tests	2026-08-06T07:15:55.9236061Z 
+rust-test	Run rust tests	2026-08-06T07:15:55.9236064Z 
+rust-test	Run rust tests	2026-08-06T07:15:55.9236132Z failures:
+rust-test	Run rust tests	2026-08-06T07:15:55.9236423Z     pricing_compare_test::pricing_compare_exposes_verification_labels
+rust-test	Run rust tests	2026-08-06T07:15:55.9236736Z     pricing_compare_test::pricing_compare_flapjack_cloud_contract
+rust-test	Run rust tests	2026-08-06T07:15:55.9236908Z 
+rust-test	Run rust tests	2026-08-06T07:15:55.9237092Z test result: FAILED. 1677 passed; 2 failed; 14 ignored; 0 measured; 0 filtered out; finished in 238.49s
+rust-test	Run rust tests	2026-08-06T07:15:55.9237345Z 
+rust-test	Run rust tests	2026-08-06T07:15:55.9280654Z ^[[1m^[[91merror^[[0m: test failed, to rerun pass `-p api --test platform`
+rust-test	Run rust tests	2026-08-06T07:15:55.9310944Z ##[error]Process completed with exit code 101.

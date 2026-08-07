@@ -42,6 +42,18 @@ describe('ApiClient pricing comparison (public)', () => {
 				plan_name: 'Pro'
 			}
 		],
+		withheld_providers: [
+			{
+				provider: 'ElasticCloud',
+				display_name: 'Elastic Cloud',
+				reason: 'unverified'
+			},
+			{
+				provider: 'AwsOpenSearch',
+				display_name: 'AWS OpenSearch Service',
+				reason: 'unverified'
+			}
+		],
 		generated_at: '2026-03-18T00:00:00Z'
 	};
 
@@ -94,6 +106,7 @@ describe('ApiClient pricing comparison (public)', () => {
 					plan_name: 'Pro'
 				}
 			],
+			withheld_providers: sampleResponse.withheld_providers,
 			generated_at: '2026-03-18T00:00:00Z'
 		};
 		const fetch = mockFetch(200, multiEstimateResponse);

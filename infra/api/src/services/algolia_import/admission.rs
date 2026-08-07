@@ -32,7 +32,13 @@ impl AlgoliaImportService {
             FlapjackRuntimeIdentityReason::RuntimeUnreachable => {
                 Err(AlgoliaImportErrorCode::BackendUnavailable)
             }
+            // VersionUnparseable joins the upgrade-required group rather than
+            // BackendUnavailable: the engine is reachable and answering, but its
+            // identity cannot be established, which is an operator fix (correct
+            // the pin, or run an engine that reports a real release version) and
+            // not something a retry will resolve.
             FlapjackRuntimeIdentityReason::VersionMismatch
+            | FlapjackRuntimeIdentityReason::VersionUnparseable
             | FlapjackRuntimeIdentityReason::RevisionMismatch
             | FlapjackRuntimeIdentityReason::BuildIdMismatch
             | FlapjackRuntimeIdentityReason::ChecksumMismatch
@@ -70,8 +76,17 @@ impl AlgoliaImportService {
             .await;
         let decision = Self::classify_engine_compatibility(result.reason);
         if decision.is_err() {
+            // The floor is logged alongside the reason because `version_mismatch`
+            // alone does not tell an operator what fjcloud actually required, and
+            // an unactionable rejection is what previously got worked around
+            // rather than fixed. It is a MINIMUM: an engine newer than it is
+            // accepted, so a mismatch here always means the engine is too old.
             tracing::warn!(
                 reason = result.reason.as_str(),
+                minimum_engine_version = requirements
+                    .expected_version
+                    .as_deref()
+                    .unwrap_or("<unset>"),
                 "selected shared VM engine is incompatible with Algolia import admission"
             );
         }

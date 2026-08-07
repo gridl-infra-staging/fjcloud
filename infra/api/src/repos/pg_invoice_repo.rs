@@ -4,7 +4,10 @@ use uuid::Uuid;
 
 use crate::models::{InvoiceLineItemRow, InvoiceRow};
 use crate::repos::error::{is_unique_violation, RepoError};
-use crate::repos::invoice_repo::{AdminInvoiceSummaryRow, InvoiceRepo, NewInvoice, NewLineItem};
+use crate::repos::invoice_repo::{
+    AdminInvoiceSummaryRow, CustomerInvoicePaymentSummary, InvoiceRepo, NewInvoice, NewLineItem,
+    PAID_INVOICE_STATUS,
+};
 
 pub struct PgInvoiceRepo {
     pool: PgPool,
@@ -83,6 +86,31 @@ impl InvoiceRepo for PgInvoiceRepo {
             "SELECT * FROM invoices WHERE customer_id = $1 ORDER BY period_start DESC",
         )
         .bind(customer_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| RepoError::Other(e.to_string()))
+    }
+
+    /// One aggregate `= ANY($1)` read — never transfers complete invoice rows
+    /// or fans out through `list_by_customer`.
+    async fn payment_summaries_by_customers(
+        &self,
+        customer_ids: &[Uuid],
+    ) -> Result<Vec<CustomerInvoicePaymentSummary>, RepoError> {
+        if customer_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        sqlx::query_as::<_, CustomerInvoicePaymentSummary>(
+            "SELECT customer_id, \
+                    BOOL_OR(status = $2) AS has_ever_been_billed, \
+                    MAX(paid_at) FILTER (WHERE status = $2) AS latest_paid_at \
+             FROM invoices \
+             WHERE customer_id = ANY($1) \
+             GROUP BY customer_id",
+        )
+        .bind(customer_ids.to_vec())
+        .bind(PAID_INVOICE_STATUS)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| RepoError::Other(e.to_string()))

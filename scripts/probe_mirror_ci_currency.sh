@@ -8,8 +8,9 @@
 
 set -euo pipefail
 
-readonly STAGING_REPO="gridl-infra-staging/fjcloud"
-readonly PROD_REPO="gridl-infra-prod/fjcloud"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/mirror_github.sh
+source "$SCRIPT_DIR/lib/mirror_github.sh"
 readonly GH_RUN_FIELDS="name,event,conclusion,createdAt,headSha,databaseId,status"
 
 fixture_path=""
@@ -194,18 +195,8 @@ if [ -n "$fixture_path" ]; then
     exit $?
 fi
 
-# An explicit empty token is an operator-requested fail-closed negative control;
-# do not allow gh to silently fall back to credentials stored on the host.
-if [ "${GH_TOKEN+x}" = "x" ] && [ -z "$GH_TOKEN" ]; then
-    emit_unavailable_for_both auth_missing
-    exit 1
-fi
-if ! command -v gh >/dev/null 2>&1; then
-    emit_unavailable_for_both api_failure
-    exit 1
-fi
-if ! gh auth status >/dev/null 2>&1; then
-    emit_unavailable_for_both auth_missing
+if access_failure_reason="$(github_access_failure_reason)"; then
+    emit_unavailable_for_both "$access_failure_reason"
     exit 1
 fi
 

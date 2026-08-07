@@ -8,6 +8,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 FIXTURE_ROOT="$SCRIPT_DIR/fixtures/source-migration"
 
+# These fixtures copy the REAL scripts/lib/flapjack_binary.sh into the fixture
+# repo root, so the mocked Flapjack /health below is measured against the LIVE
+# pin. That pin is a floor, so a restated literal here silently drops below it
+# the moment the pin advances, local-dev-up.sh correctly refuses the mock
+# engine, and the refusal surfaces as unrelated-looking startup failures.
+# Sourced in a subshell so this suite's own helper stubs are not shadowed.
+flapjack_pinned_version="$(REPO_ROOT="$REPO_ROOT"; source "$REPO_ROOT/scripts/lib/flapjack_binary.sh"; printf '%s' "$FJCLOUD_FLAPJACK_VERSION")"
+
 PASS_COUNT=0
 FAIL_COUNT=0
 
@@ -113,7 +121,7 @@ if [[ "$args" == *"/health"* ]]; then
     revision="${FJCLOUD_FLAPJACK_REQUIRED_REVISION:-test-revision}"
     digest="${FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID:-test-digest}"
     sha="${FJCLOUD_FLAPJACK_REQUIRED_SHA256:-test-sha}"
-    printf '\''{"status":"ok","version":"1.0.10","build":{"schemaVersion":1,"version":"1.0.10","revision":"%s","revisionKnown":true,"dirty":false,"dirtyKnown":true,"workspaceDigest":"%s","binary_sha256":"%s","profile":"debug","target":"test-target","features":[],"capabilities":{"vectorSearch":true,"vectorSearchLocal":true}}}'\'' "$revision" "$digest" "$sha"
+    printf '\''{"status":"ok","version":"'"$flapjack_pinned_version"'","build":{"schemaVersion":1,"version":"'"$flapjack_pinned_version"'","revision":"%s","revisionKnown":true,"dirty":false,"dirtyKnown":true,"workspaceDigest":"%s","binary_sha256":"%s","profile":"debug","target":"test-target","features":[],"capabilities":{"vectorSearch":true,"vectorSearchLocal":true}}}'\'' "$revision" "$digest" "$sha"
 fi
 exit 0'
 }

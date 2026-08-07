@@ -1,0 +1,2 @@
+repo=gridl-infra-staging/fjcloud mirror_head=73fe37c8b8791f785c125332714cca5d6f205629 run_id=31080535059 status=completed conclusion=success run_head_sha=73fe37c8b8791f785c125332714cca5d6f205629 age_seconds=1936 reason=green
+repo=gridl-infra-prod/fjcloud mirror_head=24f5efc2c4e1e8ec5793f0e66f9ac8eec7e8086e run_id=none status=none conclusion=none run_head_sha=none age_seconds=unknown reason=ci_run_missing

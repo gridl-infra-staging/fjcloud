@@ -45,13 +45,13 @@ import {
 
 const ALLOW_LOOPBACK_SOURCE_ORIGINS_FLAG = 'FJCLOUD_ALLOW_LOOPBACK_SOURCE_ORIGINS';
 
-// The payload fixtures return a union across every closed provider, and a bare
-// `{ ...fixture, host }` spread widens `source_provider` back to `string` while
-// keeping the Algolia arm's `appId`, so the result matches neither union arm and
-// can no longer be handed to forwardedSourceCredentials/forwardedCreateBody.
-// Overriding `host` never changes which arm the value really is, so restoring
-// the fixture's own return type here is sound — and keeps the fixtures the
-// single owner of the default payload shape.
+// The unsafe-origin tables exercise the Typesense discovery arm specifically.
+// Keep the fixture as the owner of every other request field while replacing
+// only its provider-native identity.
+function withTypesenseNode<T extends object>(payload: T, node: string): T {
+	return { ...payload, node } as T;
+}
+
 function withSourceHost<T extends object>(payload: T, host: string): T {
 	return { ...payload, host } as T;
 }
@@ -64,8 +64,8 @@ function invokeAction<T>(
 	return action({ request, locals: { user: { token } } } as never);
 }
 
-async function expectSourceHostRejected(host: string) {
-	const payload = withSourceHost(sourceListPayload('typesense'), host);
+async function expectSourceNodeRejected(node: string) {
+	const payload = withTypesenseNode(sourceListPayload('typesense'), node);
 
 	const result = await invokeAction(actions.listSourceIndexes, payloadRequest(payload));
 
@@ -222,9 +222,9 @@ describe('Migrate page server actions and serialization', () => {
 		'http://localhost:8108',
 		'http://[::1]:8108'
 	])(
-		'listSourceIndexes rejects unsafe hosted source host %s before invoking the client',
-		async (host) => {
-			await expectSourceHostRejected(host);
+		'listSourceIndexes rejects unsafe hosted source origin %s before invoking the client',
+		async (node) => {
+			await expectSourceNodeRejected(node);
 		}
 	);
 
@@ -240,10 +240,10 @@ describe('Migrate page server actions and serialization', () => {
 		'http://127.0.0.1.evil.test:8108',
 		'http://localhost.evil.test:8108'
 	])(
-		'listSourceIndexes still rejects unsafe hosted source host %s when loopback opt-in is set',
-		async (host) => {
+		'listSourceIndexes still rejects unsafe hosted source origin %s when loopback opt-in is set',
+		async (node) => {
 			process.env[ALLOW_LOOPBACK_SOURCE_ORIGINS_FLAG] = '1';
-			await expectSourceHostRejected(host);
+			await expectSourceNodeRejected(node);
 		}
 	);
 
@@ -251,7 +251,7 @@ describe('Migrate page server actions and serialization', () => {
 		'listSourceIndexes rejects loopback source hosts when opt-in flag value is %s',
 		async (flagValue) => {
 			process.env[ALLOW_LOOPBACK_SOURCE_ORIGINS_FLAG] = flagValue;
-			await expectSourceHostRejected('http://127.0.0.1:8108');
+			await expectSourceNodeRejected('http://127.0.0.1:8108');
 		}
 	);
 
@@ -260,10 +260,10 @@ describe('Migrate page server actions and serialization', () => {
 	// check, and IPv6 — whose `URL.hostname` is the bracketed `[::1]`), so a
 	// single-host case would let two of the three stay silently refused.
 	it.each(['http://127.0.0.1:8108', 'http://localhost:8108', 'http://[::1]:8108'])(
-		'listSourceIndexes forwards loopback source host %s unchanged when the loopback opt-in is set',
-		async (host) => {
+		'listSourceIndexes forwards loopback source origin %s unchanged when the loopback opt-in is set',
+		async (node) => {
 			process.env[ALLOW_LOOPBACK_SOURCE_ORIGINS_FLAG] = '1';
-			const payload = withSourceHost(sourceListPayload('typesense'), host);
+			const payload = withTypesenseNode(sourceListPayload('typesense'), node);
 
 			const result = await invokeAction(actions.listSourceIndexes, payloadRequest(payload));
 
@@ -272,7 +272,7 @@ describe('Migrate page server actions and serialization', () => {
 			// rather than a bare never-called-spy message that hides the real cause.
 			expect(result).toEqual({ sourceIndexes: { items: [], nextCursor: null } });
 			// Each loopback input is already exactly its own URL origin, so the
-			// forwarded host must come back byte-identical with port 8108 intact.
+			// forwarded node must come back byte-identical with port 8108 intact.
 			expect(listMigrationSourceIndexesMock).toHaveBeenCalledWith(
 				'typesense',
 				forwardedSourceCredentials(payload)
@@ -658,7 +658,7 @@ describe('Migrate page server actions and serialization', () => {
 			actions.listSourceIndexes,
 			payloadRequest({
 				source_provider: 'typesense',
-				host: 'https://typesense.example.test',
+				node: 'https://typesense.example.test',
 				apiKey: 'typesense_api_key_canary'
 			})
 		);

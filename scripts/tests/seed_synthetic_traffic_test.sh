@@ -299,7 +299,15 @@ assert_tenant_description() {
         B)
             assert_contains "$output" "=== Tenant B ===" "tenant B selector should print tenant B heading"
             assert_contains "$output" "name:              demo-small-dedicated" "tenant B selector should print tenant B name"
-            assert_contains "$output" "plan:              dedicated" "tenant B selector should print tenant B billing plan"
+            # "shared", not "dedicated", since 2026-08-07. These selector cases
+            # assert that the printed field tracks the configured plan; the value
+            # itself is incidental. It had to change because the API has no
+            # "dedicated" plan -- BillingPlan is Free|Shared -- so the seeder's
+            # admin tenant update returned 400 and killed the run at tenant B.
+            # This suite mocks curl, so it never saw that 400 and instead pinned
+            # the broken value in place. The NAME keeps its "dedicated" wording
+            # because it keys live staging tenants.
+            assert_contains "$output" "plan:              shared" "tenant B selector should print tenant B billing plan"
             assert_contains "$output" "target_storage_mb: 2048" "tenant B selector should print tenant B storage target"
             assert_contains "$output" "writes_per_minute: 100" "tenant B selector should print tenant B write rate"
             assert_contains "$output" "searches_per_min:  10" "tenant B selector should print tenant B search rate"
@@ -307,7 +315,9 @@ assert_tenant_description() {
         C)
             assert_contains "$output" "=== Tenant C ===" "tenant C selector should print tenant C heading"
             assert_contains "$output" "name:              demo-medium-dedicated" "tenant C selector should print tenant C name"
-            assert_contains "$output" "plan:              dedicated" "tenant C selector should print tenant C billing plan"
+            # See the tenant B note above for why this is "shared" rather than
+            # "dedicated".
+            assert_contains "$output" "plan:              shared" "tenant C selector should print tenant C billing plan"
             assert_contains "$output" "target_storage_mb: 20480" "tenant C selector should print tenant C storage target"
             assert_contains "$output" "writes_per_minute: 1000" "tenant C selector should print tenant C write rate"
             assert_contains "$output" "searches_per_min:  50" "tenant C selector should print tenant C search rate"
@@ -599,7 +609,7 @@ test_provisioning_contract_rerun_is_idempotent_without_duplicate_create_calls() 
     assert_eq "$second_exit" "0" "second tenant A execute should succeed idempotently"
 
     local create_count update_count index_count
-    create_count=$(grep -c "http://synthetic-api.test/admin/tenants -H" "$curl_log" || true)
+    create_count=$(grep -c -- "-X POST http://synthetic-api.test/admin/tenants " "$curl_log" || true)
     update_count=$(grep -c "http://synthetic-api.test/admin/tenants/11111111-1111-1111-1111-111111111111" "$curl_log" || true)
     index_count=$(grep -c "http://synthetic-api.test/admin/tenants/11111111-1111-1111-1111-111111111111/indexes" "$curl_log" || true)
 
@@ -1422,6 +1432,268 @@ test_probe_exact_object_lookup_uses_deterministic_query_term() {
     )
 }
 
+test_probe_visible_after_degenerate_window_uses_successful_write_scope() {
+    load_seed_synthetic_functions
+
+    local tmp_dir write_events_log visible_count
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "$tmp_dir"; unset PROBE_OWNER_COUNTER_DIR; unset -f probe_owner_query_exact_object_hit_count' RETURN
+    PROBE_OWNER_COUNTER_DIR="$tmp_dir"
+    write_events_log="$(probe_owner_event_log_path "write")"
+    cat > "$write_events_log" <<'EOF'
+101|A|doc-1|200
+102|A|doc-2|200
+103|A|doc-3|200
+104|B|doc-peer|200
+105|A|doc-failed|500
+106|A|thumb-1|200
+EOF
+    probe_owner_query_exact_object_hit_count() { printf '1'; }
+
+    visible_count="$(
+        probe_owner_visible_in_search_after_count \
+            "http://synthetic-node-a.test" \
+            "tenant-A" \
+            0 \
+            0 \
+            A
+    )"
+
+    assert_eq "$visible_count" "3" \
+        "visible-after degenerate (0,0) window should inspect the full successful-write scope"
+}
+
+test_probe_visible_after_positive_window_stays_bounded() {
+    load_seed_synthetic_functions
+
+    local tmp_dir write_events_log visible_count
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "$tmp_dir"; unset PROBE_OWNER_COUNTER_DIR; unset -f probe_owner_query_exact_object_hit_count' RETURN
+    PROBE_OWNER_COUNTER_DIR="$tmp_dir"
+    write_events_log="$(probe_owner_event_log_path "write")"
+    cat > "$write_events_log" <<'EOF'
+90|A|doc-before|200
+100|A|doc-start|200
+150|A|doc-mid|202
+160|A|doc-failed|500
+175|B|doc-peer|200
+200|A|doc-end|200
+210|A|doc-after|200
+EOF
+    probe_owner_query_exact_object_hit_count() { printf '1'; }
+
+    visible_count="$(
+        probe_owner_visible_in_search_after_count \
+            "http://synthetic-node-a.test" \
+            "tenant-A" \
+            100 \
+            200 \
+            A
+    )"
+
+    assert_eq "$visible_count" "3" \
+        "visible-after positive restart window should keep the exact bounded successful-write count"
+}
+
+# An unusable restart-window bound (empty/missing, not just the (0,0) the
+# wrapper passes when no restart is invoked) must degrade to the SAME full
+# scope all three counters use for (0,0). If one counter zeroes while the
+# others do not, probe_silent_drops subtracts a zeroed visible/fail-fast count
+# from a full-scope write total and reports every write as a silent drop.
+test_probe_unusable_restart_window_keeps_full_scope_on_every_counter() {
+    load_seed_synthetic_functions
+
+    local tmp_dir write_events_log stderr_log
+    local attempted_count fail_fast_count visible_count
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "$tmp_dir"; unset PROBE_OWNER_COUNTER_DIR; unset -f probe_owner_query_exact_object_hit_count' RETURN
+    PROBE_OWNER_COUNTER_DIR="$tmp_dir"
+    stderr_log="$tmp_dir/counter.err"
+    write_events_log="$(probe_owner_event_log_path "write")"
+    cat > "$write_events_log" <<'EOF'
+101|A|doc-1|200
+102|A|doc-2|200
+103|A|doc-3|200
+104|B|doc-peer|200
+105|A|doc-failed|500
+106|A|thumb-1|200
+EOF
+    probe_owner_query_exact_object_hit_count() { printf '1'; }
+
+    attempted_count="$(
+        probe_owner_writes_attempted_during_restart_window_count \
+            "http://synthetic-node-a.test" "tenant-A" "" "" A 2>>"$stderr_log"
+    )"
+    fail_fast_count="$(
+        probe_owner_fail_fast_during_restart_window_count \
+            "http://synthetic-node-a.test" "tenant-A" "" "" A 2>>"$stderr_log"
+    )"
+    visible_count="$(
+        probe_owner_visible_in_search_after_count \
+            "http://synthetic-node-a.test" "tenant-A" "" "" A 2>>"$stderr_log"
+    )"
+
+    assert_eq "$attempted_count" "5" \
+        "unusable restart window should count every tenant-A attempted write"
+    assert_eq "$fail_fast_count" "1" \
+        "unusable restart window should count the non-2xx tenant-A write as fail-fast"
+    assert_eq "$visible_count" "3" \
+        "unusable restart window should count every successful tenant-A doc write as visible"
+    assert_eq "$(cat "$stderr_log")" "" \
+        "restart-window classification must not leak shell arithmetic errors on unusable bounds"
+}
+
+test_admin_call_keeps_admin_key_off_curl_argv_and_output() {
+    load_seed_synthetic_functions
+
+    local tmp_dir argv_log python_argv_log output_file error_file output error_output
+    local sentinel exit_code=0
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "$tmp_dir"; unset -f curl; unset -f python3' RETURN
+    argv_log="$tmp_dir/curl.argv"
+    python_argv_log="$tmp_dir/python3.argv"
+    output_file="$tmp_dir/admin.out"
+    error_file="$tmp_dir/admin.err"
+    sentinel="sentinel-admin-key-é-argv-secret"
+
+    # The header value is encoded before it reaches curl's stdin config, so the
+    # encoder is a child process too: record every python3 argv and assert the
+    # key never lands on one.
+    python3() {
+        printf '%s\n' "$*" >> "$python_argv_log"
+        command python3 "$@"
+    }
+
+    # Raw-argv recorder: this contract observes only what lands on the command
+    # line. Decoding the -K - config stream is the shared generated curl mock's
+    # job and is asserted by
+    # test_admin_call_delivers_admin_key_header_through_shared_curl_config_decoder.
+    curl() {
+        printf '%s\n' "$*" >> "$argv_log"
+        cat >/dev/null
+        printf '{"ok":true}\n200'
+    }
+
+    API_URL="https://api.synthetic.test" \
+    ADMIN_KEY="$sentinel" \
+        admin_call GET /admin/tenants >"$output_file" 2>"$error_file" || exit_code=$?
+
+    output="$(cat "$output_file")"
+    error_output="$(cat "$error_file")"
+
+    assert_eq "$exit_code" "0" "admin_call should return curl success"
+    assert_contains "$(cat "$argv_log")" "-X GET" \
+        "admin_call should pass the request method to curl"
+    assert_contains "$(cat "$argv_log")" "https://api.synthetic.test/admin/tenants" \
+        "admin_call should pass the admin path to curl"
+    assert_not_contains "$(cat "$argv_log")" "$sentinel" \
+        "admin_call must keep the admin key out of curl argv"
+    assert_not_contains "$(cat "$python_argv_log" 2>/dev/null || true)" "$sentinel" \
+        "admin_call must keep the admin key out of the header encoder's argv"
+    assert_not_contains "$output" "$sentinel" \
+        "admin_call must not print the admin key to stdout"
+    assert_not_contains "$error_output" "$sentinel" \
+        "admin_call must not print the admin key to stderr"
+}
+
+# Positive delivery contract for the -K - transport. It deliberately drives the
+# SHARED generated curl mock (write_mock_curl) so the only curl-config decoder
+# in this suite is the one every other mocked test also depends on: if that
+# decoder drops or corrupts the stdin config stream, this case fails red.
+test_admin_call_delivers_admin_key_header_through_shared_curl_config_decoder() {
+    load_seed_synthetic_functions
+
+    local tmp_dir curl_log logged_argv sentinel delivered_value header_count exit_code=0
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "$tmp_dir"' RETURN
+    curl_log="$tmp_dir/curl.log"
+    mkdir -p "$tmp_dir/bin"
+    write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
+    # Non-ASCII on purpose: a JSON-style \uXXXX escape is not curl config-file
+    # escape grammar, so an encoder that reaches for json.dumps corrupts this
+    # value instead of delivering it.
+    sentinel="synthetic-admin-key-é-delivery"
+
+    PATH="$tmp_dir/bin:$PATH" \
+    API_URL="http://synthetic-api.test" \
+    ADMIN_KEY="$sentinel" \
+        admin_call GET /admin/tenants >/dev/null 2>&1 || exit_code=$?
+
+    logged_argv="$(cat "$curl_log")"
+    # The shared mock logs each decoded config header as an "-H <value>" pair,
+    # so the token after "x-admin-key:" is what curl would have put on the wire.
+    delivered_value="$(awk '{for (i = 1; i <= NF; i++) if ($i == "x-admin-key:") print $(i + 1)}' "$curl_log")"
+    header_count="$(awk 'BEGIN {c = 0} {for (i = 1; i <= NF; i++) if ($i == "x-admin-key:") c++} END {print c + 0}' "$curl_log")"
+
+    assert_eq "$exit_code" "0" "admin_call should return curl success against the shared mock"
+    assert_contains "$logged_argv" "-X GET" \
+        "admin_call should pass the request method to the shared curl mock"
+    assert_contains "$logged_argv" "-K -" \
+        "admin_call should hand the admin header to curl as a stdin config stream"
+    assert_eq "$delivered_value" "$sentinel" \
+        "shared curl mock should decode the x-admin-key config value byte-for-byte"
+    assert_eq "$header_count" "1" \
+        "admin_call should deliver exactly one x-admin-key header"
+}
+
+# The shared curl log is a file on disk. A per-node flapjack admin key is a
+# real credential, so a value the mock does not recognise as a known test
+# fixture must be redacted before it is written: a developer who sourced
+# .secret/.env.secret before running this suite would otherwise persist the
+# live key in cleartext under the test temp dir.
+test_mock_curl_redacts_unallowlisted_node_api_key_header() {
+    local tmp_dir curl_log logged sentinel
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "$tmp_dir"' RETURN
+    curl_log="$tmp_dir/curl.log"
+    mkdir -p "$tmp_dir/bin"
+    write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
+    sentinel="live-node-admin-key-must-not-be-logged"
+
+    "$tmp_dir/bin/curl" -sS -X GET "http://synthetic-node-a.test/health" \
+        -H "X-Algolia-API-Key: ${sentinel}" \
+        -H "X-Algolia-Application-Id: flapjack" >/dev/null 2>&1
+
+    logged="$(read_file_or_empty "$curl_log")"
+    assert_not_contains "$logged" "$sentinel" \
+        "mock curl must not log an unrecognised X-Algolia-API-Key value in cleartext"
+    assert_contains "$logged" "X-Algolia-API-Key: [REDACTED]" \
+        "mock curl should log the redaction marker in place of the node API key"
+    assert_contains "$logged" "X-Algolia-Application-Id: flapjack" \
+        "mock curl should keep the non-secret Application-Id header readable"
+}
+
+# The mock decodes curl config only from `-K -`. A file-backed config must fail
+# closed rather than be logged and ignored, for the same reason an unknown
+# in-stream directive does: headers the mock never opens skip both the log and
+# sanitize_header_value, so "the secret is not in the log" would hold against a
+# mock that never saw the secret at all.
+test_mock_curl_rejects_file_backed_curl_config() {
+    local tmp_dir curl_log config_file stderr_file exit_code=0
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "$tmp_dir"' RETURN
+    curl_log="$tmp_dir/curl.log"
+    config_file="$tmp_dir/curl.config"
+    stderr_file="$tmp_dir/curl.err"
+    mkdir -p "$tmp_dir/bin"
+    write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
+    printf 'header = "x-admin-key: config-file-secret-never-seen"\n' > "$config_file"
+
+    "$tmp_dir/bin/curl" -sS -K "$config_file" "http://synthetic-node-a.test/health" \
+        >/dev/null 2>"$stderr_file" || exit_code=$?
+
+    assert_eq "$exit_code" "2" \
+        "mock curl should reject a file-backed --config instead of silently ignoring it"
+    assert_contains "$(read_file_or_empty "$stderr_file")" "unsupported --config source" \
+        "mock curl should name the unsupported config source on stderr"
+    # Distinguishes fixed from unfixed: an ignoring mock still logs the call
+    # (as `-K <path>`) and returns success, which is exactly the vacuous pass
+    # this guard exists to prevent. Asserting "no request was logged at all"
+    # goes red the moment the branch stops failing closed.
+    assert_eq "$(read_file_or_empty "$curl_log")" "" \
+        "a rejected config file must not produce a logged curl request"
+}
+
 test_staging_execute_seam_is_explicitly_gated() {
     # Stage 5 hypothesis: a tenant A execute run writes fresh usage_records rows
     # attributed to the persisted customer_id and canonical tenant_id mapping.
@@ -2049,6 +2321,13 @@ main() {
             test_standalone_write_loop_stays_fatal_on_error
             test_probe_mode_search_loop_continues_through_transient_error
             test_probe_exact_object_lookup_uses_deterministic_query_term
+            test_probe_visible_after_degenerate_window_uses_successful_write_scope
+            test_probe_visible_after_positive_window_stays_bounded
+            test_probe_unusable_restart_window_keeps_full_scope_on_every_counter
+            test_admin_call_keeps_admin_key_off_curl_argv_and_output
+            test_admin_call_delivers_admin_key_header_through_shared_curl_config_decoder
+            test_mock_curl_redacts_unallowlisted_node_api_key_header
+            test_mock_curl_rejects_file_backed_curl_config
             test_stage5_optional_usage_daily_query_error_is_non_gating
             test_staging_execute_seam_is_explicitly_gated
             test_stage6_docs_publish_verified_contract_and_blocker_state

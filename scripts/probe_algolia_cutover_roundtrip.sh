@@ -234,7 +234,16 @@ print(version)
 PY
 }
 
-prepare_engine_version() {
+# Resolve and validate the engine binary this run will use, failing fast if the
+# checkout cannot be found, built, or made to report a version at all.
+#
+# This deliberately does NOT tell the runtime which version to expect. It used to
+# export FJCLOUD_FLAPJACK_VERSION_OVERRIDE with the selected binary's own version,
+# which made the runtime version check tautological for this lane — the engine was
+# compared against itself, so the check could not fail. That was a workaround for
+# exact-version equality; the pin is now a floor, so this lane's engine satisfies
+# it without any handoff.
+prepare_engine_binary() {
     CURRENT_STEP="flapjack_identity"
     local binary_path="${FJCLOUD_INTEGRATION_ENGINE_BINARY:-}" resolution_status=0 version
     if [ -z "$binary_path" ]; then
@@ -247,8 +256,10 @@ prepare_engine_version() {
     fi
     [ -n "$binary_path" ] && [ -x "$binary_path" ] || finish_action_required "unexpected_status"
     version="$(flapjack_binary_runtime_version "$binary_path")" || finish_action_required "unparsed_response"
+    # Validated, then deliberately discarded: proving the binary can report a
+    # version is a real fail-fast, but handing that value to the runtime as its
+    # requirement is what made the check unable to fail.
     [[ "$version" =~ ^[0-9A-Za-z._+-]+$ ]] || finish_action_required "unparsed_response"
-    export FJCLOUD_FLAPJACK_VERSION_OVERRIDE="$version"
 }
 
 prepare_runtime() {
@@ -825,7 +836,7 @@ PY
 main() {
     validate_credentials
     prepare_runtime
-    prepare_engine_version
+    prepare_engine_binary
     run_roundtrip
     finish_pass
 }

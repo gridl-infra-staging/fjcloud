@@ -25,6 +25,7 @@ source "$SCRIPT_DIR/lib/assertions.sh"
 
 DETECTOR_SCRIPT="$REPO_ROOT/scripts/probe_local_schema_drift.sh"
 TARGET_DB_URL="postgres://target_user:target_secret@localhost:5432/target_db"
+REMOTE_TARGET_DB_URL="postgres://target_user:target_secret@db.example.com:5432/target_db"
 
 write_schema_fixture_psql_mock() {
     local path="$1"
@@ -107,6 +108,63 @@ if [[ "$sql" == *"information_schema.columns"* ]]; then
     exit 2
 fi
 
+if [[ "$sql" == *"FROM rate_cards"* && "$sql" == *"shared_minimum_spend_cents"* ]]; then
+    scratch_db="$(cat "$MOCK_SCRATCH_DB_FILE" 2>/dev/null || true)"
+    if [[ "$*" == *"$MOCK_TARGET_DB_URL"* ]]; then
+        printf 'target_rate_cards_value_query\n' >> "$MOCK_ROUTE_LOG"
+        case "${MOCK_VALUE_CASE:-agreement}" in
+            agreement)
+                cat "$MOCK_FIXTURE_DIR/target_rate_cards_agreement.values"
+                ;;
+            legacy_shared_minimum)
+                cat "$MOCK_FIXTURE_DIR/target_rate_cards_legacy_shared_minimum.values"
+                ;;
+            duplicate_active)
+                cat "$MOCK_FIXTURE_DIR/target_rate_cards_duplicate_active.values"
+                ;;
+            missing_launch_row)
+                cat "$MOCK_FIXTURE_DIR/target_rate_cards_missing_launch.values"
+                ;;
+            query_fail)
+                echo "fixture target value query failed" >&2
+                exit 44
+                ;;
+            *)
+                echo "unknown value case: $MOCK_VALUE_CASE" >&2
+                exit 2
+                ;;
+        esac
+        exit 0
+    fi
+
+    if [ -n "$scratch_db" ] && [[ "$*" == *"$scratch_db"* ]]; then
+        printf 'oracle_rate_cards_value_query|%s\n' "$scratch_db" >> "$MOCK_ROUTE_LOG"
+        if [ "${MOCK_ORACLE_VALUE_QUERY_FAIL:-0}" = "1" ]; then
+            echo "fixture oracle value query failed" >&2
+            exit 43
+        fi
+        case "${MOCK_ORACLE_VALUE_CASE:-agreement}" in
+            agreement)
+                cat "$MOCK_FIXTURE_DIR/oracle_rate_cards.values"
+                ;;
+            duplicate_active)
+                cat "$MOCK_FIXTURE_DIR/oracle_rate_cards_duplicate_active.values"
+                ;;
+            empty)
+                cat "$MOCK_FIXTURE_DIR/oracle_rate_cards_empty.values"
+                ;;
+            *)
+                echo "unknown oracle value case: $MOCK_ORACLE_VALUE_CASE" >&2
+                exit 2
+                ;;
+        esac
+        exit 0
+    fi
+
+    echo "rate_cards value query did not identify target or scratch database" >&2
+    exit 2
+fi
+
 exit 0
 MOCK
     chmod +x "$path"
@@ -162,10 +220,34 @@ public|invoices|total_cents|bigint|NO|0
 public|usage_records|id|uuid|NO|
 public|usage_records|quantity|bigint|NO|0
 EOF
+
+    cat > "$fixture_dir/oracle_rate_cards.values" <<'EOF'
+rate_cards|launch-2026|shared_minimum_spend_cents|1500
+EOF
+
+    cat > "$fixture_dir/oracle_rate_cards_duplicate_active.values" <<'EOF'
+rate_cards|launch-2026|shared_minimum_spend_cents|1500
+rate_cards|launch-2026|shared_minimum_spend_cents|1500
+EOF
+
+    : > "$fixture_dir/oracle_rate_cards_empty.values"
+
+    cp "$fixture_dir/oracle_rate_cards.values" "$fixture_dir/target_rate_cards_agreement.values"
+
+    cat > "$fixture_dir/target_rate_cards_legacy_shared_minimum.values" <<'EOF'
+rate_cards|launch-2026|shared_minimum_spend_cents|500
+EOF
+
+    cat > "$fixture_dir/target_rate_cards_duplicate_active.values" <<'EOF'
+rate_cards|launch-2026|shared_minimum_spend_cents|500
+rate_cards|launch-2026|shared_minimum_spend_cents|1500
+EOF
+
+    : > "$fixture_dir/target_rate_cards_missing_launch.values"
 }
 
 run_detector_with_case() {
-    local tmp_dir="$1" schema_case="$2" oracle_build_fail="${3:-0}"
+    local tmp_dir="$1" schema_case="$2" oracle_build_fail="${3:-0}" value_case="${4:-agreement}" oracle_value_query_fail="${5:-0}" oracle_value_case="${6:-agreement}"
 
     mkdir -p "$tmp_dir/bin" "$tmp_dir/fixtures"
     write_schema_fixtures "$tmp_dir/fixtures"
@@ -178,6 +260,9 @@ run_detector_with_case() {
     export MOCK_TARGET_DB_URL="$TARGET_DB_URL"
     export MOCK_SCHEMA_CASE="$schema_case"
     export MOCK_ORACLE_BUILD_FAIL="$oracle_build_fail"
+    export MOCK_VALUE_CASE="$value_case"
+    export MOCK_ORACLE_VALUE_QUERY_FAIL="$oracle_value_query_fail"
+    export MOCK_ORACLE_VALUE_CASE="$oracle_value_case"
     : > "$MOCK_CALL_LOG"
     : > "$MOCK_ROUTE_LOG"
 
@@ -243,6 +328,40 @@ test_identical_schema_exits_zero_and_reports_clean() {
     assert_created_database_was_dropped "$tmp_dir/routes.log" "identical success cleanup"
 }
 
+test_rejects_non_local_database_hosts_before_running_psql() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap "rm -rf '$tmp_dir'" RETURN
+
+    mkdir -p "$tmp_dir/bin"
+    write_schema_fixture_psql_mock "$tmp_dir/bin/psql"
+
+    export MOCK_CALL_LOG="$tmp_dir/psql_calls.log"
+    export MOCK_ROUTE_LOG="$tmp_dir/routes.log"
+    export MOCK_SCRATCH_DB_FILE="$tmp_dir/scratch_db_name"
+    export MOCK_FIXTURE_DIR="$tmp_dir/fixtures"
+    export MOCK_TARGET_DB_URL="$REMOTE_TARGET_DB_URL"
+    : > "$MOCK_CALL_LOG"
+    : > "$MOCK_ROUTE_LOG"
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:/usr/bin:/bin" \
+        DATABASE_URL="$REMOTE_TARGET_DB_URL" \
+        bash "$DETECTOR_SCRIPT" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "1" "non-local DATABASE_URL hosts should be rejected"
+    assert_contains "$output" "must point to a local PostgreSQL host" \
+        "non-local DATABASE_URL rejection should explain the local-host requirement"
+
+    local calls routes
+    calls="$(cat "$MOCK_CALL_LOG")"
+    routes="$(cat "$MOCK_ROUTE_LOG")"
+    assert_eq "$calls" "" "non-local DATABASE_URL hosts should fail before any psql invocation"
+    assert_eq "$routes" "" "non-local DATABASE_URL hosts should not create scratch databases"
+}
+
 test_missing_target_column_fails_and_names_column() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"
@@ -291,6 +410,158 @@ test_target_only_table_is_informational() {
     assert_contains "$output" "debug_events" "target-only table should be reported for operator context"
     assert_contains "$output" "informational" "target-only table should be informational"
     assert_contains "$output" "no local schema drift" "target-only table should still emit clean verdict"
+}
+
+test_reference_value_agreement_exits_zero_and_queries_both_databases() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap "rm -rf '$tmp_dir'" RETURN
+
+    run_detector_with_case "$tmp_dir" "identical" "0" "agreement"
+
+    local output exit_code routes
+    output="$(cat "$tmp_dir/output")"
+    exit_code="$(cat "$tmp_dir/exit_code")"
+    routes="$(cat "$tmp_dir/routes.log")"
+
+    assert_eq "$exit_code" "0" "matching rate_cards reference values should exit 0"
+    assert_contains "$output" "no local schema drift" "matching reference values should emit clean verdict"
+    assert_contains "$routes" "oracle_rate_cards_value_query" "matching case should inspect scratch rate_cards values"
+    assert_contains "$routes" "target_rate_cards_value_query" "matching case should inspect target rate_cards values"
+}
+
+test_legacy_shared_minimum_value_drift_fails_and_names_expected_and_found() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap "rm -rf '$tmp_dir'" RETURN
+
+    run_detector_with_case "$tmp_dir" "identical" "0" "legacy_shared_minimum"
+
+    local output exit_code
+    output="$(cat "$tmp_dir/output")"
+    exit_code="$(cat "$tmp_dir/exit_code")"
+
+    assert_eq "$exit_code" "1" "legacy shared minimum value drift should exit 1"
+    assert_contains "$output" "rate_cards" "legacy value drift should name rate_cards"
+    assert_contains "$output" "launch-2026" "legacy value drift should name the launch rate card row"
+    assert_contains "$output" "shared_minimum_spend_cents" "legacy value drift should name the drifted column"
+    assert_contains "$output" "expected 1500" "legacy value drift should name expected oracle value"
+    assert_contains "$output" "found 500" "legacy value drift should name found target value"
+    assert_not_contains "$output" "no local schema drift" "legacy value drift should not emit clean verdict"
+}
+
+test_duplicate_active_target_reference_rows_are_fatal() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap "rm -rf '$tmp_dir'" RETURN
+
+    run_detector_with_case "$tmp_dir" "identical" "0" "duplicate_active"
+
+    local output exit_code
+    output="$(cat "$tmp_dir/output")"
+    exit_code="$(cat "$tmp_dir/exit_code")"
+
+    assert_eq "$exit_code" "1" "duplicate active target reference rows should exit 1"
+    assert_contains "$output" "duplicate target rows" "duplicate active target rows should have a distinct classification"
+    assert_contains "$output" "rate_cards" "duplicate active target rows should name rate_cards"
+    assert_contains "$output" "launch-2026" "duplicate active target rows should name launch-2026"
+    assert_contains "$output" "shared_minimum_spend_cents" "duplicate active target rows should name the guarded column"
+    assert_contains "$output" "expected exactly 1" "duplicate active target rows should state the required cardinality"
+    assert_contains "$output" "found 2" "duplicate active target rows should report the observed cardinality"
+    assert_not_contains "$output" "no local schema drift" "duplicate active target rows should not emit clean verdict"
+}
+
+test_duplicate_active_oracle_reference_rows_are_fatal() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap "rm -rf '$tmp_dir'" RETURN
+
+    run_detector_with_case "$tmp_dir" "identical" "0" "agreement" "0" "duplicate_active"
+
+    local output exit_code
+    output="$(cat "$tmp_dir/output")"
+    exit_code="$(cat "$tmp_dir/exit_code")"
+
+    assert_eq "$exit_code" "1" "duplicate active oracle reference rows should exit 1"
+    assert_contains "$output" "duplicate oracle rows" "duplicate active oracle rows should have a distinct classification"
+    assert_contains "$output" "rate_cards" "duplicate active oracle rows should name rate_cards"
+    assert_contains "$output" "launch-2026" "duplicate active oracle rows should name launch-2026"
+    assert_contains "$output" "shared_minimum_spend_cents" "duplicate active oracle rows should name the guarded column"
+    assert_contains "$output" "expected exactly 1" "duplicate active oracle rows should state the required cardinality"
+    assert_contains "$output" "found 2" "duplicate active oracle rows should report the observed cardinality"
+    assert_not_contains "$output" "no local schema drift" "duplicate active oracle rows should not emit clean verdict"
+}
+
+test_missing_target_reference_row_fails_with_missing_row_classification() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap "rm -rf '$tmp_dir'" RETURN
+
+    run_detector_with_case "$tmp_dir" "identical" "0" "missing_launch_row"
+
+    local output exit_code
+    output="$(cat "$tmp_dir/output")"
+    exit_code="$(cat "$tmp_dir/exit_code")"
+
+    assert_eq "$exit_code" "1" "missing target launch rate_cards row should exit 1"
+    assert_contains "$output" "missing row" "missing target reference row should classify the row as missing"
+    assert_contains "$output" "rate_cards" "missing target reference row should name rate_cards"
+    assert_contains "$output" "launch-2026" "missing target reference row should name launch-2026"
+    assert_not_contains "$output" "no local schema drift" "missing target reference row should not emit clean verdict"
+}
+
+test_oracle_reference_value_query_failure_is_distinct_and_not_clean() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap "rm -rf '$tmp_dir'" RETURN
+
+    run_detector_with_case "$tmp_dir" "identical" "0" "agreement" "1"
+
+    local output exit_code
+    output="$(cat "$tmp_dir/output")"
+    exit_code="$(cat "$tmp_dir/exit_code")"
+
+    assert_eq "$exit_code" "1" "scratch reference-value query failure should exit 1"
+    assert_contains "$output" "reference" "scratch value query failure should name reference-value inspection"
+    assert_contains "$output" "scratch" "scratch value query failure should name scratch oracle"
+    assert_not_contains "$output" "no local schema drift" "scratch value query failure should not emit clean verdict"
+}
+
+test_empty_oracle_reference_values_are_fatal_and_not_clean() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap "rm -rf '$tmp_dir'" RETURN
+
+    run_detector_with_case "$tmp_dir" "identical" "0" "legacy_shared_minimum" "0" "empty"
+
+    local output exit_code
+    output="$(cat "$tmp_dir/output")"
+    exit_code="$(cat "$tmp_dir/exit_code")"
+
+    assert_eq "$exit_code" "1" "empty scratch reference values should exit 1"
+    assert_contains "$output" "missing oracle row" "empty scratch reference values should classify the oracle row as missing"
+    assert_contains "$output" "rate_cards" "empty scratch reference values should name rate_cards"
+    assert_contains "$output" "launch-2026" "empty scratch reference values should name launch-2026"
+    assert_contains "$output" "shared_minimum_spend_cents" "empty scratch reference values should name the required column"
+    assert_not_contains "$output" "no local schema drift" "empty scratch reference values should not emit clean verdict"
+}
+
+test_target_reference_query_failure_still_reports_column_drift() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap "rm -rf '$tmp_dir'" RETURN
+
+    run_detector_with_case "$tmp_dir" "missing" "0" "query_fail"
+
+    local output exit_code
+    output="$(cat "$tmp_dir/output")"
+    exit_code="$(cat "$tmp_dir/exit_code")"
+
+    assert_eq "$exit_code" "1" "target reference-value query failure should exit 1"
+    assert_contains "$output" "accounts.email" "target reference query failure should still report column drift"
+    assert_contains "$output" "missing accounts.email" "target reference query failure should keep missing-column classification"
+    assert_contains "$output" "Failed to inspect target reference values" "target reference query failure should report value inspection failure"
+    assert_not_contains "$output" "no local schema drift" "target reference query failure should not emit clean verdict"
 }
 
 test_multiple_column_differences_are_deterministic_and_complete() {
@@ -383,6 +654,14 @@ main() {
     test_missing_target_column_fails_and_names_column
     test_unexpected_target_column_fails_and_names_column
     test_target_only_table_is_informational
+    test_reference_value_agreement_exits_zero_and_queries_both_databases
+    test_legacy_shared_minimum_value_drift_fails_and_names_expected_and_found
+    test_duplicate_active_target_reference_rows_are_fatal
+    test_duplicate_active_oracle_reference_rows_are_fatal
+    test_missing_target_reference_row_fails_with_missing_row_classification
+    test_oracle_reference_value_query_failure_is_distinct_and_not_clean
+    test_empty_oracle_reference_values_are_fatal_and_not_clean
+    test_target_reference_query_failure_still_reports_column_drift
     test_multiple_column_differences_are_deterministic_and_complete
     test_oracle_build_failure_is_distinct_and_not_clean
     test_cleanup_uses_per_invocation_scratch_database_name

@@ -65,7 +65,6 @@ run_local_probe() {
     local capability="${6:-vectorSearchLocal}" curl_dir
     curl_dir="$(make_mock_curl_dir "$health")"
     PATH="$curl_dir:$PATH" \
-        FJCLOUD_FLAPJACK_VERSION=1.0.10 \
         FJCLOUD_FLAPJACK_REQUIRED_REVISION="$revision" \
         FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID="$build_id" \
         FJCLOUD_FLAPJACK_REQUIRED_SHA256="$sha" \
@@ -84,7 +83,7 @@ test_local_matching_identity_passes() {
     bin="$tmp/flapjack"
     printf '#!/usr/bin/env bash\nexit 0\n' > "$bin"; chmod +x "$bin"
     sha="$(flapjack_binary_sha256 "$bin")"
-    health='{"version":"1.0.10","producer_revision":"abc123","build_id":"build-1","binary_sha256":"'"$sha"'","dirty":false,"capabilities":["vectorSearchLocal"]}'
+    health='{"version":"'"$FJCLOUD_FLAPJACK_VERSION"'","producer_revision":"abc123","build_id":"build-1","binary_sha256":"'"$sha"'","dirty":false,"capabilities":["vectorSearchLocal"]}'
     out="$(run_local_probe "$bin" "$health" "$sha" "abc123" "build-1")"
     assert_eq "$(probe_classification "$out")" "pass" \
         "local matching installed bytes + runtime identity should classify as pass"
@@ -96,7 +95,7 @@ test_local_same_semver_different_build_is_real_defect() {
     bin="$tmp/flapjack"
     printf '#!/usr/bin/env bash\nexit 0\n' > "$bin"; chmod +x "$bin"
     sha="$(flapjack_binary_sha256 "$bin")"
-    health='{"version":"1.0.10","producer_revision":"abc123","build_id":"build-2","binary_sha256":"'"$sha"'","dirty":false,"capabilities":["vectorSearchLocal"]}'
+    health='{"version":"'"$FJCLOUD_FLAPJACK_VERSION"'","producer_revision":"abc123","build_id":"build-2","binary_sha256":"'"$sha"'","dirty":false,"capabilities":["vectorSearchLocal"]}'
     out="$(run_local_probe "$bin" "$health" "$sha" "abc123" "build-1")"
     assert_eq "$(probe_classification "$out")" "real_defect" \
         "same-semver runtime with a different build id should classify as real_defect"
@@ -108,7 +107,7 @@ test_local_malformed_health_is_investigate() {
     bin="$tmp/flapjack"
     printf '#!/usr/bin/env bash\nexit 0\n' > "$bin"; chmod +x "$bin"
     sha="$(flapjack_binary_sha256 "$bin")"
-    health='{"version":"1.0.10"}'
+    health='{"version":"'"$FJCLOUD_FLAPJACK_VERSION"'"}'
     out="$(run_local_probe "$bin" "$health" "$sha" "abc123" "build-1")"
     assert_eq "$(probe_classification "$out")" "investigate" \
         "legacy/malformed runtime health should classify as investigate"
@@ -116,8 +115,7 @@ test_local_malformed_health_is_investigate() {
 
 test_local_missing_binary_is_setup_infra() {
     local out
-    out="$(FJCLOUD_FLAPJACK_VERSION=1.0.10 \
-        FJCLOUD_FLAPJACK_REQUIRED_REVISION=abc123 \
+    out="$(FJCLOUD_FLAPJACK_REQUIRED_REVISION=abc123 \
         FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID=build-1 \
         FJCLOUD_FLAPJACK_REQUIRED_SHA256=sha-1 \
         FLAPJACK_PROBE_LOCAL_BINARY=/nonexistent/flapjack \
@@ -131,10 +129,9 @@ test_remote_matching_identity_passes() {
     local tmp ssm health out
     tmp="$(mktemp -d)"; trap 'rm -rf "'"$tmp"'"' RETURN
     ssm="$tmp/ssm.sh"
-    health='{"version":"1.0.10","producer_revision":"abc123","build_id":"build-1","binary_sha256":"sha-remote-1","dirty":false,"capabilities":["vectorSearchLocal"]}'
-    make_mock_ssm "$ssm" "sha-remote-1" '{"version":"1.0.10","revision":"abc123","build_id":"build-1","binary_sha256":"sha-remote-1"}' "$health"
-    out="$(FJCLOUD_FLAPJACK_VERSION=1.0.10 \
-        FJCLOUD_FLAPJACK_REQUIRED_REVISION=abc123 \
+    health='{"version":"'"$FJCLOUD_FLAPJACK_VERSION"'","producer_revision":"abc123","build_id":"build-1","binary_sha256":"sha-remote-1","dirty":false,"capabilities":["vectorSearchLocal"]}'
+    make_mock_ssm "$ssm" "sha-remote-1" '{"version":"'"$FJCLOUD_FLAPJACK_VERSION"'","revision":"abc123","build_id":"build-1","binary_sha256":"sha-remote-1"}' "$health"
+    out="$(FJCLOUD_FLAPJACK_REQUIRED_REVISION=abc123 \
         FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID=build-1 \
         FJCLOUD_FLAPJACK_REQUIRED_SHA256=sha-remote-1 \
         FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY=vectorSearchLocal \
@@ -150,10 +147,9 @@ test_remote_installed_byte_mismatch_is_real_defect() {
     ssm="$tmp/ssm.sh"
     # Runtime /health advertises the expected identity, but the installed bytes
     # on disk hash to a different sha than the Stage 1 expected sha256.
-    health='{"version":"1.0.10","producer_revision":"abc123","build_id":"build-1","binary_sha256":"sha-remote-1","dirty":false,"capabilities":["vectorSearchLocal"]}'
-    make_mock_ssm "$ssm" "sha-remote-TAMPERED" '{"version":"1.0.10","revision":"abc123","build_id":"build-1","binary_sha256":"sha-remote-TAMPERED"}' "$health"
-    out="$(FJCLOUD_FLAPJACK_VERSION=1.0.10 \
-        FJCLOUD_FLAPJACK_REQUIRED_REVISION=abc123 \
+    health='{"version":"'"$FJCLOUD_FLAPJACK_VERSION"'","producer_revision":"abc123","build_id":"build-1","binary_sha256":"sha-remote-1","dirty":false,"capabilities":["vectorSearchLocal"]}'
+    make_mock_ssm "$ssm" "sha-remote-TAMPERED" '{"version":"'"$FJCLOUD_FLAPJACK_VERSION"'","revision":"abc123","build_id":"build-1","binary_sha256":"sha-remote-TAMPERED"}' "$health"
+    out="$(FJCLOUD_FLAPJACK_REQUIRED_REVISION=abc123 \
         FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID=build-1 \
         FJCLOUD_FLAPJACK_REQUIRED_SHA256=sha-remote-1 \
         FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY=vectorSearchLocal \
@@ -169,10 +165,9 @@ test_remote_inconsistent_build_info_is_investigate() {
     ssm="$tmp/ssm.sh"
     # build-info reports a sha that disagrees with the installed bytes: the host
     # evidence is internally inconsistent even though /health matches expected.
-    health='{"version":"1.0.10","producer_revision":"abc123","build_id":"build-1","binary_sha256":"sha-remote-1","dirty":false,"capabilities":["vectorSearchLocal"]}'
-    make_mock_ssm "$ssm" "sha-remote-1" '{"version":"1.0.10","revision":"abc123","build_id":"build-1","binary_sha256":"sha-remote-DISAGREE"}' "$health"
-    out="$(FJCLOUD_FLAPJACK_VERSION=1.0.10 \
-        FJCLOUD_FLAPJACK_REQUIRED_REVISION=abc123 \
+    health='{"version":"'"$FJCLOUD_FLAPJACK_VERSION"'","producer_revision":"abc123","build_id":"build-1","binary_sha256":"sha-remote-1","dirty":false,"capabilities":["vectorSearchLocal"]}'
+    make_mock_ssm "$ssm" "sha-remote-1" '{"version":"'"$FJCLOUD_FLAPJACK_VERSION"'","revision":"abc123","build_id":"build-1","binary_sha256":"sha-remote-DISAGREE"}' "$health"
+    out="$(FJCLOUD_FLAPJACK_REQUIRED_REVISION=abc123 \
         FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID=build-1 \
         FJCLOUD_FLAPJACK_REQUIRED_SHA256=sha-remote-1 \
         FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY=vectorSearchLocal \
@@ -187,8 +182,7 @@ test_remote_ssm_failure_is_setup_infra() {
     tmp="$(mktemp -d)"; trap 'rm -rf "'"$tmp"'"' RETURN
     ssm="$tmp/ssm.sh"
     make_mock_ssm "$ssm" "" "" "" 1
-    out="$(FJCLOUD_FLAPJACK_VERSION=1.0.10 \
-        FJCLOUD_FLAPJACK_REQUIRED_REVISION=abc123 \
+    out="$(FJCLOUD_FLAPJACK_REQUIRED_REVISION=abc123 \
         FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID=build-1 \
         FJCLOUD_FLAPJACK_REQUIRED_SHA256=sha-remote-1 \
         FLAPJACK_PROBE_SSM_EXEC="$ssm" \
@@ -201,8 +195,8 @@ test_remote_missing_expected_manifest_is_setup_infra() {
     local tmp ssm health out
     tmp="$(mktemp -d)"; trap 'rm -rf "'"$tmp"'"' RETURN
     ssm="$tmp/ssm.sh"
-    health='{"version":"1.0.10","producer_revision":"abc123","build_id":"build-1","binary_sha256":"sha-remote-1","dirty":false,"capabilities":["vectorSearchLocal"]}'
-    make_mock_ssm "$ssm" "sha-remote-1" '{"version":"1.0.10"}' "$health"
+    health='{"version":"'"$FJCLOUD_FLAPJACK_VERSION"'","producer_revision":"abc123","build_id":"build-1","binary_sha256":"sha-remote-1","dirty":false,"capabilities":["vectorSearchLocal"]}'
+    make_mock_ssm "$ssm" "sha-remote-1" '{"version":"'"$FJCLOUD_FLAPJACK_VERSION"'"}' "$health"
     # No FJCLOUD_FLAPJACK_REQUIRED_* expected identity provided.
     out="$(env -u FJCLOUD_FLAPJACK_REQUIRED_REVISION \
         -u FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID \
@@ -219,7 +213,7 @@ test_probe_artifact_omits_worktree_paths_and_is_single_json_line() {
     bin="$tmp/flapjack"
     printf '#!/usr/bin/env bash\nexit 0\n' > "$bin"; chmod +x "$bin"
     sha="$(flapjack_binary_sha256 "$bin")"
-    health='{"version":"1.0.10","producer_revision":"abc123","build_id":"build-1","binary_sha256":"'"$sha"'","dirty":false,"capabilities":["vectorSearchLocal"]}'
+    health='{"version":"'"$FJCLOUD_FLAPJACK_VERSION"'","producer_revision":"abc123","build_id":"build-1","binary_sha256":"'"$sha"'","dirty":false,"capabilities":["vectorSearchLocal"]}'
     out="$(run_local_probe "$bin" "$health" "$sha" "abc123" "build-1")"
     last="$(printf '%s' "$out" | python3 -c 'import sys;lines=[l for l in sys.stdin.read().splitlines() if l.strip()];print(lines[-1])')"
     assert_valid_json "$last" "probe emits a machine-parseable JSON classification line"

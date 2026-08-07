@@ -91,8 +91,11 @@ mod tests {
     use crate::compare_all;
     use std::collections::HashSet;
 
-    fn registered_provider_count() -> usize {
-        crate::providers::all_metadata().len()
+    fn published_provider_count() -> usize {
+        crate::providers::all_metadata()
+            .into_iter()
+            .filter(crate::providers::is_published)
+            .count()
     }
 
     #[test]
@@ -167,8 +170,8 @@ mod tests {
 
             assert_eq!(
                 comparison.estimates.len(),
-                registered_provider_count(),
-                "Expected one estimate per provider for scenario '{}'",
+                published_provider_count(),
+                "Expected one estimate per published provider for scenario '{}'",
                 scenario.id
             );
 

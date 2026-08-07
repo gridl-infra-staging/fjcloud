@@ -21,6 +21,15 @@ source "$SCRIPT_DIR/lib/local_dev_test_state.sh"
 # shellcheck source=lib/source_provider_harness.sh
 source "$SCRIPT_DIR/lib/source_provider_harness.sh"
 
+# The mocked Flapjack /health below must report the version the local stack
+# actually requires, read from its canonical owner rather than restated. The pin
+# is a FLOOR (see scripts/lib/flapjack_binary.sh), so a stale literal here drops
+# below it the moment the pin advances and local-dev-up.sh correctly refuses the
+# mock engine — which surfaces as an unrelated-looking source-provider failure.
+# Sourced in a subshell so this suite's own stubs are not shadowed by the
+# library's helper functions.
+flapjack_pinned_version="$(REPO_ROOT="$REPO_ROOT"; source "$REPO_ROOT/scripts/lib/flapjack_binary.sh"; printf '%s' "$FJCLOUD_FLAPJACK_VERSION")"
+
 FIXTURE_ROOT="$SCRIPT_DIR/fixtures/source-migration"
 
 MEILI_IMAGE="getmeili/meilisearch@sha256:9694a59df43ee3f54b3fda9c5de381a3ee9852678e3e31cadf37d6bddea7fc1b"
@@ -1408,7 +1417,7 @@ case "$args" in
         [ -f "'"$state_dir"'/typesense.started" ]
         ;;
     *"http://127.0.0.1:17800/health"*)
-        printf "%s\n" "{\"status\":\"ok\",\"version\":\"1.0.10\",\"build\":{\"version\":\"1.0.10\",\"dirty\":false,\"capabilities\":{\"vectorSearch\":true,\"vectorSearchLocal\":true}}}"
+        printf "%s\n" "{\"status\":\"ok\",\"version\":\"'"$flapjack_pinned_version"'\",\"build\":{\"version\":\"'"$flapjack_pinned_version"'\",\"dirty\":false,\"capabilities\":{\"vectorSearch\":true,\"vectorSearchLocal\":true}}}"
         ;;
     *)
         exit 0

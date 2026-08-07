@@ -1,0 +1,14 @@
+# Declared scheduled-alarm denominator.
+# Format: <mirror> <workflow-file> <run|skip> <freshness-seconds>
+#
+# Windows come from the measured intervals in the Stage 1 Findings table in
+# chats/icg/aug05_12pm_1_scheduled_alarm_liveness_probe.md. Deploy uses six
+# hours over the observed 260.1-minute maximum, nightly uses 27 hours over the
+# observed 1501.1-minute maximum, and outside-AWS uses four hours over the
+# observed 201.2-minute maximum. They deliberately do not derive from cron.
+staging deploy_currency.yml run 21600
+staging nightly.yml run 97200
+staging outside_aws_health.yml run 14400
+prod deploy_currency.yml skip 21600
+prod nightly.yml run 97200
+prod outside_aws_health.yml run 14400

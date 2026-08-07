@@ -6,6 +6,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${FJCLOUD_REPO_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+# shellcheck source=scripts/lib/registry_owner.sh
+source "$SCRIPT_DIR/lib/registry_owner.sh"
 TEST_DIR="$REPO_ROOT/scripts/tests"
 MANUAL_REGISTRY="$TEST_DIR/manual_only_tests.txt"
 QUARANTINE_REGISTRY="$TEST_DIR/quarantined_tests.txt"
@@ -98,31 +100,6 @@ is_corpus_path() {
     array_contains "$1" ${CORPUS[@]+"${CORPUS[@]}"}
 }
 
-reason_has_owner() {
-    local reason="$1"
-    local candidate line_number roadmap_line
-
-    while IFS= read -r candidate; do
-        case "/$candidate/" in
-            *"/../"*|*"/./"*)
-                continue
-                ;;
-        esac
-        if [ "$candidate" != "ROADMAP.md" ] && [ -f "$REPO_ROOT/$candidate" ]; then
-            return 0
-        fi
-    done < <(printf '%s\n' "$reason" | grep -Eo '([[:alnum:]_.-]+/)*[[:alnum:]_.-]+\.md' || true)
-
-    if [[ "$reason" =~ ROADMAP\.md:([0-9]+) ]]; then
-        line_number="${BASH_REMATCH[1]}"
-        roadmap_line="$(sed -n "${line_number}p" "$REPO_ROOT/ROADMAP.md" 2>/dev/null || true)"
-        if [[ "$roadmap_line" =~ ^\|[[:space:]]*(\*\*)?P[0-9] ]]; then
-            return 0
-        fi
-    fi
-    return 1
-}
-
 load_registry() {
     local registry_path="$1" kind="$2"
     local line trimmed rel_path reason line_number=0
@@ -163,7 +140,7 @@ load_registry() {
             DEFECT_COUNT=$((DEFECT_COUNT + 1))
             continue
         fi
-        if [ "$kind" = "quarantine" ] && ! reason_has_owner "$reason"; then
+        if [ "$kind" = "quarantine" ] && ! registry_reason_has_owner "$REPO_ROOT" "$reason"; then
             printf 'ERROR: quarantine owner is required: %s # %s\n' "$rel_path" "$reason"
             DEFECT_COUNT=$((DEFECT_COUNT + 1))
             continue

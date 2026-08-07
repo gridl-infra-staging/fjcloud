@@ -521,7 +521,8 @@ start_one_flapjack() {
     local identity_reason
     identity_reason="$(flapjack_runtime_identity_reason "http://127.0.0.1:${port}")"
     if [ "$identity_reason" != "match" ]; then
-        die "flapjack-${region} compatibility rejected (${identity_reason}); fjcloud requires Flapjack ${FJCLOUD_FLAPJACK_VERSION} from the selected receipt-backed artifact. Rebuild the selected FLAPJACK_DEV_DIR checkout before retrying"
+        die "flapjack-${region} $(flapjack_identity_rejection_message \
+            "$identity_reason" "http://127.0.0.1:${port}" "$FLAPJACK_BIN")"
     fi
 }
 

@@ -175,6 +175,7 @@ describe('Migrate page provider preview flow', () => {
 			hostOrAppValue: 'ALGOLIA_BROWSER_APP',
 			apiKeyLabel: /algolia api key/i,
 			apiKey: 'algolia-browser-key',
+			discoveryCredentials: { appId: 'ALGOLIA_BROWSER_APP', apiKey: 'algolia-browser-key' },
 			credentials: { appId: 'ALGOLIA_BROWSER_APP', apiKey: 'algolia-browser-key' }
 		},
 		{
@@ -183,6 +184,10 @@ describe('Migrate page provider preview flow', () => {
 			hostOrAppValue: 'https://meilisearch.example.test',
 			apiKeyLabel: /meilisearch api key/i,
 			apiKey: 'meilisearch-browser-key',
+			discoveryCredentials: {
+				endpoint: 'https://meilisearch.example.test',
+				apiKey: 'meilisearch-browser-key'
+			},
 			credentials: { host: 'https://meilisearch.example.test', apiKey: 'meilisearch-browser-key' }
 		},
 		{
@@ -191,6 +196,10 @@ describe('Migrate page provider preview flow', () => {
 			hostOrAppValue: 'https://typesense.example.test',
 			apiKeyLabel: /typesense api key/i,
 			apiKey: 'typesense-browser-key',
+			discoveryCredentials: {
+				node: 'https://typesense.example.test',
+				apiKey: 'typesense-browser-key'
+			},
 			credentials: { host: 'https://typesense.example.test', apiKey: 'typesense-browser-key' }
 		}
 	] as const)(
@@ -201,6 +210,7 @@ describe('Migrate page provider preview flow', () => {
 			hostOrAppValue,
 			apiKeyLabel,
 			apiKey,
+			discoveryCredentials,
 			credentials
 		}) => {
 			installActionResponses(sourceProvider);
@@ -229,7 +239,7 @@ describe('Migrate page provider preview flow', () => {
 			await screen.findByTestId('migration-source-row-source_products');
 			expect(submittedActionPayload('listSourceIndexes')).toEqual({
 				source_provider: sourceProvider,
-				...credentials
+				...discoveryCredentials
 			});
 
 			await fireEvent.change(screen.getByRole('radio', { name: /source_products/i }));

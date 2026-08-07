@@ -39,6 +39,35 @@
 # count: lane-to-lane chatter is not application to the SSOT, and counting it would
 # let a batch satisfy this probe by cross-referencing its own documents.
 #
+# SECOND CHANNEL: INLINE `## ROADMAP CORRECTION REQUIRED` SECTIONS
+#
+# The chatting/ population above is only half the story, and by 2026-08 it is the
+# half that is falling out of use. Every `aug05` orchestration instructs its lanes
+# to "append a `ROADMAP CORRECTION REQUIRED` section to this file" -- the lane's own
+# `chats/icg/<lane>.md` checklist -- instead of writing a separate chatting/
+# document. This probe was structurally blind to that, so a batch could route its
+# entire correction traffic through a channel with no consumption check at all.
+#
+# Measured on `origin/main` 2026-08-06: three lane checklists carried such a
+# section, and this probe reported `handover_total=25 consumed=25 unconsumed=0` --
+# a clean bill of health computed over a population that excluded all three.
+#
+# Their consumed-oracle differs in one way, because the artifacts differ. A
+# chatting/ handover is a purpose-built document, so ROADMAP.md cites it by
+# basename. A lane checklist is not: ROADMAP.md cites the LANE, by its id
+# (`aug05_1pm_1`), never by the checklist's full filename. So the id is the oracle,
+# matched with a trailing non-digit boundary so `aug05_1pm_1` cannot be satisfied
+# by an unrelated `aug05_1pm_10`.
+#
+# WHAT THIS STILL CANNOT SEE, STATED SO IT IS NOT MISTAKEN FOR COVERAGE
+#
+# A lane that was told to write a correction section and merged without writing one
+# leaves nothing to enumerate, so no consumption check can catch it. Two merged
+# lanes did exactly that on 2026-08-06 (`aug05_12pm_2`, `aug05_12pm_4`). A textual
+# "instructed but absent" detector was considered and rejected: the instruction is
+# sometimes conditional ("emit ... if the ledger needs a row"), so it would report
+# lanes that correctly wrote nothing. That belongs to checklist authoring, not here.
+#
 # Exit codes:
 #   0 — every handover is applied (or there are none)
 #   1 — at least one handover is unapplied; each is named on stdout
@@ -53,6 +82,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${FJCLOUD_DOC_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
 CHATTING_DIR="$REPO_ROOT/chatting"
+CHATS_ICG_DIR="$REPO_ROOT/chats/icg"
 ROADMAP_MD="$REPO_ROOT/ROADMAP.md"
 IMPLEMENTED_DIR="$REPO_ROOT/implemented"
 
@@ -91,6 +121,12 @@ if [ ! -d "$CHATTING_DIR" ]; then
 fi
 if [ ! -f "$ROADMAP_MD" ]; then
     echo "ERROR: required input missing: ROADMAP.md not found at $ROADMAP_MD" >&2
+    exit 2
+fi
+# Same rule as chatting/ above: a checkout without chats/icg/ has an unmeasured
+# inline-correction denominator, which must never be reported as a clean zero.
+if [ ! -d "$CHATS_ICG_DIR" ]; then
+    echo "ERROR: required input missing: chats/icg directory not found at $CHATS_ICG_DIR" >&2
     exit 2
 fi
 
@@ -137,6 +173,74 @@ if [ -d "$IMPLEMENTED_DIR" ]; then
     done <"$implemented_paths_file"
 fi
 
+# Inline corrections: lane checklists under chats/icg/ that carry a written
+# `## ROADMAP CORRECTION REQUIRED` heading. The heading must be a real heading --
+# every orchestration also *instructs* lanes to append one, and chats/icg holds
+# roughly 800 files, so a prose match would swamp the denominator with lanes that
+# have nothing to apply.
+inline_paths=()
+inline_lane_ids=()
+inline_candidates_file="$ENUMERATION_DIR/inline_candidates"
+if ! enumerate_paths_to_file "inline roadmap corrections" "$inline_candidates_file" \
+    "$CHATS_ICG_DIR" -maxdepth 1 -type f -name '*.md'; then
+    exit 2
+fi
+while IFS= read -r -d '' path; do
+    basename_only="$(basename "$path")"
+    case "$basename_only" in
+        ''|*[!A-Za-z0-9_.-]*)
+            echo "ERROR: unsafe lane checklist filename rejected" >&2
+            exit 2
+            ;;
+    esac
+    grep_status=0
+    grep -qE '^## ROADMAP CORRECTION REQUIRED[[:space:]]*$' "$path" || grep_status=$?
+    case "$grep_status" in
+        0) ;;
+        1) continue ;;
+        *)
+            echo "ERROR: unable to read lane checklist ${basename_only}" >&2
+            exit 2
+            ;;
+    esac
+
+    # Derive the lane id: leading underscore-separated tokens up to and including
+    # the first all-digit token (`aug05_12pm_2_pricing_registry.md` -> `aug05_12pm_2`).
+    # ROADMAP.md cites lanes this way; it never cites the full checklist filename.
+    stem="${basename_only%.md}"
+    lane_id=""
+    remainder="$stem"
+    while [ -n "$remainder" ]; do
+        token="${remainder%%_*}"
+        if [ -z "$lane_id" ]; then
+            lane_id="$token"
+        else
+            lane_id="${lane_id}_${token}"
+        fi
+        case "$token" in
+            ''|*[!0-9]*) ;;
+            *) break ;;
+        esac
+        if [ "$remainder" = "${remainder#*_}" ]; then
+            # No separator left and the final token was not all digits.
+            lane_id=""
+            break
+        fi
+        remainder="${remainder#*_}"
+    done
+    case "${lane_id##*_}" in
+        ''|*[!0-9]*) lane_id="" ;;
+    esac
+    if [ -z "$lane_id" ]; then
+        # Fail closed. Guessing an id here would silently drop a real correction.
+        echo "ERROR: unable to derive a lane id from chats/icg/${basename_only}" >&2
+        exit 2
+    fi
+
+    inline_paths+=("chats/icg/${basename_only}")
+    inline_lane_ids+=("$lane_id")
+done <"$inline_candidates_file"
+
 unconsumed=()
 consumed_count=0
 
@@ -151,7 +255,7 @@ for handover in ${handovers[@]+"${handovers[@]}"}; do
     grep -qFl -- "$basename_only" "${application_sites[@]}" 2>/dev/null || reference_status=$?
     case "$reference_status" in
         0) consumed_count=$((consumed_count + 1)) ;;
-        1) unconsumed+=("$basename_only") ;;
+        1) unconsumed+=("chatting/${basename_only}") ;;
         *)
             echo "ERROR: unable to read handover application sites while checking $basename_only" >&2
             exit 2
@@ -159,18 +263,43 @@ for handover in ${handovers[@]+"${handovers[@]}"}; do
     esac
 done
 
-total=${#handovers[@]}
+# Same application sites as the chatting/ population: the SSOT and the
+# implemented/ records it points at. A sibling lane naming this lane id does NOT
+# count -- chats/icg is deliberately absent from application_sites, so an
+# orchestration listing its own roster cannot satisfy this probe.
+inline_index=0
+for inline_path in ${inline_paths[@]+"${inline_paths[@]}"}; do
+    lane_id="${inline_lane_ids[$inline_index]}"
+    inline_index=$((inline_index + 1))
+    # Trailing non-digit-or-end boundary: without it `aug05_1pm_1` would be
+    # satisfied by an unrelated `aug05_1pm_10` and the correction would vanish.
+    reference_status=0
+    grep -qE -- "${lane_id}([^0-9]|\$)" "${application_sites[@]}" 2>/dev/null || reference_status=$?
+    case "$reference_status" in
+        0) consumed_count=$((consumed_count + 1)) ;;
+        1) unconsumed+=("$inline_path") ;;
+        *)
+            echo "ERROR: unable to read application sites while checking ${inline_path}" >&2
+            exit 2
+            ;;
+    esac
+done
+
+inline_total=${#inline_paths[@]}
+total=$(( ${#handovers[@]} + inline_total ))
 unconsumed_count=${#unconsumed[@]}
 
 echo "handover_total=${total} consumed=${consumed_count} unconsumed=${unconsumed_count}"
+echo "inline_corrections=${inline_total}"
 
 if [ "$unconsumed_count" -eq 0 ]; then
     exit 0
 fi
 
 for name in ${unconsumed[@]+"${unconsumed[@]}"}; do
-    echo "UNCONSUMED chatting/${name}"
+    echo "UNCONSUMED ${name}"
 done
-echo "Each file above records ROADMAP.md rows a merged lane changed and that ROADMAP.md does not yet reflect."
+echo "Each file above declares ROADMAP.md rows its lane changed, and ROADMAP.md does not yet reflect them."
+echo "A lane still in flight is expected here; a merged one is a correction the SSOT has silently lost."
 echo "Apply them to ROADMAP.md (or fold them into an implemented/ record and cite it) rather than re-deriving the facts."
 exit 1

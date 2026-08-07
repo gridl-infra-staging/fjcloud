@@ -86,7 +86,7 @@ the runner is byte-identical, so the `sk_live_*|rk_live_*` case at
   11/0. The guard is load-bearing and the assembled fixtures reach it.
 - `.debbie.toml` was **not** used to hide the file from the mirror; the test still ships.
 - Note `scripts/tests/devbox_run_browser_suite_test.sh:122` retains a shorter
-  `sk_live_deadbeefdeadbeef` literal. Push protection did not flag it (below its length
+  live-key-shaped fixture literal. Push protection did not flag it (below its length
   threshold) and it was left alone to keep the edit minimal against a live lane's file.
 - **Ownership caveat:** `fd955` (`aug05_11pm_1_devbox_exclusive_ownership`) is live and its Stage
   5 extends this same test file. A conflict on merge is expected and is a normal lane resolution.
@@ -96,19 +96,83 @@ the runner is byte-identical, so the `sk_live_*|rk_live_*` case at
 Staging mirror clone local `main` was reset to `origin/main` first, to drop the rejected commit
 `ca6bf6d9e` from the range the next push would carry.
 
-## 4. Post-fix staging-mirror run
+## 4. Post-fix staging-mirror runs
+
+### Run `31079434847` — CI-1's three reds all fixed, two unrelated reds exposed
 
 Re-run of `bash scripts/git_push_with_sync.sh origin main` at `main` = `f96c00e25`:
-`535b928..becbfe5 main -> main`, `ok fjcloud -> staging complete`.
+`535b928..becbfe5 main -> main`, `ok fjcloud -> staging complete`. Run `31079434847`
+(headSha `becbfe544`, created 2026-08-06T07:03:01Z), conclusion `failure`. Job conclusions:
+[`staging_run_31079434847.txt`](staging_run_31079434847.txt).
 
-- **Run id:** `31079434847` (`gridl-infra-staging/fjcloud`, workflow `CI`, headSha `becbfe544`,
-  created 2026-08-06T07:03:01Z)
-- Job conclusions: see [`staging_run_31079434847.txt`](staging_run_31079434847.txt).
+**All three of CI-1's original reds are fixed:** `web-test` `success`, `local-dev-up-smoke`
+`success`, and `verify_seeded_local_source_red_proof` no longer panics. Eight of nine
+prerequisites went green.
 
-## 5. Still owed
+`rust-test` still failed, but on **two different tests**, neither touched by CI-1 or by the
+`aug05_12pm_4` pricing lane merged the same tick — see
+[`staging_run_31079434847_rust_test_failures.txt`](staging_run_31079434847_rust_test_failures.txt):
 
-Whatever of the `OWED AFTER MERGE` list run `31079434847` does not settle — in particular
-`deploy-staging` actually running rather than skipping, `e2e-deployed`, the live
-`GET https://api.staging.flapjack.foo/version` ancestry proof, and
-`bash scripts/probe_mirror_ci_currency.sh` — is carried by the next supervisor tick against this
-run id, not re-derived.
+    pricing_compare_test::pricing_compare_flapjack_cloud_contract      left 1500, right 1024
+    pricing_compare_test::pricing_compare_exposes_verification_labels  left "2026-08-05", right "unverified"
+    test result: FAILED. 1677 passed; 2 failed; 14 ignored
+
+Both are **stale expectations in `infra/api/tests/integration/pricing_compare_test.rs`**, and both
+causes pre-date this tick's merges (verified: `68b6d95e4` and `6c0638125` are ancestors of the
+pre-tick `main` `28fc94251`):
+
+- `68b6d95e4` deliberately raised the paid-plan monthly minimum from \$5 to \$15, so
+  `infra/pricing-calculator/src/providers/griddle.rs:46` is `SHARED_MINIMUM_MONTHLY_CENTS = 1_500`
+  and the 1024-cent raw storage cost is floored to it.
+- `6c0638125` deliberately stamped Flapjack Cloud with the verification date at `griddle.rs:14`,
+  so its label is no longer `unverified`.
+
+Neither pricing lane ran `-p api`; their validation was `cargo test -p pricing-calculator`. The
+staging mirror had not synced since 2026-07-30, so no gate had run these cross-crate tests since
+either. **This is the class of defect a dead publish path hides**, and it is the reachability
+argument for keeping the mirror current.
+
+Repaired in **`b1fcfb3c3`**, expectations moved to the current owners' values with the derivation
+written into the assertion. Red proof is run `31079434847` itself; green is
+`DATABASE_URL=… cargo test -p api --test platform pricing_compare_test` → **11 passed, 0 failed**.
+
+### Run `31080535059` — nine of nine green, `deploy-staging` reached
+
+Third sync at `main` = `b1fcfb3c3`: `becbfe5..73fe37c main -> main`. Run `31080535059`
+(headSha `73fe37c8b`, created 2026-08-06T07:20:23Z). Job conclusions:
+[`staging_run_31080535059.txt`](staging_run_31080535059.txt).
+
+All nine `deploy-staging` prerequisites `success` — `rust-test`, `rust-lint`, `web-test`,
+`web-lint`, `check-sizes`, `migration-test`, `shell-hygiene`, `secret-scan`,
+`local-dev-up-smoke`. **`deploy-staging` started executing rather than being skipped**, for the
+first time since 2026-07-30. `deploy-prod` skipped, as designed — prod is a separate promotion via
+`scripts/launch/post_wave_a_sync_prod.sh`.
+
+## 5. `OWED AFTER MERGE` — discharged
+
+Every item the lane deferred to the post-merge owner is now recorded. Run `31080535059` reached
+terminal conclusion **`success`**.
+
+| Owed item | Result |
+| --- | --- |
+| post-fix staging-mirror run id | `31080535059` (head `73fe37c8b`) |
+| nine `deploy-staging` prerequisite conclusions | all `success` — `rust-test`, `rust-lint`, `web-test`, `web-lint`, `check-sizes`, `migration-test`, `shell-hygiene`, `secret-scan`, `local-dev-up-smoke` |
+| `deploy-staging` conclusion (must run, not skip) | **`success`**, executed |
+| `e2e-deployed` conclusion | **`success`** |
+| live `/version` ancestry proof | `dev_sha=b1fcfb3c3a80c0600ccbc44f6821eaf4cde375fb`, `build_time` `2026-08-06T07:29:15Z`; `git merge-base --is-ancestor b1fcfb3c3 main` exits `0`. Captured in [`staging_version_after_deploy.json`](staging_version_after_deploy.json) |
+| `bash scripts/probe_mirror_ci_currency.sh` | staging `reason=green`, `age_seconds=1936`; see [`probe_mirror_ci_currency.txt`](probe_mirror_ci_currency.txt) |
+
+The same probe reports prod as `reason=ci_run_missing`. That is expected and out of scope here —
+prod is a separate promotion via `scripts/launch/post_wave_a_sync_prod.sh`, and this receipt covers
+the staging chain only.
+
+## 6. One line still deferred elsewhere
+
+`scripts/tests/publish_guard_test.sh` runs in `local-ci.sh`'s unconditionally-scheduled
+`mirror-sync-contract` gate but is **not** in the mirror `shell-hygiene` job, which already runs
+its sibling `git_push_with_sync_test.sh`. The two-line addition was held because
+`.github/workflows/ci.yml` was declared exclusively owned by CI-1. That lane has now merged, so the
+file is free and the addition is owed to whoever next touches it:
+
+    - name: Run publish guard contract test
+      run: bash scripts/tests/publish_guard_test.sh

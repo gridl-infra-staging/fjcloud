@@ -128,6 +128,25 @@ if [[ "$*" == *"information_schema.columns"* ]]; then
     exit 2
 fi
 
+if [[ "$*" == *"FROM rate_cards"* && "$*" == *"shared_minimum_spend_cents"* ]]; then
+    scratch_db="$(cat "$MOCK_SCRATCH_DB_FILE" 2>/dev/null || true)"
+
+    if [ -n "${MOCK_TARGET_DB_NAME:-}" ] && [[ "$*" == *"-d ${MOCK_TARGET_DB_NAME}"* ]]; then
+        printf 'target_rate_cards_value_query\n' >> "$MOCK_ROUTE_LOG"
+        cat "$MOCK_FIXTURE_DIR/target_rate_cards_agreement.values"
+        exit 0
+    fi
+
+    if [ -n "$scratch_db" ] && [[ "$*" == *"-d ${scratch_db}"* ]]; then
+        printf 'oracle_rate_cards_value_query|%s\n' "$scratch_db" >> "$MOCK_ROUTE_LOG"
+        cat "$MOCK_FIXTURE_DIR/oracle_rate_cards.values"
+        exit 0
+    fi
+
+    echo "rate_cards value query did not identify target or scratch database" >&2
+    exit 2
+fi
+
 exit 0
 MOCK
     chmod +x "$path"
@@ -143,6 +162,12 @@ public|accounts|email|text|NO|
 EOF
 
     cp "$fixture_dir/oracle.columns" "$fixture_dir/target_identical.columns"
+
+    cat > "$fixture_dir/oracle_rate_cards.values" <<'EOF'
+rate_cards|launch-2026|shared_minimum_spend_cents|1500
+EOF
+
+    cp "$fixture_dir/oracle_rate_cards.values" "$fixture_dir/target_rate_cards_agreement.values"
 }
 
 write_unavailable_docker_mock() {

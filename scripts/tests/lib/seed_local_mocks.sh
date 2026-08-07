@@ -30,12 +30,13 @@ method="GET"
 url=""
 request_body=""
 auth_header=""
+read_config_stdin="false"
 redacted_args=()
 LOG_PATH="__LOG_PATH__"
 LOG_LOCK_DIR="${LOG_PATH}.lock"
 is_safe_logged_test_credential() {
     case "$1" in
-        dev-token|free-token|stub-token|file-admin-key|test-admin-key|commented-env-admin-key|staging-admin-contract)
+        dev-token|free-token|stub-token|file-admin-key|test-admin-key|commented-env-admin-key|staging-admin-contract|synthetic-admin-key-é-delivery|synthetic-flapjack-api-key)
             return 0
             ;;
     esac
@@ -69,7 +70,7 @@ sanitize_header_value() {
                 printf '%s: [REDACTED]' "$header_name"
             fi
             ;;
-        x-admin-key|x-api-key|api-key|x-auth-key|x-client-secret|client-secret|x-webhook-secret|webhook-secret|x-access-token|access-token|x-refresh-token|refresh-token|x-session-token|session-token|cookie|set-cookie)
+        x-admin-key|x-api-key|api-key|x-auth-key|x-algolia-api-key|x-algolia-admin-key|x-client-secret|client-secret|x-webhook-secret|webhook-secret|x-access-token|access-token|x-refresh-token|refresh-token|x-session-token|session-token|cookie|set-cookie)
             header_secret="${header_value#*: }"
             if is_safe_logged_test_credential "$header_secret"; then
                 printf '%s' "$header_value"
@@ -81,6 +82,65 @@ sanitize_header_value() {
             printf '%s' "$header_value"
             ;;
     esac
+}
+curl_config_unquote() {
+    local raw="$1"
+    local decoded="" char escaped
+    while [ -n "$raw" ]; do
+        char="${raw%"${raw#?}"}"
+        raw="${raw#?}"
+        if [ "$char" = '\' ]; then
+            escaped="${raw%"${raw#?}"}"
+            raw="${raw#?}"
+            case "$escaped" in
+                '\') decoded="${decoded}\\" ;;
+                '"') decoded="${decoded}\"" ;;
+                t) decoded="${decoded}"$'\t' ;;
+                n) decoded="${decoded}"$'\n' ;;
+                r) decoded="${decoded}"$'\r' ;;
+                v) decoded="${decoded}"$'\v' ;;
+                *) decoded="${decoded}${escaped}" ;;
+            esac
+        else
+            decoded="${decoded}${char}"
+        fi
+    done
+    printf '%s' "$decoded"
+}
+# Single owner of "a header reached this curl invocation", whether it arrived on
+# argv (-H) or through a -K - config stream. Both paths must capture the bearer
+# token and redact identically, so neither may inline its own copy of this.
+record_header() {
+    local flag="$1" header_value="$2"
+    if [[ "$header_value" == Authorization:* ]]; then
+        auth_header="${header_value#*: }"
+        if [[ "$auth_header" == Bearer\ * ]]; then
+            auth_header="${auth_header#Bearer }"
+        fi
+    fi
+    redacted_args+=("$flag" "$(sanitize_header_value "$header_value")")
+}
+parse_curl_stdin_config() {
+    local config_line raw
+    while IFS= read -r config_line; do
+        case "$config_line" in
+            'header = "'*'"')
+                raw="${config_line#'header = "'}"
+                raw="${raw%\"}"
+                record_header "-H" "$(curl_config_unquote "$raw")"
+                ;;
+            ''|'#'*)
+                ;;
+            *)
+                # Fail closed. Silently discarding an unrecognised directive
+                # would let a caller move a request detail into the -K - stream
+                # and still see every assertion pass against a mock that never
+                # saw it. Teach this parser the directive instead.
+                printf 'mock curl: unsupported -K - config directive: %s\n' "$config_line" >&2
+                exit 2
+                ;;
+        esac
+    done
 }
 append_curl_log_line() {
     local line="$1"
@@ -112,14 +172,25 @@ for ((i=1; i<=$#; i++)); do
             ;;
         -H|--header)
             i=$((i + 1))
-            header_value="${!i}"
-            if [[ "$header_value" == Authorization:* ]]; then
-                auth_header="${header_value#*: }"
-                if [[ "$auth_header" == Bearer\ * ]]; then
-                    auth_header="${auth_header#Bearer }"
-                fi
+            record_header "$arg" "${!i}"
+            ;;
+        -K|--config)
+            i=$((i + 1))
+            config_source="${!i}"
+            if [ "$config_source" = "-" ]; then
+                read_config_stdin="true"
+            else
+                # Fail closed for the same reason parse_curl_stdin_config
+                # rejects unknown directives: this mock never opens a config
+                # FILE, so every header inside one -- credentials included --
+                # would skip both the log and sanitize_header_value, and an
+                # assertion like "the key is not on argv" would pass against a
+                # mock that never saw the key at all. Teach this branch to
+                # read the file instead of relaxing the guard.
+                printf 'mock curl: unsupported --config source (only "-" is decoded): %s\n' "$config_source" >&2
+                exit 2
             fi
-            redacted_args+=("$arg" "$(sanitize_header_value "$header_value")")
+            redacted_args+=("$arg" "$config_source")
             ;;
         -u|--user)
             i=$((i + 1))
@@ -138,6 +209,9 @@ for ((i=1; i<=$#; i++)); do
             ;;
     esac
 done
+if [ "$read_config_stdin" = "true" ]; then
+    parse_curl_stdin_config
+fi
 log_line="curl"
 for arg in "${redacted_args[@]}"; do
     log_line="${log_line} ${arg}"

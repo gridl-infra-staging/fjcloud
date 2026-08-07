@@ -20,6 +20,9 @@ import {
 	AUTH_HEADERS,
 	expectApiRequestError,
 	CLOSED_SOURCE_PROVIDERS,
+	HOSTED_SOURCE_INDEXES_WIRE_RESPONSE,
+	HOSTED_SOURCE_INDEXES_NORMALIZED_RESPONSE,
+	HOSTED_SOURCE_INDEX_EXPECTED_PAIRS,
 	VOLATILE_SOURCE_CREDENTIALS,
 	fullSourceMetadata,
 	mockFetchWithHeaders,
@@ -28,7 +31,9 @@ import {
 	neutralSourceListRequest,
 	previewResponse,
 	publicJob,
+	requestJsonBody,
 	requestInit,
+	requestUrl,
 	serializedRequest,
 	verifySourceMigrationRequest,
 	verifySourceMigrationResponse,
@@ -40,6 +45,10 @@ import {
 type ExpectedMigrationPreviewArguments =
 	| [sourceProvider: 'algolia', request: AlgoliaMigrationPreviewRequest]
 	| [sourceProvider: 'meilisearch', request: MeilisearchMigrationPreviewRequest];
+
+function sourceIndexPairs(response: AlgoliaSourceListResponse) {
+	return response.items?.map(({ name, entries }) => ({ name, entries }));
+}
 
 describe('ApiClient - neutral migration source provider contract', () => {
 	let client: NeutralMigrationClient;
@@ -75,25 +84,114 @@ describe('ApiClient - neutral migration source provider contract', () => {
 		}
 	);
 
-	it.each(CLOSED_SOURCE_PROVIDERS)(
-		'POST /migration/%s/list-indexes keeps the selected source provider in the path',
-		async (sourceProvider) => {
-			const expected: AlgoliaSourceListResponse = {
-				items: [fullSourceMetadata({ name: `${sourceProvider}_products` })],
-				nextCursor: `${sourceProvider}-cursor`
-			};
-			const fetch = mockFetch(200, expected);
+	it('preserves the complete Algolia page and cursor at the migration client boundary', async () => {
+		const expected: AlgoliaSourceListResponse = {
+			items: [fullSourceMetadata({ name: 'algolia_products' })],
+			nextCursor: 'algolia/next-cursor'
+		};
+		const fetch = mockFetch(200, expected);
+		client.setFetch(fetch);
+		const request = neutralSourceListRequest('algolia');
+
+		const result = await client.listMigrationSourceIndexes('algolia', request);
+
+		expect(requestUrl(fetch)).toBe(`${BASE_URL}/migration/algolia/list-indexes`);
+		expect(requestJsonBody(fetch)).toEqual(request);
+		expect(result).toEqual(expected);
+	});
+
+	it('normalizes a Meilisearch source-index page at the migration client boundary', async () => {
+		const fetch = mockFetch(200, HOSTED_SOURCE_INDEXES_WIRE_RESPONSE);
+		client.setFetch(fetch);
+		const request = neutralSourceListRequest('meilisearch');
+
+		const result = await client.listMigrationSourceIndexes('meilisearch', request);
+
+		expect(requestUrl(fetch)).toBe(
+			`${BASE_URL}/migration/meilisearch/list-indexes?offset=20&limit=25`
+		);
+		expect(requestJsonBody(fetch)).toEqual({
+			endpoint: 'https://meilisearch.example.test',
+			apiKey: 'meilisearch-neutral-source-key'
+		});
+		expect(result).toEqual(HOSTED_SOURCE_INDEXES_NORMALIZED_RESPONSE);
+		expect(sourceIndexPairs(result)).toEqual(HOSTED_SOURCE_INDEX_EXPECTED_PAIRS);
+	});
+
+	it('moves Typesense offset pagination to the query and leaves only native credentials in the body', async () => {
+		const fetch = mockFetch(200, { indexes: [], offset: 20, limit: 25, total: 0 });
+		client.setFetch(fetch);
+		const request = neutralSourceListRequest('typesense');
+
+		const result = await client.listMigrationSourceIndexes('typesense', request);
+
+		expect(requestUrl(fetch)).toBe(
+			`${BASE_URL}/migration/typesense/list-indexes?offset=20&limit=25`
+		);
+		expect(requestJsonBody(fetch)).toEqual({
+			node: 'https://typesense.example.test',
+			apiKey: 'typesense-neutral-source-key'
+		});
+		expect(requestJsonBody(fetch)).not.toHaveProperty('host');
+		expect(requestJsonBody(fetch)).not.toHaveProperty('cursor');
+		expect(requestJsonBody(fetch)).not.toHaveProperty('hitsPerPage');
+		expect(result).toEqual({ items: [], nextCursor: null });
+	});
+
+	it.each([
+		{
+			label: 'absent counts',
+			index: { name: 'missing_counts' },
+			expectedEntries: 0
+		},
+		{
+			label: 'null counts',
+			index: { name: 'null_counts', documentCount: null, entries: null },
+			expectedEntries: 0
+		}
+	])('normalizes $label to zero records', async ({ index, expectedEntries }) => {
+		const fetch = mockFetch(200, { indexes: [index], offset: 0, limit: 1, total: 1 });
+		client.setFetch(fetch);
+
+		const result = await client.listMigrationSourceIndexes('meilisearch', {
+			endpoint: 'https://meilisearch.example.test',
+			apiKey: 'meilisearch-neutral-source-key'
+		});
+
+		expect(result).toEqual({
+			items: [
+				{
+					name: index.name,
+					entries: expectedEntries,
+					dataSize: 0,
+					fileSize: 0,
+					updatedAt: '',
+					lastBuildTimeS: 0,
+					pendingTask: false,
+					primary: null,
+					replicas: []
+				}
+			],
+			nextCursor: null
+		});
+	});
+
+	it.each([
+		{ offset: 0, limit: 2, total: 3, expectedNextCursor: '2' },
+		{ offset: 0, limit: 0, total: 3, expectedNextCursor: null },
+		{ offset: 2, limit: 2, total: 3, expectedNextCursor: null }
+	])(
+		'exposes hosted offset $offset/$limit/$total as canonical cursor $expectedNextCursor',
+		async ({ offset, limit, total, expectedNextCursor }) => {
+			const fetch = mockFetch(200, { indexes: [], offset, limit, total });
 			client.setFetch(fetch);
 
-			const request = neutralSourceListRequest(sourceProvider);
-			const result = await client.listMigrationSourceIndexes(sourceProvider, request);
-
-			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/migration/${sourceProvider}/list-indexes`, {
-				method: 'POST',
-				headers: AUTH_HEADERS,
-				body: JSON.stringify(request)
+			const result = await client.listMigrationSourceIndexes('meilisearch', {
+				endpoint: 'https://meilisearch.example.test',
+				apiKey: 'meilisearch-neutral-source-key'
 			});
-			expect(result).toEqual(expected);
+
+			expect(result).toEqual({ items: [], nextCursor: expectedNextCursor });
 		}
 	);
 

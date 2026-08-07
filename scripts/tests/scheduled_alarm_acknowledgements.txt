@@ -1,0 +1,10 @@
+# Known red scheduled jobs with an existing repair owner.
+# Format: <mirror> <workflow-file> <failing-job> # <existing lane .md path>
+#
+# Keys include the exact failing job so a new failure cannot inherit an old
+# acknowledgement. Expiry is deliberately omitted: the established registry
+# owner contract validates a durable owner, and the probe prints every known
+# red on every run. ROADMAP.md:<n> citations are forbidden because line-number
+# owners drift whenever earlier roadmap rows change.
+staging nightly.yml pricing-freshness # chats/icg/aug05_12pm_2_pricing_registry_verification.md
+prod nightly.yml pricing-freshness # chats/icg/aug05_12pm_2_pricing_registry_verification.md

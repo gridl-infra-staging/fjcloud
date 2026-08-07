@@ -18,7 +18,7 @@ const sampleResponse: PricingCompareResponse = {
 	estimates: [
 		{
 			provider: 'Typesense Cloud',
-			verification_label: 'unverified',
+			verification_label: '2026-08-05',
 			monthly_total_cents: 3000,
 			line_items: [],
 			assumptions: [],
@@ -26,7 +26,7 @@ const sampleResponse: PricingCompareResponse = {
 		},
 		{
 			provider: 'Flapjack Cloud',
-			verification_label: 'unverified',
+			verification_label: '2026-08-05',
 			monthly_total_cents: 1000,
 			line_items: [
 				{
@@ -47,6 +47,18 @@ const sampleResponse: PricingCompareResponse = {
 			line_items: [],
 			assumptions: [],
 			plan_name: 'Pro'
+		}
+	],
+	withheld_providers: [
+		{
+			provider: 'ElasticCloud',
+			display_name: 'Elastic Cloud',
+			reason: 'unverified'
+		},
+		{
+			provider: 'AwsOpenSearch',
+			display_name: 'AWS OpenSearch Service',
+			reason: 'unverified'
 		}
 	],
 	generated_at: '2026-03-19T00:00:00Z'
@@ -221,7 +233,7 @@ describe('LandingPricingCalculator', () => {
 		expect(screen.queryByTestId('landing-pricing-results')).not.toBeInTheDocument();
 	});
 
-	it('displays provider verification labels accessibly while preserving upstream estimate order', async () => {
+	it('displays pricing source status accessibly while preserving upstream estimate order', async () => {
 		vi.stubGlobal(
 			'fetch',
 			vi.fn(
@@ -243,16 +255,45 @@ describe('LandingPricingCalculator', () => {
 		expect(within(griddleRow).getByText('Flapjack Cloud')).toBeInTheDocument();
 		expect(within(griddleRow).getByText('Flapjack Cloud Hot Storage')).toBeInTheDocument();
 		expect(within(griddleRow).queryByText('Griddle')).not.toBeInTheDocument();
+		expect(within(results).getByRole('columnheader', { name: 'Pricing source' })).toBeVisible();
 
 		const competitorRows = within(results).getAllByTestId('pricing-row-competitor');
 		expect(competitorRows).toHaveLength(2);
 		expect(within(competitorRows[0]).getByText('Typesense Cloud')).toBeInTheDocument();
-		expect(within(competitorRows[0]).getByText('Modelled pricing')).toBeInTheDocument();
+		expect(within(competitorRows[0]).getByText('Verified 2026-08-05')).toBeInTheDocument();
 		expect(within(competitorRows[1]).getByText('Algolia')).toBeInTheDocument();
-		expect(within(competitorRows[1]).getByText('2026-07-06')).toBeInTheDocument();
-		expect(within(griddleRow).getByText('Modelled pricing')).toBeInTheDocument();
+		expect(within(competitorRows[1]).getByText('Verified 2026-07-06')).toBeInTheDocument();
+		expect(within(griddleRow).getByText('Verified 2026-08-05')).toBeInTheDocument();
+
+		const withheldNotice = screen.getByTestId('pricing-withheld-providers');
+		expect(withheldNotice).toHaveTextContent(
+			'Withheld from this comparison: Elastic Cloud (unverified), AWS OpenSearch Service (unverified).'
+		);
 
 		await expect(getAccessibilityViolations(container)).resolves.toEqual([]);
+	});
+
+	it('omits the withheld providers notice when every registered provider is published', async () => {
+		const fullyPublishedResponse: PricingCompareResponse = {
+			...sampleResponse,
+			withheld_providers: []
+		};
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(JSON.stringify(fullyPublishedResponse), {
+						status: 200,
+						headers: { 'Content-Type': 'application/json' }
+					})
+			)
+		);
+
+		render(LandingPricingCalculator);
+		await fireEvent.click(screen.getByRole('button', { name: 'Compare monthly cost' }));
+
+		await screen.findByTestId('landing-pricing-results');
+		expect(screen.queryByTestId('pricing-withheld-providers')).not.toBeInTheDocument();
 	});
 
 	it('keeps old Griddle API responses customer-facing as Flapjack Cloud during rollout', async () => {

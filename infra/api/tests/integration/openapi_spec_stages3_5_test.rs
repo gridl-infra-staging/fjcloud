@@ -507,15 +507,21 @@ fn algolia_cloud_discovery_spec_contains_only_stage_1_through_5_paths() {
         "/migration",
         "/public/infrastructure",
     ];
+    let allowed_exact_paths = ["/admin/tenants"];
 
-    // Admin routes are out of scope — must NOT appear
+    // Admin routes are out of scope except the documented tenant listing.
     let forbidden_prefixes = ["/admin"];
 
     for path in paths.keys() {
+        let is_allowed_exact = allowed_exact_paths.contains(&path.as_str());
+        if is_allowed_exact {
+            continue;
+        }
+
         for forbidden in &forbidden_prefixes {
             assert!(
                 !path.starts_with(forbidden),
-                "spec must not contain {forbidden} paths yet, but found: {path}"
+                "spec must not contain undocumented {forbidden} paths yet, but found: {path}"
             );
         }
 

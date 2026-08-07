@@ -27,7 +27,15 @@ source "$SCRIPT_DIR/lib/migrate.sh"
 # shellcheck source=lib/flapjack_binary.sh
 source "$SCRIPT_DIR/lib/flapjack_binary.sh"
 init_integration_env_defaults
-INTEGRATION_FJCLOUD_FLAPJACK_VERSION="${FJCLOUD_FLAPJACK_VERSION_OVERRIDE:-$FJCLOUD_FLAPJACK_VERSION}"
+# The canonical pin, with no caller override. FJCLOUD_FLAPJACK_VERSION_OVERRIDE
+# used to be honoured here so a wrapper could hand down the version of the binary
+# it had already selected. That existed solely to work around exact-version
+# equality; now that the pin is a FLOOR, the wrapper's engine passes on its own
+# merits and the seam only remains useful for LOWERING what the API enforces —
+# i.e. admitting an engine older than the repository supports. An inherited value
+# is therefore ignored, exactly as an inherited FJCLOUD_FLAPJACK_VERSION already
+# is (scripts/lib/flapjack_binary.sh assigns it unconditionally on source).
+INTEGRATION_FJCLOUD_FLAPJACK_VERSION="$FJCLOUD_FLAPJACK_VERSION"
 
 export FLAPJACK_PORT="${FLAPJACK_PORT:-7799}"
 export API_PORT="${API_PORT:-3099}"

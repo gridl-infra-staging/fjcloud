@@ -254,6 +254,69 @@ if [ -n "$AWS_ACCOUNT_ID" ] && [ "$AWS_ACCOUNT_ID" != "None" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# 1b. AWS identity capability — a valid STS identity is NOT enough
+# ---------------------------------------------------------------------------
+# STS validity does not imply SSM capability: the loadtest identity passes
+# get-caller-identity but cannot ssm:GetParameter the admin key. Surface that
+# gap as a first-class row so a valid-but-incapable identity fails loudly.
+# scripts/lib/aws_identity.sh is the single classifier; we only MAP its typed
+# result to a row here — never reimplement STS, SSM error classification, or
+# backup discovery in the probe.
+AWS_IDENTITY_CAPABILITY_PARAM="/fjcloud/staging/admin_key"
+aws_identity_capability_raw="$OUT/aws_identity_capability.txt"
+register_raw "aws_identity_capability.txt"
+# shellcheck source=scripts/lib/aws_identity.sh
+source "$PROBE_SCRIPT_DIR/lib/aws_identity.sh"
+
+aws_identity_require_capability "$AWS_IDENTITY_CAPABILITY_PARAM" || true
+aws_capability="${AWS_IDENTITY_CAPABILITY:-}"
+
+# Fail-closed: OK ONLY for the exact `capable` enum. Every other value — the
+# insufficient/not-found/probe-failed enums, an empty capability from an
+# identity-preflight failure, or any unrecognized state — is ACTION_REQUIRED.
+# The status decision never trusts free-form diagnostic text.
+if [ "$aws_capability" = "capable" ]; then
+  aws_capability_status="OK"
+else
+  aws_capability_status="ACTION_REQUIRED"
+fi
+
+# Finding text: known-shape diagnostics (capable/insufficient/not_found) are
+# operator-actionable, so they are preserved — but newline-normalized and with
+# operator-local backup paths reduced to basenames (never absolute paths).
+# probe_failed / preflight-failure / unknown outcomes must NOT echo raw-error-
+# derived text (it can carry secrets), so they use a fixed, enum-derived finding.
+case "$aws_capability" in
+  capable|insufficient_capability|not_found)
+    aws_capability_finding="$(printf '%s' "${AWS_IDENTITY_DIAGNOSTIC:-}" \
+      | tr '\n' ' ' \
+      | sed -E 's#/[^[:space:],]*/([^/[:space:],]*\.bak\.[^[:space:],]*)#\1#g')"
+    ;;
+  probe_failed)
+    aws_capability_finding="SSM capability probe for ${AWS_IDENTITY_CAPABILITY_PARAM} failed; raw error withheld to avoid leaking secrets"
+    ;;
+  "")
+    aws_capability_finding="AWS identity preflight failed before SSM capability could be evaluated (status=${AWS_IDENTITY_STATUS:-unknown})"
+    ;;
+  *)
+    aws_capability_finding="AWS identity capability is in an unrecognized state (${aws_capability}); treated as action-required"
+    ;;
+esac
+
+# Persist ONLY the status, capability enum, ARN, fixed parameter name, and the
+# safe single-line finding. Never persist AWS_IDENTITY_RAW_ERROR or the SSM value.
+{
+  printf 'status=%s\n' "$aws_capability_status"
+  printf 'capability=%s\n' "${aws_capability:-unknown}"
+  printf 'arn=%s\n' "${AWS_IDENTITY_ARN:-unknown}"
+  printf 'parameter=%s\n' "$AWS_IDENTITY_CAPABILITY_PARAM"
+  printf 'finding=%s\n' "$aws_capability_finding"
+} > "$aws_identity_capability_raw"
+
+add_row "aws_identity_capability" "$aws_capability_status" "false" \
+  "$aws_capability_finding" "aws_identity_capability.txt"
+
+# ---------------------------------------------------------------------------
 # 2. Stripe — probe each key's liveness via check_stripe_key_live (sourced in subshell)
 # ---------------------------------------------------------------------------
 # Probe TEST-mode keys only. The RESTRICTED_LIVE key is live-mode; we do NOT

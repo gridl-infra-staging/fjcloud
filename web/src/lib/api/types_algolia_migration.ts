@@ -46,16 +46,30 @@ export interface ListAlgoliaIndexesRequest {
 	hitsPerPage?: number | null;
 }
 
-export interface ListHostedSearchIndexesRequest {
-	host: string;
+export interface ListMeilisearchIndexesRequest {
+	endpoint: string;
 	apiKey: string;
-	cursor?: string | null;
-	hitsPerPage?: number | null;
 }
+
+export interface ListTypesenseIndexesRequest {
+	node: string;
+	apiKey: string;
+}
+
+export interface HostedSourceIndexesPageRequest {
+	offset?: number | null;
+	limit?: number | null;
+}
+
+export type ListMeilisearchSourceIndexesRequest = ListMeilisearchIndexesRequest &
+	HostedSourceIndexesPageRequest;
+export type ListTypesenseSourceIndexesRequest = ListTypesenseIndexesRequest &
+	HostedSourceIndexesPageRequest;
 
 export type ListMigrationSourceIndexesRequest =
 	| ListAlgoliaIndexesRequest
-	| ListHostedSearchIndexesRequest;
+	| ListMeilisearchSourceIndexesRequest
+	| ListTypesenseSourceIndexesRequest;
 
 export interface AlgoliaIndexMetadata {
 	name: string;

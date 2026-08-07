@@ -138,6 +138,7 @@ pub const BEARER_SCHEME_NAME: &str = "bearer_jwt";
         crate::routes::migration::get_algolia_import_job,
         crate::routes::migration::cancel_algolia_import_job,
         crate::routes::migration::resume_algolia_import_job,
+        crate::routes::admin::tenants::list_tenants,
     ),
     components(schemas(
         crate::routes::auth::RegisterRequest,
@@ -246,6 +247,10 @@ pub const BEARER_SCHEME_NAME: &str = "bearer_jwt";
         crate::routes::migration::VerifySourceMigrationBadRequestResponse,
         crate::routes::migration::VerifySourceMigrationRestoreStatusResponse,
         crate::routes::migration::VerifySourceMigrationServiceUnavailableResponse,
+        crate::repos::AdminCustomerStatus,
+        crate::routes::admin::tenants::AdminTenantListQuery,
+        crate::routes::admin::tenants::TenantResponse,
+        crate::services::billing_health::BillingHealth,
     ))
 )]
 pub struct ApiDoc;

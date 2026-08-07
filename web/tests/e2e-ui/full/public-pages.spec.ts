@@ -19,6 +19,7 @@ import {
 } from '../../../src/lib/pricing';
 import { CANONICAL_PUBLIC_API_DOCS_URL } from '../../../src/lib/public_api';
 import { assertSharedLegalPageContract } from '../../fixtures/legal_page_playwright_helpers';
+import { assertPricingCalculatorOutcome } from '../../fixtures/public-pages';
 
 // Unauthenticated — no stored auth state needed
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -88,6 +89,60 @@ test.describe('Landing page', () => {
 		await expect(navSignup).toHaveCount(0);
 	});
 
+	test('landing calculator discloses providers withheld from comparison', async ({ page }) => {
+		await page.route('**/api/pricing/compare', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					workload: {
+						document_count: 100_000,
+						avg_document_size_bytes: 2048,
+						search_requests_per_month: 1_000_000,
+						write_operations_per_month: 50_000,
+						sort_directions: 2,
+						num_indexes: 1,
+						high_availability: false
+					},
+					estimates: [
+						{
+							provider: 'Flapjack Cloud',
+							verification_label: '2026-08-05',
+							monthly_total_cents: 1500,
+							line_items: [],
+							assumptions: [],
+							plan_name: 'Flapjack Cloud Hot Storage'
+						},
+						{
+							provider: 'Algolia',
+							verification_label: '2026-07-06',
+							monthly_total_cents: 50_000,
+							line_items: [],
+							assumptions: [],
+							plan_name: 'Pro'
+						}
+					],
+					withheld_providers: [
+						{
+							provider: 'ElasticCloud',
+							display_name: 'Elastic Cloud',
+							reason: 'unverified'
+						}
+					],
+					generated_at: '2026-08-06T15:00:00Z'
+				})
+			});
+		});
+
+		await page.goto('/');
+		await page.getByTestId('pricing-compare-submit').click();
+
+		await assertPricingCalculatorOutcome(page);
+		await expect(page.getByTestId('pricing-withheld-providers')).toContainText(
+			'Withheld from this comparison: Elastic Cloud (unverified).'
+		);
+	});
+
 	test('pricing page omits legacy landing-only policies section', async ({ page }) => {
 		await page.goto('/pricing');
 		const main = page.getByRole('main');
@@ -112,7 +167,7 @@ test.describe('Pricing page', () => {
 			MARKETING_PRICING.shared_minimum_spend_cents
 		);
 
-		expect(expectedMinimumLabel).toBe('$5');
+		expect(expectedMinimumLabel).toBe('$15');
 
 		for (const viewport of auditViewports) {
 			await test.step(`${viewport.width}x${viewport.height}`, async () => {
@@ -131,7 +186,7 @@ test.describe('Pricing page', () => {
 				await expect(paidPlanMinimumRow).toBeVisible();
 				await expect(paidPlanMinimumValues).toHaveCount(1);
 				await expect(paidPlanMinimumValues).toBeVisible();
-				await expect(pricingMain).not.toContainText('$5.00');
+				await expect(pricingMain).not.toContainText('$15.00');
 			});
 		}
 	});
@@ -162,7 +217,9 @@ test.describe('Pricing page', () => {
 		await expect(pricingMain).toContainText('Hot index storage');
 		await expect(pricingMain).toContainText('Cold snapshot storage');
 		await expect(pricingMain).toContainText('Paid-plan minimum');
-		await expect(pricingMain).toContainText('$5/month paid-plan minimum');
+		await expect(pricingMain).toContainText(
+			`${sharedPlanMinimumMonthlyLabel(marketingSnapshot.shared_minimum_spend_cents)}/month paid-plan minimum`
+		);
 		await expect(page.getByTestId('public-beta-banner')).toContainText(/public beta/i);
 		await expect(pricingMain).toContainText(marketingSnapshot.storage_rate_per_mb_month);
 		await expect(pricingMain).toContainText(marketingSnapshot.cold_storage_rate_per_gb_month);

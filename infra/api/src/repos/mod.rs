@@ -62,9 +62,9 @@ pub use algolia_import_job_repo::{
 pub use api_key_repo::ApiKeyRepo;
 pub use cold_snapshot_repo::ColdSnapshotRepo;
 pub use customer_repo::{
-    CustomerHardDeleteKind, CustomerHardDeleteOutcome, CustomerRepo, ResendPasswordResetOutcome,
-    ResendPasswordResetReservation, ResendVerificationOutcome, ResendVerificationReservation,
-    RESEND_VERIFICATION_COOLDOWN_SECONDS,
+    AdminCustomerListQuery, AdminCustomerStatus, CustomerHardDeleteKind, CustomerHardDeleteOutcome,
+    CustomerRepo, ResendPasswordResetOutcome, ResendPasswordResetReservation,
+    ResendVerificationOutcome, ResendVerificationReservation, RESEND_VERIFICATION_COOLDOWN_SECONDS,
 };
 pub use deployment_repo::DeploymentRepo;
 pub use dispute_repo::{DisputeRepo, DisputeRow, DisputeUpsertInput};

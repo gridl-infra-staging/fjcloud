@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Postgres, Transaction};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 use crate::models::tenant::{CustomerTenant, CustomerTenantSummary};
@@ -339,6 +340,33 @@ impl TenantRepo for PgTenantRepo {
         .map_err(|e| RepoError::Other(e.to_string()))?;
 
         Ok(row.0)
+    }
+
+    /// Single grouped `= ANY($1)` batch read — never fans out through
+    /// `count_by_customer`. Empty slice early-returns without a query.
+    /// Customers with zero non-terminated indexes are simply absent from the
+    /// returned map, matching the `GROUP BY` result set.
+    async fn count_by_customers(
+        &self,
+        customer_ids: &[Uuid],
+    ) -> Result<BTreeMap<Uuid, i64>, RepoError> {
+        if customer_ids.is_empty() {
+            return Ok(BTreeMap::new());
+        }
+
+        let rows: Vec<(Uuid, i64)> = sqlx::query_as(
+            "SELECT ct.customer_id, COUNT(*) \
+                 FROM customer_tenants ct \
+                 JOIN customer_deployments cd ON ct.deployment_id = cd.id \
+                 WHERE ct.customer_id = ANY($1) AND cd.status != 'terminated' \
+                 GROUP BY ct.customer_id",
+        )
+        .bind(customer_ids.to_vec())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| RepoError::Other(e.to_string()))?;
+
+        Ok(rows.into_iter().collect())
     }
 
     async fn count_logical_index_slots(&self, customer_id: Uuid) -> Result<i64, RepoError> {

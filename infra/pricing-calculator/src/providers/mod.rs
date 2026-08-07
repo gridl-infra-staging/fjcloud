@@ -132,13 +132,28 @@ pub fn all_metadata() -> Vec<ProviderMetadata> {
         .collect()
 }
 
-/// Returns cost estimates from all registered providers.
+/// Returns whether a provider is *published* in the compared estimate output.
 ///
-/// All 6 providers are wired (5 competitors + Flapjack Cloud). Uses the same module list as
-/// `all_metadata()` to prevent drift.
+/// Publication is **derived**, never stored: a provider appears in `all_estimates()`
+/// exactly when its pricing metadata carries a source-backed verification date. This
+/// delegates to `ProviderMetadata::is_verified()` (i.e. `last_verified.is_some()`) so the
+/// single meaning of "published" stays canonical for this crate and for Stage 3's API/UI
+/// `withheld_providers` contract. There is deliberately no `published` field on
+/// `ProviderMetadata` — a stored flag could drift from `last_verified`.
+pub fn is_published(metadata: &ProviderMetadata) -> bool {
+    metadata.is_verified()
+}
+
+/// Returns cost estimates from every *published* provider.
+///
+/// All 6 providers are registered (5 competitors + Flapjack Cloud), but only those whose
+/// metadata is published (`is_published`) appear here — withholding is a publication
+/// decision at the estimate seam, not deletion from the registry. `all_metadata()` stays
+/// the full denominator. Uses the same module list as `all_metadata()` to prevent drift.
 pub fn all_estimates(workload: &WorkloadProfile) -> Vec<EstimatedCost> {
     provider_registry()
         .iter()
+        .filter(|registration| is_published(&(registration.metadata)()))
         .map(|registration| (registration.estimate)(workload))
         .collect()
 }
@@ -308,13 +323,91 @@ mod tests {
         }
     }
 
+    /// The published id set, in registry order, derived from the same predicate the
+    /// production seam uses. Every published-set expectation below derives from this
+    /// helper rather than a hardcoded provider list, so it tracks metadata changes.
+    fn published_provider_ids() -> Vec<ProviderId> {
+        all_metadata()
+            .into_iter()
+            .filter(is_published)
+            .map(|metadata| metadata.id)
+            .collect()
+    }
+
+    /// The unpublished id set (never-verified metadata), derived from the same predicate.
+    fn unpublished_provider_ids() -> Vec<ProviderId> {
+        all_metadata()
+            .into_iter()
+            .filter(|metadata| !is_published(metadata))
+            .map(|metadata| metadata.id)
+            .collect()
+    }
+
+    // --- Publication rule at the estimate seam ---------------------------------
+
+    /// (a) A provider whose `last_verified` is `None` is withheld from `all_estimates()`.
+    #[test]
+    fn all_estimates_omits_unpublished_providers() {
+        let unpublished = unpublished_provider_ids();
+        assert!(
+            !unpublished.is_empty(),
+            "guard is only meaningful when at least one provider is unpublished"
+        );
+
+        let estimate_ids: HashSet<ProviderId> = all_estimates(&test_workload())
+            .iter()
+            .map(|estimate| estimate.provider)
+            .collect();
+        for id in unpublished {
+            assert!(
+                !estimate_ids.contains(&id),
+                "unpublished provider {:?} must be withheld from all_estimates()",
+                id
+            );
+        }
+    }
+
+    /// (b) The withheld providers still appear in `all_metadata()` — the registry stays
+    /// the full denominator; withholding is a publication decision, not deletion.
+    #[test]
+    fn all_metadata_retains_unpublished_providers() {
+        let unpublished = unpublished_provider_ids();
+        assert!(
+            !unpublished.is_empty(),
+            "guard is only meaningful when at least one provider is unpublished"
+        );
+
+        let metadata_ids: HashSet<ProviderId> = all_metadata().iter().map(|m| m.id).collect();
+        for id in unpublished {
+            assert!(
+                metadata_ids.contains(&id),
+                "registry denominator must retain unpublished provider {:?}",
+                id
+            );
+        }
+    }
+
+    /// `all_estimates()` publishes exactly the published id set, in registry order.
+    #[test]
+    fn all_estimates_publishes_exactly_the_published_set() {
+        let estimate_ids: Vec<ProviderId> = all_estimates(&test_workload())
+            .iter()
+            .map(|estimate| estimate.provider)
+            .collect();
+        assert_eq!(
+            estimate_ids,
+            published_provider_ids(),
+            "all_estimates() must publish exactly the published set in registry order"
+        );
+    }
+
     #[test]
     fn all_estimates_returns_one_estimate_per_registered_provider() {
         let estimates = all_estimates(&test_workload());
         assert_eq!(
             estimates.len(),
-            provider_registry().len(),
-            "Expected one estimate per provider registration"
+            published_provider_ids().len(),
+            "Expected one estimate per published provider"
         );
     }
 
@@ -324,7 +417,7 @@ mod tests {
             .iter()
             .map(|e| e.provider)
             .collect();
-        let expected: HashSet<ProviderId> = CANONICAL_PROVIDER_ORDER.iter().copied().collect();
+        let expected: HashSet<ProviderId> = published_provider_ids().into_iter().collect();
         assert_eq!(expected, actual);
     }
 
@@ -334,7 +427,7 @@ mod tests {
             .iter()
             .map(|e| e.provider)
             .collect();
-        assert_eq!(ids, CANONICAL_PROVIDER_ORDER);
+        assert_eq!(ids, published_provider_ids());
     }
 
     /// Verifies every estimate carries explainability fields (assumptions and line items) needed for human-auditable cost output.
@@ -343,8 +436,8 @@ mod tests {
         let estimates = all_estimates(&test_workload());
         assert_eq!(
             estimates.len(),
-            provider_registry().len(),
-            "Expected transparency checks over all registered providers"
+            published_provider_ids().len(),
+            "Expected transparency checks over all published providers"
         );
         for estimate in estimates {
             assert!(
@@ -378,11 +471,11 @@ mod tests {
     const STAGE_2_UNVERIFIED_COMPETITOR_EVIDENCE: &[(ProviderId, &str)] = &[
         (
             ProviderId::ElasticCloud,
-            "docs/audits/pricing-verification/20260805T155326Z/: source gap: hosted pricing page confirms the $99/month 120 GB 2-zone Standard baseline but does not expose the modeled RAM-indexed tier ladder or the baseline RAM figure",
+            "docs/audits/pricing-verification/20260806T151052Z/: source gap: hosted pricing page confirms the $99/month 120 GB 2-zone Standard baseline but does not expose the modeled RAM-indexed tier ladder, the shared storage-to-RAM multiplier, or ELASTICSEARCH_MIN_RAM_GIB",
         ),
         (
             ProviderId::AwsOpenSearch,
-            "docs/audits/pricing-verification/20260805T155326Z/: source gap: AWS offer files back every priced constant, but fetched sources do not back DEDICATED_MASTER_INSTANCE_NAME, the seven instance RAM values, or ELASTICSEARCH_MIN_RAM_GIB",
+            "docs/audits/pricing-verification/20260806T151052Z/: source gap: AWS offer files back every price, but fetched sources do not back DEDICATED_MASTER_INSTANCE_NAME, six of seven instance RAM values, the shared storage-to-RAM multiplier, or ELASTICSEARCH_MIN_RAM_GIB; RESULTS_PER_PAGE also differs from the documented OpenSearch default",
         ),
     ];
 
@@ -449,7 +542,7 @@ mod tests {
                 id
             );
             assert!(
-                reason.contains("docs/audits/pricing-verification/20260805T155326Z/"),
+                reason.contains("docs/audits/pricing-verification/20260806T151052Z/"),
                 "Stage 2 evidence reason for {:?} must point to the current evidence bundle",
                 id
             );

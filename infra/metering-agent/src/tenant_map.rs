@@ -65,6 +65,13 @@ pub fn normalize_url(url: &str) -> String {
     url.trim_end_matches('/').to_string()
 }
 
+fn engine_identity(url: &str) -> Option<String> {
+    reqwest::Url::parse(url)
+        .ok()?
+        .host_str()
+        .map(str::to_ascii_lowercase)
+}
+
 pub async fn fetch_tenant_map(
     cfg: &Config,
     http: &reqwest::Client,
@@ -88,9 +95,11 @@ pub async fn fetch_tenant_map(
 ///   is accepted.  This is the single-node / local-dev mode where there is no
 ///   multi-VM topology.
 /// - **Routing metadata present** (at least one entry has `flapjack_url`):
-///   only entries whose `flapjack_url` matches `local_flapjack_url` (after
-///   stripping trailing slashes) are kept.  Entries without a URL are skipped
-///   — they cannot be routed to this node.
+///   entries whose `flapjack_url` has the same engine host identity as
+///   `local_flapjack_url` are kept even when producers disagree on scheme or
+///   port spelling. If either URL cannot be parsed, routing falls back to the
+///   legacy normalized string comparison that strips trailing slashes. Entries
+///   without a URL are skipped — they cannot be routed to this node.
 ///
 /// Duplicate `tenant_id` values within the local subset are deduplicated:
 /// the first occurrence wins and a warning is logged for subsequent ones.
@@ -104,6 +113,7 @@ pub fn replace_tenant_map_cache(
 ) {
     tenant_map.clear();
     let local_url = normalize_url(local_flapjack_url);
+    let local_engine_identity = engine_identity(local_flapjack_url);
     let has_routing_metadata = entries.iter().any(|entry| entry.flapjack_url.is_some());
 
     for entry in entries {
@@ -112,7 +122,18 @@ pub fn replace_tenant_map_cache(
             let Some(entry_url) = entry.flapjack_url.as_deref() else {
                 continue;
             };
-            if normalize_url(entry_url) != local_url {
+            let same_engine_identity =
+                match (engine_identity(entry_url), local_engine_identity.as_deref()) {
+                    (Some(entry_identity), Some(local_identity)) => {
+                        entry_identity == local_identity
+                    }
+                    _ => false,
+                };
+            // Avoid billing attribution loss when bootstrap writes
+            // `http://$NODE_ID:7700` (ops/user-data/bootstrap.sh:143) while
+            // provisioning reports `https://host` without the port
+            // (infra/api/src/services/provisioning/auto_provision.rs:701-712).
+            if !same_engine_identity && normalize_url(entry_url) != local_url {
                 continue;
             }
         }
@@ -202,7 +223,7 @@ pub async fn refresh_tenant_map(
 mod tests {
     use super::*;
     use axum::{extract::State, http::HeaderMap, routing::get, Router};
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
     use tokio::net::TcpListener;
     use uuid::Uuid;
 
@@ -557,6 +578,92 @@ mod tests {
         assert!(map.get("no-url").is_none());
     }
 
+    fn routed_entry(tenant_id: &str, customer_id: Uuid, flapjack_url: &str) -> TenantMapEntry {
+        TenantMapEntry {
+            tenant_id: tenant_id.to_string(),
+            flapjack_uid: None,
+            customer_id,
+            vm_id: Some(Uuid::new_v4()),
+            flapjack_url: Some(flapjack_url.to_string()),
+            tier: "active".to_string(),
+            created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
+        }
+    }
+
+    fn assert_url_not_routed(entry_url: &str, local_url: &str) {
+        let map: TenantCustomerMap = Arc::new(DashMap::new());
+        replace_tenant_map_cache(
+            &map,
+            vec![routed_entry("products", Uuid::new_v4(), entry_url)],
+            local_url,
+        );
+        assert!(resolve_tenant_attribution(&map, "products").is_none());
+    }
+
+    #[test]
+    fn replace_cache_keeps_same_engine_when_tls_control_plane_omits_port() {
+        let map: TenantCustomerMap = Arc::new(DashMap::new());
+        let customer_id = Uuid::new_v4();
+
+        replace_tenant_map_cache(
+            &map,
+            vec![routed_entry(
+                "products",
+                customer_id,
+                "https://vm-shared-1ca0d103.flapjack.foo",
+            )],
+            "http://vm-shared-1ca0d103.flapjack.foo:7700",
+        );
+
+        assert_eq!(
+            resolve_tenant_attribution(&map, "products")
+                .expect("same engine tenant should remain cached")
+                .customer_id,
+            customer_id
+        );
+    }
+
+    #[test]
+    fn replace_cache_rejects_different_engine_hosts() {
+        assert_url_not_routed("https://vm-a.flapjack.foo", "http://vm-b.flapjack.foo:7700");
+    }
+
+    #[test]
+    fn replace_cache_rejects_loopback_alias_engine_hosts() {
+        assert_url_not_routed("http://localhost:7700", "http://127.0.0.1:7700");
+    }
+
+    #[test]
+    fn dedicated_deployment_node_id_hostname_gap_remains_unmatched() {
+        assert_url_not_routed(
+            "https://vm-1ca0d103.flapjack.foo",
+            "http://node-550e8400-e29b-41d4-a716-446655440000:7700",
+        );
+    }
+
+    #[test]
+    fn replace_cache_falls_back_to_normalized_urls_when_parsing_fails() {
+        let map: TenantCustomerMap = Arc::new(DashMap::new());
+        let local_customer = Uuid::new_v4();
+
+        replace_tenant_map_cache(
+            &map,
+            vec![
+                routed_entry("local", local_customer, "not-a-url/"),
+                routed_entry("remote", Uuid::new_v4(), "other-invalid-url"),
+            ],
+            "not-a-url",
+        );
+
+        assert_eq!(
+            resolve_tenant_attribution(&map, "local")
+                .expect("normalized legacy URL should remain routable")
+                .customer_id,
+            local_customer
+        );
+        assert!(resolve_tenant_attribution(&map, "remote").is_none());
+    }
+
     #[test]
     fn tenant_map_entry_defaults_tier_to_active() {
         let json = r#"{"tenant_id": "t1", "customer_id": "00000000-0000-0000-0000-000000000001"}"#;
@@ -661,99 +768,8 @@ mod tests {
             local_customer
         );
     }
-
-    /// Guards the periodic-refresh invariant: the cache must not be replaced
-    /// before `refresh_interval` has elapsed, but must be fully replaced once
-    /// the interval has passed.
-    ///
-    /// The test advances a simulated clock by 120 s (below the 300 s interval)
-    /// and verifies no refresh occurs, then advances past 600 s and verifies
-    /// that the new payload — including a previously absent `new-index` — is
-    /// now present in the cache.
-    #[test]
-    fn metering_refreshes_tenant_map_periodically() {
-        let tenant_map: TenantCustomerMap = Arc::new(DashMap::new());
-        let refresh_interval = Duration::from_secs(300);
-        let mut last_refresh = Some(Instant::now());
-        let local_flapjack_url = "http://localhost:7700";
-
-        let first_customer = Uuid::new_v4();
-        tenant_map.insert(
-            "products".to_string(),
-            TenantAttribution {
-                customer_id: first_customer,
-                tenant_id: "products".to_string(),
-                tier: "active".to_string(),
-                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
-            },
-        );
-
-        let did_refresh = refresh_tenant_map_cache_if_due(
-            &tenant_map,
-            &mut last_refresh,
-            Instant::now() + Duration::from_secs(120),
-            refresh_interval,
-            local_flapjack_url,
-            vec![
-                TenantMapEntry {
-                    tenant_id: "products".to_string(),
-                    flapjack_uid: Some(format!("{}_products", first_customer.as_simple())),
-                    customer_id: first_customer,
-                    vm_id: None,
-                    flapjack_url: Some(local_flapjack_url.to_string()),
-                    tier: "active".to_string(),
-                    created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
-                },
-                TenantMapEntry {
-                    tenant_id: "new-index".to_string(),
-                    flapjack_uid: None,
-                    customer_id: Uuid::new_v4(),
-                    vm_id: None,
-                    flapjack_url: Some(local_flapjack_url.to_string()),
-                    tier: "active".to_string(),
-                    created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
-                },
-            ],
-        );
-        assert!(!did_refresh);
-        assert!(tenant_map.get("new-index").is_none());
-
-        let new_customer = Uuid::new_v4();
-        let did_refresh = refresh_tenant_map_cache_if_due(
-            &tenant_map,
-            &mut last_refresh,
-            Instant::now() + Duration::from_secs(601),
-            refresh_interval,
-            local_flapjack_url,
-            vec![
-                TenantMapEntry {
-                    tenant_id: "products".to_string(),
-                    flapjack_uid: Some(format!("{}_products", first_customer.as_simple())),
-                    customer_id: first_customer,
-                    vm_id: None,
-                    flapjack_url: Some(local_flapjack_url.to_string()),
-                    tier: "active".to_string(),
-                    created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
-                },
-                TenantMapEntry {
-                    tenant_id: "new-index".to_string(),
-                    flapjack_uid: None,
-                    customer_id: new_customer,
-                    vm_id: None,
-                    flapjack_url: Some(local_flapjack_url.to_string()),
-                    tier: "active".to_string(),
-                    created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
-                },
-            ],
-        );
-        assert!(did_refresh);
-        assert_eq!(
-            tenant_map
-                .get("new-index")
-                .expect("new-index should be present after refresh")
-                .value()
-                .customer_id,
-            new_customer
-        );
-    }
 }
+
+#[cfg(test)]
+#[path = "tenant_map_refresh_tests.rs"]
+mod tenant_map_refresh_tests;

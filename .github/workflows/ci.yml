@@ -287,6 +287,8 @@ jobs:
         run: bash scripts/tests/git_push_with_sync_test.sh
       - name: Run prod-promotion gate contract test
         run: bash scripts/tests/post_wave_a_sync_prod_test.sh
+      - name: Run publish guard contract test
+        run: bash scripts/tests/publish_guard_test.sh
       - name: Run roadmap v2 shape contract
         run: bash scripts/check_roadmap_v2_shape.sh
       - name: Run local-dev contract regression test

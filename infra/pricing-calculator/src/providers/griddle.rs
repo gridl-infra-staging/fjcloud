@@ -43,7 +43,10 @@ const CENTS_PER_MB_MONTH: i64 = 5;
 /// traceability link stays greppable across the two layers. "Shared" is the
 /// internal plan identifier only; every customer-facing string in this module
 /// says "Paid" — see `estimate_plan_names_use_public_paid_vocabulary`.
-const SHARED_MINIMUM_MONTHLY_CENTS: i64 = 1_500;
+///
+/// This is public so the billing/web parity test can prove the migration, web,
+/// and calculator owners agree without exporting unrelated pricing constants.
+pub const SHARED_MINIMUM_MONTHLY_CENTS: i64 = 1_500;
 
 /// Free cap: "250 MB hot storage".
 const FREE_HOT_STORAGE_MB: rust_decimal::Decimal = rust_decimal_macros::dec!(250);
@@ -288,7 +291,6 @@ mod tests {
         assert_eq!(FREE_SEARCHES_PER_MONTH, 50_000);
         assert_eq!(FREE_INDEXES, 3);
         assert_eq!(CENTS_PER_MB_MONTH, 5);
-        assert_eq!(SHARED_MINIMUM_MONTHLY_CENTS, 1_500);
     }
 
     // --- estimate() tests ---

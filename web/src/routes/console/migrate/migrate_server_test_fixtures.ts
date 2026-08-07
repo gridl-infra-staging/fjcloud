@@ -102,11 +102,21 @@ export function sourceListPayload(sourceProvider: SourceProvider) {
 			cursor: 'algolia_cursor'
 		};
 	}
+	if (sourceProvider === 'meilisearch') {
+		return {
+			source_provider: 'meilisearch',
+			endpoint: 'https://meilisearch.example.test',
+			apiKey: 'meilisearch_api_key_canary',
+			offset: 25,
+			limit: 100
+		};
+	}
 	return {
-		source_provider: sourceProvider,
-		host: `https://${sourceProvider}.example.test`,
-		apiKey: `${sourceProvider}_api_key_canary`,
-		cursor: `${sourceProvider}_cursor`
+		source_provider: 'typesense',
+		node: 'https://typesense.example.test',
+		apiKey: 'typesense_api_key_canary',
+		offset: 25,
+		limit: 100
 	};
 }
 

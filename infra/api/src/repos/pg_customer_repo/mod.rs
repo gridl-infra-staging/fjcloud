@@ -17,8 +17,9 @@ use uuid::Uuid;
 
 use crate::models::{Customer, IngestQuotaWarningMetric};
 use crate::repos::customer_repo::{
-    CustomerHardDeleteKind, CustomerHardDeleteOutcome, CustomerRepo, ResendPasswordResetOutcome,
-    ResendPasswordResetReservation, ResendVerificationOutcome, ResendVerificationReservation,
+    AdminCustomerListQuery, CustomerHardDeleteKind, CustomerHardDeleteOutcome, CustomerRepo,
+    ResendPasswordResetOutcome, ResendPasswordResetReservation, ResendVerificationOutcome,
+    ResendVerificationReservation,
 };
 use crate::repos::error::RepoError;
 use crate::services::audit_log::AuditEntry;
@@ -38,6 +39,10 @@ impl PgCustomerRepo {
 impl CustomerRepo for PgCustomerRepo {
     async fn list(&self) -> Result<Vec<Customer>, RepoError> {
         queries::list(&self.pool).await
+    }
+
+    async fn list_admin(&self, query: AdminCustomerListQuery) -> Result<Vec<Customer>, RepoError> {
+        queries::list_admin(&self.pool, query).await
     }
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<Customer>, RepoError> {

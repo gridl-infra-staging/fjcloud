@@ -2,6 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 
 import MigrationCreateFlow from './MigrationCreateFlow.svelte';
+import { createAuthenticatedClient, mockFetch } from '$lib/api/client.test.shared';
+import {
+	HOSTED_SOURCE_INDEXES_WIRE_RESPONSE,
+	HOSTED_SOURCE_INDEX_EXPECTED_PAIRS
+} from '$lib/api/client_migration_test_fixtures';
 import type { SourceProvider } from '$lib/api/types';
 import {
 	API_KEY_CANARY,
@@ -331,6 +336,17 @@ describe('MigrationCreateFlow - neutral source provider invalidation', () => {
 		await screen.findByTestId('migration-source-row-source_products');
 	}
 
+	async function connectRealClientToMeilisearch() {
+		await fireEvent.click(screen.getByRole('radio', { name: /meilisearch/i }));
+		await fireEvent.input(screen.getByLabelText(/meilisearch host url/i), {
+			target: { value: 'https://meilisearch.example.test' }
+		});
+		await fireEvent.input(screen.getByLabelText(/meilisearch api key/i), {
+			target: { value: API_KEY_CANARY }
+		});
+		await fireEvent.click(screen.getByRole('button', { name: /connect to meilisearch/i }));
+	}
+
 	async function establishNeutralSubmitIntent(
 		sourceProvider: SourceProvider,
 		client: ReturnType<typeof neutralClient>
@@ -370,6 +386,50 @@ describe('MigrationCreateFlow - neutral source provider invalidation', () => {
 		expect(client.checkMigrationDestinationEligibility).toHaveBeenCalledOnce();
 		expect(client.createMigrationImportJob).toHaveBeenCalledOnce();
 	}
+
+	it('renders hosted Meilisearch index rows from the real client contract', async () => {
+		const client = createAuthenticatedClient();
+		client.setFetch(mockFetch(200, HOSTED_SOURCE_INDEXES_WIRE_RESPONSE));
+		render(MigrationCreateFlow, {
+			client,
+			providerEligibility: ELIGIBLE_AWS_PROVIDER,
+			capabilities: availableAvailability.capabilities
+		});
+
+		await connectRealClientToMeilisearch();
+
+		for (const { name, entries } of HOSTED_SOURCE_INDEX_EXPECTED_PAIRS) {
+			const row = await screen.findByTestId(`migration-source-row-${name}`);
+			expect(row).toHaveTextContent(name);
+			expect(row).toHaveTextContent(`${entries} records`);
+		}
+	});
+
+	it('loads the next Meilisearch page with a numeric offset and no hosted cursor field', async () => {
+		const client = neutralClient({
+			listMigrationSourceIndexes: vi
+				.fn()
+				.mockResolvedValueOnce(listResponse([sourceIndex()], '25'))
+				.mockResolvedValueOnce(listResponse([sourceIndex({ name: 'meili_orders' })], null))
+		});
+		render(MigrationCreateFlow, {
+			client: client.client,
+			providerEligibility: ELIGIBLE_AWS_PROVIDER,
+			capabilities: availableAvailability.capabilities
+		});
+
+		await connectNeutralSource('meilisearch', client);
+		await fireEvent.click(screen.getByRole('button', { name: /load more source indexes/i }));
+
+		await screen.findByTestId('migration-source-row-meili_orders');
+		expect(client.listMigrationSourceIndexes).toHaveBeenLastCalledWith('meilisearch', {
+			endpoint: 'https://meilisearch.example.test',
+			apiKey: API_KEY_CANARY,
+			offset: 25,
+			limit: 100
+		});
+		expect(client.listMigrationSourceIndexes.mock.calls.at(-1)?.[1]).not.toHaveProperty('cursor');
+	});
 
 	it.each([
 		{
@@ -453,7 +513,7 @@ describe('MigrationCreateFlow - neutral source provider invalidation', () => {
 		await connectNeutralSource('typesense', client, publicStateCanary);
 		expect(screen.getByLabelText(/typesense api key/i)).toHaveValue(publicStateCanary);
 		expect(client.listMigrationSourceIndexes).toHaveBeenCalledWith('typesense', {
-			host: 'https://typesense.example.test',
+			node: 'https://typesense.example.test',
 			apiKey: publicStateCanary
 		});
 

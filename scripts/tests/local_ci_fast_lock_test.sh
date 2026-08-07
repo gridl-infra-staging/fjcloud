@@ -817,29 +817,55 @@ test_unset_wait_budget_defaults_to_bounded_wait() {
     export FJCLOUD_LOCAL_CI_FAST_LOCK_WAIT_SECONDS
 }
 
-test_default_wait_budget_records_open_caller_session_constraint() {
+test_default_wait_plus_one_run_fits_the_caller_session() {
     # Budgets come from the sourced FAST_LOCK_* constants so this stays pinned
     # to the single owner rather than to literals copied into the harness.
-    # The 2386-second upper-bound specimen leaves only 14 seconds of caller
-    # session headroom, so the retuned default is still too large to close the
-    # caller-session constraint by itself. Closing requires either shrinking
-    # the fjcloud whole-suite gate composition (`scripts/local-ci.sh --fast`)
-    # or raising matt's caller timeout (`matt_root/matt/llm.py`, timeout=2400).
-    local residual_seconds worst_case_seconds fits positive
+    #
+    # This assertion was inverted until 2026-08-06. It recorded the constraint
+    # as OPEN and named its two closing moves: shrink the whole-suite gate, or
+    # raise matt's caller timeout. The second was taken --- matt's `build` and
+    # `review_remediation` prompt types are now sized against this repo's
+    # measured gate rather than sharing the generic session fallback. The test
+    # is kept, not deleted, because its arithmetic is the tripwire that fires
+    # if the gate grows back past the budget.
+    #
+    # It also carried a real defect while it was open: it compared the run
+    # against the whole session budget, but matt interrupts a session for
+    # wrap-up at 90% of that budget, so the deadline a gate must actually beat
+    # was 10% lower than this test claimed. The wrap-up lead is included below.
+    local working_budget worst_case_seconds fits positive margin_seconds
 
     assert_eq "$FAST_LOCK_MEASURED_FAST_RUN_SECONDS" "2386" \
         "measured runtime rounds the same-locality 2385.98-second specimen up without under-counting"
     assert_eq "$FAST_LOCK_DEFAULT_WAIT_SECONDS" "300" \
         "default wait is the Stage 2 retune value, not a false green residual"
-    residual_seconds=$(( FAST_LOCK_CALLER_SESSION_BUDGET_SECONDS - FAST_LOCK_MEASURED_FAST_RUN_SECONDS ))
-    assert_eq "$residual_seconds" "14" \
-        "2386-second upper-bound specimen leaves only 14 seconds of caller-session headroom"
+
+    # Integer arithmetic only: this harness runs under bash 3.2, which has no
+    # floating point. 90% is expressed as *9/10 rather than *0.9.
+    working_budget=$(( FAST_LOCK_CALLER_SESSION_BUDGET_SECONDS
+        * (100 - FAST_LOCK_CALLER_SESSION_WRAPUP_LEAD_PERCENT) / 100 ))
     worst_case_seconds=$(( FAST_LOCK_DEFAULT_WAIT_SECONDS + FAST_LOCK_MEASURED_FAST_RUN_SECONDS ))
 
-    fits=$([ "$worst_case_seconds" -le "$FAST_LOCK_CALLER_SESSION_BUDGET_SECONDS" ] \
-        && printf 'fits' || printf 'exceeds')
-    assert_eq "$fits" "exceeds" \
-        "default wait plus one measured run remains above the caller session budget (default_wait=${FAST_LOCK_DEFAULT_WAIT_SECONDS}s + measured_run=${FAST_LOCK_MEASURED_FAST_RUN_SECONDS}s = ${worst_case_seconds}s vs caller_session_budget=${FAST_LOCK_CALLER_SESSION_BUDGET_SECONDS}s; close by shrinking scripts/local-ci.sh --fast or raising matt_root/matt/llm.py timeout=2400)"
+    fits=$([ "$worst_case_seconds" -le "$working_budget" ] && printf 'fits' || printf 'exceeds')
+    assert_eq "$fits" "fits" \
+        "default wait plus one measured run must fit before the caller session's wrap-up interrupt (default_wait=${FAST_LOCK_DEFAULT_WAIT_SECONDS}s + measured_run=${FAST_LOCK_MEASURED_FAST_RUN_SECONDS}s = ${worst_case_seconds}s vs working_budget=${working_budget}s of caller_session_budget=${FAST_LOCK_CALLER_SESSION_BUDGET_SECONDS}s; close by shrinking scripts/local-ci.sh --fast or raising matt's build/review_remediation prompt-type timeout)"
+
+    # Fitting is necessary but not sufficient: a lane that spends its entire
+    # session in the gate has no time left to act on the result. Require a
+    # stated working margin so a future gate growth that technically fits still
+    # fails here rather than silently starving the work the session exists to do.
+    #
+    # 600s is the floor because a session that runs the whole-suite gate is the
+    # one at the END of a stage --- the code is already written --- so what it
+    # still owes is interpreting the summary, committing, and pushing. Ten
+    # minutes covers that. It deliberately does NOT budget for a second gate
+    # run: a red gate legitimately ends the session without pushing and the next
+    # session retries, and sizing for two runs would push this budget past any
+    # value a hung session should be allowed to burn.
+    margin_seconds=$(( working_budget - worst_case_seconds ))
+    assert_eq "$([ "$margin_seconds" -ge 600 ] && printf 'sufficient' || printf 'starved')" \
+        "sufficient" \
+        "the session needs working time beyond the gate; margin=${margin_seconds}s is below the 600s floor"
 
     # Guards the opposite failure mode: shrinking the default to fit must not
     # take it to 0, which is the instant-refusal regression the bounded wait
@@ -866,7 +892,7 @@ test_bounded_wait_includes_metadata_guard_attempt_time
 test_bounded_wait_accounts_for_missing_guard_fallback_race
 test_wait_seconds_parse_decimal_and_clamp_invalid
 test_unset_wait_budget_defaults_to_bounded_wait
-test_default_wait_budget_records_open_caller_session_constraint
+test_default_wait_plus_one_run_fits_the_caller_session
 test_in_progress_holder_publication_is_not_reclaimed
 test_orphaned_reclaim_claim_is_recovered
 test_orphaned_metadata_guard_is_recovered

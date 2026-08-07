@@ -180,7 +180,7 @@ function validatedHostedSourceOrigin(value: string): string {
 function sanitizeHostedSourceField<T>(
 	sourceProvider: SourceProvider,
 	payload: T,
-	field: 'host' | 'endpoint'
+	field: 'host' | 'endpoint' | 'node'
 ): T {
 	if (sourceProvider === 'algolia') {
 		return payload;
@@ -188,7 +188,7 @@ function sanitizeHostedSourceField<T>(
 	if (typeof payload !== 'object' || payload === null || !(field in payload)) {
 		throw new InvalidSourceHostError();
 	}
-	const value = (payload as Partial<Record<'host' | 'endpoint', unknown>>)[field];
+	const value = (payload as Partial<Record<'host' | 'endpoint' | 'node', unknown>>)[field];
 	if (typeof value !== 'string') {
 		throw new InvalidSourceHostError();
 	}
@@ -200,6 +200,16 @@ function sanitizeHostedSourceField<T>(
 
 function sanitizeHostedSourcePayload<T>(sourceProvider: SourceProvider, payload: T): T {
 	return sanitizeHostedSourceField(sourceProvider, payload, 'host');
+}
+
+function sanitizeSourceDiscoveryPayload<T>(sourceProvider: SourceProvider, payload: T): T {
+	if (sourceProvider === 'meilisearch') {
+		return sanitizeHostedSourceField(sourceProvider, payload, 'endpoint');
+	}
+	if (sourceProvider === 'typesense') {
+		return sanitizeHostedSourceField(sourceProvider, payload, 'node');
+	}
+	return payload;
 }
 
 function sanitizePreviewPayload(
@@ -335,7 +345,7 @@ export const actions: Actions = {
 				await request.formData()
 			);
 			sourceProvider = parsed.sourceProvider;
-			payload = sanitizeHostedSourcePayload(sourceProvider, parsed.payload);
+			payload = sanitizeSourceDiscoveryPayload(sourceProvider, parsed.payload);
 		} catch (error) {
 			return payloadFailure(error) ?? fail(400, { error: MIGRATION_ACTION_FAILED });
 		}

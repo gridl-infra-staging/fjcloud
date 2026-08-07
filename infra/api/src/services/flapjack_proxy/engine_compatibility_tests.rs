@@ -67,6 +67,63 @@ fn strict_requirements() -> FlapjackEngineRequirements {
     )
 }
 
+/// The Flapjack version rule is implemented twice — here and in Python inside
+/// `scripts/lib/local_stack_contract.sh`. Both read the SAME spec file, which is
+/// the only thing preventing the two from drifting apart.
+///
+/// The fixture is embedded by absolute path derived from `CARGO_MANIFEST_DIR`, so
+/// a deleted or renamed spec is a COMPILE error rather than a silently skipped
+/// test.
+#[test]
+fn flapjack_engine_compatibility_matches_shared_version_floor_spec() {
+    const SPEC: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../scripts/tests/fixtures/flapjack_version_floor_cases.json"
+    ));
+
+    let spec: serde_json::Value =
+        serde_json::from_str(SPEC).expect("shared version-floor spec must be valid JSON");
+    let cases = spec["cases"]
+        .as_array()
+        .expect("shared version-floor spec must have a `cases` array");
+    assert!(
+        !cases.is_empty(),
+        "shared version-floor spec must not be empty"
+    );
+
+    for case in cases {
+        let observed = case["observed"].as_str().expect("case.observed");
+        let floor = case["floor"].as_str().expect("case.floor");
+        let expected = case["expect"].as_str().expect("case.expect");
+
+        // Only the version requirement is set, and health carries only a version,
+        // so nothing else (revision, build id, dirty, capability) can decide the
+        // outcome. A blank floor is normalised to None by `new`, which is how
+        // "no version requirement configured" is represented.
+        let requirements = FlapjackEngineRequirements::new(Some(floor), None, None, None, None);
+        let body = json!({ "version": observed }).to_string();
+
+        assert_eq!(
+            classify_flapjack_health(&body, &requirements, false).as_str(),
+            expected,
+            "shared version-floor spec: observed={observed:?} floor={floor:?}"
+        );
+    }
+
+    // Guards against the spec being hollowed out into only-accepting rows, which
+    // would leave both implementations' rejection paths untested.
+    let expectations: std::collections::HashSet<&str> = cases
+        .iter()
+        .filter_map(|case| case["expect"].as_str())
+        .collect();
+    for required in ["match", "version_mismatch", "version_unparseable"] {
+        assert!(
+            expectations.contains(required),
+            "shared version-floor spec must keep at least one `{required}` case"
+        );
+    }
+}
+
 #[test]
 fn algolia_import_admission_maps_every_compatibility_reason_exhaustively() {
     let cases = [
@@ -74,6 +131,10 @@ fn algolia_import_admission_maps_every_compatibility_reason_exhaustively() {
         (
             FlapjackRuntimeIdentityReason::RuntimeUnreachable,
             Err(AlgoliaImportErrorCode::BackendUnavailable),
+        ),
+        (
+            FlapjackRuntimeIdentityReason::VersionUnparseable,
+            Err(AlgoliaImportErrorCode::EngineUpgradeRequired),
         ),
         (
             FlapjackRuntimeIdentityReason::VersionMismatch,
@@ -148,9 +209,29 @@ async fn flapjack_engine_compatibility_classifies_stage_one_reasons() {
             }),
             FlapjackRuntimeIdentityReason::Match,
         ),
+        // DELIBERATE SPEC CHANGE (was VersionMismatch). The pin is a floor, not
+        // an equality target, so an engine NEWER than the pinned release is
+        // accepted. This exact case — a locally source-built engine one release
+        // ahead of the pin — is what the old rule rejected, and rejecting it is
+        // what drove a lane to repoint FLAPJACK_DEV_DIR at a stale checkout and
+        // report a green it had not earned.
         (
             json!({
                 "version": "1.0.11",
+                "producer_revision": "abc123",
+                "build_id": "build-1",
+                "binary_sha256": "sha-1",
+                "dirty": false,
+                "capabilities": ["preview_events_v1"]
+            }),
+            FlapjackRuntimeIdentityReason::Match,
+        ),
+        // The floor still refuses genuinely too-old engines. 1.0.9 against a
+        // 1.0.10 floor is also the case a string comparison gets wrong in the
+        // dangerous direction: lexically "1.0.9" > "1.0.10".
+        (
+            json!({
+                "version": "1.0.9",
                 "producer_revision": "abc123",
                 "build_id": "build-1",
                 "binary_sha256": "sha-1",

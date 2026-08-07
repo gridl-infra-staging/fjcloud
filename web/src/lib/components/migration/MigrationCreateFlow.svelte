@@ -21,7 +21,7 @@
 		checkMigrationDestination,
 		createMigrationJob,
 		listMigrationSources,
-		migrationSourceCredentials,
+		migrationSourcePageRequest,
 		sourceCredentialFingerprint
 	} from './migration_create_client';
 	import type { MigrationCreateClient } from './migration_create_client';
@@ -601,10 +601,12 @@
 		};
 		discoveryError = null;
 		try {
-			const credentials = {
-				...migrationSourceCredentials(requestSourceProvider, requestIdentity, requestApiKey),
-				...(cursor === null ? {} : { cursor })
-			};
+			const credentials = migrationSourcePageRequest(
+				requestSourceProvider,
+				requestIdentity,
+				requestApiKey,
+				cursor
+			);
 			const [page, apiKeyFingerprint] = await Promise.all([
 				listMigrationSources(client, requestSourceProvider, credentials),
 				requestApiKeyFingerprint

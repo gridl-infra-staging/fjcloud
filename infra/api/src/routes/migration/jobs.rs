@@ -6,14 +6,14 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
 use chrono::Utc;
-use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::auth::AuthenticatedTenant;
 use crate::errors::ApiError;
 use crate::models::algolia_import_job::{
-    AlgoliaImportDestinationKind, AlgoliaImportJob, SourceImportProvider,
+    AlgoliaImportDestinationKind, AlgoliaImportJob, AlgoliaImportSource,
+    AlgoliaImportSourceMetadata, SourceImportProvider,
 };
 use crate::models::AlgoliaImportErrorCode;
 use crate::repos::{
@@ -21,11 +21,17 @@ use crate::repos::{
     PgSourceMigrationJobRepo, SourceMigrationJobRepo,
 };
 use crate::services::algolia_import::{
-    AlgoliaImportAdmissionError, AlgoliaImportAdmissionRequest, AlgoliaImportCancelContext,
+    AlgoliaImportAdmissionError, AlgoliaImportAdmissionRequest, AlgoliaImportAdmissionSource,
+    AlgoliaImportCancelContext,
 };
 use crate::services::algolia_source::AlgoliaSourceInspectRequest;
 use crate::state::AppState;
 
+use super::create_request::{
+    CreateAlgoliaImportJobRequest, CreateAlgoliaImportJobTargetRequest,
+    CreateImportJobSourceRevisionRequest, CreateMeilisearchImportJobRequest,
+    CreateSourceImportJobRequest, CreateTypesenseImportJobRequest,
+};
 use super::retained_jobs::{
     ensure_job_matches_requested_provider, public_algolia_import_job, PublicAlgoliaImportJob,
 };
@@ -33,164 +39,41 @@ use super::{
     job_not_found, map_algolia_source_error, map_create_admission_error, map_job_admission_error,
     migration_backend_unavailable, migration_code_error, migration_error, migration_unavailable,
     require_json_content_type, serde_offending_field, validate_adapter_source_provider,
-    MigrationJobPath, MigrationSourcePath, REDACTED_CREDENTIAL,
+    MigrationJobPath, MigrationSourcePath,
 };
 
-#[derive(Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct CreateAlgoliaImportJobRequest {
-    pub(super) mode: AlgoliaImportDestinationKind,
-    pub(super) app_id: String,
-    pub(super) api_key: String,
-    pub(super) source_name: String,
-    pub(super) target: CreateAlgoliaImportJobTargetRequest,
-}
-
-impl fmt::Debug for CreateAlgoliaImportJobRequest {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("CreateAlgoliaImportJobRequest")
-            .field("mode", &self.mode)
-            .field("app_id", &REDACTED_CREDENTIAL)
-            .field("api_key", &REDACTED_CREDENTIAL)
-            .field("source_name", &REDACTED_CREDENTIAL)
-            .field("target", &self.target)
-            .finish()
-    }
-}
-
-/// Redacting serializer. `Serialize` exists only to satisfy the documentation union's
-/// bounds; `ToSchema` reads the serde attributes above, not this impl, so the published
-/// schema is unaffected while no serde emission can leak a credential.
-impl Serialize for CreateAlgoliaImportJobRequest {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut request = serializer.serialize_struct("CreateAlgoliaImportJobRequest", 5)?;
-        request.serialize_field("mode", &self.mode)?;
-        request.serialize_field("appId", REDACTED_CREDENTIAL)?;
-        request.serialize_field("apiKey", REDACTED_CREDENTIAL)?;
-        request.serialize_field("sourceName", REDACTED_CREDENTIAL)?;
-        request.serialize_field("target", &self.target)?;
-        request.end()
-    }
-}
-
-#[derive(Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct CreateMeilisearchImportJobRequest {
-    pub(super) mode: AlgoliaImportDestinationKind,
-    pub(super) endpoint: String,
-    pub(super) api_key: String,
-    pub(super) source_index: String,
-    pub(super) target: CreateAlgoliaImportJobTargetRequest,
-}
-
-impl fmt::Debug for CreateMeilisearchImportJobRequest {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("CreateMeilisearchImportJobRequest")
-            .field("mode", &self.mode)
-            .field("endpoint", &REDACTED_CREDENTIAL)
-            .field("api_key", &REDACTED_CREDENTIAL)
-            .field("source_index", &REDACTED_CREDENTIAL)
-            .field("target", &self.target)
-            .finish()
-    }
-}
-
-impl Serialize for CreateMeilisearchImportJobRequest {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut request = serializer.serialize_struct("CreateMeilisearchImportJobRequest", 5)?;
-        request.serialize_field("mode", &self.mode)?;
-        request.serialize_field("endpoint", REDACTED_CREDENTIAL)?;
-        request.serialize_field("apiKey", REDACTED_CREDENTIAL)?;
-        request.serialize_field("sourceIndex", REDACTED_CREDENTIAL)?;
-        request.serialize_field("target", &self.target)?;
-        request.end()
-    }
-}
-
-#[derive(Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct CreateTypesenseImportJobRequest {
-    pub(super) mode: AlgoliaImportDestinationKind,
-    pub(super) node: String,
-    pub(super) api_key: String,
-    pub(super) source_index: String,
-    pub(super) target: CreateAlgoliaImportJobTargetRequest,
-}
-
-impl fmt::Debug for CreateTypesenseImportJobRequest {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("CreateTypesenseImportJobRequest")
-            .field("mode", &self.mode)
-            .field("node", &REDACTED_CREDENTIAL)
-            .field("api_key", &REDACTED_CREDENTIAL)
-            .field("source_index", &REDACTED_CREDENTIAL)
-            .field("target", &self.target)
-            .finish()
-    }
-}
-
-impl Serialize for CreateTypesenseImportJobRequest {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut request = serializer.serialize_struct("CreateTypesenseImportJobRequest", 5)?;
-        request.serialize_field("mode", &self.mode)?;
-        request.serialize_field("node", REDACTED_CREDENTIAL)?;
-        request.serialize_field("apiKey", REDACTED_CREDENTIAL)?;
-        request.serialize_field("sourceIndex", REDACTED_CREDENTIAL)?;
-        request.serialize_field("target", &self.target)?;
-        request.end()
-    }
-}
-
-#[derive(Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(super) struct CreateAlgoliaImportJobTargetRequest {
-    pub(super) eligibility_token: String,
-}
-
-impl fmt::Debug for CreateAlgoliaImportJobTargetRequest {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("CreateAlgoliaImportJobTargetRequest")
-            .field("eligibility_token", &REDACTED_CREDENTIAL)
-            .finish()
-    }
-}
-
-impl Serialize for CreateAlgoliaImportJobTargetRequest {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut target = serializer.serialize_struct("CreateAlgoliaImportJobTargetRequest", 1)?;
-        target.serialize_field("eligibilityToken", REDACTED_CREDENTIAL)?;
-        target.end()
-    }
-}
-
-/// Documentation-only union; runtime deserialization remains provider-selected in the handler.
-#[derive(Serialize, ToSchema)]
-#[serde(untagged)]
-pub enum CreateSourceImportJobRequest {
-    Algolia(CreateAlgoliaImportJobRequest),
-    Meilisearch(CreateMeilisearchImportJobRequest),
-    Typesense(CreateTypesenseImportJobRequest),
+/// Serialized shape of a hosted `list-indexes` credential envelope. A struct
+/// rather than a `json!` map so the emitted field order is fixed by the
+/// declaration and cannot drift with map ordering.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HostedDiscoveryCredentials<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    endpoint: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    node: Option<&'a str>,
+    api_key: &'a str,
 }
 
 struct CreateImportJobAdmissionRequest {
+    source_provider: SourceImportProvider,
     mode: AlgoliaImportDestinationKind,
     source_connection_id: String,
     api_key: String,
     source_name: String,
+    source_revision: Option<CreateImportJobSourceRevisionRequest>,
     target: CreateAlgoliaImportJobTargetRequest,
 }
 
 impl From<CreateAlgoliaImportJobRequest> for CreateImportJobAdmissionRequest {
     fn from(request: CreateAlgoliaImportJobRequest) -> Self {
         Self {
+            source_provider: SourceImportProvider::Algolia,
             mode: request.mode,
             source_connection_id: request.app_id,
             api_key: request.api_key,
             source_name: request.source_name,
+            source_revision: request.source_revision,
             target: request.target,
         }
     }
@@ -199,10 +82,12 @@ impl From<CreateAlgoliaImportJobRequest> for CreateImportJobAdmissionRequest {
 impl From<CreateMeilisearchImportJobRequest> for CreateImportJobAdmissionRequest {
     fn from(request: CreateMeilisearchImportJobRequest) -> Self {
         Self {
+            source_provider: SourceImportProvider::Meilisearch,
             mode: request.mode,
             source_connection_id: request.endpoint,
             api_key: request.api_key,
             source_name: request.source_index,
+            source_revision: request.source_revision,
             target: request.target,
         }
     }
@@ -211,13 +96,69 @@ impl From<CreateMeilisearchImportJobRequest> for CreateImportJobAdmissionRequest
 impl From<CreateTypesenseImportJobRequest> for CreateImportJobAdmissionRequest {
     fn from(request: CreateTypesenseImportJobRequest) -> Self {
         Self {
+            source_provider: SourceImportProvider::Typesense,
             mode: request.mode,
             source_connection_id: request.node,
             api_key: request.api_key,
             source_name: request.source_index,
+            source_revision: request.source_revision,
             target: request.target,
         }
     }
+}
+
+impl CreateImportJobAdmissionRequest {
+    fn source_requires_inspection(&self) -> bool {
+        self.source_provider == SourceImportProvider::Algolia
+    }
+
+    /// Credential envelope for a create-time discovery re-read, byte-shaped like
+    /// the picker's own `list-indexes` body so both reads observe the same
+    /// source through the same engine adapter.
+    ///
+    /// Algolia is deliberately absent: its create path already inspects the live
+    /// source through the Algolia source service, and its discovery `entries`
+    /// statistic comes from a different upstream API than that inspection, so
+    /// the two counts are not comparable and a mismatch would not prove drift.
+    fn hosted_discovery_credentials(&self) -> Option<String> {
+        hosted_discovery_credentials(
+            self.source_provider,
+            &self.source_connection_id,
+            &self.api_key,
+        )
+    }
+
+    fn hosted_source(&self) -> AlgoliaImportSource {
+        AlgoliaImportSource::from_final_key_metadata(
+            self.source_connection_id.clone(),
+            self.source_name.clone(),
+            AlgoliaImportSourceMetadata::new(None, None, self.source_provider.as_str()),
+        )
+    }
+}
+
+fn hosted_discovery_credentials(
+    source_provider: SourceImportProvider,
+    source_connection_id: &str,
+    api_key: &str,
+) -> Option<String> {
+    let credentials = match source_provider {
+        SourceImportProvider::Algolia => return None,
+        SourceImportProvider::Meilisearch => HostedDiscoveryCredentials {
+            endpoint: Some(source_connection_id),
+            node: None,
+            api_key,
+        },
+        SourceImportProvider::Typesense => HostedDiscoveryCredentials {
+            endpoint: None,
+            node: Some(source_connection_id),
+            api_key,
+        },
+    };
+    Some(
+        serde_json::to_string(&credentials)
+            .expect("hosted discovery credentials contain only serializable strings"),
+    )
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -269,7 +210,7 @@ pub async fn create_import_job(
     let source_provider = validate_adapter_source_provider(path.source_provider.as_deref())?;
     require_json_content_type(&headers)?;
     // Opaque extraction preserves labelled handler errors instead of Axum 422 responses.
-    let request = deserialize_create_import_job_request(source_provider, &body)?;
+    let mut request = deserialize_create_import_job_request(source_provider, &body)?;
     if !state.algolia_migration_enabled {
         return Err(migration_unavailable());
     }
@@ -279,6 +220,10 @@ pub async fn create_import_job(
             "invalid_algolia_credentials",
             AlgoliaImportErrorCode::InvalidCredentials,
         ));
+    }
+    if request.source_provider != SourceImportProvider::Algolia {
+        request.source_connection_id =
+            super::source::validate_hosted_source_origin(&request.source_connection_id)?;
     }
     let idempotency_key = headers
         .get("idempotency-key")
@@ -302,6 +247,7 @@ pub async fn create_import_job(
     // fresh create-target placement/compatibility admission or credential-bearing
     // source inspection, so a retained job replays unchanged under later drift.
     let replay_identity = AlgoliaImportDispatchReplayIdentity {
+        source_provider: request.source_provider,
         app_id: request.source_connection_id.clone(),
         source_name: request.source_name.clone(),
         kind: target_binding.mode(),
@@ -327,15 +273,25 @@ pub async fn create_import_job(
             Json(body),
         ));
     }
-    let inspected_source = state
-        .algolia_source_service
-        .inspect_source(AlgoliaSourceInspectRequest {
-            app_id: request.source_connection_id.clone(),
-            api_key: zeroize::Zeroizing::new(request.api_key.clone()),
-            source_name: request.source_name.clone(),
-        })
-        .await
-        .map_err(map_algolia_source_error)?;
+    // Prove the chosen source still matches what the picker showed before any
+    // placement is reserved. Refusing here rather than after admission is what
+    // keeps a drifted source from spending destination capacity or leaving a
+    // retained job behind: the customer is answered at the point of choice,
+    // where re-reading the source is the next thing they can do.
+    ensure_hosted_source_revision_unchanged(&state, &request).await?;
+    let inspected_source = if request.source_requires_inspection() {
+        state
+            .algolia_source_service
+            .inspect_source(AlgoliaSourceInspectRequest {
+                app_id: request.source_connection_id.clone(),
+                api_key: zeroize::Zeroizing::new(request.api_key.clone()),
+                source_name: request.source_name.clone(),
+            })
+            .await
+            .map_err(map_algolia_source_error)?
+    } else {
+        request.hosted_source()
+    };
     let create_target = match target_binding.mode() {
         AlgoliaImportDestinationKind::Create => Some(
             crate::routes::indexes::lifecycle::prepare_algolia_create_target(
@@ -355,9 +311,12 @@ pub async fn create_import_job(
             AlgoliaImportAdmissionRequest::new(
                 target_binding,
                 create_target,
-                request.source_connection_id,
-                request.api_key,
-                request.source_name,
+                AlgoliaImportAdmissionSource::new(
+                    request.source_provider,
+                    request.source_connection_id,
+                    request.api_key,
+                    request.source_name,
+                ),
                 idempotency_key,
             ),
             inspected_source,
@@ -374,6 +333,70 @@ pub async fn create_import_job(
         StatusCode::ACCEPTED,
         [(axum::http::header::LOCATION, location)],
         Json(body),
+    ))
+}
+
+/// Compare the revision the picker pinned against a fresh read of the same
+/// hosted discovery surface.
+///
+/// A request that pinned nothing is not evaluated: the picker never showed the
+/// customer a count to be stale against, so there is no baseline to refuse on.
+/// Once a baseline exists, anything that is not an equal, determinate count is
+/// drift — a different count, a source that vanished, or an adapter that can no
+/// longer report the count it reported at discovery. Failing closed here is
+/// what keeps the guard able to fail: an indeterminate re-read must not read as
+/// "the source held still".
+async fn ensure_hosted_source_revision_unchanged(
+    state: &AppState,
+    request: &CreateImportJobAdmissionRequest,
+) -> Result<(), ApiError> {
+    let (Some(pinned), Some(credentials)) = (
+        request.source_revision.as_ref(),
+        request.hosted_discovery_credentials(),
+    ) else {
+        return Ok(());
+    };
+    let observed = super::source::read_hosted_source_revision(
+        state,
+        request.source_provider,
+        &credentials,
+        &request.source_name,
+    )
+    .await?;
+    if observed.as_ref().is_some_and(|revision| {
+        revision.document_count == pinned.document_count
+            && match (&pinned.revision, &revision.revision) {
+                (Some(pinned_revision), Some(observed_revision)) => {
+                    pinned_revision == observed_revision
+                }
+                // Only providers that never carry a content revision may fall
+                // back to the timestamp. Typesense always has a computable
+                // export hash, so a missing one is a failed read, not "this
+                // source has no revision" — and released Typesense discovery
+                // reports `updatedAt: null`, so a nullable-timestamp match
+                // would otherwise admit a same-count content mutation whenever
+                // both hash reads failed.
+                (None, None) => {
+                    request.source_provider != SourceImportProvider::Typesense
+                        && revision.updated_at == pinned.updated_at
+                }
+                _ => false,
+            }
+    }) {
+        return Ok(());
+    }
+    tracing::info!(
+        source_provider = request.source_provider.as_str(),
+        pinned_document_count = pinned.document_count,
+        pinned_updated_at = ?pinned.updated_at,
+        observed_document_count = ?observed.as_ref().map(|revision| revision.document_count),
+        observed_updated_at = ?observed.as_ref().and_then(|revision| revision.updated_at.as_ref()),
+        observed_revision = ?observed.as_ref().and_then(|revision| revision.revision.as_ref()),
+        "hosted migration source changed between discovery and create"
+    );
+    Err(migration_code_error(
+        StatusCode::BAD_REQUEST,
+        AlgoliaImportErrorCode::SourceChanged,
     ))
 }
 
@@ -556,15 +579,7 @@ pub async fn resume_import_job(
     ensure_job_matches_requested_provider(&retained, requested_provider)?;
     validate_resume_candidate(&retained)
         .map_err(|code| migration_code_error(StatusCode::CONFLICT, code))?;
-    state
-        .algolia_source_service
-        .inspect_source(AlgoliaSourceInspectRequest {
-            app_id: retained.algolia_app_id,
-            api_key: zeroize::Zeroizing::new(request.api_key),
-            source_name: retained.source_name,
-        })
-        .await
-        .map_err(map_algolia_source_error)?;
+    validate_resume_source_access(&state, &retained, request.api_key).await?;
     let outcome = repo
         .prepare_resume_for_customer(auth.customer_id, id, Utc::now())
         .await
@@ -573,6 +588,45 @@ pub async fn resume_import_job(
         transition_status(outcome.disposition),
         Json(public_algolia_import_job(outcome.job)),
     ))
+}
+
+async fn validate_resume_source_access(
+    state: &AppState,
+    retained: &AlgoliaImportJob,
+    api_key: String,
+) -> Result<(), ApiError> {
+    if retained.source_provider == SourceImportProvider::Algolia {
+        state
+            .algolia_source_service
+            .inspect_source(AlgoliaSourceInspectRequest {
+                app_id: retained.algolia_app_id.clone(),
+                api_key: zeroize::Zeroizing::new(api_key),
+                source_name: retained.source_name.clone(),
+            })
+            .await
+            .map_err(map_algolia_source_error)?;
+        return Ok(());
+    }
+
+    let source_connection_id =
+        super::source::validate_hosted_source_origin(&retained.algolia_app_id)?;
+    let credentials =
+        hosted_discovery_credentials(retained.source_provider, &source_connection_id, &api_key)
+            .expect("hosted providers always have hosted discovery credentials");
+    super::source::read_hosted_source_revision(
+        state,
+        retained.source_provider,
+        &credentials,
+        &retained.source_name,
+    )
+    .await?
+    .ok_or_else(|| {
+        migration_code_error(
+            StatusCode::BAD_REQUEST,
+            AlgoliaImportErrorCode::SourceNotFound,
+        )
+    })?;
+    Ok(())
 }
 
 fn transition_status(disposition: AlgoliaImportTransitionDisposition) -> StatusCode {
@@ -723,6 +777,7 @@ mod tests {
             reserved_customer_storage_bytes: 200,
             reserved_node_transient_bytes: 300,
             retryable: true,
+            engine_unavailable_since: None,
             worker_claimed_at: None,
             worker_lease_expires_at: None,
             cancel_requested_at: Some(cancel_requested_at),

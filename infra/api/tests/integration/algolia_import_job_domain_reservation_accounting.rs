@@ -922,6 +922,80 @@ async fn active_node_import_job_limit_rejects_with_backend_unavailable() {
 }
 
 #[tokio::test]
+async fn stale_lifecycle_generation_imports_do_not_hold_node_capacity() {
+    let Some(db) = connect_and_migrate("algolia_reserve_node_stale_generation").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let vm_id = insert_vm(&db.pool, 100_000_000, 0).await;
+    let quota = json!({ "max_indexes": 100, "max_storage_bytes": 100_000_000_i64 });
+
+    for index in 0..4 {
+        let customer = Uuid::new_v4();
+        insert_customer(&db.pool, customer).await;
+        let target = format!("stale-products-{index}");
+        insert_replace_target_on_vm(&db.pool, customer, &target, vm_id, quota.clone()).await;
+        repo.create_replace(replace_job_sized(
+            customer,
+            &target,
+            &format!("stale-replace-{index}"),
+            100,
+        ))
+        .await
+        .expect("active node import inside stale fixture limit");
+        sqlx::query(
+            "UPDATE customers SET lifecycle_generation = lifecycle_generation + 1 WHERE id = $1",
+        )
+        .bind(customer)
+        .execute(&db.pool)
+        .await
+        .expect("advance customer lifecycle generation after retained import admission");
+    }
+
+    let active_customer = Uuid::new_v4();
+    insert_customer(&db.pool, active_customer).await;
+    insert_replace_target_on_vm(&db.pool, active_customer, "fresh-products", vm_id, quota).await;
+    repo.create_replace(replace_job_sized(
+        active_customer,
+        "fresh-products",
+        "fresh-replace-after-stale-generations",
+        100,
+    ))
+    .await
+    .expect("stale-generation imports must not consume active node import capacity");
+}
+
+#[tokio::test]
+async fn logical_slot_count_ignores_stale_lifecycle_reservations() {
+    let Some(db) = connect_and_migrate("algolia_reserve_slot_stale_generation").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer = Uuid::new_v4();
+    insert_customer(&db.pool, customer).await;
+
+    repo.create(create_job_sized(
+        customer,
+        "stale-create-target",
+        "stale-create-reservation",
+        100,
+    ))
+    .await
+    .expect("retain current-generation create reservation");
+    assert_eq!(repo.count_logical_index_slots(customer).await.unwrap(), 1);
+
+    sqlx::query(
+        "UPDATE customers SET lifecycle_generation = lifecycle_generation + 1 WHERE id = $1",
+    )
+    .bind(customer)
+    .execute(&db.pool)
+    .await
+    .expect("advance customer lifecycle generation");
+
+    assert_eq!(repo.count_logical_index_slots(customer).await.unwrap(), 0);
+}
+
+#[tokio::test]
 async fn terminal_no_dispatch_failure_clears_active_customer_limit() {
     let Some(db) = connect_and_migrate("algolia_reserve_limit_release").await else {
         return;

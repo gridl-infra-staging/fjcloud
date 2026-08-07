@@ -102,21 +102,12 @@ export function sourceListPayload(sourceProvider: SourceProvider) {
 			cursor: 'algolia_cursor'
 		};
 	}
-	if (sourceProvider === 'meilisearch') {
-		return {
-			source_provider: 'meilisearch',
-			endpoint: 'https://meilisearch.example.test',
-			apiKey: 'meilisearch_api_key_canary',
-			offset: 25,
-			limit: 100
-		};
-	}
 	return {
-		source_provider: 'typesense',
-		node: 'https://typesense.example.test',
-		apiKey: 'typesense_api_key_canary',
-		offset: 25,
-		limit: 100
+		source_provider: sourceProvider,
+		...(sourceProvider === 'meilisearch'
+			? { endpoint: `https://${sourceProvider}.example.test` }
+			: { node: `https://${sourceProvider}.example.test` }),
+		apiKey: `${sourceProvider}_api_key_canary`
 	};
 }
 
@@ -134,9 +125,11 @@ export function createJobPayload(sourceProvider: SourceProvider) {
 	return {
 		source_provider: sourceProvider,
 		mode: 'create',
-		host: `https://${sourceProvider}.example.test`,
+		...(sourceProvider === 'meilisearch'
+			? { endpoint: `https://${sourceProvider}.example.test` }
+			: { node: `https://${sourceProvider}.example.test` }),
 		apiKey: `${sourceProvider}_api_key_canary`,
-		sourceName: `${sourceProvider}_products`,
+		sourceIndex: `${sourceProvider}_products`,
 		target: { eligibilityToken: `${sourceProvider}-target-token` }
 	};
 }

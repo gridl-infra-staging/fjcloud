@@ -443,6 +443,7 @@ mod tests {
             reserved_customer_storage_bytes: 200,
             reserved_node_transient_bytes: 300,
             retryable: true,
+            engine_unavailable_since: None,
             worker_claimed_at: None,
             worker_lease_expires_at: None,
             cancel_requested_at: Some(cancel_requested_at),

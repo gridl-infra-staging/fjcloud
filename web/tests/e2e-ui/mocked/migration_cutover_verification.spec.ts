@@ -154,9 +154,9 @@ test.describe('cutover verification mocked retained job panel', () => {
 		await openCutoverVerificationPanel(page, fixture);
 
 		await expect(page.getByRole('button', { name: 'Run verification' })).toBeVisible();
-		await expect(
-			page.getByText(describeUnsupportedCutoverVerification('meilisearch'))
-		).toHaveCount(0);
+		await expect(page.getByText(describeUnsupportedCutoverVerification('meilisearch'))).toHaveCount(
+			0
+		);
 		await assertMigrationFixtureSatisfied(fixture, { jobLoads: true });
 	});
 });

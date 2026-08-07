@@ -41,6 +41,7 @@ pub(super) struct FakeReconciliationStore {
     acknowledgements: Mutex<Vec<Uuid>>,
     terminal_outcomes: Mutex<VecDeque<AlgoliaImportTerminalFinalizationOutcome>>,
     claim_calls: Mutex<usize>,
+    deferred_tombstone_retries: Mutex<Vec<Uuid>>,
 }
 
 #[derive(Clone)]
@@ -58,6 +59,7 @@ impl FakeReconciliationStore {
             acknowledgements: Mutex::new(Vec::new()),
             terminal_outcomes: Mutex::new(VecDeque::new()),
             claim_calls: Mutex::new(0),
+            deferred_tombstone_retries: Mutex::new(Vec::new()),
         }
     }
 
@@ -72,6 +74,7 @@ impl FakeReconciliationStore {
             acknowledgements: Mutex::new(Vec::new()),
             terminal_outcomes: Mutex::new(outcomes.into()),
             claim_calls: Mutex::new(0),
+            deferred_tombstone_retries: Mutex::new(Vec::new()),
         }
     }
 
@@ -126,13 +129,19 @@ impl AlgoliaImportReconciliationStore for FakeReconciliationStore {
     async fn record_reconciliation_observation(
         &self,
         _lease: &AlgoliaImportReconciliationLease,
-        _observed_at: DateTime<Utc>,
+        observed_at: DateTime<Utc>,
         state: AlgoliaImportJobState,
+        authenticated_engine_absence: bool,
     ) -> Result<AlgoliaImportReconciliationWriteOutcome, RepoError> {
         let mut job = self.job.lock().unwrap();
         let unavailable_state_changed = (job.error_code
             == Some(AlgoliaImportErrorCode::BackendUnavailable))
             != (state.error_code == Some(AlgoliaImportErrorCode::BackendUnavailable));
+        job.engine_unavailable_since = if authenticated_engine_absence {
+            job.engine_unavailable_since.or(Some(observed_at))
+        } else {
+            None
+        };
         job.status = state.status;
         job.summary = state.summary.clone();
         job.terminal_outcome_observed = state.terminal_outcome_observed;
@@ -172,6 +181,9 @@ impl AlgoliaImportReconciliationStore for FakeReconciliationStore {
         job.error_code = fact.error_code;
         job.error_message.clone_from(&fact.error_message);
         job.engine_ack_state = AlgoliaImportEngineAckState::OutboxPending;
+        // Mirrors persist_terminal_state.
+        job.retryable = false;
+        job.engine_unavailable_since = None;
         job.terminal_at = Some(fact.terminal_at);
         job.worker_claimed_at = None;
         job.worker_lease_expires_at = None;
@@ -191,6 +203,15 @@ impl AlgoliaImportReconciliationStore for FakeReconciliationStore {
             id,
             engine_ack_state: job.engine_ack_state,
         })
+    }
+
+    async fn defer_erased_tombstone_retry(
+        &self,
+        id: Uuid,
+        _retry_after: DateTime<Utc>,
+    ) -> Result<(), RepoError> {
+        self.deferred_tombstone_retries.lock().unwrap().push(id);
+        Ok(())
     }
 }
 
@@ -293,6 +314,7 @@ pub(super) fn job(now: DateTime<Utc>, vm_id: Uuid) -> AlgoliaImportJob {
         reserved_customer_storage_bytes: 1024,
         reserved_node_transient_bytes: 1024,
         retryable: true,
+        engine_unavailable_since: None,
         worker_claimed_at: None,
         worker_lease_expires_at: None,
         cancel_requested_at: None,

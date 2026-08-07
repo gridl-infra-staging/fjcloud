@@ -226,6 +226,7 @@ pub const BEARER_SCHEME_NAME: &str = "bearer_jwt";
         crate::routes::migration::SourceIndexSummary,
         crate::routes::migration::SourceIndexCreatedAt,
         crate::routes::migration::CreateSourceImportJobRequest,
+        crate::routes::migration::CreateImportJobSourceRevisionRequest,
         crate::routes::migration::CreateAlgoliaImportJobRequest,
         crate::routes::migration::CreateMeilisearchImportJobRequest,
         crate::routes::migration::CreateTypesenseImportJobRequest,

@@ -204,6 +204,14 @@ impl AlgoliaImportJobRepo for FinalizingCancelRepo {
         panic!("cancel test does not record resume acceptance")
     }
 
+    async fn defer_erased_tombstone_retry(
+        &self,
+        _id: Uuid,
+        _retry_after: DateTime<Utc>,
+    ) -> Result<(), RepoError> {
+        unimplemented!("erased tombstone deferral is not exercised by this fixture")
+    }
+
     async fn mark_engine_acknowledged(
         &self,
         _id: Uuid,

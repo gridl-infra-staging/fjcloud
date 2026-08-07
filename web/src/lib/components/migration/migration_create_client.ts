@@ -1,7 +1,11 @@
 import type { ApiClient } from '$lib/api/client';
 import type {
 	AlgoliaDestinationEligibilityRequest,
+	AlgoliaIndexMetadata,
+	AlgoliaMigrationDestinationMode,
 	CreateMigrationImportJobRequest,
+	CreateMigrationImportJobSourceRevisionRequest,
+	ListMigrationSourceIndexesInput,
 	ListMigrationSourceIndexesRequest,
 	MigrationPreviewArguments,
 	MigrationPreviewResponse,
@@ -27,6 +31,16 @@ export type MigrationCreateClient =
 			Partial<NeutralMigrationCreateClient>);
 
 const HOSTED_SOURCE_DISCOVERY_PAGE_SIZE = 100;
+
+type MigrationCreateRequestInput = {
+	sourceProvider: SourceProvider;
+	mode: AlgoliaMigrationDestinationMode;
+	sourceIdentity: string;
+	apiKey: string;
+	sourceName: string;
+	selectedSource: AlgoliaIndexMetadata | null;
+	eligibilityToken: string;
+};
 
 export async function sourceCredentialFingerprint(value: string): Promise<string> {
 	const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
@@ -58,12 +72,12 @@ export function migrationSourcePageRequest(
 	sourceIdentity: string,
 	apiKey: string,
 	cursor: string | null
-): ListMigrationSourceIndexesRequest {
+): ListMigrationSourceIndexesInput {
 	const credentials = migrationSourceCredentials(sourceProvider, sourceIdentity, apiKey);
 	if (cursor === null) {
 		return credentials;
 	}
-	if ('appId' in credentials) {
+	if (sourceProvider === 'algolia') {
 		return { ...credentials, cursor };
 	}
 	return {
@@ -73,10 +87,51 @@ export function migrationSourcePageRequest(
 	};
 }
 
+export function migrationSourceRevision(
+	sourceProvider: SourceProvider,
+	selectedSource: AlgoliaIndexMetadata | null
+): CreateMigrationImportJobSourceRevisionRequest | undefined {
+	if (sourceProvider === 'algolia' || selectedSource === null || selectedSource.entries < 0) {
+		return undefined;
+	}
+	const updatedAt = selectedSource.updatedAt.trim();
+	const revision = selectedSource.revision?.trim();
+	return {
+		documentCount: selectedSource.entries,
+		...(updatedAt === '' ? {} : { updatedAt }),
+		...(revision ? { revision } : {})
+	};
+}
+
+export function migrationCreateRequest({
+	sourceProvider,
+	mode,
+	sourceIdentity,
+	apiKey,
+	sourceName,
+	selectedSource,
+	eligibilityToken
+}: MigrationCreateRequestInput): CreateMigrationImportJobRequest {
+	const target = { eligibilityToken };
+	if (sourceProvider === 'algolia') {
+		return { mode, appId: sourceIdentity, apiKey, sourceName, target };
+	}
+	const hosted = {
+		mode,
+		apiKey,
+		sourceIndex: sourceName,
+		sourceRevision: migrationSourceRevision(sourceProvider, selectedSource),
+		target
+	};
+	return sourceProvider === 'meilisearch'
+		? { ...hosted, endpoint: sourceIdentity }
+		: { ...hosted, node: sourceIdentity };
+}
+
 export async function listMigrationSources(
 	client: MigrationCreateClient,
 	sourceProvider: SourceProvider,
-	request: ListMigrationSourceIndexesRequest
+	request: ListMigrationSourceIndexesInput
 ) {
 	if (usesNeutralMigrationClient(client)) {
 		return client.listMigrationSourceIndexes(sourceProvider, request);

@@ -2,7 +2,7 @@
 # Workspace-derived manual-stack port planning.
 #
 # web/playwright.config.contract.ts remains canonical for the hash constants,
-# bands, and blocked web ports. This is the only Bash mirror of that arithmetic;
+# and bands. This is the only Bash mirror of that arithmetic;
 # it reads the TypeScript owner on every call so the two runtimes cannot silently
 # acquire independent constants.
 
@@ -27,12 +27,6 @@ def const_int(name):
     raw = match.group(1).replace("_", "")
     return int(raw, 16 if raw.startswith("0x") else 10)
 
-def const_int_set(name):
-    match = re.search(rf"const {name} = new Set\(\[(.*?)\]\);", source, re.DOTALL)
-    if not match:
-        raise SystemExit(f"missing {name} in {contract_path}")
-    return {int(value.replace("_", "")) for value in re.findall(r"[0-9_]+", match.group(1))}
-
 def resolver_empty_path_fallback(name):
     pattern = (
         rf"export function {name}\(.*?\): number \{{"
@@ -43,6 +37,17 @@ def resolver_empty_path_fallback(name):
     if not match:
         raise SystemExit(f"missing empty-path fallback for {name} in {contract_path}")
     return int(match.group(1).replace("_", ""))
+
+def int_set(name):
+    match = re.search(rf"const {name} = new Set\(\[(.*?)\]\);", source, re.DOTALL)
+    if not match:
+        raise SystemExit(f"missing {name} in {contract_path}")
+    values = []
+    for raw in match.group(1).split(","):
+        candidate = raw.strip().replace("_", "")
+        if candidate:
+            values.append(int(candidate))
+    return set(values)
 
 def fnv1a_utf16(value):
     result = const_int("FNV1A_32_OFFSET_BASIS")
@@ -56,20 +61,20 @@ def fnv1a_utf16(value):
 span = const_int("PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN")
 if workspace_path:
     offset = fnv1a_utf16(workspace_path) % span
+    flapjack = const_int("PLAYWRIGHT_DEFAULT_FLAPJACK_PORT_HASH_MIN") + offset
     meilisearch = const_int("PLAYWRIGHT_DEFAULT_PORT_HASH_MIN") + offset
-    blocked_web_ports = const_int_set("CHROMIUM_BLOCKED_PLAYWRIGHT_WEB_PORTS")
+    blocked_web_ports = int_set("CHROMIUM_BLOCKED_PLAYWRIGHT_WEB_PORTS")
     while meilisearch in blocked_web_ports:
         meilisearch += 1
-    api = const_int("PLAYWRIGHT_DEFAULT_API_PORT_HASH_MIN") + offset
-    flapjack = const_int("PLAYWRIGHT_DEFAULT_FLAPJACK_PORT_HASH_MIN") + offset
+    typesense = const_int("PLAYWRIGHT_DEFAULT_API_PORT_HASH_MIN") + offset
 else:
-    meilisearch = resolver_empty_path_fallback("resolveDefaultPlaywrightWebPort")
-    api = resolver_empty_path_fallback("resolveDefaultPlaywrightApiPort")
     flapjack = resolver_empty_path_fallback("resolveDefaultPlaywrightFlapjackPort")
+    meilisearch = resolver_empty_path_fallback("resolveDefaultPlaywrightWebPort")
+    typesense = resolver_empty_path_fallback("resolveDefaultPlaywrightApiPort")
 ports = {
     "FLAPJACK_PORT": flapjack,
     "LOCAL_MEILISEARCH_PORT": meilisearch,
-    "LOCAL_TYPESENSE_PORT": api,
+    "LOCAL_TYPESENSE_PORT": typesense,
     "LOCAL_MAILPIT_UI_PORT": flapjack + (2 * span),
     "LOCAL_SMTP_PORT": flapjack + span,
     "LOCAL_S3_PORT": flapjack + (3 * span),

@@ -205,9 +205,12 @@ async fn algolia_cloud_job_create_retains_ambiguous_job_when_linkage_fails_after
             vm_id: harness.vm_id,
             physical_uid: "algolia-create-linkage-fail".to_string(),
         }),
-        "CANARYAPP456".to_string(),
-        secret_canary.to_string(),
-        "source_products".to_string(),
+        AlgoliaImportAdmissionSource::new(
+            SourceImportProvider::Algolia,
+            "CANARYAPP456".to_string(),
+            secret_canary.to_string(),
+            "source_products".to_string(),
+        ),
         "idem-linkage-fail".to_string(),
     );
 

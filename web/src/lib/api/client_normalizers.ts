@@ -96,6 +96,8 @@ type HostedSourceIndexSummary = {
 	entries?: number | null;
 	documentCount?: number | null;
 	updatedAt?: string | null;
+	revision?: string | null;
+	primaryKey?: string | null;
 };
 
 type HostedSourceListResponse = {
@@ -114,16 +116,18 @@ function isHostedSourceListResponse(payload: unknown): payload is HostedSourceLi
 }
 
 function normalizeHostedSourceIndex(index: HostedSourceIndexSummary): AlgoliaIndexMetadata {
+	const entries = index.documentCount ?? index.entries ?? 0;
 	return {
 		name: index.name,
-		entries: index.documentCount ?? index.entries ?? 0,
+		entries,
 		dataSize: 0,
 		fileSize: 0,
 		updatedAt: index.updatedAt ?? '',
 		lastBuildTimeS: 0,
 		pendingTask: false,
 		primary: null,
-		replicas: []
+		replicas: [],
+		...(index.revision == null ? {} : { revision: index.revision })
 	};
 }
 
@@ -139,15 +143,11 @@ function hostedNextCursor(response: HostedSourceListResponse): string | null {
 	return nextOffset > response.offset && nextOffset < response.total ? String(nextOffset) : null;
 }
 
-/**
- * The Rust response is an untagged union and carries no provider discriminator.
- * An `indexes` array identifies the hosted arm. Hosted `documentCount` wins over
- * fallback `entries`, missing counts become zero, and offset pagination leaves
- * this boundary as the canonical string cursor consumed by the create flow.
- */
-export function normalizeMigrationSourceListResponse(payload: unknown): AlgoliaSourceListResponse {
+export function normalizeMigrationSourceListResponse(
+	payload: AlgoliaSourceListResponse | HostedSourceListResponse
+): AlgoliaSourceListResponse {
 	if (!isHostedSourceListResponse(payload)) {
-		return payload as AlgoliaSourceListResponse;
+		return payload;
 	}
 	return {
 		items: payload.indexes.map(normalizeHostedSourceIndex),

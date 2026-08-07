@@ -222,38 +222,6 @@ start_seaweedfs_service() {
     return 1
 }
 
-source_provider_is_healthy() {
-    local service="$1" health_url="$2"
-    [ "$(compose_service_health "$service")" = "healthy" ] \
-        && curl -fsS -o /dev/null "$health_url"
-}
-
-start_source_provider_services() {
-    local meili_port="$1" typesense_port="$2" timeout="${3:-60}"
-    local meili_url="http://127.0.0.1:${meili_port}"
-    local typesense_url="http://127.0.0.1:${typesense_port}"
-
-    source_provider_prepare_run "$REPO_ROOT" || return 1
-    source_provider_mark_stack_owned
-    log "Starting Meilisearch and Typesense source providers..."
-    (cd "$REPO_ROOT" && docker compose up -d meilisearch typesense) 2>&1 \
-        | while IFS= read -r line; do log "$line"; done \
-        || return 1
-
-    if ! wait_until_success "$timeout" 2 \
-        source_provider_is_healthy meilisearch "$meili_url/health"
-    then
-        return 1
-    fi
-    if ! wait_until_success "$timeout" 2 \
-        source_provider_is_healthy typesense "$typesense_url/health"
-    then
-        return 1
-    fi
-
-    source_provider_seed_and_capture "$meili_url" "$typesense_url"
-}
-
 start_postgres_service() {
     log "Starting Postgres..."
     (cd "$REPO_ROOT" && LOCAL_DB_PORT="$DB_PORT" docker compose up -d postgres)
@@ -459,7 +427,9 @@ if source_provider_profile_enabled; then
     # re-default here or the guard and the bind would disagree.
     local_meilisearch_port="$LOCAL_MEILISEARCH_PORT"
     local_typesense_port="$LOCAL_TYPESENSE_PORT"
-    if start_source_provider_services \
+    log "Starting Meilisearch and Typesense source providers..."
+    if source_provider_start_and_seed \
+        "$REPO_ROOT" \
         "$local_meilisearch_port" \
         "$local_typesense_port" \
         "${SOURCE_PROVIDER_HEALTH_TIMEOUT_SECONDS:-60}"

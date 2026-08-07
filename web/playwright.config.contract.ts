@@ -25,6 +25,7 @@ export const PLAYWRIGHT_STORAGE_STATE = {
 } as const;
 // Covers Flapjack/migration preflight plus the stack's separate 180-second API readiness window.
 export const PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS = 600_000;
+export const PLAYWRIGHT_PROVIDER_PARITY_SHUTDOWN_TIMEOUT_MS = 30_000;
 // Firefox/WebKit dropped 2026-05-02. Playwright-on-Linux WebKit isn't real
 // Safari (no ITP, no Apple Pay, no Stripe 3DS quirks), and Firefox is
 // ~3-6% of users — neither earns its CI cycle cost at paid-beta scale.
@@ -73,6 +74,10 @@ export type PlaywrightWebServerContract = {
 	url: string;
 	reuseExistingServer: boolean;
 	timeout: number;
+	gracefulShutdown?: {
+		signal: 'SIGINT' | 'SIGTERM';
+		timeout: number;
+	};
 };
 
 export type PlaywrightRuntimeContract = {
@@ -84,6 +89,8 @@ export type PlaywrightRuntimeContract = {
 const API_BACKED_PUBLIC_SPEC_NAMES = new Set(['public-infrastructure.spec.ts']);
 const PLAYWRIGHT_SPEC_LOCATION_SUFFIX_PATTERN = /:\d+(?::\d+)?$/;
 const EMAIL_VERIFICATION_PROJECT_NAME = 'chromium:email-verification';
+const SOURCE_MIGRATION_PROVIDER_PARITY_GREP = 'source migration provider parity';
+const SOURCE_MIGRATION_PROVIDER_PARITY_SPEC = 'source_migration_provider_parity.spec.ts';
 
 function publicSpecRequiresApiStack(specFilter: string): boolean {
 	const normalizedFilter = specFilter
@@ -159,6 +166,16 @@ function isPublicOnlyPlaywrightSelection(argv: string[]): boolean {
 	);
 }
 
+function isSourceMigrationProviderParitySelection(argv: string[]): boolean {
+	return argv.some((argument) => {
+		if (argument.includes(SOURCE_MIGRATION_PROVIDER_PARITY_GREP)) return true;
+		const normalizedArgument = argument
+			.replaceAll('\\', '/')
+			.replace(PLAYWRIGHT_SPEC_LOCATION_SUFFIX_PATTERN, '');
+		return normalizedArgument.endsWith(`/${SOURCE_MIGRATION_PROVIDER_PARITY_SPEC}`);
+	});
+}
+
 const PLAYWRIGHT_DEFAULT_PORT_HASH_MIN = 5600;
 const PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN = 2000;
 const PLAYWRIGHT_DEFAULT_API_PORT_HASH_MIN = 7600;
@@ -171,6 +188,12 @@ const CHROMIUM_BLOCKED_PLAYWRIGHT_WEB_PORTS = new Set([
 // (apiPort+1, ≤9600) so the three workspace-derived ports — which all share the same
 // hash offset — never collide. 9700 + offset(0–1999) → 9700–11699, safely below 65535.
 const PLAYWRIGHT_DEFAULT_FLAPJACK_PORT_HASH_MIN = 9700;
+// Source-provider bands sit above the manual stack's database band
+// (flapjackPort + 8000, at most 19699). Provider-parity runs start all five
+// HTTP services together, so reusing the web/API bands would make a clean
+// invocation fail on its own host-port collision.
+const PLAYWRIGHT_DEFAULT_MEILISEARCH_PORT_HASH_MIN = 19700;
+const PLAYWRIGHT_DEFAULT_TYPESENSE_PORT_HASH_MIN = 21700;
 const LOOPBACK_HTTP_HOST = 'localhost';
 const API_LOOPBACK_HTTP_HOST = '127.0.0.1';
 const FNV1A_32_OFFSET_BASIS = 0x811c9dc5;
@@ -236,6 +259,28 @@ export function resolveDefaultPlaywrightFlapjackPort(
 	return PLAYWRIGHT_DEFAULT_FLAPJACK_PORT_HASH_MIN + portOffset;
 }
 
+export function resolveDefaultPlaywrightMeilisearchPort(
+	workspacePath: string = process.cwd()
+): number {
+	const normalizedWorkspacePath = workspacePath.trim();
+	if (normalizedWorkspacePath.length === 0) {
+		return 7710;
+	}
+	const portOffset = hashStringFNV1A(normalizedWorkspacePath) % PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN;
+	return PLAYWRIGHT_DEFAULT_MEILISEARCH_PORT_HASH_MIN + portOffset;
+}
+
+export function resolveDefaultPlaywrightTypesensePort(
+	workspacePath: string = process.cwd()
+): number {
+	const normalizedWorkspacePath = workspacePath.trim();
+	if (normalizedWorkspacePath.length === 0) {
+		return 8108;
+	}
+	const portOffset = hashStringFNV1A(normalizedWorkspacePath) % PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN;
+	return PLAYWRIGHT_DEFAULT_TYPESENSE_PORT_HASH_MIN + portOffset;
+}
+
 function buildPlaywrightApiUrl(port: number): string {
 	return `http://${API_LOOPBACK_HTTP_HOST}:${port}`;
 }
@@ -280,6 +325,40 @@ function resolvePlaywrightFlapjackPort(
 		return parsePlaywrightWebPort(configuredPort);
 	}
 	return resolveDefaultPlaywrightFlapjackPort(workspacePath);
+}
+
+function resolvePlaywrightSourceProviderPort(
+	processEnv: Record<string, string | undefined>,
+	envName: 'LOCAL_MEILISEARCH_PORT' | 'LOCAL_TYPESENSE_PORT',
+	defaultPort: number
+): number {
+	const configuredPort = processEnv[envName]?.trim();
+	if (!configuredPort) {
+		return defaultPort;
+	}
+	if (!/^\d+$/.test(configuredPort)) {
+		throw new Error(
+			`${envName} must be an integer TCP port when set (received "${configuredPort}")`
+		);
+	}
+	const parsedPort = Number(configuredPort);
+	if (!Number.isInteger(parsedPort) || parsedPort < 1024 || parsedPort > 65535) {
+		throw new Error(
+			`${envName} must be between 1024 and 65535 when set (received "${configuredPort}")`
+		);
+	}
+	return parsedPort;
+}
+
+function enableSourceProviderComposeProfile(processEnv: Record<string, string | undefined>): void {
+	const profiles = (processEnv.COMPOSE_PROFILES ?? '')
+		.split(',')
+		.map((profile) => profile.trim())
+		.filter(Boolean);
+	if (!profiles.includes('source-providers')) {
+		profiles.push('source-providers');
+	}
+	processEnv.COMPOSE_PROFILES = profiles.join(',');
 }
 
 function buildPlaywrightLoopbackUrl(port: number): string {
@@ -616,7 +695,17 @@ export function resolvePlaywrightRuntime({
 	// flapjack. Without this thread, seedIndex would point nodes at :7700 (a foreign
 	// worktree's flapjack) while the stack ran its own — the 403 auth-mismatch source.
 	const defaultFlapjackUrl = buildPlaywrightLoopbackUrl(flapjackPort);
+	const isSourceMigrationProviderParity = isSourceMigrationProviderParitySelection(argv);
 	const hasExplicitBaseUrl = Boolean(processEnv.BASE_URL && processEnv.BASE_URL.trim().length > 0);
+	const processApiBaseUrl = processEnv.API_BASE_URL?.trim();
+	const processApiUrl = processEnv.API_URL?.trim();
+	const apiBaseUrlIsFileBacked =
+		Boolean(processApiBaseUrl) &&
+		(processApiBaseUrl === repoEnv.API_BASE_URL?.trim() ||
+			processApiBaseUrl === webEnv.API_BASE_URL?.trim());
+	const apiUrlIsFileBacked =
+		Boolean(processApiUrl) &&
+		(processApiUrl === repoEnv.API_URL?.trim() || processApiUrl === webEnv.API_URL?.trim());
 	const requiresEmailVerification =
 		!hasExplicitBaseUrl && isSoleEmailVerificationProjectSelection(argv);
 	// Thread processEnv through so the LB-2/LB-3 remote-target opt-in
@@ -633,14 +722,37 @@ export function resolvePlaywrightRuntime({
 		!isRemoteTargetOptInActive(processEnv);
 	const shouldStartSpawnedLocalWebServer =
 		shouldStartExplicitNoDepsWebServer || !hasExplicitBaseUrl;
+	if (isSourceMigrationProviderParity && shouldStartSpawnedLocalWebServer) {
+		const meilisearchPort = resolvePlaywrightSourceProviderPort(
+			processEnv,
+			'LOCAL_MEILISEARCH_PORT',
+			resolveDefaultPlaywrightMeilisearchPort(workspacePath)
+		);
+		const typesensePort = resolvePlaywrightSourceProviderPort(
+			processEnv,
+			'LOCAL_TYPESENSE_PORT',
+			resolveDefaultPlaywrightTypesensePort(workspacePath)
+		);
+		enableSourceProviderComposeProfile(processEnv);
+		processEnv.LOCAL_MEILISEARCH_PORT = String(meilisearchPort);
+		processEnv.LOCAL_TYPESENSE_PORT = String(typesensePort);
+		processEnv.MEILI_TEST_SECRET_CANARY ??= `playwright-meili-canary-${randomUUID()}`;
+		processEnv.TYPESENSE_STAGE2_BOOTSTRAP_CANARY ??= `playwright-typesense-canary-${randomUUID()}`;
+	}
 	if (!hasExplicitBaseUrl) {
 		processEnv.BASE_URL = baseURL;
 		// Local spawned-stack runs must ignore static API_BASE_URL/API_URL values
-		// from shared .env.local to prevent cross-worktree port contention.
-		if (!processEnv.API_BASE_URL || processEnv.API_BASE_URL.trim().length === 0) {
+		// from shared .env.local to prevent cross-worktree port contention. Shells
+		// that export .env.local materialize those values in processEnv, so matching
+		// file-backed values are defaults rather than deliberate process overrides.
+		if (
+			!processEnv.API_BASE_URL ||
+			processEnv.API_BASE_URL.trim().length === 0 ||
+			apiBaseUrlIsFileBacked
+		) {
 			processEnv.API_BASE_URL = defaultApiBaseUrl;
 		}
-		if (!processEnv.API_URL || processEnv.API_URL.trim().length === 0) {
+		if (!processEnv.API_URL || processEnv.API_URL.trim().length === 0 || apiUrlIsFileBacked) {
 			processEnv.API_URL = defaultApiBaseUrl;
 		}
 		if (
@@ -698,7 +810,15 @@ export function resolvePlaywrightRuntime({
 	const spawnedLocalWebServerEnv = shouldStartSpawnedLocalWebServer
 		? {
 				ENVIRONMENT: 'local',
-				FJCLOUD_ALLOW_LOOPBACK_SOURCE_ORIGINS: '1'
+				FJCLOUD_ALLOW_LOOPBACK_SOURCE_ORIGINS: '1',
+				...(isSourceMigrationProviderParity
+					? {
+							FJCLOUD_ALGOLIA_MIGRATION_ENABLED: 'true',
+							FJ_ENABLE_MEILISEARCH_PREVIEW_LOOPBACK: '1',
+							FJ_ENABLE_TYPESENSE_PREVIEW_LOOPBACK: '1',
+							PLAYWRIGHT_FLAPJACK_DATA_DIR: `../.local/flapjack-data-source-migration-provider-parity-${flapjackPort}`
+						}
+					: {})
 			}
 		: {};
 	const webServerEnv = sanitizeWebServerEnv({
@@ -760,7 +880,15 @@ export function resolvePlaywrightRuntime({
 						env: webServerEnv,
 						url: baseURL,
 						reuseExistingServer: false,
-						timeout: PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS
+						timeout: PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS,
+						...(isSourceMigrationProviderParity
+							? {
+									gracefulShutdown: {
+										signal: 'SIGTERM' as const,
+										timeout: PLAYWRIGHT_PROVIDER_PARITY_SHUTDOWN_TIMEOUT_MS
+									}
+								}
+							: {})
 					}
 	};
 }

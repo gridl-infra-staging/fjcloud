@@ -1,5 +1,6 @@
 //! Provider-neutral source-discovery dispatch and refusal contracts.
 use super::super::*;
+use sha2::{Digest, Sha256};
 
 fn hosted_discovery_response(provider: &str) -> serde_json::Value {
     let (name, primary_key, entries, document_count, created_at, updated_at, sorting_field) =
@@ -123,6 +124,127 @@ async fn typesense_discovery_accepts_omitted_pagination_parameters() {
         }),
     )
     .await;
+}
+
+#[tokio::test]
+async fn typesense_discovery_attaches_content_revision_when_updated_at_is_null() {
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    let _env = FlapjackIdentityEnvGuard::compatible_with_loopback_source_origins();
+    let source = MockServer::start().await;
+    let exported_documents = r#"{"id":"sku-1","title":"before"}"#;
+    let expected_revision = format!(
+        "sha256:{}",
+        hex::encode(Sha256::digest(exported_documents.as_bytes()))
+    );
+    Mock::given(method("GET"))
+        .and(path("/collections/typesense_products/documents/export"))
+        .and(header(
+            "x-typesense-api-key",
+            "TYPESENSE-REVISION-KEY-CANARY",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_string(exported_documents))
+        .mount(&source)
+        .await;
+    let source_service = FakeAlgoliaSourceLister::new([Ok(discovery_response(None))]);
+    let (app, jwt, flapjack_http) =
+        setup_source_discovery_app_with_flag(source_service.clone(), true, true).await;
+    let request_body = json!({
+        "node": source.uri(),
+        "apiKey": "TYPESENSE-REVISION-KEY-CANARY"
+    });
+    flapjack_http.expect_sensitive_json_body(&format!(
+        r#"{{"apiKey":"TYPESENSE-REVISION-KEY-CANARY","node":"{}"}}"#,
+        source.uri()
+    ));
+    flapjack_http.push_sensitive_json_response(
+        200,
+        json!({
+            "indexes": [{
+                "name": "typesense_products",
+                "primaryKey": null,
+                "entries": null,
+                "documentCount": 42,
+                "createdAt": 1785758400,
+                "updatedAt": null,
+                "defaultSortingField": "price"
+            }],
+            "limit": 2,
+            "offset": 7,
+            "total": 19
+        }),
+    );
+
+    let (status, body) = post_discovery(app, Some(&jwt), "typesense", None, request_body).await;
+
+    assert_eq!(status, StatusCode::OK, "typesense discovery body: {body}");
+    assert_eq!(body["indexes"][0]["revision"], json!(expected_revision));
+    assert_eq!(body["indexes"][0]["updatedAt"], serde_json::Value::Null);
+    assert!(!body.to_string().contains("TYPESENSE-REVISION-KEY-CANARY"));
+}
+
+#[tokio::test]
+async fn hosted_discovery_rejects_private_origins_before_engine_dispatch() {
+    for (provider, request_body) in [
+        (
+            "meilisearch",
+            json!({
+                "endpoint": "https://169.254.169.254",
+                "apiKey": "MEILI-PRIVATE-ORIGIN-KEY-CANARY"
+            }),
+        ),
+        (
+            "typesense",
+            json!({
+                "node": "https://10.0.0.1",
+                "apiKey": "TYPESENSE-PRIVATE-ORIGIN-KEY-CANARY"
+            }),
+        ),
+    ] {
+        let (status, body, no_source_or_engine_call) =
+            observe_discovery_request(provider, None, Some("application/json"), request_body).await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            body,
+            json!({
+                "error": "invalid_source_host",
+                "code": AlgoliaImportErrorCode::IncompatibleData.as_str(),
+            })
+        );
+        assert!(no_source_or_engine_call);
+    }
+}
+
+#[tokio::test]
+async fn hosted_discovery_forwards_only_the_canonical_validated_origin() {
+    let source_service = FakeAlgoliaSourceLister::new([Ok(discovery_response(None))]);
+    let (app, jwt, flapjack_http) =
+        setup_source_discovery_app_with_flag(source_service, true, true).await;
+    flapjack_http.expect_sensitive_json_body(
+        &json!({
+            "endpoint": "https://meili-canonical-canary.invalid",
+            "apiKey": "MEILI-CANONICAL-KEY-CANARY"
+        })
+        .to_string(),
+    );
+    flapjack_http.push_sensitive_json_response(200, hosted_discovery_response("meilisearch"));
+
+    let (status, body) = post_discovery(
+        app,
+        Some(&jwt),
+        "meilisearch",
+        None,
+        json!({
+            "endpoint": "HTTPS://MEILI-CANONICAL-CANARY.INVALID:443/",
+            "apiKey": "MEILI-CANONICAL-KEY-CANARY"
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "canonical discovery body: {body}");
+    assert_eq!(flapjack_http.take_sensitive_requests().len(), 1);
 }
 
 struct MediaTypeCase {
@@ -599,5 +721,90 @@ async fn hosted_discovery_rejects_non_utf8_body_before_engine_dispatch() {
     );
     assert_eq!(flapjack_http.request_count(), 0);
     assert!(flapjack_http.take_sensitive_requests().is_empty());
+    assert!(source_service.requests().is_empty());
+}
+
+/// Regression: the retained migration proxy must create the shared VM's node
+/// admin key on demand. In local/dev the in-memory secret store holds no key
+/// until one is created, and the proxy's own `get_admin_key` does not
+/// create-on-missing, so an unprimed freshly auto-provisioned shared VM used to
+/// fail every browser-driven discovery with a secret-store error
+/// ("no key found for node ..."). `backend_target` now primes the key via
+/// `get_or_create_node_api_key` before proxying. This test wires one shared
+/// secret manager to both the provisioning service and the proxy (mirroring the
+/// production Arc sharing) and intentionally leaves it unseeded.
+#[tokio::test]
+async fn hosted_discovery_primes_missing_shared_vm_admin_key() {
+    let source_service = FakeAlgoliaSourceLister::new([Ok(discovery_response(None))]);
+    let customer_repo = mock_repo();
+    let customer = customer_repo.seed_verified_free_customer("Alice", "alice@example.com");
+    let jwt = create_test_jwt(customer.id);
+
+    let vm_inventory_repo = crate::common::mock_vm_inventory_repo();
+    let vm = vm_inventory_repo
+        .create(NewVmInventory {
+            region: "us-east-1".to_string(),
+            provider: "aws".to_string(),
+            hostname: "vm-source-discovery.flapjack.test".to_string(),
+            flapjack_url: "https://vm-source-discovery.flapjack.test".to_string(),
+            capacity: json!({ "disk_bytes": 10_000_000_000_i64 }),
+        })
+        .await
+        .expect("seed mock source-discovery VM");
+
+    // One shared secret manager for both provisioning and proxy, mirroring the
+    // production wiring where they clone the same Arc. Intentionally NOT seeded:
+    // the fix under test must create the admin key on demand.
+    let node_secret_manager = Arc::new(MockNodeSecretManager::new());
+    assert!(
+        node_secret_manager
+            .get_secret(vm.node_secret_id())
+            .is_none(),
+        "precondition: shared VM admin key must be unprimed"
+    );
+    let flapjack_http = Arc::new(MockFlapjackHttpClient::default());
+    let flapjack_proxy = Arc::new(FlapjackProxy::with_http_client(
+        flapjack_http.clone(),
+        node_secret_manager.clone(),
+    ));
+
+    let request_body = json!({
+        "endpoint": "https://meili-unprimed-canary.invalid",
+        "apiKey": "MEILI-UNPRIMED-KEY-CANARY"
+    });
+    let expected_response = hosted_discovery_response("meilisearch");
+    flapjack_http.expect_sensitive_json_body(&request_body.to_string());
+    flapjack_http.push_sensitive_json_response(200, expected_response.clone());
+
+    let state = TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_algolia_source_service(source_service.clone())
+        .with_algolia_migration_enabled(true)
+        .with_node_secret_manager(node_secret_manager.clone())
+        .with_vm_inventory_repo(vm_inventory_repo)
+        .with_flapjack_proxy(flapjack_proxy)
+        .build();
+    let app = axum::Router::new()
+        .route(
+            "/migration/:source_provider/list-indexes",
+            post(api::routes::migration::list_source_indexes),
+        )
+        .with_state(state);
+
+    let (status, body) = post_discovery(app, Some(&jwt), "meilisearch", None, request_body).await;
+
+    assert_eq!(status, StatusCode::OK, "discovery body: {body}");
+    assert_eq!(body, expected_response);
+    // The proxy actually dispatched to the engine; this would be zero if the
+    // secret lookup had failed before dispatch (the pre-fix behavior).
+    let requests = flapjack_http.take_sensitive_requests();
+    assert_eq!(requests.len(), 1);
+    // The admin key was created on demand and now exists in the shared store.
+    assert!(
+        node_secret_manager
+            .get_secret(vm.node_secret_id())
+            .is_some(),
+        "backend_target must create the shared VM admin key on demand"
+    );
     assert!(source_service.requests().is_empty());
 }

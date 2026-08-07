@@ -8569,6 +8569,9 @@
             },
             "description": "Replica index names configured for this primary index."
           },
+          "revision": {
+            "type": "string"
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
@@ -8966,6 +8969,9 @@
           "sourceName": {
             "type": "string"
           },
+          "sourceRevision": {
+            "$ref": "#/components/schemas/CreateImportJobSourceRevisionRequest"
+          },
           "target": {
             "$ref": "#/components/schemas/CreateAlgoliaImportJobTargetRequest"
           }
@@ -9135,6 +9141,27 @@
           }
         }
       },
+      "CreateImportJobSourceRevisionRequest": {
+        "type": "object",
+        "description": "Source revision the picker pinned when the customer chose the index, carried\nthrough create so admission can prove the source did not move between choice\nand submit. A picker that never saw a determinate count pins nothing and the\nguard stays out of the way rather than refusing on an unknown baseline.",
+        "required": [
+          "documentCount"
+        ],
+        "properties": {
+          "documentCount": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "revision": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "CreateIndexRequest": {
         "type": "object",
         "required": [
@@ -9190,6 +9217,9 @@
           "sourceIndex": {
             "type": "string"
           },
+          "sourceRevision": {
+            "$ref": "#/components/schemas/CreateImportJobSourceRevisionRequest"
+          },
           "target": {
             "$ref": "#/components/schemas/CreateAlgoliaImportJobTargetRequest"
           }
@@ -9242,6 +9272,9 @@
           },
           "sourceIndex": {
             "type": "string"
+          },
+          "sourceRevision": {
+            "$ref": "#/components/schemas/CreateImportJobSourceRevisionRequest"
           },
           "target": {
             "$ref": "#/components/schemas/CreateAlgoliaImportJobTargetRequest"
@@ -10913,6 +10946,12 @@
             "type": "string"
           },
           "primaryKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
             "type": [
               "string",
               "null"

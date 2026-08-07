@@ -253,10 +253,10 @@ resource "aws_vpc_security_group_ingress_rule" "rds_from_api" {
   ip_protocol                  = "tcp"
 }
 
-# Flapjack VMs: inbound 7700 from API SG and public data-plane clients, outbound all
+# Flapjack VMs: inbound 7700 from API SG, outbound all
 resource "aws_security_group" "flapjack_vm" {
   name        = "fjcloud-${var.env}-sg-flapjack-vm"
-  description = "Flapjack VM: inbound 7700 from API SG and public clients, outbound all"
+  description = "Flapjack VM: inbound 7700 from API SG, outbound all"
   vpc_id      = aws_vpc.main.id
 
   lifecycle {
@@ -276,15 +276,7 @@ resource "aws_vpc_security_group_ingress_rule" "flapjack_from_api" {
   ip_protocol                  = "tcp"
 }
 
-# The 2026-07 postmortem found public data-plane access depended on a manual SG patch.
-resource "aws_vpc_security_group_ingress_rule" "flapjack_public_data_plane" {
-  security_group_id = aws_security_group.flapjack_vm.id
-  description       = "public flapjack data plane"
-  cidr_ipv4         = "0.0.0.0/0"
-  from_port         = 7700
-  to_port           = 7700
-  ip_protocol       = "tcp"
-}
+# 2026-08-07 UTC: public data-plane tcp/7700 was removed; guards reject reintroduction.
 
 resource "aws_vpc_security_group_ingress_rule" "flapjack_acme_http" {
   security_group_id = aws_security_group.flapjack_vm.id

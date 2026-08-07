@@ -75,7 +75,20 @@ write_json(
 write_json("meili_search_capture.json", {"hits": [meili_expected["documents"]["mutation"]]})
 write_json(
     "meili_stats_before_capture.json",
-    {"databaseSize": meili_expected["documents"]["databaseSizeBefore"]},
+    {
+        "databaseSize": meili_expected["documents"]["databaseSizeBefore"],
+        "indexes": {
+            indexes["configured"]["uid"]: {
+                "numberOfDocuments": indexes["configured"]["documentCount"]
+            },
+            indexes["inferred"]["uid"]: {
+                "numberOfDocuments": indexes["inferred"]["documentCount"]
+            },
+            indexes["ambiguous"]["uid"]: {
+                "numberOfDocuments": indexes["ambiguous"]["documentCount"]
+            },
+        },
+    },
 )
 write_json(
     "meili_stats_after_capture.json",
@@ -141,7 +154,12 @@ collections = {
     for collection in typesense_expected["source"]["collections"]
 }
 for name, collection in collections.items():
-    schema = {key: value for key, value in collection.items() if key != "documents"}
+    schema = {
+        key: value
+        for key, value in collection.items()
+        if key not in {"documents", "documentCount"}
+    }
+    schema["num_documents"] = collection["documentCount"]
     write_json(f"typesense_capture_{name}_schema.json", schema)
 
 (output_root / "typesense_capture_products_export.jsonl").write_text(

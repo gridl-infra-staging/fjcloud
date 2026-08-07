@@ -464,9 +464,7 @@ describe('[jobId] cutover verification panel', () => {
 		renderJobPage(publicJob({ status: 'completed', sourceProvider: 'algolia' }), NO_CAPABILITIES);
 
 		expect(screen.getByRole('region', { name: /cutover verification/i })).toBeInTheDocument();
-		expect(
-			screen.getByText(describeUnsupportedCutoverVerification('algolia'))
-		).toBeInTheDocument();
+		expect(screen.getByText(describeUnsupportedCutoverVerification('algolia'))).toBeInTheDocument();
 		expect(screen.queryByLabelText(/algolia api key/i)).not.toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: /run verification/i })).not.toBeInTheDocument();
 	});

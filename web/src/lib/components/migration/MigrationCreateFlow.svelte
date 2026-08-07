@@ -11,6 +11,7 @@
 	import {
 		describeAlgoliaImportAdmission,
 		defaultAlgoliaImportAdmission,
+		describeMigrationSubmitFailure,
 		describeMigrationPreviewFailure,
 		migrationPreviewCompatibilityWarningPresentation
 	} from './job_presentation';
@@ -21,6 +22,7 @@
 		checkMigrationDestination,
 		createMigrationJob,
 		listMigrationSources,
+		migrationCreateRequest,
 		migrationSourcePageRequest,
 		sourceCredentialFingerprint
 	} from './migration_create_client';
@@ -53,7 +55,7 @@
 	import MigrationProviderEligibility from './MigrationProviderEligibility.svelte';
 	import MigrationReplaceDestination from './MigrationReplaceDestination.svelte';
 	import MigrationSourceConnection from './MigrationSourceConnection.svelte';
-	import MigrationSourceIndexRow from './MigrationSourceIndexRow.svelte';
+	import MigrationSourceCatalog from './MigrationSourceCatalog.svelte';
 	import { migrationCreateDestinationState } from './migration_create_flow_state';
 	import { toErrorMessage } from './migration_error_redaction';
 	let {
@@ -248,6 +250,11 @@
 			: sources.filter((source) =>
 					source.name.toLowerCase().includes(searchTerm.trim().toLowerCase())
 				)
+	);
+	const selectedSource = $derived(
+		selectedSourceName === null
+			? null
+			: (sources.find((source) => source.name === selectedSourceName) ?? null)
 	);
 
 	// A new source re-seeds its destination proposal.
@@ -514,22 +521,15 @@
 			return;
 		}
 		const idempotencyKey = idempotencyKeyFor(intentBinding);
-		const request: CreateMigrationImportJobRequest =
-			sourceProvider === 'algolia'
-				? {
-						mode,
-						appId,
-						apiKey,
-						sourceName,
-						target: { eligibilityToken: eligibility.eligibilityToken }
-					}
-				: {
-						mode,
-						host,
-						apiKey,
-						sourceName,
-						target: { eligibilityToken: eligibility.eligibilityToken }
-					};
+		const request: CreateMigrationImportJobRequest = migrationCreateRequest({
+			sourceProvider,
+			mode,
+			sourceIdentity: sourceProvider === 'algolia' ? appId : host,
+			apiKey,
+			sourceName,
+			selectedSource,
+			eligibilityToken: eligibility.eligibilityToken
+		});
 		activeSubmit = true;
 		submitError = null;
 		try {
@@ -543,11 +543,12 @@
 				onImportCreated(migrationCreateSuccessIntent(job));
 			}
 		} catch (error) {
-			submitError = toErrorMessage(error, [
+			const sanitizedError = toErrorMessage(error, [
 				sourceProvider === 'algolia' ? appId : host,
 				apiKey,
 				eligibility.eligibilityToken
 			]);
+			submitError = describeMigrationSubmitFailure(sourceProvider, sanitizedError);
 		} finally {
 			activeSubmit = false;
 		}
@@ -695,47 +696,17 @@
 
 	{#if providerEligible && hasConnected}
 		<section class="space-y-4" aria-labelledby="migration-source-title">
-			<h3
-				id="migration-source-title"
-				bind:this={sourceStepHeading}
-				tabindex="-1"
-				class="text-base font-semibold text-flapjack-ink"
-			>
-				Choose a source index
-			</h3>
-
-			<div>
-				<label for="migration-source-search" class="mb-1 block text-sm font-medium">
-					Search source indexes
-				</label>
-				<input
-					id="migration-source-search"
-					type="search"
-					bind:value={searchTerm}
-					class="w-full rounded border border-flapjack-ink/30 px-3 py-2"
-				/>
-			</div>
-
-			<ul data-testid="migration-source-list" class="space-y-2">
-				{#each visibleSources as source (source.name)}
-					<MigrationSourceIndexRow
-						{source}
-						selected={selectedSourceName === source.name}
-						onSelect={(name) => void selectSource(name)}
-					/>
-				{/each}
-			</ul>
-
-			{#if nextCursor !== null}
-				<button
-					type="button"
-					disabled={isDiscovering || startsDisabled}
-					onclick={() => loadSourcePage(nextCursor)}
-					class="rounded border border-flapjack-ink/30 px-3 py-1.5 text-sm font-medium"
-				>
-					Load more source indexes
-				</button>
-			{/if}
+			<MigrationSourceCatalog
+				sources={visibleSources}
+				bind:searchTerm
+				{selectedSourceName}
+				{nextCursor}
+				{isDiscovering}
+				{startsDisabled}
+				bind:heading={sourceStepHeading}
+				onSelect={(name) => void selectSource(name)}
+				onLoadMore={(cursor) => void loadSourcePage(cursor)}
+			/>
 			{#if selectedSourceName}
 				{#key selectedSourceName}
 					<MigrationCreateDestination

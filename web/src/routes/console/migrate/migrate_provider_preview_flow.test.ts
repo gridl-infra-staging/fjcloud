@@ -175,7 +175,6 @@ describe('Migrate page provider preview flow', () => {
 			hostOrAppValue: 'ALGOLIA_BROWSER_APP',
 			apiKeyLabel: /algolia api key/i,
 			apiKey: 'algolia-browser-key',
-			discoveryCredentials: { appId: 'ALGOLIA_BROWSER_APP', apiKey: 'algolia-browser-key' },
 			credentials: { appId: 'ALGOLIA_BROWSER_APP', apiKey: 'algolia-browser-key' }
 		},
 		{
@@ -184,11 +183,10 @@ describe('Migrate page provider preview flow', () => {
 			hostOrAppValue: 'https://meilisearch.example.test',
 			apiKeyLabel: /meilisearch api key/i,
 			apiKey: 'meilisearch-browser-key',
-			discoveryCredentials: {
+			credentials: {
 				endpoint: 'https://meilisearch.example.test',
 				apiKey: 'meilisearch-browser-key'
-			},
-			credentials: { host: 'https://meilisearch.example.test', apiKey: 'meilisearch-browser-key' }
+			}
 		},
 		{
 			sourceProvider: 'typesense',
@@ -196,11 +194,7 @@ describe('Migrate page provider preview flow', () => {
 			hostOrAppValue: 'https://typesense.example.test',
 			apiKeyLabel: /typesense api key/i,
 			apiKey: 'typesense-browser-key',
-			discoveryCredentials: {
-				node: 'https://typesense.example.test',
-				apiKey: 'typesense-browser-key'
-			},
-			credentials: { host: 'https://typesense.example.test', apiKey: 'typesense-browser-key' }
+			credentials: { node: 'https://typesense.example.test', apiKey: 'typesense-browser-key' }
 		}
 	] as const)(
 		'preserves selected $sourceProvider through discovery, preview, and create',
@@ -210,7 +204,6 @@ describe('Migrate page provider preview flow', () => {
 			hostOrAppValue,
 			apiKeyLabel,
 			apiKey,
-			discoveryCredentials,
 			credentials
 		}) => {
 			installActionResponses(sourceProvider);
@@ -239,7 +232,7 @@ describe('Migrate page provider preview flow', () => {
 			await screen.findByTestId('migration-source-row-source_products');
 			expect(submittedActionPayload('listSourceIndexes')).toEqual({
 				source_provider: sourceProvider,
-				...discoveryCredentials
+				...credentials
 			});
 
 			await fireEvent.change(screen.getByRole('radio', { name: /source_products/i }));
@@ -268,7 +261,15 @@ describe('Migrate page provider preview flow', () => {
 				source_provider: sourceProvider,
 				mode: 'create',
 				...credentials,
-				sourceName: 'source_products',
+				...(sourceProvider === 'algolia'
+					? { sourceName: 'source_products' }
+					: {
+							sourceIndex: 'source_products',
+							sourceRevision: {
+								documentCount: 17,
+								updatedAt: '2026-07-18T10:00:00Z'
+							}
+						}),
 				target: { eligibilityToken: 'target-token' }
 			});
 			expect(submittedActionFormData('createImportJob').get('idempotencyKey')).toEqual(

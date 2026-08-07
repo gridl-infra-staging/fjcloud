@@ -11,15 +11,18 @@
   "indexes": {
     "configured": {
       "uid": "configured_pk",
-      "primaryKey": "sku"
+      "primaryKey": "sku",
+      "documentCount": 3
     },
     "inferred": {
       "uid": "inferred_pk",
-      "primaryKey": "book_id"
+      "primaryKey": "book_id",
+      "documentCount": 2
     },
     "ambiguous": {
       "uid": "ambiguous_pk",
-      "primaryKey": null
+      "primaryKey": null,
+      "documentCount": 0
     }
   },
   "expectedPrimaryKeys": {

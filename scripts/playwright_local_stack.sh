@@ -57,6 +57,7 @@ source "$SCRIPT_DIR/lib/env.sh"
 source "$SCRIPT_DIR/lib/health.sh"
 # shellcheck source=lib/flapjack_binary.sh
 source "$SCRIPT_DIR/lib/flapjack_binary.sh"
+export FJCLOUD_FLAPJACK_VERSION
 # shellcheck source=lib/local_stack_contract.sh
 source "$SCRIPT_DIR/lib/local_stack_contract.sh"
 # shellcheck source=lib/compose_project.sh
@@ -65,6 +66,10 @@ source "$SCRIPT_DIR/lib/compose_project.sh"
 source "$SCRIPT_DIR/lib/local_url.sh"
 # shellcheck source=lib/db_url.sh
 source "$SCRIPT_DIR/lib/db_url.sh"
+# shellcheck source=lib/local_source_providers.sh
+source "$SCRIPT_DIR/lib/local_source_providers.sh"
+
+export COMPOSE_PROJECT_NAME="$(resolve_compose_project_name "$REPO_ROOT")"
 
 configure_loopback_flapjack_url() {
 	if ! loopback_http_url_is_valid "$FLAPJACK_URL"; then
@@ -312,6 +317,9 @@ started_web="0"
 started_mailpit="0"
 
 cleanup() {
+	local preserved_status="${1:-$?}"
+	local cleanup_failed=0
+
 	if [ "$started_web" = "1" ] && [ -n "$web_pid" ] && kill -0 "$web_pid" 2>/dev/null; then
 		kill "$web_pid" 2>/dev/null || true
 		wait "$web_pid" 2>/dev/null || true
@@ -329,13 +337,23 @@ cleanup() {
 		(cd "$REPO_ROOT" && docker compose stop mailpit) 2>&1 |
 			while IFS= read -r line; do log "$line"; done || true
 	fi
+	if source_provider_stack_owned; then
+		source_provider_teardown_owned_stack "scripts/playwright_local_stack.sh" 2>&1 |
+			while IFS= read -r line; do log "$line"; done || cleanup_failed=1
+	fi
+
+	if [ "$cleanup_failed" = "1" ]; then
+		return 1
+	fi
+
+	return "$preserved_status"
 }
 
 handle_shutdown() {
-	cleanup
+	trap - EXIT
+	cleanup 0 || exit 1
 	exit 0
 }
-
 trap cleanup EXIT
 trap handle_shutdown INT TERM
 
@@ -650,6 +668,18 @@ export_selected_flapjack_runtime_identity_or_exit() {
 	fi
 }
 
+if source_provider_profile_enabled; then
+	log "Arranging source providers for provider-parity Playwright."
+	source_provider_start_and_seed \
+		"$REPO_ROOT" \
+		"${LOCAL_MEILISEARCH_PORT:?LOCAL_MEILISEARCH_PORT is required for provider parity}" \
+		"${LOCAL_TYPESENSE_PORT:?LOCAL_TYPESENSE_PORT is required for provider parity}" \
+		"${SOURCE_PROVIDER_HEALTH_TIMEOUT_SECONDS:-60}" || {
+		echo "[playwright_local_stack] ERROR: source providers failed startup, readiness, or fixture capture." >&2
+		exit 1
+	}
+fi
+
 if [ "$FORCE_API_RESTART" = "1" ]; then
 	kill_owned_api_listener_for_restart
 fi
@@ -676,10 +706,12 @@ if ! curl -fsS "$API_HEALTH_URL" >/dev/null 2>&1; then
 		# api-dev.sh owns revoking the auto-verify and SES escape hatches after it
 		# reloads .env.local; clearing them only here would not survive that reload.
 		env -u SKIP_EMAIL_VERIFICATION -u API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION \
+			FJCLOUD_FLAPJACK_VERSION="$FJCLOUD_FLAPJACK_VERSION" \
 			API_DEV_REQUIRE_LOCAL_EMAIL_DELIVERY=1 \
 			MAILPIT_API_URL="$MAILPIT_API_URL" \
 			bash "$SCRIPT_DIR/api-dev.sh" >"$API_LOG_PATH" 2>&1 &
 	else
+		FJCLOUD_FLAPJACK_VERSION="$FJCLOUD_FLAPJACK_VERSION" \
 		SKIP_EMAIL_VERIFICATION="$SKIP_EMAIL_VERIFICATION" \
 			API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION="$API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION" \
 			bash "$SCRIPT_DIR/api-dev.sh" >"$API_LOG_PATH" 2>&1 &

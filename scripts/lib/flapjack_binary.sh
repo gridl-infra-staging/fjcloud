@@ -310,7 +310,9 @@ flapjack_source_lock_owner_is_running() {
 flapjack_source_lock_owner_is_publishing() {
     local lock_path="$1"
     [ ! -f "$lock_path/pid" ] || return 1
-    sleep "${FLAPJACK_SOURCE_PIDLESS_LOCK_GRACE_SECONDS:-0.1}"
+    # mkdir and pid publication are separate operations. Give a descheduled
+    # owner enough time to publish before treating its new lock as stale.
+    sleep "${FLAPJACK_SOURCE_PIDLESS_LOCK_GRACE_SECONDS:-1}"
     flapjack_source_lock_owner_is_running "$lock_path"
 }
 

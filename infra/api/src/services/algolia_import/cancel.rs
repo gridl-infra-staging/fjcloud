@@ -68,7 +68,11 @@ impl AlgoliaImportService {
             }
         };
         let cancel_result = self
-            .cancel(target, &dispatch.engine_job_id.to_string())
+            .cancel(
+                target,
+                outcome.job.source_provider,
+                &dispatch.engine_job_id.to_string(),
+            )
             .await;
         let response = match cancel_result {
             Ok(response) => response,

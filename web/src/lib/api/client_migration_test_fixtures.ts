@@ -8,8 +8,10 @@ import type {
 	AlgoliaSourceListResponse,
 	CancelAlgoliaImportJobRequest,
 	CreateAlgoliaImportJobRequest,
+	CreateMeilisearchImportJobRequest,
+	CreateTypesenseImportJobRequest,
+	ListMigrationSourceIndexesInput,
 	ListAlgoliaImportJobsRequest,
-	ListAlgoliaIndexesRequest,
 	MigrationPreviewArguments,
 	MigrationPreviewResponse,
 	MigrationPreviewSourceProvider,
@@ -35,29 +37,13 @@ export type SourceProvider = (typeof CLOSED_SOURCE_PROVIDERS)[number];
 export type PublicJobWithSourceProvider = PublicAlgoliaImportJob & {
 	sourceProvider: SourceProvider;
 };
-export type NeutralSourceListRequest =
-	| (ListAlgoliaIndexesRequest & { source_provider?: never })
-	| {
-			endpoint: string;
-			apiKey: string;
-			offset?: number;
-			limit?: number;
-	  }
-	| {
-			node: string;
-			apiKey: string;
-			offset?: number;
-			limit?: number;
-	  };
+export type NeutralSourceListRequest = ListMigrationSourceIndexesInput & {
+	source_provider?: never;
+};
 export type NeutralCreateRequest =
 	| (CreateAlgoliaImportJobRequest & { source_provider?: never })
-	| {
-			mode: 'create';
-			host: string;
-			apiKey: string;
-			sourceName: string;
-			target: { eligibilityToken: string };
-	  };
+	| CreateMeilisearchImportJobRequest
+	| CreateTypesenseImportJobRequest;
 export type NeutralResumeRequest = ResumeAlgoliaImportJobRequest;
 export type NeutralMigrationClient = ApiClient & {
 	getMigrationAvailability: (
@@ -110,19 +96,12 @@ export function neutralSourceListRequest(sourceProvider: SourceProvider): Neutra
 			hitsPerPage: 100
 		};
 	}
-	return sourceProvider === 'meilisearch'
-		? {
-				endpoint: 'https://meilisearch.example.test',
-				apiKey: 'meilisearch-neutral-source-key',
-				offset: 20,
-				limit: 25
-			}
-		: {
-				node: 'https://typesense.example.test',
-				apiKey: 'typesense-neutral-source-key',
-				offset: 20,
-				limit: 25
-			};
+	return {
+		...(sourceProvider === 'meilisearch'
+			? { endpoint: `https://${sourceProvider}.example.test` }
+			: { node: `https://${sourceProvider}.example.test` }),
+		apiKey: `${sourceProvider}-neutral-source-key`
+	};
 }
 
 export function neutralCreateRequest(sourceProvider: SourceProvider): NeutralCreateRequest {
@@ -137,9 +116,11 @@ export function neutralCreateRequest(sourceProvider: SourceProvider): NeutralCre
 	}
 	return {
 		mode: 'create',
-		host: `https://${sourceProvider}.example.test`,
+		...(sourceProvider === 'meilisearch'
+			? { endpoint: `https://${sourceProvider}.example.test` }
+			: { node: `https://${sourceProvider}.example.test` }),
 		apiKey: `${sourceProvider}-neutral-source-key`,
-		sourceName: `${sourceProvider}_products`,
+		sourceIndex: `${sourceProvider}_products`,
 		target: { eligibilityToken: `${sourceProvider}-target-token` }
 	};
 }
@@ -402,31 +383,3 @@ export const HOSTED_SOURCE_INDEX_EXPECTED_PAIRS = [
 	{ name: 'meili_products', entries: 41 },
 	{ name: 'meili_orders', entries: 7 }
 ] as const;
-
-export const HOSTED_SOURCE_INDEXES_NORMALIZED_RESPONSE: AlgoliaSourceListResponse = {
-	items: [
-		{
-			name: 'meili_products',
-			entries: 41,
-			dataSize: 0,
-			fileSize: 0,
-			updatedAt: '2026-07-18T10:05:00Z',
-			lastBuildTimeS: 0,
-			pendingTask: false,
-			primary: null,
-			replicas: []
-		},
-		{
-			name: 'meili_orders',
-			entries: 7,
-			dataSize: 0,
-			fileSize: 0,
-			updatedAt: '',
-			lastBuildTimeS: 0,
-			pendingTask: false,
-			primary: null,
-			replicas: []
-		}
-	],
-	nextCursor: null
-};

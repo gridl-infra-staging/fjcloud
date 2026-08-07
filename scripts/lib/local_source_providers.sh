@@ -142,6 +142,48 @@ source_provider_mark_stack_owned() {
     : > "$SOURCE_PROVIDER_OWNERSHIP_MARKER"
 }
 
+source_provider_wait_for_health() {
+    local health_url="$1" timeout_seconds="${2:-60}" elapsed=0
+
+    while [ "$elapsed" -lt "$timeout_seconds" ]; do
+        if curl -fsS -o /dev/null "$health_url"; then
+            return 0
+        fi
+        sleep 2
+        elapsed=$((elapsed + 2))
+    done
+
+    return 1
+}
+
+source_provider_remove_compose_services() {
+    local compose_profiles
+    compose_profiles="$(source_provider_profiles_for_teardown)"
+    (
+        cd "$SOURCE_PROVIDER_REPO_ROOT"
+        COMPOSE_PROFILES="$compose_profiles" \
+            docker compose rm -f -s meilisearch typesense
+    )
+}
+
+source_provider_start_and_seed() {
+    local repo_root="$1" meili_port="$2" typesense_port="$3" timeout="${4:-60}"
+    local meili_url="http://127.0.0.1:${meili_port}"
+    local typesense_url="http://127.0.0.1:${typesense_port}"
+
+    source_provider_configure_paths "$repo_root"
+    source_provider_remove_compose_services || return 1
+    source_provider_prepare_run "$repo_root" || return 1
+    source_provider_mark_stack_owned
+    (
+        cd "$SOURCE_PROVIDER_REPO_ROOT"
+        docker compose up -d meilisearch typesense
+    ) || return 1
+    source_provider_wait_for_health "$meili_url/health" "$timeout" || return 1
+    source_provider_wait_for_health "$typesense_url/health" "$timeout" || return 1
+    source_provider_seed_and_capture "$meili_url" "$typesense_url"
+}
+
 source_provider_curl() {
     local config="$1" method="$2" url="$3" body="${4:-}" output="${5:-/dev/null}"
     local content_type="${6:-application/json}"
@@ -317,7 +359,7 @@ runtime = pathlib.Path(sys.argv[2])
 
 for collection in source["collections"]:
     schema = {key: value for key, value in collection.items()
-              if key not in {"documents", "fields"}}
+              if key not in {"documents", "documentCount", "fields"}}
     fields = []
     for field in collection["fields"]:
         normalized = {"name": field["name"], "type": field["type"]}
@@ -475,7 +517,9 @@ source_provider_remove_credentials() {
 }
 
 source_provider_write_residue_evidence() {
-    local compose_profiles="$1" container_present=false credential_files_present=false
+    local compose_profiles="$1" producer="${2:-scripts/local-dev-down.sh}"
+    local phase="${3:-post-local-dev-down}"
+    local container_present=false credential_files_present=false
     local running
     if running="$(
         cd "$SOURCE_PROVIDER_REPO_ROOT"
@@ -498,11 +542,13 @@ source_provider_write_residue_evidence() {
         "$SOURCE_PROVIDER_EVIDENCE_ROOT/residue.json" \
         "$container_present" \
         "$credential_files_present" \
+        "$producer" \
+        "$phase" \
         "${SOURCE_PROVIDER_TEARDOWN_INVOCATION_ID:-}" <<'PY'
 import json
 import sys
 
-destination, container_present, credential_files_present, invocation_id = sys.argv[1:]
+destination, container_present, credential_files_present, producer, phase, invocation_id = sys.argv[1:]
 with open(destination, "w", encoding="utf-8") as evidence_file:
     json.dump(
         {
@@ -510,8 +556,8 @@ with open(destination, "w", encoding="utf-8") as evidence_file:
             "tempDirPresent": False,
             "rawLogsPresent": False,
             "credentialFilesPresent": credential_files_present == "true",
-            "producer": "scripts/local-dev-down.sh",
-            "phase": "post-local-dev-down",
+            "producer": producer,
+            "phase": phase,
             "teardownInvocationId": invocation_id,
         },
         evidence_file,
@@ -522,10 +568,22 @@ PY
 }
 
 source_provider_finalize_teardown() {
-    local compose_profiles="$1"
+    local compose_profiles="$1" producer="${2:-scripts/local-dev-down.sh}"
+    local phase="${3:-post-local-dev-down}"
     source_provider_remove_credentials
     rm -rf "$SOURCE_PROVIDER_CREDENTIAL_ROOT"
     mkdir -p "$SOURCE_PROVIDER_CREDENTIAL_ROOT"
     rm -rf "$SOURCE_PROVIDER_RUNTIME_ROOT"
-    source_provider_write_residue_evidence "$compose_profiles"
+    source_provider_write_residue_evidence "$compose_profiles" "$producer" "$phase"
+}
+
+source_provider_teardown_owned_stack() {
+    local producer="${1:-scripts/local-dev-down.sh}" compose_profiles
+    [ -n "$SOURCE_PROVIDER_REPO_ROOT" ] || return 0
+    source_provider_stack_owned || return 0
+
+    compose_profiles="$(source_provider_profiles_for_teardown)"
+    source_provider_remove_compose_services || return 1
+    source_provider_finalize_teardown \
+        "$compose_profiles" "$producer" "post-playwright-provider-parity"
 }

@@ -7,7 +7,7 @@ use zeroize::Zeroizing;
 use crate::models::algolia_import_job::{
     AlgoliaImportCreatePlacement, AlgoliaImportDestinationKind, AlgoliaImportJob,
     AlgoliaImportJobState, AlgoliaImportSource, AlgoliaImportTargetBinding, NewAlgoliaImportJob,
-    NewAlgoliaReplaceImportJob,
+    NewAlgoliaReplaceImportJob, SourceImportProvider,
 };
 use crate::models::AlgoliaImportErrorCode;
 use crate::repos::{
@@ -338,29 +338,46 @@ impl AlgoliaImportService {
 }
 
 pub struct AlgoliaImportAdmissionRequest {
-    pub target_binding: AlgoliaImportTargetBinding,
-    pub create_target: Option<AlgoliaImportCreatePlacement>,
-    pub app_id: String,
-    pub api_key: Zeroizing<String>,
-    pub source_name: String,
-    pub idempotency_key: String,
+    target_binding: AlgoliaImportTargetBinding,
+    create_target: Option<AlgoliaImportCreatePlacement>,
+    source: AlgoliaImportAdmissionSource,
+    idempotency_key: String,
+}
+
+pub struct AlgoliaImportAdmissionSource {
+    provider: SourceImportProvider,
+    connection_id: String,
+    api_key: Zeroizing<String>,
+    name: String,
+}
+
+impl AlgoliaImportAdmissionSource {
+    pub fn new(
+        provider: SourceImportProvider,
+        connection_id: String,
+        api_key: String,
+        name: String,
+    ) -> Self {
+        Self {
+            provider,
+            connection_id,
+            api_key: Zeroizing::new(api_key),
+            name,
+        }
+    }
 }
 
 impl AlgoliaImportAdmissionRequest {
     pub fn new(
         target_binding: AlgoliaImportTargetBinding,
         create_target: Option<AlgoliaImportCreatePlacement>,
-        app_id: String,
-        api_key: String,
-        source_name: String,
+        source: AlgoliaImportAdmissionSource,
         idempotency_key: String,
     ) -> Self {
         Self {
             target_binding,
             create_target,
-            app_id,
-            api_key: Zeroizing::new(api_key),
-            source_name,
+            source,
             idempotency_key,
         }
     }
@@ -373,8 +390,9 @@ impl AlgoliaImportAdmissionRequest {
     /// without inspecting the source. Never carries the temporary API key.
     fn replay_identity(&self) -> AlgoliaImportDispatchReplayIdentity {
         AlgoliaImportDispatchReplayIdentity {
-            app_id: self.app_id.clone(),
-            source_name: self.source_name.clone(),
+            source_provider: self.source.provider,
+            app_id: self.source.connection_id.clone(),
+            source_name: self.source.name.clone(),
             kind: self.target_binding.mode(),
             logical_target: self.target_binding.logical_target().to_string(),
             region: self.target_binding.region().to_string(),
@@ -392,6 +410,7 @@ impl AlgoliaImportAdmissionRequest {
                     .clone()
                     .ok_or(AlgoliaImportAdmissionError::PreparedCreateTargetMissing)?;
                 let job = NewAlgoliaImportJob::create_from_target_binding(
+                    self.source.provider,
                     self.target_binding.clone(),
                     source,
                     self.idempotency_key.clone(),
@@ -403,6 +422,7 @@ impl AlgoliaImportAdmissionRequest {
             }
             AlgoliaImportDestinationKind::Replace => {
                 let job = NewAlgoliaReplaceImportJob::from_target_binding(
+                    self.source.provider,
                     self.target_binding.clone(),
                     source,
                     self.idempotency_key.clone(),
@@ -428,11 +448,12 @@ impl AlgoliaImportAdmissionRequest {
                 .ok_or(AlgoliaImportAdmissionError::AuthenticatedReplaceTargetMissing)?,
         };
         Ok(AlgoliaImportSubmitRequest::new(
-            self.app_id.clone(),
+            self.source.provider,
+            self.source.connection_id.clone(),
             // Hand the credential to the submit request as a zeroizing clone so
             // it is never widened into an ordinary `String`.
-            self.api_key.clone(),
-            self.source_name.clone(),
+            self.source.api_key.clone(),
+            self.source.name.clone(),
             Some(target_index),
             job.destination_kind == AlgoliaImportDestinationKind::Replace,
         ))

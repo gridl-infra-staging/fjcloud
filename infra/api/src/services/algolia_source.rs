@@ -258,6 +258,9 @@ pub struct AlgoliaIndexMetadata {
     #[serde(default)]
     #[schema(required)]
     pub replicas: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = String)]
+    pub revision: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

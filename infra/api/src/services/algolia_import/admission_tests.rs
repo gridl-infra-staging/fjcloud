@@ -4,7 +4,9 @@ use uuid::Uuid;
 
 use crate::models::algolia_import_job::{
     AlgoliaImportCreatePlacement, AlgoliaImportErrorCode, AlgoliaImportTargetBinding,
+    SourceImportProvider,
 };
+use crate::services::algolia_import::AlgoliaImportAdmissionSource;
 use crate::services::flapjack_proxy::{FlapjackEngineRequirements, ProxyError};
 
 use super::reconciliation_test_support::{harness, job, response, vm, FixedVmRepo};
@@ -70,9 +72,12 @@ fn create_submit_request_uses_prepared_physical_target_uid() {
             vm_id,
             physical_uid: "private-physical-uid".to_string(),
         }),
-        "app-id".to_string(),
-        "source-key".to_string(),
-        "products".to_string(),
+        AlgoliaImportAdmissionSource::new(
+            SourceImportProvider::Algolia,
+            "app-id".to_string(),
+            "source-key".to_string(),
+            "products".to_string(),
+        ),
         "idem-create".to_string(),
     );
 
@@ -105,9 +110,12 @@ fn replace_submit_request_uses_authenticated_physical_target_uid() {
             "authenticated-physical-uid",
         ),
         None,
-        "app-id".to_string(),
-        "source-key".to_string(),
-        "algolia-products".to_string(),
+        AlgoliaImportAdmissionSource::new(
+            SourceImportProvider::Algolia,
+            "app-id".to_string(),
+            "source-key".to_string(),
+            "algolia-products".to_string(),
+        ),
         "idem-replace".to_string(),
     );
 

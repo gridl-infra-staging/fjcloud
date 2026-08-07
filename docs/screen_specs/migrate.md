@@ -477,6 +477,12 @@ into a new or replacement fjcloud index without persisting source credentials.
 - [x] Given any preview-bound source, credential, destination, mode, or target-
       eligibility input changes, the old preview is removed and a new preview
       attempt is required before Start becomes available.
+- [x] Given real Meilisearch and Typesense local-provider sources plus the live
+      Algolia probe owner, provider parity completes create/cancel/source-change
+      lifecycle coverage, exact imported-denominator assertions, canary
+      containment, and destination absence guards through
+      `web/tests/e2e-ui/full/source_migration_provider_parity.spec.ts`. Receipt:
+      `docs/runbooks/evidence/source-migration-parity/2026-08-05-stage3/receipt.md`.
 
 ## Edge Cases
 
@@ -630,6 +636,10 @@ into a new or replacement fjcloud index without persisting source credentials.
 
 ## Automated Coverage
 
+- Provider-parity browser owner:
+  `web/tests/e2e-ui/full/source_migration_provider_parity.spec.ts` proves
+  Meilisearch, Typesense, and Algolia provider parity. Mutation-backed receipt:
+  `docs/runbooks/evidence/source-migration-parity/2026-08-05-stage3/receipt.md`.
 - Unmocked preview owner:
   `web/tests/e2e-ui/full/migration-recovery.spec.ts` defines the intended direct
   Meilisearch preview-before-start journey and its no-job-before-start check. It

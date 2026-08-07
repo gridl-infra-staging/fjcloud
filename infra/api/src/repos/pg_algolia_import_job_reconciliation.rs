@@ -89,6 +89,7 @@ pub(super) async fn persist_job_state(
     id: Uuid,
     state: &AlgoliaImportJobState,
     release_worker_lease: bool,
+    authenticated_engine_absence: bool,
 ) -> Result<AlgoliaImportJob, RepoError> {
     let summary = &state.summary;
     let resume_checkpoint = state
@@ -100,6 +101,9 @@ pub(super) async fn persist_job_state(
         .as_ref()
         .map(|mirror| mirror.status_observed_at());
     let resume_deadline = state.resume_mirror.as_ref().map(|mirror| mirror.deadline());
+    // Only an authenticated engine 404 proves the engine has no status record.
+    // Transport and 5xx failures remain `backend_unavailable` to callers but
+    // must not age the absence-only reservation grace.
     sqlx::query_as::<_, AlgoliaImportJobRow>(
         "UPDATE algolia_import_jobs SET status=$2, publication_disposition=$3,
          engine_ack_state=$4, lifecycle_generation=$5, retryable=$6,
@@ -109,6 +113,10 @@ pub(super) async fn persist_job_state(
          rules_expected=$16, rules_imported=$17, rules_rejected=$18,
          terminal_outcome_observed=$19, warnings=$20,
          error_code=$21, error_message=$22, updated_at=NOW(),
+         engine_unavailable_since=CASE
+           WHEN $29
+           THEN COALESCE(engine_unavailable_since, NOW())
+           ELSE NULL END,
          resume_checkpoint=$23, resume_status_observed_at=$24,
          resume_deadline=$25, resumable=$26, resume_count=$27,
          worker_claimed_at=CASE WHEN $28 THEN NULL ELSE worker_claimed_at END,
@@ -144,6 +152,7 @@ pub(super) async fn persist_job_state(
     .bind(state.resumable)
     .bind(state.resume_count)
     .bind(release_worker_lease)
+    .bind(authenticated_engine_absence)
     .fetch_one(&mut **tx)
     .await
     .map_err(repo_error)
@@ -400,6 +409,7 @@ impl PgAlgoliaImportJobRepo {
         lease: &AlgoliaImportReconciliationLease,
         observed_at: DateTime<Utc>,
         state: AlgoliaImportJobState,
+        authenticated_engine_absence: bool,
     ) -> Result<AlgoliaImportReconciliationWriteOutcome, RepoError> {
         if lease.expires_at <= observed_at {
             return Ok(AlgoliaImportReconciliationWriteOutcome::LeaseLost);
@@ -437,7 +447,14 @@ impl PgAlgoliaImportJobRepo {
         let unavailable_state_changed = (current.error_code
             == Some(AlgoliaImportErrorCode::BackendUnavailable))
             != (state.error_code == Some(AlgoliaImportErrorCode::BackendUnavailable));
-        persist_job_state(&mut tx, lease.job_id, &state, true).await?;
+        persist_job_state(
+            &mut tx,
+            lease.job_id,
+            &state,
+            true,
+            authenticated_engine_absence,
+        )
+        .await?;
         tx.commit().await.map_err(repo_error)?;
         Ok(AlgoliaImportReconciliationWriteOutcome::Applied {
             unavailable_state_changed,
@@ -498,7 +515,7 @@ async fn persist_terminal_state(
          rules_expected=$13, rules_imported=$14, rules_rejected=$15,
          terminal_outcome_observed=$16, warnings=$17,
          error_code=$18, error_message=$19, terminal_at=$20,
-         destination_deployment_id=$21,
+         destination_deployment_id=$21, engine_unavailable_since=NULL,
          worker_claimed_at=NULL, worker_lease_expires_at=NULL, updated_at=NOW()
          WHERE id=$1
          RETURNING *",

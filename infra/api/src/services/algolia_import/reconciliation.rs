@@ -7,7 +7,9 @@ use chrono::{DateTime, Duration, Utc};
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::models::algolia_import_job::{AlgoliaImportErrorCode, AlgoliaImportJobState};
+use crate::models::algolia_import_job::{
+    AlgoliaImportErrorCode, AlgoliaImportJobState, AlgoliaImportJobStatus,
+};
 use crate::models::AlgoliaSealScrubWork;
 use crate::repos::{
     AlgoliaImportEngineAckOutcome, AlgoliaImportJobRepo, AlgoliaImportReconciliationClaim,
@@ -18,13 +20,31 @@ use crate::repos::{
 use crate::services::alerting::{Alert, AlertService, AlertSeverity};
 
 use super::{
-    AlgoliaImportEngineOperation, AlgoliaImportObservationCursor, AlgoliaImportService,
-    AlgoliaImportStatusObservation, EngineTarget,
+    AlgoliaImportEngineError, AlgoliaImportEngineOperation, AlgoliaImportObservationCursor,
+    AlgoliaImportService, AlgoliaImportStatusObservation, EngineTarget,
 };
 
 const DEFAULT_RECONCILIATION_BATCH_SIZE: i64 = 4;
 const DEFAULT_RECONCILIATION_INTERVAL: StdDuration = StdDuration::from_secs(30);
 const DEFAULT_RECONCILIATION_LEASE_DURATION: Duration = Duration::minutes(5);
+
+/// How long a retained import may keep its node import reservation after the
+/// engine first affirms it holds no record of the job.
+///
+/// The engine legitimately loses and re-finds a migration across its own
+/// restarts, so the first affirmations must keep retrying. But the retry cannot
+/// be unbounded: a job the engine has permanently forgotten never reaches a
+/// terminal status on its own, and a pre-terminal row keeps counting against
+/// the active node import limit, so enough forgotten jobs wedge the node
+/// against every new create. The window is generously longer than an engine
+/// restart and far shorter than an operator noticing a wedged node.
+pub(super) const ENGINE_STATUS_ABSENCE_GRACE: Duration = Duration::minutes(15);
+
+#[derive(Clone, Copy)]
+struct ObservationPersistence {
+    authenticated_engine_absence: bool,
+    alert_if_unavailable_changed: bool,
+}
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct AlgoliaImportReconciliationConfig {
@@ -57,6 +77,7 @@ pub(crate) trait AlgoliaImportReconciliationStore: Send + Sync {
         lease: &AlgoliaImportReconciliationLease,
         observed_at: DateTime<Utc>,
         state: AlgoliaImportJobState,
+        authenticated_engine_absence: bool,
     ) -> Result<AlgoliaImportReconciliationWriteOutcome, RepoError>;
 
     async fn finalize_terminal_observation(
@@ -69,6 +90,12 @@ pub(crate) trait AlgoliaImportReconciliationStore: Send + Sync {
         &self,
         id: Uuid,
     ) -> Result<AlgoliaImportEngineAckOutcome, RepoError>;
+
+    async fn defer_erased_tombstone_retry(
+        &self,
+        id: Uuid,
+        retry_after: DateTime<Utc>,
+    ) -> Result<(), RepoError>;
 }
 
 #[async_trait]
@@ -90,9 +117,16 @@ where
         lease: &AlgoliaImportReconciliationLease,
         observed_at: DateTime<Utc>,
         state: AlgoliaImportJobState,
+        authenticated_engine_absence: bool,
     ) -> Result<AlgoliaImportReconciliationWriteOutcome, RepoError> {
-        AlgoliaImportJobRepo::record_reconciliation_observation(self, lease, observed_at, state)
-            .await
+        AlgoliaImportJobRepo::record_engine_status_observation(
+            self,
+            lease,
+            observed_at,
+            state,
+            authenticated_engine_absence,
+        )
+        .await
     }
 
     async fn finalize_terminal_observation(
@@ -108,6 +142,14 @@ where
         id: Uuid,
     ) -> Result<AlgoliaImportEngineAckOutcome, RepoError> {
         AlgoliaImportJobRepo::mark_engine_acknowledged(self, id).await
+    }
+
+    async fn defer_erased_tombstone_retry(
+        &self,
+        id: Uuid,
+        retry_after: DateTime<Utc>,
+    ) -> Result<(), RepoError> {
+        AlgoliaImportJobRepo::defer_erased_tombstone_retry(self, id, retry_after).await
     }
 }
 
@@ -257,10 +299,24 @@ impl AlgoliaImportService {
         {
             Ok(response) => response,
             Err(error) => {
+                let authenticated_engine_absence = Self::engine_retains_no_status_record(&error);
+                if authenticated_engine_absence
+                    && Self::engine_absence_grace_has_expired(&claim, observed_at)
+                {
+                    return self
+                        .fail_disowned_import_closed(runtime, claim, observed_at)
+                        .await;
+                }
                 let classification =
                     Self::classify_engine_error(AlgoliaImportEngineOperation::Status, &error);
                 return self
-                    .persist_unavailable(runtime, claim, observed_at, classification.code)
+                    .persist_unavailable(
+                        runtime,
+                        claim,
+                        observed_at,
+                        classification.code,
+                        authenticated_engine_absence,
+                    )
                     .await;
             }
         };
@@ -284,8 +340,17 @@ impl AlgoliaImportService {
                     state.error_message = None;
                     state.retryable = false;
                 }
-                self.persist_observation(runtime, claim, observed_at, state, false)
-                    .await
+                self.persist_observation(
+                    runtime,
+                    claim,
+                    observed_at,
+                    state,
+                    ObservationPersistence {
+                        authenticated_engine_absence: false,
+                        alert_if_unavailable_changed: false,
+                    },
+                )
+                .await
             }
             Ok(AlgoliaImportStatusObservation::Terminal(fact)) => {
                 self.finalize_reconciliation_terminal(runtime, claim, fact)
@@ -297,6 +362,7 @@ impl AlgoliaImportService {
                     claim,
                     observed_at,
                     AlgoliaImportErrorCode::BackendUnavailable,
+                    false,
                 )
                 .await
             }
@@ -320,6 +386,10 @@ impl AlgoliaImportService {
                     %reason,
                     "Algolia import erased-tombstone scrub target is unavailable"
                 );
+                runtime
+                    .store
+                    .defer_erased_tombstone_retry(claim.job.id, claim.lease.expires_at)
+                    .await?;
                 return Ok(ClaimObservation::Persisted);
             }
         };
@@ -331,6 +401,10 @@ impl AlgoliaImportService {
                     %error,
                     "Algolia import erased-tombstone scrub delivery failed; retained work will retry"
                 );
+                runtime
+                    .store
+                    .defer_erased_tombstone_retry(claim.job.id, claim.lease.expires_at)
+                    .await?;
                 return Ok(ClaimObservation::Persisted);
             }
         };
@@ -339,6 +413,10 @@ impl AlgoliaImportService {
                 job_id = %claim.job.id,
                 "Algolia import erased-tombstone scrub ACK did not prove exact target absence"
             );
+            runtime
+                .store
+                .defer_erased_tombstone_retry(claim.job.id, claim.lease.expires_at)
+                .await?;
             return Ok(ClaimObservation::Persisted);
         }
         runtime.store.mark_engine_acknowledged(claim.job.id).await?;
@@ -403,9 +481,76 @@ impl AlgoliaImportService {
         let node_secret_id = vm.node_secret_id().to_string();
         self.status(
             EngineTarget::new(vm.flapjack_url, node_secret_id, vm.region),
+            claim.job.source_provider,
             &engine_job_id.to_string(),
         )
         .await
+    }
+
+    /// The pinned engine status contract maps HTTP 404 to `migration_job_not_found`:
+    /// the engine holds no record of this migration. Unlike a transport failure
+    /// or a 5xx, this is the engine affirming absence rather than an unknown.
+    fn engine_retains_no_status_record(error: &AlgoliaImportEngineError) -> bool {
+        matches!(
+            error,
+            AlgoliaImportEngineError::Engine {
+                status: 404,
+                code: Some(code),
+            } if code == "migration_job_not_found"
+        )
+    }
+
+    /// True once the persisted run of engine unavailability is older than the
+    /// grace window. The first affirmation always lands here with no persisted
+    /// start mark, so it retries and only starts the clock.
+    fn engine_absence_grace_has_expired(
+        claim: &AlgoliaImportReconciliationClaim,
+        observed_at: DateTime<Utc>,
+    ) -> bool {
+        claim
+            .job
+            .engine_unavailable_since
+            .is_some_and(|since| observed_at - since > ENGINE_STATUS_ABSENCE_GRACE)
+    }
+
+    /// Terminate an import the engine has disowned for longer than the grace
+    /// window. Nothing was promoted, so the publication disposition stays
+    /// unchanged and the existing terminal owner releases the node import
+    /// reservation and delivers the terminal ACK.
+    async fn fail_disowned_import_closed<S>(
+        &self,
+        runtime: &AlgoliaImportReconciliationRuntime<S>,
+        claim: AlgoliaImportReconciliationClaim,
+        observed_at: DateTime<Utc>,
+    ) -> Result<ClaimObservation, RepoError>
+    where
+        S: AlgoliaImportReconciliationStore,
+    {
+        let engine_job_id = claim
+            .job
+            .engine_job_id
+            .expect("reconciliation claims are engine-linked");
+        tracing::warn!(
+            job_id = %claim.job.id,
+            %engine_job_id,
+            "Algolia import engine has retained no status record beyond the absence grace; failing the import closed"
+        );
+        let fact = crate::models::algolia_import_job::AlgoliaImportTerminalFact::new(
+            engine_job_id,
+            AlgoliaImportJobStatus::Failed,
+            crate::models::algolia_import_job::AlgoliaImportPublicationDisposition::Unchanged,
+            observed_at,
+            crate::models::algolia_import_job::AlgoliaImportTerminalDetails {
+                summary: claim.job.summary.clone(),
+                terminal_outcome_observed: false,
+                warnings: Vec::new(),
+                error_code: Some(AlgoliaImportErrorCode::BackendUnavailable),
+                error_message: None,
+            },
+        )
+        .map_err(|message| RepoError::Conflict(message.into()))?;
+        self.finalize_reconciliation_terminal(runtime, claim, fact)
+            .await
     }
 
     async fn persist_unavailable<S>(
@@ -414,6 +559,7 @@ impl AlgoliaImportService {
         claim: AlgoliaImportReconciliationClaim,
         observed_at: DateTime<Utc>,
         code: AlgoliaImportErrorCode,
+        authenticated_engine_absence: bool,
     ) -> Result<ClaimObservation, RepoError>
     where
         S: AlgoliaImportReconciliationStore,
@@ -423,8 +569,17 @@ impl AlgoliaImportService {
         state.error_code = Some(code);
         state.error_message = None;
         state.retryable = true;
-        self.persist_observation(runtime, claim, observed_at, state, true)
-            .await
+        self.persist_observation(
+            runtime,
+            claim,
+            observed_at,
+            state,
+            ObservationPersistence {
+                authenticated_engine_absence,
+                alert_if_unavailable_changed: true,
+            },
+        )
+        .await
     }
 
     async fn persist_observation<S>(
@@ -433,14 +588,19 @@ impl AlgoliaImportService {
         claim: AlgoliaImportReconciliationClaim,
         observed_at: DateTime<Utc>,
         state: AlgoliaImportJobState,
-        alert_if_changed: bool,
+        persistence: ObservationPersistence,
     ) -> Result<ClaimObservation, RepoError>
     where
         S: AlgoliaImportReconciliationStore,
     {
         match runtime
             .store
-            .record_reconciliation_observation(&claim.lease, observed_at, state)
+            .record_reconciliation_observation(
+                &claim.lease,
+                observed_at,
+                state,
+                persistence.authenticated_engine_absence,
+            )
             .await?
         {
             AlgoliaImportReconciliationWriteOutcome::LeaseLost => Ok(ClaimObservation::LeaseLost),
@@ -448,7 +608,7 @@ impl AlgoliaImportService {
                 unavailable_state_changed,
                 ..
             } => {
-                if alert_if_changed && unavailable_state_changed {
+                if persistence.alert_if_unavailable_changed && unavailable_state_changed {
                     Self::alert_reconciliation_unavailable(runtime.alert_service.as_ref(), &claim)
                         .await;
                 }
@@ -525,16 +685,45 @@ impl AlgoliaImportService {
                 return Self::release_retained_ack_claim(runtime, job, retained_ack_claim).await;
             }
         };
-        if let Err(error) = self.acknowledge(target, &engine_job_id.to_string()).await {
-            tracing::warn!(
+        if let Err(error) = self
+            .acknowledge(target, job.source_provider, &engine_job_id.to_string())
+            .await
+        {
+            if !Self::engine_refuses_terminal_ack_permanently(&error) {
+                tracing::warn!(
+                    job_id = %job.id,
+                    %error,
+                    "Algolia import terminal ACK delivery failed; retained outbox will retry"
+                );
+                return Self::release_retained_ack_claim(runtime, job, retained_ack_claim).await;
+            }
+            tracing::info!(
                 job_id = %job.id,
-                %error,
-                "Algolia import terminal ACK delivery failed; retained outbox will retry"
+                "Algolia import terminal ACK found no retained engine record; finalizing acknowledgement"
             );
-            return Self::release_retained_ack_claim(runtime, job, retained_ack_claim).await;
         }
         runtime.store.mark_engine_acknowledged(job.id).await?;
         Ok(ClaimObservation::TerminalFinalized)
+    }
+
+    /// The pinned engine acknowledge contract maps HTTP 404 to `missing_job`:
+    /// the engine retains no durable migration phase record for the UUID. There
+    /// is nothing left to acknowledge, so the retained outbox entry must
+    /// finalize instead of retrying forever — an unacknowledgeable job holds its
+    /// node import reservation indefinitely and eventually wedges the node
+    /// against the active node import limit. The engine also returns
+    /// `migration_ack_stale_generation` when a terminal generation can no
+    /// longer accept a receipt; retrying that response cannot make the old
+    /// receipt valid again.
+    fn engine_refuses_terminal_ack_permanently(error: &AlgoliaImportEngineError) -> bool {
+        matches!(error, AlgoliaImportEngineError::Engine { status: 404, .. })
+            || matches!(
+                error,
+                AlgoliaImportEngineError::Engine {
+                    status: 409,
+                    code: Some(code),
+                } if code == "migration_ack_stale_generation"
+            )
     }
 
     async fn release_retained_ack_claim<S>(
@@ -552,7 +741,7 @@ impl AlgoliaImportService {
             .map_err(|message| RepoError::Conflict(message.into()))?;
         match runtime
             .store
-            .record_reconciliation_observation(lease, observed_at, state)
+            .record_reconciliation_observation(lease, observed_at, state, false)
             .await?
         {
             AlgoliaImportReconciliationWriteOutcome::LeaseLost => Ok(ClaimObservation::LeaseLost),

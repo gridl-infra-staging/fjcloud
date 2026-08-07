@@ -4,7 +4,9 @@ use sqlx::{Postgres, Transaction};
 use tokio::sync::OwnedMutexGuard;
 use uuid::Uuid;
 
-use crate::models::algolia_import_job::{AlgoliaImportDestinationKind, AlgoliaImportTerminalFact};
+use crate::models::algolia_import_job::{
+    AlgoliaImportDestinationKind, AlgoliaImportTerminalFact, SourceImportProvider,
+};
 use crate::models::{
     AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportJobState, AlgoliaSealScrubWork,
     NewAlgoliaImportJob, NewAlgoliaReplaceImportJob,
@@ -19,6 +21,7 @@ use crate::repos::RepoError;
 /// to the full transactional admission path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlgoliaImportDispatchReplayIdentity {
+    pub source_provider: SourceImportProvider,
     pub app_id: String,
     pub source_name: String,
     pub kind: AlgoliaImportDestinationKind,
@@ -30,7 +33,8 @@ impl AlgoliaImportDispatchReplayIdentity {
     /// True when a retained job is the exact same logical request: same app id,
     /// source index, destination kind, logical target, and region.
     pub fn matches(&self, job: &AlgoliaImportJob) -> bool {
-        self.app_id == job.algolia_app_id
+        self.source_provider == job.source_provider
+            && self.app_id == job.algolia_app_id
             && self.source_name == job.source_name
             && self.kind == job.destination_kind
             && self.logical_target == job.logical_target
@@ -494,6 +498,16 @@ pub trait SourceMigrationJobRepo {
         &self,
         id: Uuid,
     ) -> Result<AlgoliaImportEngineAckOutcome, RepoError>;
+    /// Release a retained erased tombstone whose scrub attempt did not prove
+    /// exact target absence, advancing its reconciliation ordering timestamp.
+    /// Reconciliation claims oldest-updated-first under a bounded batch, so a
+    /// tombstone that retries without advancing that timestamp would hold the
+    /// front of every batch and starve live imports.
+    async fn defer_erased_tombstone_retry(
+        &self,
+        id: Uuid,
+        retry_after: DateTime<Utc>,
+    ) -> Result<(), RepoError>;
     async fn gc_retained_terminal_history(
         &self,
         now: DateTime<Utc>,
@@ -516,6 +530,18 @@ pub trait SourceMigrationJobRepo {
         observed_at: DateTime<Utc>,
         state: AlgoliaImportJobState,
     ) -> Result<AlgoliaImportReconciliationWriteOutcome, RepoError>;
+    /// Persist a status observation while distinguishing an authenticated
+    /// missing-job response from generic engine unavailability.
+    async fn record_engine_status_observation(
+        &self,
+        lease: &AlgoliaImportReconciliationLease,
+        observed_at: DateTime<Utc>,
+        state: AlgoliaImportJobState,
+        _authenticated_engine_absence: bool,
+    ) -> Result<AlgoliaImportReconciliationWriteOutcome, RepoError> {
+        self.record_reconciliation_observation(lease, observed_at, state)
+            .await
+    }
     async fn finalize_terminal_observation(
         &self,
         authority: AlgoliaImportTerminalFinalizationAuthority,

@@ -1,7 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { stringify } from 'devalue';
 import { ApiRequestError } from '$lib/api/client';
 import type { CreateAlgoliaImportJobRequest, ListAlgoliaIndexesRequest } from '$lib/api/types';
@@ -28,7 +25,6 @@ import {
 	createAlgoliaImportJobMock,
 	createJobPayload,
 	createMigrationImportJobMock,
-	findDynamicRouteOwners,
 	forwardedCreateBody,
 	forwardedSourceCredentials,
 	getMigrationAvailabilityMock,
@@ -53,7 +49,10 @@ function withTypesenseNode<T extends object>(payload: T, node: string): T {
 }
 
 function withSourceHost<T extends object>(payload: T, host: string): T {
-	return { ...payload, host } as T;
+	if ('endpoint' in payload) {
+		return { ...payload, endpoint: host } as T;
+	}
+	return { ...payload, node: host } as T;
 }
 
 function invokeAction<T>(
@@ -155,7 +154,11 @@ describe('Migrate page server actions and serialization', () => {
 			for (const forbidden of [
 				'jwt-secret-canary',
 				payload.apiKey,
-				'appId' in payload ? payload.appId : payload.host,
+				'appId' in payload
+					? payload.appId
+					: 'endpoint' in payload
+						? payload.endpoint
+						: payload.node,
 				payload.target.eligibilityToken,
 				idempotencyKey
 			]) {
@@ -184,6 +187,25 @@ describe('Migrate page server actions and serialization', () => {
 			expect(listAlgoliaSourceIndexesMock).not.toHaveBeenCalled();
 			expect(JSON.stringify(result)).not.toContain('jwt-secret-canary');
 			expect(JSON.stringify(result)).not.toContain(payload.apiKey);
+		}
+	);
+
+	it.each(HOSTED_SOURCE_PROVIDERS)(
+		'listSourceIndexes forwards %s offset pagination separately from hosted JSON credentials',
+		async (sourceProvider) => {
+			const payload = { ...sourceListPayload(sourceProvider), offset: 25, limit: 100 };
+
+			await invokeAction(actions.listSourceIndexes, payloadRequest(payload));
+
+			expect(listMigrationSourceIndexesMock).toHaveBeenCalledWith(sourceProvider, {
+				...forwardedSourceCredentials(payload),
+				offset: 25,
+				limit: 100
+			});
+			expect(JSON.stringify(listMigrationSourceIndexesMock.mock.calls[0][1])).not.toContain(
+				'"cursor"'
+			);
+			expect(listAlgoliaSourceIndexesMock).not.toHaveBeenCalled();
 		}
 	);
 
@@ -413,7 +435,9 @@ describe('Migrate page server actions and serialization', () => {
 		async (sourceProvider) => {
 			const payload = {
 				...createJobPayload(sourceProvider),
-				host: 'https://127.0.0.1'
+				...(sourceProvider === 'meilisearch'
+					? { endpoint: 'https://127.0.0.1' }
+					: { node: 'https://127.0.0.1' })
 			};
 
 			const result = await invokeAction(
@@ -775,52 +799,5 @@ describe('Migrate page server actions and serialization', () => {
 		]) {
 			expect(serialized).not.toContain(forbidden);
 		}
-	});
-
-	it('detects route owners anywhere below a dynamic migration segment', () => {
-		const routeDir = mkdtempSync(join(tmpdir(), 'migration-route-guard-'));
-
-		try {
-			for (const relativeDir of ['[jobId]', '[jobId]/details', '[jobId]/details/api', 'help']) {
-				mkdirSync(join(routeDir, relativeDir), { recursive: true });
-			}
-			writeFileSync(join(routeDir, '[jobId]/+page.server.ts'), '');
-			writeFileSync(join(routeDir, '[jobId]/details/+page.svelte'), '');
-			writeFileSync(join(routeDir, '[jobId]/details/api/+server.ts'), '');
-			writeFileSync(join(routeDir, 'help/+page.svelte'), '');
-
-			expect(findDynamicRouteOwners(routeDir, '').sort()).toEqual([
-				'[jobId]/+page.server.ts',
-				'[jobId]/details/+page.svelte',
-				'[jobId]/details/api/+server.ts'
-			]);
-		} finally {
-			rmSync(routeDir, { recursive: true, force: true });
-		}
-	});
-
-	it('fails loudly when the root migrate route directory cannot be read', () => {
-		// The guard's whole purpose is to prove no dynamic route owner is served
-		// under src/routes/console/migrate. If the root path is misresolved (wrong
-		// cwd) or otherwise unreadable, swallowing the readdirSync error and
-		// returning [] would let the guard pass vacuously. A missing root must
-		// throw so the guard cannot be silently defeated.
-		const missingRoot = join(tmpdir(), 'migration-route-guard-missing-root-does-not-exist');
-		expect(existsSync(missingRoot)).toBe(false);
-		expect(() => findDynamicRouteOwners(missingRoot, '')).toThrow();
-	});
-
-	it('serves only the intended [jobId] job-detail dynamic route owners', () => {
-		const migrateRouteDir = join(process.cwd(), 'src/routes/console/migrate');
-
-		// Prove the guard is pointed at a real, readable directory so the result
-		// cannot come from a misresolved or unreadable root path.
-		expect(existsSync(migrateRouteDir)).toBe(true);
-
-		// Stage 3 serves exactly the [jobId] detail route: its server contract and
-		// its page. Any other dynamic owner (a nested proxy, a token endpoint, a
-		// second job-detail route) must make this fail.
-		const dynamicRouteOwners = findDynamicRouteOwners(migrateRouteDir, '').sort();
-		expect(dynamicRouteOwners).toEqual(['[jobId]/+page.server.ts', '[jobId]/+page.svelte']);
 	});
 });

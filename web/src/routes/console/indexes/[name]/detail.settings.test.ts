@@ -32,23 +32,24 @@ afterEach(() => {
 });
 
 describe('Index detail page — Settings', () => {
-	it.each(DEFAULT_SEARCH_SETTINGS_URL_CASES)('defaults to Search settings when settingsTab is %s', async (_label, url) => {
-		setPageUrl(url);
-		renderPage();
-
-		expect(getParentSettingsTab()).toHaveAttribute('aria-selected', 'true');
-		expect(getSettingsSubtab('Search settings')).toHaveAttribute('aria-selected', 'true');
-		const panel = getActiveSettingsPanel();
-		expect(panel).toHaveAccessibleName('Search settings');
-		expect(within(panel).getByLabelText(/searchable attributes/i)).toBeInTheDocument();
-	});
+	it.each(DEFAULT_SEARCH_SETTINGS_URL_CASES)(
+		'defaults to Search settings when settingsTab is %s',
+		async (_label, url) => {
+			setPageUrl(url);
+			renderPage();
+			expect(getParentSettingsTab()).toHaveAttribute('aria-selected', 'true');
+			expect(getSettingsSubtab('Search settings')).toHaveAttribute('aria-selected', 'true');
+			const panel = getActiveSettingsPanel();
+			expect(panel).toHaveAccessibleName('Search settings');
+			expect(within(panel).getByLabelText(/searchable attributes/i)).toBeInTheDocument();
+		}
+	);
 
 	it.each(SETTINGS_DEEP_LINK_CASES)(
 		'deep-links to settingsTab=%s while keeping the parent Settings tab selected',
 		async (settingsTab, expectedTab, expectedPanelContent) => {
 			setPageUrl(`/console/indexes/products?tab=settings&settingsTab=${settingsTab}`);
 			renderPage();
-
 			expect(getParentSettingsTab()).toHaveAttribute('aria-selected', 'true');
 			expect(getSettingsSubtab(expectedTab)).toHaveAttribute('aria-selected', 'true');
 			expect(within(getActiveSettingsPanel()).getByText(expectedPanelContent)).toBeInTheDocument();

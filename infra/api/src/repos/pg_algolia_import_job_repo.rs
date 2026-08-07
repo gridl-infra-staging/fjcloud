@@ -487,7 +487,7 @@ impl SourceMigrationJobRepo for PgSourceMigrationJobRepo {
         let mut tx = self.pool.begin().await.map_err(repo_error)?;
         let current = self.lock_generation_fenced_target_job(&mut tx, id).await?;
         validate_state_write(&current, &state)?;
-        let updated = persist_job_state(&mut tx, id, &state, false).await?;
+        let updated = persist_job_state(&mut tx, id, &state, false, false).await?;
         tx.commit().await.map_err(repo_error)?;
         Ok(updated)
     }
@@ -566,6 +566,14 @@ impl SourceMigrationJobRepo for PgSourceMigrationJobRepo {
     ) -> Result<AlgoliaImportJob, RepoError> {
         self.record_resume_accepted_inner(id, generation, summary)
             .await
+    }
+
+    async fn defer_erased_tombstone_retry(
+        &self,
+        id: Uuid,
+        retry_after: DateTime<Utc>,
+    ) -> Result<(), RepoError> {
+        scrub::defer_erased_tombstone_retry(&self.pool, id, retry_after).await
     }
 
     /// TODO: Document PgAlgoliaImportJobRepo.mark_engine_acknowledged.
@@ -684,8 +692,24 @@ impl SourceMigrationJobRepo for PgSourceMigrationJobRepo {
         observed_at: DateTime<Utc>,
         state: AlgoliaImportJobState,
     ) -> Result<AlgoliaImportReconciliationWriteOutcome, RepoError> {
-        self.record_reconciliation_observation_inner(lease, observed_at, state)
+        self.record_reconciliation_observation_inner(lease, observed_at, state, false)
             .await
+    }
+
+    async fn record_engine_status_observation(
+        &self,
+        lease: &AlgoliaImportReconciliationLease,
+        observed_at: DateTime<Utc>,
+        state: AlgoliaImportJobState,
+        authenticated_engine_absence: bool,
+    ) -> Result<AlgoliaImportReconciliationWriteOutcome, RepoError> {
+        self.record_reconciliation_observation_inner(
+            lease,
+            observed_at,
+            state,
+            authenticated_engine_absence,
+        )
+        .await
     }
 
     async fn finalize_terminal_observation(

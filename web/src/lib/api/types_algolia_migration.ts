@@ -56,20 +56,23 @@ export interface ListTypesenseIndexesRequest {
 	apiKey: string;
 }
 
-export interface HostedSourceIndexesPageRequest {
-	offset?: number | null;
-	limit?: number | null;
-}
-
-export type ListMeilisearchSourceIndexesRequest = ListMeilisearchIndexesRequest &
-	HostedSourceIndexesPageRequest;
-export type ListTypesenseSourceIndexesRequest = ListTypesenseIndexesRequest &
-	HostedSourceIndexesPageRequest;
-
 export type ListMigrationSourceIndexesRequest =
 	| ListAlgoliaIndexesRequest
-	| ListMeilisearchSourceIndexesRequest
-	| ListTypesenseSourceIndexesRequest;
+	| ListMeilisearchIndexesRequest
+	| ListTypesenseIndexesRequest;
+
+export type HostedSourcePaginationRequest = {
+	offset?: number | null;
+	limit?: number | null;
+};
+
+export type ListHostedMigrationSourceIndexesRequest =
+	| (ListMeilisearchIndexesRequest & HostedSourcePaginationRequest)
+	| (ListTypesenseIndexesRequest & HostedSourcePaginationRequest);
+
+export type ListMigrationSourceIndexesInput =
+	| ListAlgoliaIndexesRequest
+	| ListHostedMigrationSourceIndexesRequest;
 
 export interface AlgoliaIndexMetadata {
 	name: string;
@@ -81,6 +84,7 @@ export interface AlgoliaIndexMetadata {
 	pendingTask: boolean;
 	primary: string | null;
 	replicas: string[];
+	revision?: string;
 }
 
 export interface AlgoliaSourceListResponse {
@@ -123,25 +127,43 @@ export interface CreateAlgoliaImportJobTargetRequest {
 	eligibilityToken: string;
 }
 
+export interface CreateMigrationImportJobSourceRevisionRequest {
+	documentCount: number;
+	updatedAt?: string;
+	revision?: string;
+}
+
 export interface CreateAlgoliaImportJobRequest {
 	mode: AlgoliaMigrationDestinationMode;
 	appId: string;
 	apiKey: string;
 	sourceName: string;
+	sourceRevision?: CreateMigrationImportJobSourceRevisionRequest;
 	target: CreateAlgoliaImportJobTargetRequest;
 }
 
-export interface CreateHostedSearchImportJobRequest {
+export interface CreateMeilisearchImportJobRequest {
 	mode: AlgoliaMigrationDestinationMode;
-	host: string;
+	endpoint: string;
 	apiKey: string;
-	sourceName: string;
+	sourceIndex: string;
+	sourceRevision?: CreateMigrationImportJobSourceRevisionRequest;
+	target: CreateAlgoliaImportJobTargetRequest;
+}
+
+export interface CreateTypesenseImportJobRequest {
+	mode: AlgoliaMigrationDestinationMode;
+	node: string;
+	apiKey: string;
+	sourceIndex: string;
+	sourceRevision?: CreateMigrationImportJobSourceRevisionRequest;
 	target: CreateAlgoliaImportJobTargetRequest;
 }
 
 export type CreateMigrationImportJobRequest =
 	| CreateAlgoliaImportJobRequest
-	| CreateHostedSearchImportJobRequest;
+	| CreateMeilisearchImportJobRequest
+	| CreateTypesenseImportJobRequest;
 
 export interface ListAlgoliaImportJobsRequest {
 	limit?: number;

@@ -119,8 +119,8 @@ assert_file_contains "$validate_script" 'run_security_group_audit' "validate_all
 assert_file_contains "$validate_script" '0.0.0.0/0' "validate_all.sh audits for 0.0.0.0/0 ingress"
 assert_file_contains "$validate_script" '80' "validate_all.sh allows port 80 for public ingress"
 assert_file_contains "$validate_script" '443' "validate_all.sh allows port 443 for public ingress"
-assert_file_contains "$validate_script" 'flapjack_public_data_plane' "validate_all.sh names the public Flapjack data-plane exception"
-assert_file_contains "$validate_script" '7700' "validate_all.sh shape-checks public Flapjack port 7700"
+assert_file_not_contains "$validate_script" 'flapjack_public_data_plane' "validate_all.sh removes the public Flapjack data-plane exception"
+assert_file_not_contains "$validate_script" '7700' "validate_all.sh removes raw public Flapjack port 7700 handling"
 assert_file_contains "$validate_script" 'tcp' "validate_all.sh shape-checks public ingress protocols"
 assert_file_contains "$validate_script" 'run_live_e2e_ttl_janitor_contract_audit' "validate_all.sh defines janitor contract audit entrypoint"
 assert_file_contains "$validate_script" 'ops/scripts/live_e2e_ttl_janitor.sh' "validate_all.sh validates janitor contract owner path"
@@ -151,7 +151,7 @@ assert_file_contains "$publication_dockerfile" 'scripts/validate_inbound_email_r
 assert_file_contains "$publication_lambda_handler" 'support_email_deliverability.sh' "support_email_canary lambda handler delegates to support_email_deliverability.sh"
 
 assert_validate_script_result "validate_all.sh runs audit-only mode when terraform is unavailable" 1
-assert_validate_script_result "validate_all.sh accepts the exact named TCP 7700 Flapjack fixture" 1 "ops/terraform/fixtures/safe"
+assert_validate_script_result "validate_all.sh rejects the exact named TCP 7700 Flapjack fixture" 0 "ops/terraform/fixtures/reject" 'insecure public ingress.*resource=flapjack_public_data_plane.*from_port=7700.*to_port=7700.*protocol=tcp' "validate_all.sh reports the removed public data-plane fixture"
 assert_validate_script_result "validate_all.sh rejects a differently named public TCP 7700 rule" 0 "ops/terraform/fixtures/wrong_name_public_7700" 'insecure public ingress.*resource=fixture_public_data_plane' "validate_all.sh reports the unexpected public 7700 resource name"
 assert_validate_script_result "validate_all.sh rejects the named public 7700 rule with the wrong protocol" 0 "ops/terraform/fixtures/wrong_protocol_public_data_plane" 'insecure public ingress.*resource=flapjack_public_data_plane.*from_port=7700.*to_port=7700.*protocol=udp' "validate_all.sh reports the wrong public data-plane protocol"
 assert_validate_script_result "validate_all.sh rejects the named public 7700 rule with the wrong range" 0 "ops/terraform/fixtures/wrong_range_public_data_plane" 'insecure public ingress.*resource=flapjack_public_data_plane.*from_port=7700.*to_port=7701.*protocol=tcp' "validate_all.sh reports the wrong public data-plane port range"

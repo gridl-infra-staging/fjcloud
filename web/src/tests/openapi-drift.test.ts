@@ -435,7 +435,11 @@ const enumSchemaDescriptors: EnumSchemaDescriptor[] = [
 const oneOfSchemaDescriptors: OneOfSchemaDescriptor[] = [
 	{
 		schemaName: 'ListSourceIndexesRequest',
-		refs: ['ListAlgoliaIndexesRequest', 'ListMeilisearchIndexesRequest', 'ListTypesenseIndexesRequest']
+		refs: [
+			'ListAlgoliaIndexesRequest',
+			'ListMeilisearchIndexesRequest',
+			'ListTypesenseIndexesRequest'
+		]
 	},
 	{
 		schemaName: 'ListSourceIndexesResponseBody',

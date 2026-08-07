@@ -287,7 +287,10 @@ pub(crate) async fn reserve_shared_vm_destination(
     state: &AppState,
     destination: &AdmittedIndexDestination,
 ) -> Result<SelectedSharedVm, ApiError> {
-    select_shared_vm_for_new_index(state, &destination.region, &ResourceVector::zero()).await
+    let selected_vm =
+        select_shared_vm_for_new_index(state, &destination.region, &ResourceVector::zero()).await?;
+    ensure_shared_vm_has_admin_key(state, &selected_vm.vm).await?;
+    Ok(selected_vm)
 }
 
 /// Ensure the shared VM has an admin API key, creating one if missing.
@@ -295,29 +298,17 @@ async fn ensure_shared_vm_has_admin_key(
     state: &AppState,
     vm: &crate::models::vm_inventory::VmInventory,
 ) -> Result<(), ApiError> {
-    let secret_id = super::shared_vm_secret_id(vm);
-    match state
-        .provisioning_service
-        .node_secret_manager
-        .get_node_api_key(secret_id, &vm.region)
-        .await
-    {
-        Ok(_) => Ok(()),
-        Err(error) if super::is_missing_node_secret_error(&error) => state
-            .provisioning_service
-            .node_secret_manager
-            .create_node_api_key(secret_id, &vm.region)
-            .await
-            .map(|_| ())
-            .map_err(|e| {
-                ApiError::Internal(format!(
-                    "failed to create admin key for shared VM placement: {e}"
-                ))
-            }),
-        Err(error) => Err(ApiError::Internal(format!(
-            "failed to verify admin key for shared VM placement: {error}"
-        ))),
-    }
+    crate::services::flapjack_node::get_or_create_node_api_key(
+        state.provisioning_service.node_secret_manager.as_ref(),
+        vm,
+    )
+    .await
+    .map(|_| ())
+    .map_err(|error| {
+        ApiError::Internal(format!(
+            "failed to ensure admin key for shared VM placement: {error}"
+        ))
+    })
 }
 
 fn build_shared_vm_loads(

@@ -3,6 +3,7 @@ use uuid::Uuid;
 use super::{
     AlgoliaImportCreateDestination, AlgoliaImportDestination, AlgoliaImportDestinationKind,
     AlgoliaImportErrorCode, AlgoliaImportSource, NewAlgoliaImportJob, NewAlgoliaReplaceImportJob,
+    SourceImportProvider,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,6 +94,7 @@ impl AlgoliaImportTargetBinding {
 
 impl NewAlgoliaReplaceImportJob {
     pub fn from_target_binding(
+        source_provider: SourceImportProvider,
         target_binding: AlgoliaImportTargetBinding,
         source: AlgoliaImportSource,
         idempotency_key: impl Into<String>,
@@ -101,6 +103,7 @@ impl NewAlgoliaReplaceImportJob {
             return Err(AlgoliaImportErrorCode::DestinationChanged);
         }
         Ok(Self {
+            source_provider,
             customer_id: target_binding.customer_id,
             logical_target: target_binding.logical_target.clone(),
             source,
@@ -112,6 +115,7 @@ impl NewAlgoliaReplaceImportJob {
 
 impl NewAlgoliaImportJob {
     pub fn create_from_target_binding(
+        source_provider: SourceImportProvider,
         target_binding: AlgoliaImportTargetBinding,
         source: AlgoliaImportSource,
         idempotency_key: impl Into<String>,
@@ -124,6 +128,7 @@ impl NewAlgoliaImportJob {
             target_binding.region.clone(),
         );
         Ok(Self::from_destination(
+            source_provider,
             target_binding.customer_id,
             AlgoliaImportDestination::Create(destination),
             source,

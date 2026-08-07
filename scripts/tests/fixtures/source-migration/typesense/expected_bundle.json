@@ -51,6 +51,7 @@
         "symbols_to_index": [],
         "synonym_sets": [],
         "curation_sets": [],
+        "documentCount": 2,
         "fields": [
           {
             "name": "name",
@@ -138,6 +139,7 @@
         "curation_sets": [
           "fj_ts_migration_curations"
         ],
+        "documentCount": 3,
         "fields": [
           {
             "name": "title",

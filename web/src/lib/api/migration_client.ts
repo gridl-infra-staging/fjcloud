@@ -9,11 +9,9 @@ import type {
 	CreateMigrationImportJobRequest,
 	ListAlgoliaImportJobsRequest,
 	ListAlgoliaIndexesRequest,
-	ListMeilisearchIndexesRequest,
-	ListMeilisearchSourceIndexesRequest,
+	ListHostedMigrationSourceIndexesRequest,
+	ListMigrationSourceIndexesInput,
 	ListMigrationSourceIndexesRequest,
-	ListTypesenseIndexesRequest,
-	ListTypesenseSourceIndexesRequest,
 	MigrationPreviewArguments,
 	MigrationPreviewResponse,
 	PublicAlgoliaImportJob,
@@ -27,8 +25,8 @@ import { ApiRequestError } from './api_request_error';
 import { BaseClient } from './base-client';
 import {
 	algoliaSourceListRequest,
-	normalizeAlgoliaMigrationAvailability,
-	normalizeMigrationSourceListResponse
+	normalizeMigrationSourceListResponse,
+	normalizeAlgoliaMigrationAvailability
 } from './client_normalizers';
 import { buildQueryString, pathSegment } from './client_paths';
 
@@ -45,6 +43,11 @@ const SENSITIVE_ERROR_KEYS = new Set([
 const BEARER_TOKEN_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]+\b/gi;
 const STRUCTURED_SECRET_PATTERN =
 	/((?:api[_ -]?key|authorization|token|secret|password)["'\]]?\s*[:=]\s*["']?)([^"',\s}\]]+)/gi;
+
+type MigrationSourceListTransport = {
+	queryEntries: Array<[string, string | number | undefined]>;
+	body: ListMigrationSourceIndexesRequest;
+};
 
 function isSensitiveErrorKey(key: string): boolean {
 	return SENSITIVE_ERROR_KEYS.has(key.replace(/[^a-z0-9]/gi, '').toLowerCase());
@@ -74,50 +77,34 @@ function sanitizeErrorPayload(value: unknown): unknown {
 	return value;
 }
 
-function hostedSourceListQuery(
-	request: ListMeilisearchSourceIndexesRequest | ListTypesenseSourceIndexesRequest
-): string {
-	return buildQueryString([
-		['offset', request.offset ?? undefined],
-		['limit', request.limit ?? undefined]
-	]);
-}
-
-function meilisearchSourceListBody(
-	request: ListMeilisearchSourceIndexesRequest
-): ListMeilisearchIndexesRequest {
+function hostedSourceListTransport(
+	sourceProvider: Exclude<SourceProvider, 'algolia'>,
+	request: ListHostedMigrationSourceIndexesRequest
+): MigrationSourceListTransport {
+	const { offset, limit, ...body } = request;
 	return {
-		endpoint: request.endpoint,
-		apiKey: request.apiKey
+		queryEntries: [
+			['offset', offset ?? undefined],
+			['limit', limit ?? undefined]
+		],
+		body
 	};
 }
 
-function typesenseSourceListBody(
-	request: ListTypesenseSourceIndexesRequest
-): ListTypesenseIndexesRequest {
-	return {
-		node: request.node,
-		apiKey: request.apiKey
-	};
-}
-
-function hostedSourceListRequest(
+function migrationSourceListTransport(
 	sourceProvider: SourceProvider,
-	request: ListMigrationSourceIndexesRequest
-): ListMeilisearchSourceIndexesRequest | ListTypesenseSourceIndexesRequest {
-	if (sourceProvider === 'meilisearch') {
-		return request as ListMeilisearchSourceIndexesRequest;
+	request: ListMigrationSourceIndexesInput
+): MigrationSourceListTransport {
+	if (sourceProvider === 'algolia') {
+		return {
+			queryEntries: [],
+			body: algoliaSourceListRequest(request as ListAlgoliaIndexesRequest)
+		};
 	}
-	return request as ListTypesenseSourceIndexesRequest;
-}
-
-function hostedSourceListBody(
-	sourceProvider: SourceProvider,
-	request: ListMeilisearchSourceIndexesRequest | ListTypesenseSourceIndexesRequest
-): ListMeilisearchIndexesRequest | ListTypesenseIndexesRequest {
-	return sourceProvider === 'meilisearch'
-		? meilisearchSourceListBody(request as ListMeilisearchSourceIndexesRequest)
-		: typesenseSourceListBody(request as ListTypesenseSourceIndexesRequest);
+	return hostedSourceListTransport(
+		sourceProvider,
+		request as ListHostedMigrationSourceIndexesRequest
+	);
 }
 
 /** Shared authenticated transport plus the migration API surface. */
@@ -185,21 +172,15 @@ export class MigrationClient extends BaseClient {
 
 	listMigrationSourceIndexes(
 		sourceProvider: SourceProvider,
-		request: ListMigrationSourceIndexesRequest
+		request: ListMigrationSourceIndexesInput
 	): Promise<AlgoliaSourceListResponse> {
-		if (sourceProvider === 'algolia') {
-			return this.api<unknown>(
-				'POST',
-				`/migration/${pathSegment(sourceProvider)}/list-indexes`,
-				algoliaSourceListRequest(request as ListAlgoliaIndexesRequest)
-			).then(normalizeMigrationSourceListResponse);
-		}
-		const hostedRequest = hostedSourceListRequest(sourceProvider, request);
-		const query = hostedSourceListQuery(hostedRequest);
-		return this.api<unknown>(
+		const transport = migrationSourceListTransport(sourceProvider, request);
+		return this.api<AlgoliaSourceListResponse>(
 			'POST',
-			`/migration/${pathSegment(sourceProvider)}/list-indexes${query}`,
-			hostedSourceListBody(sourceProvider, hostedRequest)
+			`/migration/${pathSegment(sourceProvider)}/list-indexes${buildQueryString(
+				transport.queryEntries
+			)}`,
+			transport.body
 		).then(normalizeMigrationSourceListResponse);
 	}
 

@@ -26,6 +26,7 @@ prepare_playwright_stack_harness() {
 	cp "$REPO_ROOT/scripts/lib/compose_project.sh" "$temp_dir/scripts/lib/compose_project.sh"
 	cp "$REPO_ROOT/scripts/lib/local_url.sh" "$temp_dir/scripts/lib/local_url.sh"
 	cp "$REPO_ROOT/scripts/lib/db_url.sh" "$temp_dir/scripts/lib/db_url.sh"
+	cp "$REPO_ROOT/scripts/lib/local_source_providers.sh" "$temp_dir/scripts/lib/local_source_providers.sh"
 	chmod +x "$temp_dir/scripts/playwright_local_stack.sh"
 	cat > "$temp_dir/scripts/lib/env.sh" <<'SH'
 DEFAULT_LOCAL_FLAPJACK_ADMIN_KEY="local-test-key"

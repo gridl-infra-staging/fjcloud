@@ -201,7 +201,8 @@ impl PgAlgoliaImportJobRepo {
             "UPDATE algolia_import_jobs
              SET status='resuming', resume_intent_generation=$2, resumable=FALSE,
                  resume_checkpoint=NULL, resume_status_observed_at=NULL, resume_deadline=NULL,
-                 error_code=NULL, error_message=NULL, updated_at=NOW()
+                 error_code=NULL, error_message=NULL, engine_unavailable_since=NULL,
+                 updated_at=NOW()
              WHERE id=$1
              RETURNING *",
         )
@@ -355,7 +356,8 @@ impl PgAlgoliaImportJobRepo {
                  documents_rejected=$4, settings_applied=$5, settings_unsupported=$6,
                  synonyms_expected=$7, synonyms_imported=$8, synonyms_rejected=$9,
                  rules_expected=$10, rules_imported=$11, rules_rejected=$12,
-                 error_code=NULL, error_message=NULL, updated_at=NOW()
+                 error_code=NULL, error_message=NULL, engine_unavailable_since=NULL,
+                 updated_at=NOW()
              WHERE id=$1
              RETURNING *",
         )

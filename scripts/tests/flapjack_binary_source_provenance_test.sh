@@ -401,7 +401,9 @@ test_source_resolution_does_not_reclaim_pidless_lock_during_owner_publication() 
     ( sleep 5 ) &
     owner_pid="$!"
     (
-        sleep 0.05
+        # Exceed the former 0.1s grace to prove a briefly descheduled owner is
+        # not mistaken for a crashed pidless lock publisher.
+        sleep 0.2
         printf '%s\n' "$owner_pid" > "$lock_path/pid"
     ) &
     publisher_pid="$!"

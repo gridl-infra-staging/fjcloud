@@ -52,10 +52,7 @@ function shouldCaptureFullPage(tuple: CaptureTuple): boolean {
 	return !(tuple.setup === 'admin_default' && tuple.viewport === 'desktop');
 }
 
-async function arrangeSeededFilterEmptyState(
-	page: Page,
-	customerName: string
-): Promise<void> {
+async function arrangeSeededFilterEmptyState(page: Page, customerName: string): Promise<void> {
 	const tableBody = page.getByTestId('customers-table-body');
 	await expect(tableBody).toBeVisible();
 	await expect(tableBody.getByText(customerName, { exact: true })).toBeVisible();

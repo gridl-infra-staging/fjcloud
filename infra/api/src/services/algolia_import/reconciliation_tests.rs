@@ -5,8 +5,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::models::algolia_import_job::{
-    AlgoliaImportEngineAckState, AlgoliaImportErrorCode, AlgoliaImportJobStatus,
-    AlgoliaImportPublicationDisposition,
+    AlgoliaImportEngineAckState, AlgoliaImportJobStatus, AlgoliaImportPublicationDisposition,
 };
 use crate::repos::{
     AlgoliaImportTerminalFinalizationAuthority, AlgoliaImportTerminalFinalizationOutcome,
@@ -17,6 +16,41 @@ use super::reconciliation::AlgoliaImportReconciliationRuntime;
 use super::reconciliation_test_support::{
     config, harness, job, response, vm, FakeReconciliationStore, FixedVmRepo, ENGINE_JOB_ID,
 };
+
+#[tokio::test]
+async fn reconcile_once_does_not_age_absence_grace_during_transport_failure() {
+    let now = Utc::now();
+    let vm_id = Uuid::new_v4();
+    let store = Arc::new(FakeReconciliationStore::new(job(now, vm_id)));
+    let runtime = AlgoliaImportReconciliationRuntime::new(
+        store.clone(),
+        Arc::new(FixedVmRepo {
+            vm: Some(vm(now, vm_id)),
+        }),
+        Arc::new(MockAlertService::new()),
+        config(),
+    );
+    let (service, _, _) = harness(vec![
+        Err(crate::services::flapjack_proxy::ProxyError::Unreachable(
+            "engine transport unavailable".to_string(),
+        )),
+        response(404, json!({"code": "migration_job_not_found"})),
+    ])
+    .await;
+
+    service.reconcile_once(&runtime, now).await.unwrap();
+    assert_eq!(store.current_job().engine_unavailable_since, None);
+
+    let absence_observed_at = now + Duration::seconds(1);
+    service
+        .reconcile_once(&runtime, absence_observed_at)
+        .await
+        .unwrap();
+    assert_eq!(
+        store.current_job().engine_unavailable_since,
+        Some(absence_observed_at)
+    );
+}
 
 #[tokio::test]
 async fn reconcile_once_persists_monotonic_running_progress_and_clears_only_unavailable() {
@@ -65,43 +99,6 @@ async fn reconcile_once_persists_monotonic_running_progress_and_clears_only_unav
         format!("https://node-1.example/1/migrations/algolia/{ENGINE_JOB_ID}")
     );
     assert_eq!(requests[0].json_body, None);
-}
-
-#[tokio::test]
-async fn reconcile_once_deduplicates_retained_unavailable_alerts_from_persisted_state() {
-    let now = Utc::now();
-    let vm_id = Uuid::new_v4();
-    let mut retained = job(now, vm_id);
-    retained.error_code = None;
-    retained.retryable = false;
-    let store = Arc::new(FakeReconciliationStore::new(retained));
-    let alert_service = Arc::new(MockAlertService::new());
-    let runtime = AlgoliaImportReconciliationRuntime::new(
-        store.clone(),
-        Arc::new(FixedVmRepo {
-            vm: Some(vm(now, vm_id)),
-        }),
-        alert_service.clone(),
-        config(),
-    );
-    let not_found = || response(404, json!({"code": "migration_job_not_found"}));
-    let (service, _, _) = harness(vec![not_found(), not_found()]).await;
-
-    service.reconcile_once(&runtime, now).await.unwrap();
-    service
-        .reconcile_once(&runtime, now + Duration::seconds(1))
-        .await
-        .unwrap();
-
-    let writes = store.writes();
-    assert_eq!(writes.len(), 2);
-    assert!(writes.iter().all(|state| {
-        state.error_code == Some(AlgoliaImportErrorCode::BackendUnavailable) && state.retryable
-    }));
-    assert_eq!(alert_service.alert_count(), 1);
-    let alert = &alert_service.recorded_alerts()[0];
-    let serialized = serde_json::to_string(alert).unwrap();
-    assert!(!serialized.contains("private-physical-uid"));
 }
 
 #[tokio::test]
@@ -230,50 +227,6 @@ async fn reconcile_once_acknowledges_engine_only_after_durable_terminal_finaliza
         format!("https://node-1.example/1/migrations/algolia/{ENGINE_JOB_ID}/acknowledge")
     );
     assert_eq!(requests[1].json_body, None);
-}
-
-#[tokio::test]
-async fn reconcile_once_retains_outbox_when_engine_ack_send_fails() {
-    let now = Utc::now();
-    let vm_id = Uuid::new_v4();
-    let mut retained = job(now, vm_id);
-    retained.status = AlgoliaImportJobStatus::Promoting;
-    retained.error_code = None;
-    retained.retryable = false;
-    let store = Arc::new(FakeReconciliationStore::new(retained));
-    let runtime = AlgoliaImportReconciliationRuntime::new(
-        store.clone(),
-        Arc::new(FixedVmRepo {
-            vm: Some(vm(now, vm_id)),
-        }),
-        Arc::new(MockAlertService::new()),
-        config(),
-    );
-    let (service, _, _) = harness(vec![
-        response(
-            200,
-            json!({
-                "jobId": ENGINE_JOB_ID,
-                "phase": "activating",
-                "disposition": "succeeded",
-                "createdAt": "2026-07-22T00:00:00Z",
-                "updatedAt": "2026-07-22T00:00:01Z",
-                "terminalAt": "2026-07-22T00:00:02Z",
-                "exportProgress": {"completed": 20, "total": 20}
-            }),
-        ),
-        response(503, json!({"code": "ack_unavailable"})),
-    ])
-    .await;
-
-    let report = service.reconcile_once(&runtime, now).await.unwrap();
-
-    assert_eq!(report.terminal_finalized, 1);
-    assert!(store.acknowledgements().is_empty());
-    assert_eq!(
-        store.current_job().engine_ack_state,
-        AlgoliaImportEngineAckState::OutboxPending
-    );
 }
 
 #[tokio::test]

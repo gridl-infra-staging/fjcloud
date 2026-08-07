@@ -1594,6 +1594,7 @@ async fn stale_replace_target_binding_is_refused_before_job_insertion() {
     let result = PgAlgoliaImportJobRepo::new(db.pool.clone())
         .create_replace(
             NewAlgoliaReplaceImportJob::from_target_binding(
+                SourceImportProvider::Algolia,
                 binding,
                 source_with_size("stale-binding", 12_345),
                 "stale-binding",

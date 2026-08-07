@@ -139,7 +139,12 @@ function renderedLastBuiltAdvanced(
 const SETTINGS_SUBTABS = [
 	['Search', 'Search settings', 'settings-tab-search', 'settings-panel-search'],
 	['Ranking', 'Ranking', 'settings-tab-ranking', 'settings-panel-ranking'],
-	['Language & Text', 'Language & Text', 'settings-tab-language-text', 'settings-panel-language-text'],
+	[
+		'Language & Text',
+		'Language & Text',
+		'settings-tab-language-text',
+		'settings-panel-language-text'
+	],
 	[
 		'Facets & Filters',
 		'Facets & Filters',
@@ -595,9 +600,11 @@ test.describe('Index detail tabs', () => {
 		await page.getByTestId('confirm-input').fill('CLEAR');
 		await expect(page.getByTestId('confirm-confirm-btn')).toBeEnabled();
 		await page.getByTestId('confirm-confirm-btn').click();
-		await expect(page.getByTestId('shared-toast-mount').getByText('Synonyms cleared.')).toBeVisible({
-			timeout: 10_000
-		});
+		await expect(page.getByTestId('shared-toast-mount').getByText('Synonyms cleared.')).toBeVisible(
+			{
+				timeout: 10_000
+			}
+		);
 		await expect(section.getByRole('button', { name: 'Add Synonym' })).toBeVisible();
 		await expect(section.getByText('No synonyms yet')).toBeVisible();
 		await expect(section.getByTestId('synonym-count')).toHaveText('0');
@@ -638,9 +645,11 @@ test.describe('Index detail tabs', () => {
 		await page.getByLabel('Type "CLEAR" to confirm').fill('CLEAR');
 		await page.getByRole('button', { name: 'Delete All', exact: true }).click();
 
-		await expect(page.getByTestId('shared-toast-mount').getByText('Synonyms cleared.')).toBeVisible({
-			timeout: 10_000
-		});
+		await expect(page.getByTestId('shared-toast-mount').getByText('Synonyms cleared.')).toBeVisible(
+			{
+				timeout: 10_000
+			}
+		);
 		await expect(section.getByText('No synonyms yet')).toBeVisible();
 		await expect(section.getByTestId('synonym-count')).toHaveText('0');
 		await expect(section.getByText(synonymObjectId, { exact: true })).toHaveCount(0);

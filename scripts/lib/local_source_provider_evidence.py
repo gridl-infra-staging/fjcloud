@@ -231,6 +231,7 @@ def normalized_collection(schema, documents):
     fields = [normalized_field(field) for field in schema["fields"]]
     return {
         "name": schema["name"],
+        "documentCount": schema["num_documents"],
         "default_sorting_field": schema.get("default_sorting_field", ""),
         "enable_nested_fields": schema.get("enable_nested_fields", False),
         "token_separators": schema.get("token_separators", []),

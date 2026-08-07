@@ -3,7 +3,7 @@ use crate::common::{create_test_jwt, mock_repo, TestStateBuilder};
 use api::models::algolia_import_job::{
     AlgoliaImportCreatePlacement, AlgoliaImportJob, AlgoliaImportJobState, AlgoliaImportJobStatus,
     AlgoliaImportSource, AlgoliaImportSourceMetadata, AlgoliaImportTargetBinding,
-    NewAlgoliaImportJob, NewAlgoliaReplaceImportJob,
+    NewAlgoliaImportJob, NewAlgoliaReplaceImportJob, SourceImportProvider,
 };
 use api::models::vm_inventory::NewVmInventory;
 use api::models::{AlgoliaImportErrorCode, AlgoliaImportSummary};
@@ -24,7 +24,9 @@ use api::repos::{
 use api::routes::migration::ListAlgoliaIndexesRequest;
 use api::secrets::mock::MockNodeSecretManager;
 use api::secrets::NodeSecretManager;
-use api::services::algolia_import::{AlgoliaImportAdmissionOutcome, AlgoliaImportAdmissionRequest};
+use api::services::algolia_import::{
+    AlgoliaImportAdmissionOutcome, AlgoliaImportAdmissionRequest, AlgoliaImportAdmissionSource,
+};
 use api::services::algolia_source::{
     AlgoliaClientError, AlgoliaClientRequest, AlgoliaClientResponse, AlgoliaIndexMetadata,
     AlgoliaSourceClient, AlgoliaSourceError, AlgoliaSourceInspectRequest, AlgoliaSourceListRequest,
@@ -401,6 +403,14 @@ impl AlgoliaImportJobRepo for RecordCommitFailingRepo {
             .await
     }
 
+    async fn defer_erased_tombstone_retry(
+        &self,
+        _id: Uuid,
+        _retry_after: DateTime<Utc>,
+    ) -> Result<(), RepoError> {
+        unimplemented!("erased tombstone deferral is not exercised by this fixture")
+    }
+
     async fn mark_engine_acknowledged(
         &self,
         id: Uuid,
@@ -598,13 +608,15 @@ async fn setup_algolia_cloud_job_eligibility_app_with_pool(
     )
 }
 
-const FLAPJACK_IDENTITY_ENV_NAMES: [&str; 5] = [
+const FLAPJACK_TEST_ENV_NAMES: [&str; 6] = [
     "FJCLOUD_FLAPJACK_VERSION",
     "FJCLOUD_FLAPJACK_REQUIRED_REVISION",
     "FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID",
     "FJCLOUD_FLAPJACK_REQUIRED_SHA256",
     "FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY",
+    "LOCAL_DEV_FLAPJACK_URL",
 ];
+const LOOPBACK_SOURCE_ORIGIN_ENV: &str = "FJCLOUD_ALLOW_LOOPBACK_SOURCE_ORIGINS";
 
 struct FlapjackIdentityEnvGuard {
     _lock: std::sync::MutexGuard<'static, ()>,
@@ -613,9 +625,18 @@ struct FlapjackIdentityEnvGuard {
 
 impl FlapjackIdentityEnvGuard {
     fn compatible() -> Self {
+        Self::compatible_inner(false)
+    }
+
+    fn compatible_with_loopback_source_origins() -> Self {
+        Self::compatible_inner(true)
+    }
+
+    fn compatible_inner(allow_loopback_source_origins: bool) -> Self {
         let lock = crate::common::integration_helpers::test_env_lock();
-        let previous_values = FLAPJACK_IDENTITY_ENV_NAMES
+        let previous_values = FLAPJACK_TEST_ENV_NAMES
             .into_iter()
+            .chain([LOOPBACK_SOURCE_ORIGIN_ENV])
             .map(|name| (name, std::env::var_os(name)))
             .collect();
         std::env::set_var("FJCLOUD_FLAPJACK_VERSION", "1.0.10");
@@ -623,6 +644,12 @@ impl FlapjackIdentityEnvGuard {
         std::env::set_var("FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID", "build-1");
         std::env::set_var("FJCLOUD_FLAPJACK_REQUIRED_SHA256", "sha-1");
         std::env::remove_var("FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY");
+        std::env::remove_var("LOCAL_DEV_FLAPJACK_URL");
+        if allow_loopback_source_origins {
+            std::env::set_var(LOOPBACK_SOURCE_ORIGIN_ENV, "1");
+        } else {
+            std::env::remove_var(LOOPBACK_SOURCE_ORIGIN_ENV);
+        }
         Self {
             _lock: lock,
             previous_values,
@@ -660,22 +687,14 @@ struct AlgoliaCreateHarness {
     jwt: String,
     customer_id: Uuid,
     vm_id: Uuid,
+    vm_secret_id: String,
+    node_secret_manager: Arc<MockNodeSecretManager>,
     flapjack_http: Arc<MockFlapjackHttpClient>,
     alert_service: Arc<MockAlertService>,
 }
 
-async fn setup_algolia_cloud_job_create_app_with_alerts(
-    pool: PgPool,
-    source_service: Arc<dyn AlgoliaSourceLister>,
-) -> (
-    axum::Router,
-    String,
-    Uuid,
-    Arc<MockFlapjackHttpClient>,
-    Arc<MockAlertService>,
-) {
-    let harness = setup_algolia_cloud_job_create_harness(pool, source_service).await;
-    let app = axum::Router::new()
+fn algolia_cloud_job_create_app(state: AppState) -> axum::Router {
+    axum::Router::new()
         .route(
             "/migration/:source_provider/destination-eligibility",
             post(api::routes::migration::check_destination_eligibility),
@@ -689,7 +708,25 @@ async fn setup_algolia_cloud_job_create_app_with_alerts(
             "/migration/:source_provider/jobs/:id",
             axum::routing::get(api::routes::migration::get_import_job),
         )
-        .with_state(harness.state);
+        .route(
+            "/migration/:source_provider/jobs/:id/resume",
+            post(api::routes::migration::resume_import_job),
+        )
+        .with_state(state)
+}
+
+async fn setup_algolia_cloud_job_create_app_with_alerts(
+    pool: PgPool,
+    source_service: Arc<dyn AlgoliaSourceLister>,
+) -> (
+    axum::Router,
+    String,
+    Uuid,
+    Arc<MockFlapjackHttpClient>,
+    Arc<MockAlertService>,
+) {
+    let harness = setup_algolia_cloud_job_create_harness(pool, source_service).await;
+    let app = algolia_cloud_job_create_app(harness.state);
     (
         app,
         harness.jwt,
@@ -702,6 +739,14 @@ async fn setup_algolia_cloud_job_create_app_with_alerts(
 async fn setup_algolia_cloud_job_create_harness(
     pool: PgPool,
     source_service: Arc<dyn AlgoliaSourceLister>,
+) -> AlgoliaCreateHarness {
+    setup_algolia_cloud_job_create_harness_with_node_key(pool, source_service, true).await
+}
+
+async fn setup_algolia_cloud_job_create_harness_with_node_key(
+    pool: PgPool,
+    source_service: Arc<dyn AlgoliaSourceLister>,
+    seed_node_admin_key: bool,
 ) -> AlgoliaCreateHarness {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed_verified_free_customer("Alice", "alice@example.com");
@@ -733,10 +778,12 @@ async fn setup_algolia_cloud_job_create_harness(
     .expect("seed SQL VM inventory");
 
     let node_secret_manager = Arc::new(MockNodeSecretManager::new());
-    node_secret_manager
-        .create_node_api_key(vm.node_secret_id(), "us-east-1")
-        .await
-        .expect("seed VM admin key");
+    if seed_node_admin_key {
+        node_secret_manager
+            .create_node_api_key(vm.node_secret_id(), "us-east-1")
+            .await
+            .expect("seed VM admin key");
+    }
     let flapjack_http = Arc::new(MockFlapjackHttpClient::default());
     for _ in 0..3 {
         flapjack_http.push_json_response(
@@ -753,7 +800,7 @@ async fn setup_algolia_cloud_job_create_harness(
     }
     let flapjack_proxy = Arc::new(FlapjackProxy::with_http_client(
         flapjack_http.clone(),
-        node_secret_manager,
+        node_secret_manager.clone(),
     ));
     let alert_service = Arc::new(MockAlertService::new());
 
@@ -762,6 +809,7 @@ async fn setup_algolia_cloud_job_create_harness(
         .with_customer_repo(customer_repo)
         .with_vm_inventory_repo(vm_inventory_repo)
         .with_flapjack_proxy(flapjack_proxy)
+        .with_node_secret_manager(node_secret_manager.clone())
         .with_alert_service(alert_service.clone())
         .with_algolia_source_service(source_service)
         .with_algolia_migration_enabled(true)
@@ -771,6 +819,8 @@ async fn setup_algolia_cloud_job_create_harness(
         jwt: create_test_jwt(customer.id),
         customer_id: customer.id,
         vm_id: vm.id,
+        vm_secret_id: vm.node_secret_id().to_string(),
+        node_secret_manager,
         flapjack_http,
         alert_service,
     }
@@ -845,6 +895,7 @@ fn discovery_response(next_cursor: Option<&str>) -> AlgoliaSourceListResponse {
             pending_task: false,
             primary: Some("products".to_string()),
             replicas: vec!["products_price_asc".to_string()],
+            revision: None,
         }],
         next_cursor: next_cursor.map(str::to_string),
     }
@@ -927,6 +978,30 @@ async fn post_create_job_for_provider(
     let headers = response.headers().clone();
     let (_, body) = response_json(response).await;
     (status, headers, body)
+}
+
+async fn post_resume_job_for_provider(
+    app: axum::Router,
+    jwt: &str,
+    source_provider: &str,
+    job_id: Uuid,
+    api_key: &str,
+) -> (StatusCode, serde_json::Value) {
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .uri(format!("/migration/{source_provider}/jobs/{job_id}/resume"))
+                .header("authorization", format!("Bearer {jwt}"))
+                .header("content-type", "application/json")
+                .body(Body::from(json!({ "apiKey": api_key }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = response.status();
+    let (_, body) = response_json(response).await;
+    (status, body)
 }
 
 fn inspected_source(app_id: &str, source_name: &str, revision: &str) -> AlgoliaImportSource {

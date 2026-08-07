@@ -1,11 +1,8 @@
-use std::fmt;
 use std::sync::Arc;
 
-use serde::Serialize;
-use zeroize::{Zeroize, Zeroizing};
-
 pub use crate::models::algolia_import_job::AlgoliaImportTerminalFact;
-use crate::services::flapjack_proxy::{FlapjackProxy, ProxyError};
+use crate::models::algolia_import_job::SourceImportProvider;
+use crate::services::flapjack_proxy::FlapjackProxy;
 
 #[path = "algolia_import/admission.rs"]
 mod admission;
@@ -30,6 +27,9 @@ mod observation_tests;
 #[path = "algolia_import/reconciliation.rs"]
 mod reconciliation;
 #[cfg(test)]
+#[path = "algolia_import/reconciliation_lifecycle_tests.rs"]
+mod reconciliation_lifecycle_tests;
+#[cfg(test)]
 #[path = "algolia_import/reconciliation_postgres_tests.rs"]
 mod reconciliation_postgres_tests;
 #[cfg(test)]
@@ -43,9 +43,12 @@ mod status_response;
 #[cfg(test)]
 #[path = "algolia_import/status_tests.rs"]
 mod status_tests;
+#[path = "algolia_import/submit.rs"]
+mod submit;
 
 pub use admission::{
     AlgoliaImportAdmissionError, AlgoliaImportAdmissionOutcome, AlgoliaImportAdmissionRequest,
+    AlgoliaImportAdmissionSource,
 };
 pub(crate) use cancel::AlgoliaImportCancelContext;
 pub use error_classifier::{AlgoliaImportEngineErrorClassification, AlgoliaImportEngineOperation};
@@ -60,6 +63,8 @@ pub use status_response::{
     AsyncMigrationDisposition, AsyncMigrationExportProgress, AsyncMigrationPhase,
     AsyncMigrationStatusResponse, MigrationTopology,
 };
+pub(crate) use submit::AlgoliaImportSubmitPayload;
+pub use submit::{AlgoliaImportEngineError, AlgoliaImportSubmitRequest, EngineTarget};
 
 #[derive(Clone)]
 pub struct AlgoliaImportService {
@@ -76,11 +81,13 @@ impl AlgoliaImportService {
         target: EngineTarget,
         request: AlgoliaImportSubmitRequest,
     ) -> Result<AsyncMigrationStatusResponse, AlgoliaImportEngineError> {
+        let source_provider = request.source_provider;
         self.proxy
-            .submit_algolia_migration(
+            .submit_source_migration(
                 &target.flapjack_url,
                 &target.node_id,
                 &target.region,
+                source_provider,
                 request.into_payload(),
             )
             .await
@@ -90,13 +97,15 @@ impl AlgoliaImportService {
     pub async fn status(
         &self,
         target: EngineTarget,
+        source_provider: SourceImportProvider,
         engine_job_id: &str,
     ) -> Result<AsyncMigrationStatusResponse, AlgoliaImportEngineError> {
         self.proxy
-            .algolia_migration_status(
+            .source_migration_status(
                 &target.flapjack_url,
                 &target.node_id,
                 &target.region,
+                source_provider,
                 engine_job_id,
             )
             .await
@@ -106,13 +115,15 @@ impl AlgoliaImportService {
     pub async fn cancel(
         &self,
         target: EngineTarget,
+        source_provider: SourceImportProvider,
         engine_job_id: &str,
     ) -> Result<AsyncMigrationStatusResponse, AlgoliaImportEngineError> {
         self.proxy
-            .cancel_algolia_migration(
+            .cancel_source_migration(
                 &target.flapjack_url,
                 &target.node_id,
                 &target.region,
+                source_provider,
                 engine_job_id,
             )
             .await
@@ -122,13 +133,15 @@ impl AlgoliaImportService {
     pub async fn acknowledge(
         &self,
         target: EngineTarget,
+        source_provider: SourceImportProvider,
         engine_job_id: &str,
     ) -> Result<(), AlgoliaImportEngineError> {
         self.proxy
-            .acknowledge_algolia_migration(
+            .acknowledge_source_migration(
                 &target.flapjack_url,
                 &target.node_id,
                 &target.region,
+                source_provider,
                 engine_job_id,
             )
             .await
@@ -153,175 +166,12 @@ impl AlgoliaImportService {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EngineTarget {
-    flapjack_url: String,
-    node_id: String,
-    region: String,
-}
-
-impl EngineTarget {
-    pub fn new(
-        flapjack_url: impl Into<String>,
-        node_id: impl Into<String>,
-        region: impl Into<String>,
-    ) -> Self {
-        Self {
-            flapjack_url: flapjack_url.into(),
-            node_id: node_id.into(),
-            region: region.into(),
-        }
-    }
-}
-
-pub struct AlgoliaImportSubmitRequest {
-    app_id: Zeroizing<String>,
-    api_key: Zeroizing<String>,
-    source_index: String,
-    target_index: Option<String>,
-    overwrite: bool,
-    #[cfg(test)]
-    wipe_probe: Option<std::sync::Arc<std::sync::atomic::AtomicU8>>,
-}
-
-impl AlgoliaImportSubmitRequest {
-    pub fn new(
-        app_id: String,
-        api_key: Zeroizing<String>,
-        source_index: String,
-        target_index: Option<String>,
-        overwrite: bool,
-    ) -> Self {
-        Self {
-            app_id: Zeroizing::new(app_id),
-            api_key,
-            source_index,
-            target_index,
-            overwrite,
-            #[cfg(test)]
-            wipe_probe: None,
-        }
-    }
-
-    fn into_payload(self) -> AlgoliaImportSubmitPayload {
-        #[derive(Serialize)]
-        #[serde(rename_all = "camelCase")]
-        struct WireRequest<'a> {
-            app_id: &'a str,
-            api_key: &'a str,
-            source_index: &'a str,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            target_index: Option<&'a str>,
-            overwrite: bool,
-        }
-
-        let wire = WireRequest {
-            app_id: self.app_id.as_str(),
-            api_key: self.api_key.as_str(),
-            source_index: &self.source_index,
-            target_index: self.target_index.as_deref(),
-            overwrite: self.overwrite,
-        };
-        let json = serde_json::to_string(&wire)
-            .expect("serializing the Algolia import wire request cannot fail");
-        AlgoliaImportSubmitPayload {
-            json: Zeroizing::new(json),
-            #[cfg(test)]
-            wipe_probe: self.wipe_probe.clone(),
-        }
-    }
-
-    #[cfg(test)]
-    fn with_wipe_probe(mut self, probe: std::sync::Arc<std::sync::atomic::AtomicU8>) -> Self {
-        self.wipe_probe = Some(probe);
-        self
-    }
-}
-
-pub(crate) struct AlgoliaImportSubmitPayload {
-    json: Zeroizing<String>,
-    #[cfg(test)]
-    wipe_probe: Option<std::sync::Arc<std::sync::atomic::AtomicU8>>,
-}
-
-impl AlgoliaImportSubmitPayload {
-    pub(crate) fn as_json(&self) -> &str {
-        self.json.as_str()
-    }
-}
-
-impl Drop for AlgoliaImportSubmitPayload {
-    fn drop(&mut self) {
-        self.json.zeroize();
-        #[cfg(test)]
-        if let Some(probe) = &self.wipe_probe {
-            let was_zeroized = self.json.as_bytes().iter().all(|byte| *byte == 0);
-            probe.store(
-                if was_zeroized { 1 } else { 2 },
-                std::sync::atomic::Ordering::SeqCst,
-            );
-        }
-    }
-}
-
-impl fmt::Debug for AlgoliaImportSubmitRequest {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("AlgoliaImportSubmitRequest")
-            .field("app_id", &"<redacted>")
-            .field("api_key", &"<redacted>")
-            .field("source_index", &"<redacted>")
-            .field("target_index", &self.target_index)
-            .field("overwrite", &self.overwrite)
-            .finish()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum AlgoliaImportEngineError {
-    #[error("engine request failed with HTTP {status}")]
-    Engine { status: u16, code: Option<String> },
-    #[error("malformed engine response: {0}")]
-    MalformedResponse(String),
-    #[error("engine transport failed: {0}")]
-    Transport(String),
-}
-
-impl AlgoliaImportEngineError {
-    fn from_proxy(error: ProxyError) -> Self {
-        match error {
-            ProxyError::FlapjackError {
-                status: 200,
-                message,
-            } => Self::MalformedResponse(message),
-            ProxyError::FlapjackError { status, message } => Self::Engine {
-                status,
-                code: parse_error_code(&message),
-            },
-            ProxyError::Unreachable(message) | ProxyError::SecretError(message) => {
-                Self::Transport(message)
-            }
-            ProxyError::Timeout => Self::Transport("request timed out".to_string()),
-        }
-    }
-}
-
-fn parse_error_code(message: &str) -> Option<String> {
-    serde_json::from_str::<serde_json::Value>(message)
-        .ok()
-        .and_then(|value| {
-            value
-                .get("code")
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_owned)
-        })
-}
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
 
     use serde_json::json;
+    use zeroize::Zeroizing;
 
     use crate::secrets::mock::MockNodeSecretManager;
     use crate::secrets::NodeSecretManager;
@@ -431,6 +281,7 @@ mod tests {
     async fn submit_sends_exact_authenticated_request_and_decodes_status() {
         let (http, service) = service_with_response(202, status_body()).await;
         let request = AlgoliaImportSubmitRequest::new(
+            SourceImportProvider::Algolia,
             "app-id".to_string(),
             Zeroizing::new("source-key".to_string()),
             "products".to_string(),
@@ -474,6 +325,7 @@ mod tests {
         for status in [200u16, 201, 204] {
             let (_http, service) = service_with_response(status, status_body()).await;
             let request = AlgoliaImportSubmitRequest::new(
+                SourceImportProvider::Algolia,
                 "app-id".to_string(),
                 Zeroizing::new("source-key".to_string()),
                 "products".to_string(),
@@ -511,11 +363,16 @@ mod tests {
 
     #[tokio::test]
     async fn status_and_cancel_send_no_algolia_credentials() {
-        let (http, service) =
-            service_with_responses(vec![(200, status_body()), (200, status_body())]).await;
+        let (http, service) = service_with_responses(vec![
+            (200, status_body()),
+            (200, status_body()),
+            (204, json!({})),
+        ])
+        .await;
         service
             .status(
                 EngineTarget::new("https://vm-a1.flapjack.foo/", "node-a1", "us-east-1"),
+                SourceImportProvider::Meilisearch,
                 "engine job/1",
             )
             .await
@@ -524,13 +381,14 @@ mod tests {
         assert_eq!(status_request.method, reqwest::Method::GET);
         assert_eq!(
             status_request.url,
-            "https://vm-a1.flapjack.foo/1/migrations/algolia/engine%20job%2F1"
+            "https://vm-a1.flapjack.foo/1/migrations/meilisearch/engine%20job%2F1"
         );
         assert_eq!(status_request.json_body, None);
 
         service
             .cancel(
                 EngineTarget::new("https://vm-a1.flapjack.foo", "node-a1", "us-east-1"),
+                SourceImportProvider::Typesense,
                 "engine-job-1",
             )
             .await
@@ -539,9 +397,25 @@ mod tests {
         assert_eq!(cancel_request.method, reqwest::Method::POST);
         assert_eq!(
             cancel_request.url,
-            "https://vm-a1.flapjack.foo/1/migrations/algolia/engine-job-1/cancel"
+            "https://vm-a1.flapjack.foo/1/migrations/typesense/engine-job-1/cancel"
         );
         assert_eq!(cancel_request.json_body, None);
+
+        service
+            .acknowledge(
+                EngineTarget::new("https://vm-a1.flapjack.foo", "node-a1", "us-east-1"),
+                SourceImportProvider::Meilisearch,
+                "engine-job-1",
+            )
+            .await
+            .expect("acknowledge should accept empty success");
+        let ack_request = http.request.lock().unwrap().clone().unwrap();
+        assert_eq!(ack_request.method, reqwest::Method::POST);
+        assert_eq!(
+            ack_request.url,
+            "https://vm-a1.flapjack.foo/1/migrations/meilisearch/engine-job-1/acknowledge"
+        );
+        assert_eq!(ack_request.json_body, None);
     }
 
     #[tokio::test]
@@ -554,6 +428,7 @@ mod tests {
         let err = service
             .status(
                 EngineTarget::new("https://vm-a1.flapjack.foo", "node-a1", "us-east-1"),
+                SourceImportProvider::Algolia,
                 "job-1",
             )
             .await
@@ -570,6 +445,7 @@ mod tests {
         let err = service
             .status(
                 EngineTarget::new("https://vm-a1.flapjack.foo", "node-a1", "us-east-1"),
+                SourceImportProvider::Algolia,
                 "job-1",
             )
             .await
@@ -589,6 +465,7 @@ mod tests {
         let (_, service) = service_with_results(vec![response], secret_failure).await;
         let probe = Arc::new(AtomicU8::new(0));
         let request = AlgoliaImportSubmitRequest::new(
+            SourceImportProvider::Algolia,
             "app-id".to_string(),
             Zeroizing::new("source-key".to_string()),
             "products".to_string(),
@@ -776,6 +653,7 @@ mod tests {
     #[test]
     fn credential_bearing_request_does_not_reveal_secret_in_debug() {
         let request = AlgoliaImportSubmitRequest::new(
+            SourceImportProvider::Algolia,
             "app-id".to_string(),
             Zeroizing::new("super-secret-source-key".to_string()),
             "source-name-canary".to_string(),

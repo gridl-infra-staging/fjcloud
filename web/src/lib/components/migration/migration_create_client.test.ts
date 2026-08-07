@@ -1,18 +1,30 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { MigrationPreviewResponse } from '$lib/api/types';
-import { createAuthenticatedClient, mockFetch } from '$lib/api/client.test.shared';
 import {
-	HOSTED_SOURCE_INDEXES_WIRE_RESPONSE,
-	HOSTED_SOURCE_INDEX_EXPECTED_PAIRS,
-	neutralSourceListRequest
-} from '$lib/api/client_migration_test_fixtures';
-import {
-	listMigrationSources,
+	migrationCreateRequest,
 	migrationSourceCredentials,
+	migrationSourceRevision,
 	previewMigration,
 	type MigrationCreateClient
 } from './migration_create_client';
-import * as migrationCreateClientModule from './migration_create_client';
+
+const HOSTED_SOURCE = {
+	name: 'configured_pk',
+	entries: 3,
+	dataSize: 30,
+	fileSize: 40,
+	updatedAt: '2026-08-05T12:00:00Z',
+	lastBuildTimeS: 0,
+	pendingTask: false,
+	primary: 'sku',
+	replicas: []
+};
+
+const HOSTED_SOURCE_WITH_REVISION = {
+	...HOSTED_SOURCE,
+	updatedAt: '',
+	revision: 'sha256:typesense-content-revision'
+};
 
 const PREVIEW_RESPONSE: MigrationPreviewResponse = {
 	sourceCounts: { indexes: 1, records: 2 },
@@ -33,109 +45,6 @@ function neutralCreateClient(
 		previewMigrationImport
 	} as MigrationCreateClient;
 }
-
-function sourceIndexPairs(response: Awaited<ReturnType<typeof listMigrationSources>>) {
-	return response.items?.map(({ name, entries }) => ({ name, entries }));
-}
-
-describe('listMigrationSources', () => {
-	it('delegates Meilisearch source-index normalization to the real migration client', async () => {
-		const client = createAuthenticatedClient();
-		const fetch = mockFetch(200, HOSTED_SOURCE_INDEXES_WIRE_RESPONSE);
-		client.setFetch(fetch);
-		const request = neutralSourceListRequest('meilisearch');
-
-		const result = await listMigrationSources(client, 'meilisearch', request);
-
-		expect(sourceIndexPairs(result)).toEqual(HOSTED_SOURCE_INDEX_EXPECTED_PAIRS);
-	});
-});
-
-describe('migrationSourceCredentials', () => {
-	it.each([
-		{
-			sourceProvider: 'algolia',
-			sourceIdentity: 'ALGOLIA_APP',
-			expected: { appId: 'ALGOLIA_APP', apiKey: 'source-api-key' }
-		},
-		{
-			sourceProvider: 'meilisearch',
-			sourceIdentity: 'https://meilisearch.example.test',
-			expected: { endpoint: 'https://meilisearch.example.test', apiKey: 'source-api-key' }
-		},
-		{
-			sourceProvider: 'typesense',
-			sourceIdentity: 'https://typesense.example.test',
-			expected: { node: 'https://typesense.example.test', apiKey: 'source-api-key' }
-		}
-	] as const)(
-		'maps $sourceProvider identity to its producer-native request field',
-		({ sourceProvider, sourceIdentity, expected }) => {
-			const result = migrationSourceCredentials(sourceProvider, sourceIdentity, 'source-api-key');
-
-			expect(result).toEqual(expected);
-			expect(result).not.toHaveProperty('host');
-		}
-	);
-});
-
-describe('migrationSourcePageRequest', () => {
-	const migrationSourcePageRequest = Reflect.get(
-		migrationCreateClientModule,
-		'migrationSourcePageRequest'
-	) as
-		| ((
-				sourceProvider: 'algolia' | 'meilisearch' | 'typesense',
-				sourceIdentity: string,
-				apiKey: string,
-				cursor: string | null
-		  ) => unknown)
-		| undefined;
-
-	it('keeps Algolia cursor pagination in its provider request', () => {
-		expect(migrationSourcePageRequest).toBeTypeOf('function');
-		expect(
-			migrationSourcePageRequest?.('algolia', 'ALGOLIA_APP', 'source-api-key', 'algolia/cursor')
-		).toEqual({ appId: 'ALGOLIA_APP', apiKey: 'source-api-key', cursor: 'algolia/cursor' });
-	});
-
-	it.each([
-		{
-			sourceProvider: 'meilisearch' as const,
-			sourceIdentity: 'https://meilisearch.example.test',
-			expected: {
-				endpoint: 'https://meilisearch.example.test',
-				apiKey: 'source-api-key',
-				offset: 25,
-				limit: 100
-			}
-		},
-		{
-			sourceProvider: 'typesense' as const,
-			sourceIdentity: 'https://typesense.example.test',
-			expected: {
-				node: 'https://typesense.example.test',
-				apiKey: 'source-api-key',
-				offset: 25,
-				limit: 100
-			}
-		}
-	])(
-		'converts canonical cursor to numeric $sourceProvider offset pagination',
-		({ sourceProvider, sourceIdentity, expected }) => {
-			expect(migrationSourcePageRequest).toBeTypeOf('function');
-			const result = migrationSourcePageRequest?.(
-				sourceProvider,
-				sourceIdentity,
-				'source-api-key',
-				'25'
-			);
-
-			expect(result).toEqual(expected);
-			expect(result).not.toHaveProperty('cursor');
-		}
-	);
-});
 
 describe('previewMigration', () => {
 	it('forwards the exact algolia provider and request to the client preview method', async () => {
@@ -188,4 +97,121 @@ describe('previewMigration', () => {
 		const client: MigrationCreateClient = algoliaOnlyClient;
 		expect(client).toBeDefined();
 	});
+});
+
+describe('migrationSourceCredentials', () => {
+	it.each([
+		{
+			sourceProvider: 'algolia',
+			expected: { appId: 'ALGOLIA_APP', apiKey: 'source-api-key' }
+		},
+		{
+			sourceProvider: 'meilisearch',
+			expected: { endpoint: 'https://meilisearch.example.test', apiKey: 'source-api-key' }
+		},
+		{
+			sourceProvider: 'typesense',
+			expected: { node: 'https://typesense.example.test', apiKey: 'source-api-key' }
+		}
+	] as const)(
+		'maps $sourceProvider identity to the provider API field',
+		({ sourceProvider, expected }) => {
+			const sourceIdentities = {
+				algolia: 'ALGOLIA_APP',
+				meilisearch: 'https://meilisearch.example.test',
+				typesense: 'https://typesense.example.test'
+			};
+
+			expect(
+				migrationSourceCredentials(
+					sourceProvider,
+					sourceIdentities[sourceProvider],
+					'source-api-key'
+				)
+			).toEqual(expected);
+		}
+	);
+
+	// Explicit red phase for the shipped hosted contract: the credential builder must
+	// never re-emit the stale hosted discovery union `{ host, apiKey }`. Hosted providers
+	// carry identity in `endpoint`/`node`, so `host` must be absent for every provider.
+	it.each(['meilisearch', 'typesense', 'algolia'] as const)(
+		'%s discovery credentials never emit the stale `host` union field',
+		(sourceProvider) => {
+			const credentials = migrationSourceCredentials(
+				sourceProvider,
+				'source-identity.example.test',
+				'source-api-key'
+			);
+			expect(credentials).not.toHaveProperty('host');
+			expect(credentials).not.toHaveProperty('sourceName');
+		}
+	);
+});
+
+describe('migration create request', () => {
+	it('pins the producer-native hosted revision and omits it for Algolia', () => {
+		expect(migrationSourceRevision('meilisearch', HOSTED_SOURCE)).toEqual({
+			documentCount: 3,
+			updatedAt: '2026-08-05T12:00:00Z'
+		});
+		expect(migrationSourceRevision('typesense', HOSTED_SOURCE_WITH_REVISION)).toEqual({
+			documentCount: 3,
+			revision: 'sha256:typesense-content-revision'
+		});
+		expect(migrationSourceRevision('algolia', HOSTED_SOURCE)).toBeUndefined();
+	});
+
+	it.each([
+		{
+			sourceProvider: 'algolia',
+			sourceIdentity: 'ALGOLIA_APP',
+			expected: {
+				mode: 'create',
+				appId: 'ALGOLIA_APP',
+				apiKey: 'source-key',
+				sourceName: 'configured_pk',
+				target: { eligibilityToken: 'eligibility-token' }
+			}
+		},
+		{
+			sourceProvider: 'meilisearch',
+			sourceIdentity: 'https://meili.example.test',
+			expected: {
+				mode: 'create',
+				endpoint: 'https://meili.example.test',
+				apiKey: 'source-key',
+				sourceIndex: 'configured_pk',
+				sourceRevision: { documentCount: 3, updatedAt: '2026-08-05T12:00:00Z' },
+				target: { eligibilityToken: 'eligibility-token' }
+			}
+		},
+		{
+			sourceProvider: 'typesense',
+			sourceIdentity: 'https://typesense.example.test',
+			expected: {
+				mode: 'create',
+				node: 'https://typesense.example.test',
+				apiKey: 'source-key',
+				sourceIndex: 'configured_pk',
+				sourceRevision: { documentCount: 3, updatedAt: '2026-08-05T12:00:00Z' },
+				target: { eligibilityToken: 'eligibility-token' }
+			}
+		}
+	] as const)(
+		'builds the exact $sourceProvider create body',
+		({ sourceProvider, sourceIdentity, expected }) => {
+			expect(
+				migrationCreateRequest({
+					sourceProvider,
+					mode: 'create',
+					sourceIdentity,
+					apiKey: 'source-key',
+					sourceName: 'configured_pk',
+					selectedSource: HOSTED_SOURCE,
+					eligibilityToken: 'eligibility-token'
+				})
+			).toEqual(expected);
+		}
+	);
 });

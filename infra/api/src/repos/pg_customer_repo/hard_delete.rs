@@ -125,7 +125,7 @@ async fn scrub_algolia_jobs(
              rules_imported = NULL, rules_rejected = NULL,
              terminal_outcome_observed = NULL, warnings = NULL,
              error_code = NULL, error_message = NULL, status = NULL,
-             terminal_at = NULL,
+             terminal_at = NULL, engine_unavailable_since = NULL,
              erasure_handle = gen_random_uuid(),
              engine_ack_state = CASE
                  WHEN engine_ack_state <> 'seal_acknowledged'

@@ -177,6 +177,7 @@ async fn async_algolia_migration_methods_use_authenticated_admin_transport() {
         .submit(
             EngineTarget::new("https://vm-a1.flapjack.foo", "node-1", "us-east-1"),
             AlgoliaImportSubmitRequest::new(
+                SourceImportProvider::Algolia,
                 "app".to_string(),
                 zeroize::Zeroizing::new("key".to_string()),
                 "products".to_string(),
@@ -202,6 +203,7 @@ async fn async_algolia_migration_methods_use_authenticated_admin_transport() {
     let _: AsyncMigrationStatusResponse = service
         .status(
             EngineTarget::new("https://vm-a1.flapjack.foo/", "node-1", "us-east-1"),
+            SourceImportProvider::Algolia,
             "engine job/1",
         )
         .await
@@ -219,6 +221,7 @@ async fn async_algolia_migration_methods_use_authenticated_admin_transport() {
     let _: AsyncMigrationStatusResponse = service
         .cancel(
             EngineTarget::new("https://vm-a1.flapjack.foo", "node-1", "us-east-1"),
+            SourceImportProvider::Algolia,
             "9f11d0a0-4443-44d4-b6c6-1ed71dbeb0fb",
         )
         .await
@@ -236,6 +239,7 @@ async fn async_algolia_migration_methods_use_authenticated_admin_transport() {
     service
         .acknowledge(
             EngineTarget::new("https://vm-a1.flapjack.foo", "node-1", "us-east-1"),
+            SourceImportProvider::Algolia,
             "engine-job-1",
         )
         .await
@@ -259,6 +263,7 @@ async fn async_algolia_migration_acknowledge_rejects_non_success_status() {
     let error = service
         .acknowledge(
             EngineTarget::new("https://vm-a1.flapjack.foo", "node-1", "us-east-1"),
+            SourceImportProvider::Algolia,
             "engine-job-1",
         )
         .await

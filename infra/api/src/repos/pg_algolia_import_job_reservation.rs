@@ -11,7 +11,7 @@ use super::{
 };
 use crate::models::algolia_import_job::{
     AlgoliaImportDestinationKind, AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportJobRow,
-    NewAlgoliaImportJob, SourceImportProvider,
+    NewAlgoliaImportJob,
 };
 use crate::repos::{AlgoliaImportJobAdmissionError, RepoError};
 
@@ -22,11 +22,13 @@ impl PgAlgoliaImportJobRepo {
     /// logical target already exists in the catalog at that point, so the
     /// reservation must not consume a second slot.
     pub async fn count_logical_index_slots(&self, customer_id: Uuid) -> Result<i64, RepoError> {
-        sqlx::query_scalar(&logical_index_slot_count_sql())
-            .bind(customer_id)
-            .fetch_one(&self.pool)
-            .await
-            .map_err(repo_error)
+        sqlx::query_scalar(&logical_index_slot_count_sql(
+            "(SELECT lifecycle_generation FROM customers WHERE id = $1 AND status = 'active')",
+        ))
+        .bind(customer_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(repo_error)
     }
 
     pub(super) async fn build_reservation_plan(
@@ -44,10 +46,10 @@ impl PgAlgoliaImportJobRepo {
             .customer_quota_overrides_for_update(tx, job.customer_id())
             .await?;
         let active_logical_index_count = self
-            .logical_index_slot_count_for_update(tx, job.customer_id())
+            .logical_index_slot_count_for_update(tx, job.customer_id(), lifecycle_generation)
             .await?;
         let active_reservations = self
-            .active_reservations_for_update(tx, job.customer_id())
+            .active_reservations_for_update(tx, job.customer_id(), lifecycle_generation)
             .await?;
         let active_reserved = active_reserved_totals(&active_reservations);
         let current_storage = self
@@ -145,7 +147,7 @@ impl PgAlgoliaImportJobRepo {
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
              RETURNING *",
         )
-        .bind(SourceImportProvider::Algolia.as_str())
+        .bind(job.source_provider().as_str())
         .bind(job.customer_id())
         .bind(job.tenant_id())
         .bind(job.algolia_app_id())
@@ -176,16 +178,20 @@ impl PgAlgoliaImportJobRepo {
         &self,
         tx: &mut Transaction<'_, Postgres>,
         customer_id: Uuid,
+        lifecycle_generation: i64,
     ) -> Result<Vec<ActiveReservationRow>, RepoError> {
         sqlx::query_as::<_, ActiveReservationRow>(&format!(
             "SELECT reserved_index_count, reserved_customer_storage_bytes,
                     reserved_node_transient_bytes
              FROM algolia_import_jobs
-             WHERE customer_id = $1 AND ({})
+             WHERE customer_id = $1
+               AND lifecycle_generation = $2
+               AND ({})
              FOR UPDATE",
             active_reservation_predicate()
         ))
         .bind(customer_id)
+        .bind(lifecycle_generation)
         .fetch_all(&mut **tx)
         .await
         .map_err(repo_error)
@@ -213,9 +219,11 @@ impl PgAlgoliaImportJobRepo {
         &self,
         tx: &mut Transaction<'_, Postgres>,
         customer_id: Uuid,
+        lifecycle_generation: i64,
     ) -> Result<i64, RepoError> {
-        sqlx::query_scalar(&logical_index_slot_count_sql())
+        sqlx::query_scalar(&logical_index_slot_count_sql("$2"))
             .bind(customer_id)
+            .bind(lifecycle_generation)
             .fetch_one(&mut **tx)
             .await
             .map_err(repo_error)
@@ -308,7 +316,15 @@ impl PgAlgoliaImportJobRepo {
             "SELECT reserved_index_count, reserved_customer_storage_bytes,
                     reserved_node_transient_bytes
              FROM algolia_import_jobs
-             WHERE destination_vm_id = $1 AND ({})
+             WHERE destination_vm_id = $1
+               AND ({})
+               AND EXISTS (
+                   SELECT 1
+                   FROM customers AS customer
+                   WHERE customer.id = algolia_import_jobs.customer_id
+                     AND customer.status = 'active'
+                     AND customer.lifecycle_generation = algolia_import_jobs.lifecycle_generation
+               )
              FOR UPDATE",
             active_reservation_predicate()
         ))
@@ -338,7 +354,7 @@ impl PgAlgoliaImportJobRepo {
     }
 }
 
-fn logical_index_slot_count_sql() -> String {
+fn logical_index_slot_count_sql(lifecycle_generation: &str) -> String {
     format!(
         "SELECT
              (SELECT COUNT(*)
@@ -349,6 +365,7 @@ fn logical_index_slot_count_sql() -> String {
              (SELECT COALESCE(SUM(j.reserved_index_count), 0)::BIGINT
               FROM algolia_import_jobs j
               WHERE j.customer_id = $1
+                AND j.lifecycle_generation = {lifecycle_generation}
                 AND ({})
                 AND NOT EXISTS (
                     SELECT 1

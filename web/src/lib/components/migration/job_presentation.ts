@@ -285,6 +285,16 @@ export function describeMigrationPreviewFailure(
 	return { detail: detail === '' ? null : detail, statement: MIGRATION_PREVIEW_NO_JOB_STATEMENT };
 }
 
+export function describeMigrationSubmitFailure(
+	sourceProvider: SourceProvider,
+	sanitizedError: string
+): string {
+	const sanitized = sanitizedError.trim();
+	return isMigrationErrorCode(sanitized)
+		? describeMigrationErrorCode(sanitized, sourceProvider)
+		: sanitizedError;
+}
+
 const VERIFICATION_ERROR_COPY: Partial<
 	Record<PublicAlgoliaImportError['code'] | 'verification_not_available', string>
 > = {

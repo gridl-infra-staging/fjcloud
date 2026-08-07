@@ -21,44 +21,67 @@ const ERASURE_TOMBSTONE_LIFECYCLE_GENERATION: i64 = 0;
 const ERASURE_TOMBSTONE_PLACEHOLDER: &str = "erased";
 
 pub(super) const CLAIM_RECONCILIATION_JOBS_SQL: &str = "
-    WITH candidates AS (
-        SELECT job.id
+    WITH public_candidates AS (
+        SELECT job.id, job.updated_at, FALSE AS erased,
+               CASE WHEN job.engine_ack_state = 'pending' THEN 0 ELSE 1 END AS lane_priority
         FROM algolia_import_jobs AS job
-        LEFT JOIN customers AS customer ON customer.id = job.customer_id
+        JOIN customers AS customer ON customer.id = job.customer_id
         WHERE (
-            (
-                job.erased_at IS NULL
-                AND customer.status = 'active'
-                AND customer.lifecycle_generation = job.lifecycle_generation
-                AND (
-                    (
-                        job.engine_ack_state = 'pending'
-                        AND job.dispatch_intent_state IN ('ambiguous', 'committed')
-                        AND job.engine_job_id IS NOT NULL
-                    )
-                    OR (
-                        job.engine_ack_state = 'outbox_pending'
-                        AND job.dispatch_intent_state = 'committed'
-                        AND job.engine_job_id IS NOT NULL
-                        AND job.terminal_at IS NOT NULL
-                    )
+            job.erased_at IS NULL
+            AND customer.status = 'active'
+            AND customer.lifecycle_generation = job.lifecycle_generation
+            AND (
+                (
+                    job.engine_ack_state = 'pending'
+                    AND job.dispatch_intent_state IN ('ambiguous', 'committed')
+                    AND job.engine_job_id IS NOT NULL
                 )
-            )
-            OR (
-                job.erased_at IS NOT NULL
-                AND job.erasure_handle IS NOT NULL
-                AND job.tombstone_compacted_at IS NULL
-                AND job.cleanup_phase = 'exact_target_absence_required'
-                AND job.engine_ack_state = 'pending'
-                AND job.destination_vm_id IS NOT NULL
-                AND job.engine_job_id IS NOT NULL
+                OR (
+                    job.engine_ack_state = 'outbox_pending'
+                    AND job.dispatch_intent_state = 'committed'
+                    AND job.engine_job_id IS NOT NULL
+                    AND job.terminal_at IS NOT NULL
+                )
             )
         )
         AND (job.worker_lease_expires_at IS NULL
              OR job.worker_lease_expires_at <= $1)
+        ORDER BY lane_priority, job.updated_at, job.id
+        LIMIT $3
+        FOR UPDATE OF job SKIP LOCKED
+    ),
+    erased_candidates AS (
+        SELECT job.id, job.updated_at, TRUE AS erased, 0 AS lane_priority
+        FROM algolia_import_jobs AS job
+        WHERE job.erased_at IS NOT NULL
+          AND job.erasure_handle IS NOT NULL
+          AND job.tombstone_compacted_at IS NULL
+          AND job.cleanup_phase = 'exact_target_absence_required'
+          AND job.engine_ack_state = 'pending'
+          AND job.destination_vm_id IS NOT NULL
+          AND job.engine_job_id IS NOT NULL
+          AND (job.worker_lease_expires_at IS NULL
+               OR job.worker_lease_expires_at <= $1)
         ORDER BY job.updated_at, job.id
         LIMIT $3
         FOR UPDATE OF job SKIP LOCKED
+    ),
+    ranked_candidates AS (
+        SELECT id, erased, updated_at, lane_priority,
+               ROW_NUMBER() OVER (
+                   PARTITION BY erased ORDER BY lane_priority, updated_at, id
+               ) AS lane_position
+        FROM (
+            SELECT * FROM public_candidates
+            UNION ALL
+            SELECT * FROM erased_candidates
+        ) AS candidate_pool
+    ),
+    candidates AS (
+        SELECT id
+        FROM ranked_candidates
+        ORDER BY lane_position, updated_at, id
+        LIMIT $3
     )
     UPDATE algolia_import_jobs AS job
     SET worker_claimed_at = $1, worker_lease_expires_at = $2
@@ -142,6 +165,28 @@ impl TryFrom<ErasedTombstoneClaimRow> for AlgoliaImportReconciliationClaim {
     }
 }
 
+/// Release a failed erased-tombstone scrub attempt back to the reconciliation
+/// queue. Bumping `updated_at` rotates the tombstone behind everything the
+/// claim query has not served yet, which is what the import path already gets
+/// for free from `persist_job_state`.
+pub(super) async fn defer_erased_tombstone_retry(
+    pool: &sqlx::PgPool,
+    id: Uuid,
+    retry_after: DateTime<Utc>,
+) -> Result<(), RepoError> {
+    sqlx::query(
+        "UPDATE algolia_import_jobs
+         SET updated_at = $2, worker_claimed_at = NULL, worker_lease_expires_at = NULL
+         WHERE id = $1 AND erased_at IS NOT NULL AND tombstone_compacted_at IS NULL",
+    )
+    .bind(id)
+    .bind(retry_after)
+    .execute(pool)
+    .await
+    .map_err(repo_error)?;
+    Ok(())
+}
+
 fn erased_tombstone_claim_job(
     row: &ErasedTombstoneClaimRow,
     publication_disposition: AlgoliaImportPublicationDisposition,
@@ -172,6 +217,7 @@ fn erased_tombstone_claim_job(
         reserved_customer_storage_bytes: 0,
         reserved_node_transient_bytes: 0,
         retryable: false,
+        engine_unavailable_since: None,
         worker_claimed_at: Some(row.worker_claimed_at),
         worker_lease_expires_at: Some(row.worker_lease_expires_at),
         cancel_requested_at: None,

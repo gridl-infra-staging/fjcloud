@@ -17,6 +17,7 @@ import {
 	PLAYWRIGHT_FLAPJACK_PORT_ENV,
 	PLAYWRIGHT_REQUIRE_EMAIL_VERIFICATION_ENV,
 	PLAYWRIGHT_WEB_PORT_ENV,
+	PLAYWRIGHT_PROVIDER_PARITY_SHUTDOWN_TIMEOUT_MS,
 	PLAYWRIGHT_WEB_SERVER_COMMAND,
 	PLAYWRIGHT_WEB_ONLY_SERVER_COMMAND,
 	PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS,
@@ -25,6 +26,8 @@ import {
 	resolveDefaultPlaywrightWebPort,
 	resolveDefaultPlaywrightApiPort,
 	resolveDefaultPlaywrightFlapjackPort,
+	resolveDefaultPlaywrightMeilisearchPort,
+	resolveDefaultPlaywrightTypesensePort,
 	REMOTE_TARGET_OPT_IN_ENV,
 	REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST,
 	requireLoopbackHttpUrl,
@@ -522,6 +525,32 @@ describe('playwright config contract', () => {
 		expect(processEnv.API_URL).toBe('http://127.0.0.1:4101');
 	});
 
+	it('resolvePlaywrightRuntime replaces file-backed API endpoints for spawned local stacks', () => {
+		const workspacePath = '/tmp/fjcloud-worktree-file-backed-api-endpoints';
+		const expectedApiPort = resolveDefaultPlaywrightApiPort(workspacePath);
+		const expectedApiBaseUrl = `http://127.0.0.1:${expectedApiPort}`;
+		const processEnv: MutableEnv = {
+			API_BASE_URL: 'http://127.0.0.1:3001',
+			API_URL: 'http://127.0.0.1:3001'
+		};
+		const repoEnv = {
+			API_BASE_URL: 'http://127.0.0.1:3001',
+			API_URL: 'http://127.0.0.1:3001'
+		};
+		const runtime = resolvePlaywrightRuntime({
+			processEnv,
+			repoEnv,
+			webEnv: {},
+			fallbackJwtSecret: 'fallback-jwt',
+			workspacePath
+		});
+
+		expect(runtime.webServerEnv.API_BASE_URL).toBe(expectedApiBaseUrl);
+		expect(runtime.webServerEnv.API_URL).toBe(expectedApiBaseUrl);
+		expect(processEnv.API_BASE_URL).toBe(expectedApiBaseUrl);
+		expect(processEnv.API_URL).toBe(expectedApiBaseUrl);
+	});
+
 	it('resolvePlaywrightRuntime uses default base URL and admin fallback chain without BASE_URL override', () => {
 		const workspacePath = '/tmp/fjcloud-worktree-default';
 		const expectedWebPort = resolveDefaultPlaywrightWebPort(workspacePath);
@@ -553,6 +582,82 @@ describe('playwright config contract', () => {
 		expect(runtime.webServerEnv.FJCLOUD_ALLOW_LOOPBACK_SOURCE_ORIGINS).toBe('1');
 		expect(runtime.webServerEnv.SKIP_EMAIL_VERIFICATION).toBe('1');
 		expect(runtime.webServerEnv.API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION).toBe('1');
+	});
+
+	it('resolvePlaywrightRuntime enables migrations for the spawned provider-parity runtime only', () => {
+		const workspacePath = '/tmp/fjcloud-worktree-source-migration-provider-parity';
+		const expectedFlapjackDataDir = `../.local/flapjack-data-source-migration-provider-parity-${resolveDefaultPlaywrightFlapjackPort(workspacePath)}`;
+		const parityRuntimes = [
+			['test', '--grep', 'source migration provider parity'],
+			['test', 'tests/e2e-ui/full/source_migration_provider_parity.spec.ts']
+		].map((argv) => {
+			const processEnv: MutableEnv = {};
+			const runtime = resolvePlaywrightRuntime({
+				processEnv,
+				repoEnv: {},
+				webEnv: {},
+				fallbackJwtSecret: 'fallback-jwt',
+				argv,
+				workspacePath
+			});
+			return { processEnv, runtime };
+		});
+		const ordinaryRuntime = resolvePlaywrightRuntime({
+			processEnv: {},
+			repoEnv: {},
+			webEnv: {},
+			fallbackJwtSecret: 'fallback-jwt',
+			workspacePath
+		});
+
+		for (const { processEnv, runtime: parityRuntime } of parityRuntimes) {
+			expect(parityRuntime.webServer).toEqual(
+				expect.objectContaining({
+					gracefulShutdown: {
+						signal: 'SIGTERM',
+						timeout: PLAYWRIGHT_PROVIDER_PARITY_SHUTDOWN_TIMEOUT_MS
+					}
+				})
+			);
+			expect(parityRuntime.webServerEnv.FJCLOUD_ALGOLIA_MIGRATION_ENABLED).toBe('true');
+			expect(parityRuntime.webServerEnv.FJ_ENABLE_MEILISEARCH_PREVIEW_LOOPBACK).toBe('1');
+			expect(parityRuntime.webServerEnv.FJ_ENABLE_TYPESENSE_PREVIEW_LOOPBACK).toBe('1');
+			expect(parityRuntime.webServerEnv.COMPOSE_PROFILES).toBe('source-providers');
+			expect(parityRuntime.webServerEnv.LOCAL_MEILISEARCH_PORT).toBe(
+				processEnv.LOCAL_MEILISEARCH_PORT
+			);
+			expect(parityRuntime.webServerEnv.LOCAL_TYPESENSE_PORT).toBe(processEnv.LOCAL_TYPESENSE_PORT);
+			expect(processEnv.LOCAL_MEILISEARCH_PORT).toBe(
+				String(resolveDefaultPlaywrightMeilisearchPort(workspacePath))
+			);
+			expect(processEnv.LOCAL_TYPESENSE_PORT).toBe(
+				String(resolveDefaultPlaywrightTypesensePort(workspacePath))
+			);
+			expect(
+				new Set([
+					new URL(parityRuntime.baseURL).port,
+					new URL(parityRuntime.webServerEnv.API_URL).port,
+					new URL(parityRuntime.webServerEnv.FLAPJACK_URL).port,
+					processEnv.LOCAL_MEILISEARCH_PORT,
+					processEnv.LOCAL_TYPESENSE_PORT
+				]).size
+			).toBe(5);
+			expect(parityRuntime.webServerEnv.MEILI_TEST_SECRET_CANARY).toBe(
+				processEnv.MEILI_TEST_SECRET_CANARY
+			);
+			expect(parityRuntime.webServerEnv.TYPESENSE_STAGE2_BOOTSTRAP_CANARY).toBe(
+				processEnv.TYPESENSE_STAGE2_BOOTSTRAP_CANARY
+			);
+			expect(processEnv.MEILI_TEST_SECRET_CANARY).toMatch(/^playwright-meili-canary-/);
+			expect(processEnv.TYPESENSE_STAGE2_BOOTSTRAP_CANARY).toMatch(/^playwright-typesense-canary-/);
+			expect(parityRuntime.webServerEnv.FJCLOUD_FLAPJACK_VERSION).toBeUndefined();
+			expect(parityRuntime.webServerEnv.PLAYWRIGHT_FLAPJACK_DATA_DIR).toBe(expectedFlapjackDataDir);
+		}
+		expect(ordinaryRuntime.webServerEnv.FJCLOUD_ALGOLIA_MIGRATION_ENABLED).toBeUndefined();
+		expect(ordinaryRuntime.webServer).not.toHaveProperty('gracefulShutdown');
+		expect(ordinaryRuntime.webServerEnv.FJ_ENABLE_MEILISEARCH_PREVIEW_LOOPBACK).toBeUndefined();
+		expect(ordinaryRuntime.webServerEnv.FJ_ENABLE_TYPESENSE_PREVIEW_LOOPBACK).toBeUndefined();
+		expect(ordinaryRuntime.webServerEnv.PLAYWRIGHT_FLAPJACK_DATA_DIR).toBeUndefined();
 	});
 
 	it.each([
@@ -1396,6 +1501,16 @@ describe('playwright config contract', () => {
 	});
 
 	describe('PLAYWRIGHT_PROJECT_CONTRACTS spec file routing', () => {
+		it('source migration provider parity disables credential-bearing failure artifacts', () => {
+			const specPath = 'tests/e2e-ui/full/source_migration_provider_parity.spec.ts';
+			const specSource = readFileSync(join(process.cwd(), specPath), 'utf8');
+			const testUseOverride = specSource.match(/test\.use\(\{[\s\S]*?\}\);/u)?.[0];
+
+			expect(testUseOverride).toBeDefined();
+			expect(testUseOverride).toMatch(/\btrace:\s*'off'/u);
+			expect(testUseOverride).toMatch(/\bscreenshot:\s*'off'/u);
+		});
+
 		it('routes the browser accessibility catalog to its sole project owner', () => {
 			const specPath = 'tests/e2e-ui/full/accessibility.spec.ts';
 

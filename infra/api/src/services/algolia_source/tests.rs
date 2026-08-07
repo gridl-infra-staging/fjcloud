@@ -86,6 +86,7 @@ fn item(name: &str) -> AlgoliaIndexMetadata {
         pending_task: false,
         primary: Some("products".to_string()),
         replicas: vec!["products_price_asc".to_string()],
+        revision: None,
     }
 }
 
@@ -566,6 +567,7 @@ fn sized_item(name: &str, entries: u64, data_size: u64, file_size: u64) -> Algol
         pending_task: false,
         primary: None,
         replicas: vec![],
+        revision: None,
     }
 }
 

@@ -37,7 +37,9 @@ const LIST_CURSOR_DOMAIN: &str = "fjcloud.algolia_migration.list_cursor.v1";
 const LIST_CURSOR_TTL_SECONDS: i64 = 900;
 
 mod capabilities;
+mod create_request;
 mod eligibility;
+mod hosted_discovery;
 mod jobs;
 mod preview;
 mod retained_jobs;
@@ -47,6 +49,11 @@ mod verify;
 use source::map_algolia_source_error;
 
 pub use capabilities::{engine_supported_migration_capabilities, AlgoliaMigrationCapabilities};
+pub use create_request::{
+    CreateAlgoliaImportJobRequest, CreateImportJobSourceRevisionRequest,
+    CreateMeilisearchImportJobRequest, CreateSourceImportJobRequest,
+    CreateTypesenseImportJobRequest,
+};
 pub use eligibility::{
     __path_check_destination_eligibility, check_destination_eligibility,
     AlgoliaDestinationEligibilityRequest, AlgoliaDestinationEligibilityResponse,
@@ -54,8 +61,7 @@ pub use eligibility::{
 pub use jobs::{
     __path_cancel_import_job, __path_create_import_job, __path_resume_import_job,
     cancel_import_job, create_import_job, resume_import_job, CancelAlgoliaImportJobRequest,
-    CreateAlgoliaImportJobRequest, CreateMeilisearchImportJobRequest, CreateSourceImportJobRequest,
-    CreateTypesenseImportJobRequest, ResumeAlgoliaImportJobRequest,
+    ResumeAlgoliaImportJobRequest,
 };
 pub use preview::{
     __path_preview_source_migration, preview_source_migration, AlgoliaMigrationPreviewRequest,

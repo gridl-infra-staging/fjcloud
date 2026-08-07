@@ -155,6 +155,44 @@ fn schema_refs_at_pointer(spec: &serde_json::Value, pointer: &str) -> BTreeSet<S
     refs
 }
 
+fn assert_optional_non_nullable_string_property(
+    spec: &serde_json::Value,
+    schema_name: &str,
+    property_name: &str,
+) {
+    assert!(
+        !required_fields(spec, schema_name).contains(&property_name.to_string()),
+        "{schema_name}.{property_name} must be optional by omission"
+    );
+    assert_eq!(
+        spec.pointer(&format!(
+            "/components/schemas/{schema_name}/properties/{property_name}/type"
+        )),
+        Some(&serde_json::json!("string")),
+        "{schema_name}.{property_name} must be a non-null string when present"
+    );
+}
+
+fn assert_optional_non_nullable_ref_property(
+    spec: &serde_json::Value,
+    schema_name: &str,
+    property_name: &str,
+    expected_ref: &str,
+) {
+    assert!(
+        !required_fields(spec, schema_name).contains(&property_name.to_string()),
+        "{schema_name}.{property_name} must be optional by omission"
+    );
+    assert_eq!(
+        spec.pointer(&format!(
+            "/components/schemas/{schema_name}/properties/{property_name}/$ref"
+        ))
+        .and_then(|value| value.as_str()),
+        Some(expected_ref),
+        "{schema_name}.{property_name} must be a non-null component reference when present"
+    );
+}
+
 fn scalar_api_reference_json(html: &str) -> serde_json::Value {
     let id_index = html
         .find(r#"id="api-reference""#)
@@ -692,6 +730,11 @@ fn source_migration_openapi_surface_is_narrow_and_client_bound() {
         "Algolia picker metadata is always serialized, so OpenAPI must not mark fields optional"
     );
     assert_eq!(
+        spec.pointer("/components/schemas/AlgoliaIndexMetadata/properties/revision/type"),
+        Some(&serde_json::json!("string")),
+        "Algolia picker metadata must publish absent producer-native revisions by omitting revision"
+    );
+    assert_eq!(
         required_fields(&spec, "AlgoliaSourceListResponse"),
         vec!["items".to_string(), "nextCursor".to_string()]
     );
@@ -772,6 +815,7 @@ fn source_migration_openapi_surface_is_narrow_and_client_bound() {
         "lastBuildTimeS: number;",
         "primary: string | null;",
         "replicas: string[];",
+        "revision?: string;",
     ] {
         assert!(
             types_source.contains(field),
@@ -1040,6 +1084,21 @@ fn source_migration_create_openapi_publishes_all_provider_request_contracts() {
         expected_variants,
         "every published provider create schema must also have a field-shape contract asserted below"
     );
+    assert_eq!(
+        required_fields(&spec, "CreateImportJobSourceRevisionRequest"),
+        vec!["documentCount".to_string()],
+        "source revision metadata must only require the monotonic document-count baseline"
+    );
+    assert_optional_non_nullable_string_property(
+        &spec,
+        "CreateImportJobSourceRevisionRequest",
+        "updatedAt",
+    );
+    assert_optional_non_nullable_string_property(
+        &spec,
+        "CreateImportJobSourceRevisionRequest",
+        "revision",
+    );
 
     for (schema, expected_required, provider_field, forbidden_field) in provider_field_contracts {
         assert_eq!(
@@ -1054,6 +1113,34 @@ fn source_migration_create_openapi_publishes_all_provider_request_contracts() {
             .is_some(),
             "{schema} must publish {provider_field}"
         );
+        assert_optional_non_nullable_ref_property(
+            &spec,
+            schema,
+            "sourceRevision",
+            "#/components/schemas/CreateImportJobSourceRevisionRequest",
+        );
+        if schema != "CreateAlgoliaImportJobRequest" {
+            let source_revision_schema = spec
+                .pointer(&format!(
+                    "/components/schemas/{schema}/properties/sourceRevision"
+                ))
+                .unwrap_or_else(|| panic!("{schema} must publish the hosted sourceRevision guard"));
+            let mut source_revision_refs = BTreeSet::new();
+            let mut visited = BTreeSet::new();
+            collect_schema_refs(
+                &spec,
+                source_revision_schema,
+                &mut source_revision_refs,
+                &mut visited,
+            );
+            assert_eq!(
+                source_revision_refs,
+                BTreeSet::from([
+                    "#/components/schemas/CreateImportJobSourceRevisionRequest".to_string()
+                ]),
+                "{schema}.sourceRevision must reuse the canonical source revision schema"
+            );
+        }
         assert!(
             spec.pointer(&format!(
                 "/components/schemas/{schema}/properties/{forbidden_field}"

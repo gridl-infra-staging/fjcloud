@@ -274,16 +274,17 @@ impl FlapjackProxy {
         Self::check_response_status(resp.status, &resp.body)
     }
 
-    pub(crate) async fn submit_algolia_migration(
+    pub(crate) async fn submit_source_migration(
         &self,
         flapjack_url: &str,
         node_id: &str,
         region: &str,
+        source_provider: SourceImportProvider,
         body: AlgoliaImportSubmitPayload,
     ) -> Result<AsyncMigrationStatusResponse, ProxyError> {
         self.submit_migration(
             MigrationTransportTarget::new(flapjack_url, node_id, region),
-            SourceImportProvider::Algolia,
+            source_provider,
             body,
         )
         .await
@@ -334,6 +335,22 @@ impl FlapjackProxy {
         .await
     }
 
+    pub(crate) async fn source_migration_status(
+        &self,
+        flapjack_url: &str,
+        node_id: &str,
+        region: &str,
+        source_provider: SourceImportProvider,
+        engine_job_id: &str,
+    ) -> Result<AsyncMigrationStatusResponse, ProxyError> {
+        self.migration_status(
+            MigrationTransportTarget::new(flapjack_url, node_id, region),
+            source_provider,
+            engine_job_id,
+        )
+        .await
+    }
+
     pub async fn cancel_algolia_migration(
         &self,
         flapjack_url: &str,
@@ -349,6 +366,22 @@ impl FlapjackProxy {
         .await
     }
 
+    pub(crate) async fn cancel_source_migration(
+        &self,
+        flapjack_url: &str,
+        node_id: &str,
+        region: &str,
+        source_provider: SourceImportProvider,
+        engine_job_id: &str,
+    ) -> Result<AsyncMigrationStatusResponse, ProxyError> {
+        self.cancel_migration(
+            MigrationTransportTarget::new(flapjack_url, node_id, region),
+            source_provider,
+            engine_job_id,
+        )
+        .await
+    }
+
     pub async fn acknowledge_algolia_migration(
         &self,
         flapjack_url: &str,
@@ -359,6 +392,22 @@ impl FlapjackProxy {
         self.acknowledge_migration(
             MigrationTransportTarget::new(flapjack_url, node_id, region),
             SourceImportProvider::Algolia,
+            engine_job_id,
+        )
+        .await
+    }
+
+    pub(crate) async fn acknowledge_source_migration(
+        &self,
+        flapjack_url: &str,
+        node_id: &str,
+        region: &str,
+        source_provider: SourceImportProvider,
+        engine_job_id: &str,
+    ) -> Result<(), ProxyError> {
+        self.acknowledge_migration(
+            MigrationTransportTarget::new(flapjack_url, node_id, region),
+            source_provider,
             engine_job_id,
         )
         .await

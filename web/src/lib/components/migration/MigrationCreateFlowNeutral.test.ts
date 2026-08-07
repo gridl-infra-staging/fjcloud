@@ -485,7 +485,9 @@ describe('MigrationCreateFlow - neutral source provider invalidation', () => {
 			});
 
 			await establishNeutralSubmitIntent('typesense', client);
-			expect(screen.getByTestId('migration-start-error')).toHaveTextContent('backend_unavailable');
+			expect(screen.getByTestId('migration-start-error')).toHaveTextContent(
+				'The migration service is temporarily unavailable.'
+			);
 			await mutate();
 
 			assertCredentialState();
@@ -495,6 +497,23 @@ describe('MigrationCreateFlow - neutral source provider invalidation', () => {
 			);
 		}
 	);
+
+	it('uses retained-job source changed copy for create-time neutral submit refusal', async () => {
+		const client = neutralClient({
+			createMigrationImportJob: vi.fn().mockRejectedValue(new Error('source_changed'))
+		});
+		render(MigrationCreateFlow, {
+			client: client.client,
+			providerEligibility: ELIGIBLE_AWS_PROVIDER,
+			capabilities: availableAvailability.capabilities
+		});
+
+		await establishNeutralSubmitIntent('typesense', client);
+
+		expect(screen.getByTestId('migration-start-error')).toHaveTextContent(
+			'The source changed while the import was running.'
+		);
+	});
 
 	it('keeps a seeded source credential canary only in live inputs and credential-bearing requests after neutral submit', async () => {
 		const setItem = vi.spyOn(Storage.prototype, 'setItem');
@@ -524,9 +543,10 @@ describe('MigrationCreateFlow - neutral source provider invalidation', () => {
 			'typesense',
 			{
 				mode: 'create',
-				host: 'https://typesense.example.test',
+				node: 'https://typesense.example.test',
 				apiKey: publicStateCanary,
-				sourceName: 'source_products',
+				sourceIndex: 'source_products',
+				sourceRevision: { documentCount: 1234, updatedAt: '2026-07-18T10:00:00Z' },
 				target: { eligibilityToken: 'target-token-canary' }
 			},
 			expect.any(String)
@@ -588,4 +608,54 @@ describe('MigrationCreateFlow - neutral source provider invalidation', () => {
 		});
 		expect(document.body.innerHTML).not.toContain(publicStateCanary);
 	});
+
+	it.each([
+		{
+			sourceProvider: 'meilisearch' as const,
+			expectedRequest: {
+				endpoint: 'https://meilisearch.example.test',
+				apiKey: API_KEY_CANARY,
+				offset: 25,
+				limit: 100
+			}
+		},
+		{
+			sourceProvider: 'typesense' as const,
+			expectedRequest: {
+				node: 'https://typesense.example.test',
+				apiKey: API_KEY_CANARY,
+				offset: 25,
+				limit: 100
+			}
+		}
+	])(
+		'loads the next $sourceProvider source page with hosted offset pagination outside the credential identity',
+		async ({ sourceProvider, expectedRequest }) => {
+			const client = neutralClient({
+				listMigrationSourceIndexes: vi
+					.fn()
+					.mockResolvedValueOnce(listResponse([sourceIndex()], '25'))
+					.mockResolvedValueOnce(
+						listResponse([sourceIndex({ name: `${sourceProvider}_orders` })], null)
+					)
+			});
+			render(MigrationCreateFlow, {
+				client: client.client,
+				providerEligibility: ELIGIBLE_AWS_PROVIDER,
+				capabilities: availableAvailability.capabilities
+			});
+
+			await connectNeutralSource(sourceProvider, client);
+			await fireEvent.click(screen.getByRole('button', { name: /load more source indexes/i }));
+
+			await screen.findByTestId(`migration-source-row-${sourceProvider}_orders`);
+			expect(client.listMigrationSourceIndexes).toHaveBeenLastCalledWith(
+				sourceProvider,
+				expectedRequest
+			);
+			expect(JSON.stringify(client.listMigrationSourceIndexes.mock.calls.at(-1))).not.toContain(
+				'"cursor"'
+			);
+		}
+	);
 });

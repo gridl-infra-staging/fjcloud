@@ -1,0 +1,12 @@
+poll_started_at_utc=2026-08-07T16:57:46Z
+initial_run_id=31160480760
+interval_seconds=60
+timeout_seconds=5400
+observed_at_utc=2026-08-07T16:57:46Z probe_exit=1
+repo=gridl-infra-staging/fjcloud mirror_head=06ba4b38edb6b891aaa918ae964c1d42dcb5f9fe run_id=31199924808 status=in_progress conclusion=none run_head_sha=06ba4b38edb6b891aaa918ae964c1d42dcb5f9fe age_seconds=106 reason=ci_not_completed
+observed_at_utc=2026-08-07T16:58:52Z probe_exit=1
+repo=gridl-infra-staging/fjcloud mirror_head=06ba4b38edb6b891aaa918ae964c1d42dcb5f9fe run_id=31199924808 status=in_progress conclusion=none run_head_sha=06ba4b38edb6b891aaa918ae964c1d42dcb5f9fe age_seconds=173 reason=ci_not_completed
+observed_at_utc=2026-08-07T16:59:58Z probe_exit=1
+repo=gridl-infra-staging/fjcloud mirror_head=06ba4b38edb6b891aaa918ae964c1d42dcb5f9fe run_id=31199924808 status=in_progress conclusion=none run_head_sha=06ba4b38edb6b891aaa918ae964c1d42dcb5f9fe age_seconds=239 reason=ci_not_completed
+observed_at_utc=2026-08-07T17:01:04Z probe_exit=1
+repo=gridl-infra-staging/fjcloud mirror_head=06ba4b38edb6b891aaa918ae964c1d42dcb5f9fe run_id=31199924808 status=completed conclusion=failure run_head_sha=06ba4b38edb6b891aaa918ae964c1d42dcb5f9fe age_seconds=315 reason=ci_non_success

@@ -1,0 +1,3 @@
+command=git merge-base --is-ancestor f03cd0839 origin/main
+exit_code=0
+origin_main=694daac94d8bdf8fbdaacc2497676667166c0d98

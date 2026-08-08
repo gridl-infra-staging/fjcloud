@@ -1,12 +1,27 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+	meilisearchPreviewExpectation,
 	meilisearchSourceRecordCount,
 	seededCanarySpecimens,
 	sourceLabelWithRecordCount,
+	sourceMigrationMethod,
+	typesensePreviewExpectation,
 	typesenseSourceRecordCount
 } from './source_migration_provider_parity';
 import { getString, objectArray, readJsonObject } from './source_migration_expected_bundle';
+
+function typesenseProductCollection() {
+	const bundle = readJsonObject('typesense', 'expected_bundle.json');
+	const source = bundle.source as Record<string, unknown>;
+	const products = objectArray(source, 'collections').find(
+		(collection) => getString(collection, 'name') === 'fj_ts_migration_products'
+	);
+	if (!products) {
+		throw new Error('Typesense bundle missing fj_ts_migration_products collection');
+	}
+	return products;
+}
 
 describe('seededCanarySpecimens', () => {
 	afterEach(() => {
@@ -72,14 +87,55 @@ describe('producer-native source record counts', () => {
 	});
 
 	it('pins the shipped Typesense products-collection documentCount known-answer', () => {
-		const bundle = readJsonObject('typesense', 'expected_bundle.json');
-		const source = bundle.source as Record<string, unknown>;
-		const products = objectArray(source, 'collections').find(
-			(collection) => getString(collection, 'name') === 'fj_ts_migration_products'
-		);
-		if (!products) {
-			throw new Error('Typesense bundle missing fj_ts_migration_products collection');
-		}
-		expect(typesenseSourceRecordCount(products)).toBe(3);
+		expect(typesenseSourceRecordCount(typesenseProductCollection())).toBe(3);
+	});
+});
+
+describe('sourceMigrationMethod', () => {
+	// The provider claim must stay method-qualified: a local-container proof and a
+	// live-probe proof are not interchangeable, and a live-probe row with no
+	// credentials must degrade to fixture-only rather than silently claim a live proof.
+	it('labels a local-container source proof local-container regardless of credentials', () => {
+		expect(sourceMigrationMethod('local-container', false)).toBe('local-container');
+		expect(sourceMigrationMethod('local-container', true)).toBe('local-container');
+	});
+
+	it('labels a live-probe-owner source live-probe only when credentials resolve', () => {
+		expect(sourceMigrationMethod('live-probe-owner', true)).toBe('live-probe');
+	});
+
+	it('degrades a live-probe-owner source to fixture-only when credentials are absent', () => {
+		expect(sourceMigrationMethod('live-probe-owner', false)).toBe('fixture-only');
+	});
+});
+
+describe('fixture-owned preview expectations', () => {
+	// The preview scope is one selected source index; sourceCounts.records is the
+	// selected index's producer-native documentCount, never an instance-wide sum.
+	it('derives the Meilisearch preview expectation from the shipped configured index', () => {
+		const bundle = readJsonObject('meilisearch', 'expected_bundle.json');
+
+		expect(meilisearchPreviewExpectation(bundle)).toEqual({
+			supported: true,
+			sourceCounts: { indexes: 1, records: 3 },
+			minimumWarningLocators: 1,
+			warningCodePattern: /^(Meilisearch[A-Za-z]+|ProductNotMigrated)$/
+		});
+	});
+
+	it('marks Typesense preview unsupported while still pinning its one-index source counts', () => {
+		expect(typesensePreviewExpectation(typesenseProductCollection())).toEqual({
+			supported: false,
+			sourceCounts: { indexes: 1, records: 3 },
+			minimumWarningLocators: 0,
+			warningCodePattern: /^$/
+		});
+	});
+
+	it('tracks the producer-native record count, not a divergent captured-sample length', () => {
+		const divergentBundle = {
+			indexes: { configured: { uid: 'configured_pk', primaryKey: 'sku', documentCount: 7 } }
+		};
+		expect(meilisearchPreviewExpectation(divergentBundle).sourceCounts.records).toBe(7);
 	});
 });

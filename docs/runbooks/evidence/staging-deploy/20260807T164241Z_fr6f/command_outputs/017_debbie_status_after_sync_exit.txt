@@ -1,0 +1,3 @@
+command=debbie status --json
+observed_at_utc=2026-08-07T16:56:48Z
+exit_code=1

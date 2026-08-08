@@ -1,0 +1,7 @@
+worktree_path=/tmp/fjcloud_fr6f_20260807T164241Z
+target_sha=694daac94d8bdf8fbdaacc2497676667166c0d98
+head_sha=694daac94d8bdf8fbdaacc2497676667166c0d98
+status_porcelain_begin
+status_porcelain_end
+status_exit=0
+status_empty=true

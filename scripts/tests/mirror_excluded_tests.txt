@@ -1,0 +1,52 @@
+# Hermetic suites that are NOT safe to run on the free staging mirror.
+# Format: scripts/tests/<filename> # <mirror-absent-path>[,<path>...] — <reason>
+#
+# The public staging mirror is a strict debbie whitelist, not a complete copy of
+# the private development repository. Some local hermetic manifest suites read
+# private docs, orchestration ledgers, generated evidence pointers, or dev-only
+# control files that are intentionally absent from that mirror.
+#
+# This registry is a mirror-reachability fact, NOT a local skip list. Every
+# suite here still runs in the local fast gate and remains in
+# TEST_REACHABILITY_HERMETIC_TESTS. Removing a line makes the mirror contract
+# prove the suite no longer references mirror-absent inputs; it never makes the
+# suite stop running locally.
+#
+# The right long-term fix is to move each suite's live dependency behind a
+# public, synced contract fixture or to sync the public-safe owner file when that
+# file genuinely belongs on the mirror. Until then, this file records measured
+# mirror absence instead of hiding it in shard-runner logic.
+#
+# Measured 2026-08-07 from the live manifest array and the .debbie.toml
+# full-path whitelist complement: 28 existing suites referenced mirror-absent
+# paths in non-comment body text. The contract suite below is intentionally the
+# 29th entry because it parses .debbie.toml, which the mirror omits.
+scripts/tests/audit_secrets_test.sh # docs/private/secrets_inventory.md — 2026-08-07 D dry run found the private inventory path; long-term fix: replace real private inventory coupling with synced public fixtures.
+scripts/tests/chaos_split_structure_test.sh # DIRMAP.md,PROJECT_OVERVIEW.md,docs/checklists/apr21_pm_2_post_phase6_gaps_and_risks.md,implemented/2026-06-05_roadmap_v2_reshape_archive.md,implemented/20260729_chaos_ha_failover_proof_closeout_completion.md — 2026-08-07 D dry run found private planning/archive inputs; long-term fix: sync a public chaos-structure fixture or move the assertions to public owners.
+scripts/tests/check_dirmap_merge_driver_test.sh # .gitattributes,DIRMAP.md — 2026-08-07 D dry run found root merge-driver inputs; long-term fix: sync the public-safe merge-driver owner files or fixture the contract.
+scripts/tests/check_doc_surface_allowlist_test.sh # .scrai/allowed_top_docs.txt,LAUNCH.md,PROJECT_OVERVIEW.md,docs/disciplines/recommending_followups.md — 2026-08-07 D dry run found doc-surface owner paths absent from the mirror; long-term fix: sync the public doc-surface contract or fixture the allowlist.
+scripts/tests/check_handover_consumption_test.sh # chats/icg/aug05_12pm_2_pricing_registry_verification.md,chatting/aug02_11am_roadmap_handover_fs1.md,chatting/aug02_11am_roadmap_handover_fs2.md,chatting/aug02_11am_roadmap_handover_fs3.md,chatting/aug02_11am_roadmap_handover_fs7.md,chatting/aug02_5am_roadmap_corrections_fc1.md,chatting/aug03_11am_handover_fj1.md — 2026-08-07 D dry run found private handover/chat ledgers; long-term fix: publish a sanitized handover fixture for mirror validation.
+scripts/tests/check_status_doc_consistency_test.sh # LAUNCH.md,PROJECT_OVERVIEW.md — 2026-08-07 D dry run found private status owner docs; long-term fix: sync public-safe status owner docs or fixture the status contract.
+scripts/tests/closeout_reconciliation_test.sh # chats/icg/may31_pm_1_post_launch_closeout_and_durability_orchestrator.md,chatting/20260531T215558Z_launch_drive_closeout.md — 2026-08-07 D dry run found private closeout records; long-term fix: publish a sanitized closeout reconciliation fixture.
+scripts/tests/competitor_capability_gap_audit_test.sh # docs/audits/feature-parity/20260730T155204Z_competitor_capability_gaps/SUMMARY.md — 2026-08-07 D dry run found private feature-parity audit evidence; long-term fix: sync a public summary if the audit should run on the mirror.
+scripts/tests/deployed_proof_refresh_spec_test.sh # docs/launch/deployed_proof_refresh_spec.md — 2026-08-07 D dry run found a private launch spec; long-term fix: move the spec to a synced runbook or fixture the proof-refresh contract.
+scripts/tests/followup_triage_accounting_test.sh # chats/icg/_followups.md,docs/audits/followup-triage/TRIAGE.md — 2026-08-07 D dry run found private follow-up triage inputs; long-term fix: publish a sanitized accounting fixture.
+scripts/tests/followup_triage_shard_test.sh # chats/icg/_followups.md,docs/audits/followup-triage/TRIAGE.md — 2026-08-07 D dry run found private pinned triage inputs; permanent note: lines 89-91 run git show <PINNED_SHA>:chats/icg/_followups.md, so this is structurally unfixable until the pinned source itself is public or replaced by a committed fixture.
+scripts/tests/gitleaks_allowlist_contract_test.sh # scripts/reliability/fixtures/security/fake_aws_keys.txt — 2026-08-07 D dry run found the push-protection-excluded fake AWS fixture; long-term fix: replace with a mirror-safe generated fixture.
+scripts/tests/launch_readiness_evidence_test.sh # PROJECT_OVERVIEW.md,docs/checklists/apr21_pm_2_post_phase6_gaps_and_risks.md,docs/research/ses_bounce_complaint_gap.md,implemented/2026-06-05_roadmap_v2_reshape_archive.md — 2026-08-07 D dry run found private launch-readiness owners; long-term fix: sync public-safe launch readiness evidence or fixture the owner map.
+scripts/tests/local_ci_fast_budget_test.sh # docs/audits/test-wiring/20260729T014207Z_fast_budget_baseline/SUMMARY.md,docs/audits/test-wiring/20260730T145719Z_fast_gate_lock_and_acceptance/SUMMARY.md — 2026-08-07 D dry run found private fast-gate audit baselines; long-term fix: publish a sanitized budget baseline fixture.
+scripts/tests/merge_gate_declaration_test.sh # .batman.toml — 2026-08-07 D dry run found the private merge-gate declaration; long-term fix: sync a public-safe merge declaration or fixture the parser contract.
+scripts/tests/mirror_excluded_tests_contract_test.sh # .debbie.toml — 2026-08-07 self-reference: this contract parses the private debbie sync policy that the public mirror omits; long-term fix: sync a public-safe sync-scope manifest if mirror-side policing is required.
+scripts/tests/paid_beta_rc_runbook_test.sh # AGENTS.md,CLAUDE.md — 2026-08-07 D dry run found private agent instruction surfaces; long-term fix: move public beta runbook facts to synced docs.
+scripts/tests/probe_cloudflare_ai_block_test.sh # cloudflare_ai_block_readback.txt — 2026-08-07 D dry run found the local raw readback artifact path; long-term fix: generate this probe fixture under a temp path.
+scripts/tests/provider_migration_guides_test.sh # deliverables/stage_01_provider_migration_research_closeout.md — 2026-08-07 D dry run found private provider-migration deliverable evidence; long-term fix: sync a public migration guide fixture.
+scripts/tests/sanitize_worktree_paths_test.sh # DIRMAP.md,docs/DIRMAP.md — 2026-08-07 D dry run found private DIRMAP owner files; long-term fix: sync public DIRMAPs or fixture the sanitizer inputs.
+scripts/tests/secret_distinctness_manifest_contract_test.sh # docs/private/secret_distinctness_manifest.md — 2026-08-07 D dry run found the private secret distinctness manifest; long-term fix: expose only a sanitized contract fixture.
+scripts/tests/secret_distinctness_manifest_sync_scope_test.sh # .debbie.toml — 2026-08-07 D dry run found the private debbie sync policy; long-term fix: move sync-scope assertions to a public-safe generated manifest.
+scripts/tests/secret_rotation_runbook_test.sh # .lane7_evidence_dir — 2026-08-07 D dry run found the private IAM evidence pointer; long-term fix: replace the pointer with a synced sanitized evidence index.
+scripts/tests/secrets_inventory_doc_test.sh # .lane7_evidence_dir,docs/design/secret_sources.md,docs/private/secrets_inventory.md — 2026-08-07 D dry run found private secret inventory and evidence inputs; long-term fix: publish a sanitized inventory contract fixture.
+scripts/tests/security_checks_test.sh # chats/icg/apr29_pm_8_fj_metering_agent_architectural_cleanup.md — 2026-08-07 D dry run found a private chat slug used as a scanner regression specimen; long-term fix: generate the slug fixture in a temp directory.
+scripts/tests/seed_synthetic_traffic_test.sh # docs/launch/synthetic_traffic_seeder_plan.md — 2026-08-07 D dry run found a private launch plan; long-term fix: move the seeder contract to a synced runbook or fixture.
+scripts/tests/stage1_transition_gate_contract_test.sh # chats/icg/jun01_pm_4_customer_release_verification_and_closeout.md,implemented/2026-06-05_roadmap_v2_reshape_archive.md — 2026-08-07 D dry run found private transition-gate source docs; long-term fix: publish a sanitized transition-gate fixture.
+scripts/tests/stale_secret_path_contract_test.sh # .scrai/rules.md,AGENTS.md,CLAUDE.md — 2026-08-07 D dry run found private instruction/rule surfaces; long-term fix: move active stale-secret path rules to synced public docs.
+scripts/tests/verify_e2e_deployed_gate_test.sh # .debbie.toml — 2026-08-07 D dry run found the private debbie sync policy fixture; long-term fix: generate a temp sync-policy fixture without referencing the private root file.

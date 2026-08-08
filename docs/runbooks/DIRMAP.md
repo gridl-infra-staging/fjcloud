@@ -4,6 +4,7 @@
 | File | Summary |
 | --- | --- |
 | 20260725_stage4_aggregation_correctness_kats.md | Canonical operator guide for the Stage 2 live-pipeline and Stage 3 DB-backed aggregation correctness KATs. |
+| engine_tls_fleet_state.md | Canonical staging shared-engine TLS capability verdict sourced from the Stage 3 SKIP evidence bundle. |
 | local_real_pipeline_probe.md | Sole operational guide for the local real-pipeline positive proof, fail-capable negative proofs, and production-timer proof boundary. |
 | vm_autorepair.md | canonical operator runbook for VM autorepair detection, guardrails, lifecycle events, disabled rollout state, and incident disable verification. |
 

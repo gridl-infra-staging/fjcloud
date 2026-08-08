@@ -634,7 +634,8 @@ mod tests {
     }
 
     #[test]
-    fn dedicated_deployment_node_id_hostname_gap_remains_unmatched() {
+    fn replace_cache_rejects_node_uuid_when_route_uses_hostname() {
+        // Admin `ProvisioningService` customer deployments mint `node-<uuid>` (`infra/api/src/services/provisioning.rs:188`), while managed shared VM inventory drafts use `node_id: hostname.clone()` (`infra/api/src/services/provisioning/auto_provision.rs:355`); this assertion covers host-identity mismatch, not the shared-vs-dedicated discriminator, whose evidence surface is the AWS instance tag.
         assert_url_not_routed(
             "https://vm-1ca0d103.flapjack.foo",
             "http://node-550e8400-e29b-41d4-a716-446655440000:7700",

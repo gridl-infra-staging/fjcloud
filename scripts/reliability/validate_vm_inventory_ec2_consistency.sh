@@ -32,13 +32,14 @@ Usage:
 Output contract (JSON on stdout):
   - inventory_rows_without_nonterminated_ec2_match
   - managed_instances_without_inventory_match (shared vm-shared-* managed EC2 only)
+  - dedicated_managed_instances_without_inventory_match (reported only; not a mismatch gate)
   - deployment_linkage_mismatches
   - stuck_shared_provisioning_rows
   - raw_records[<same category keys>] as per-category arrays
 
 Exit contract:
-  0 => all buckets are zero
-  1 => one or more buckets are nonzero
+  0 => all fail-closed mismatch buckets are zero; reporting-only buckets may be nonzero
+  1 => one or more fail-closed mismatch buckets are nonzero
   2 => usage/system error
 USAGE
 }
@@ -330,22 +331,48 @@ def instance_state(instance):
     return str(state or "").lower()
 
 
-def has_managed_tag(instance):
+def tag_value(instance, key):
     tags = instance.get("Tags") or []
     if isinstance(tags, list):
         for tag in tags:
-            if (
-                isinstance(tag, dict)
-                and str(tag.get("Key") or "") == "managed-by"
-                and str(tag.get("Value") or "") == "fjcloud"
-            ):
-                return True
-    return False
+            if isinstance(tag, dict) and str(tag.get("Key") or "") == key:
+                return str(tag.get("Value") or "")
+    return ""
+
+
+def has_managed_tag(instance):
+    return tag_value(instance, "managed-by") == "fjcloud"
 
 
 def is_shared_managed_instance(instance):
     host = host_from_instance(instance)
     return host.startswith("vm-shared-")
+
+
+def is_uuid_text(value):
+    return bool(
+        re.fullmatch(
+            r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+            str(value or "").strip(),
+        )
+    )
+
+
+def is_non_nil_uuid_text(value):
+    text = str(value or "").strip().lower()
+    return is_uuid_text(text) and text != "00000000-0000-0000-0000-000000000000"
+
+
+def is_dedicated_managed_instance(instance):
+    customer_id = tag_value(instance, "customer_id").strip()
+    node_id = tag_value(instance, "node_id").strip()
+    if not has_managed_tag(instance):
+        return False
+    if not is_non_nil_uuid_text(customer_id):
+        return False
+    if not node_id.startswith("node-"):
+        return False
+    return is_uuid_text(node_id[len("node-"):])
 
 
 if now_epoch_raw:
@@ -393,6 +420,7 @@ for row in usable_ec2_rows:
 raw_records = {
     "inventory_rows_without_nonterminated_ec2_match": [],
     "managed_instances_without_inventory_match": [],
+    "dedicated_managed_instances_without_inventory_match": [],
     "deployment_linkage_mismatches": [],
     "stuck_shared_provisioning_rows": [],
 }
@@ -422,6 +450,25 @@ for row in usable_ec2_rows:
     raw_records["managed_instances_without_inventory_match"].append(
         {
             "instance_id": row.get("InstanceId"),
+            "state": row.get("State"),
+            "hostname": host or None,
+            "launch_time": row.get("LaunchTime"),
+        }
+    )
+
+# Shared VMs reconcile against vm_inventory. Dedicated rows are deployment-owned,
+# so routing them through the shared comparison would create false drift.
+for row in usable_ec2_rows:
+    if not is_dedicated_managed_instance(row):
+        continue
+    host = host_from_instance(row)
+    if host and host in inventory_by_host:
+        continue
+    raw_records["dedicated_managed_instances_without_inventory_match"].append(
+        {
+            "instance_id": row.get("InstanceId"),
+            "customer_id": tag_value(row, "customer_id").strip(),
+            "node_id": tag_value(row, "node_id").strip(),
             "state": row.get("State"),
             "hostname": host or None,
             "launch_time": row.get("LaunchTime"),
@@ -545,6 +592,9 @@ summary = {
     ),
     "managed_instances_without_inventory_match": len(
         raw_records["managed_instances_without_inventory_match"]
+    ),
+    "dedicated_managed_instances_without_inventory_match": len(
+        raw_records["dedicated_managed_instances_without_inventory_match"]
     ),
     "deployment_linkage_mismatches": len(raw_records["deployment_linkage_mismatches"]),
     "stuck_shared_provisioning_rows": len(raw_records["stuck_shared_provisioning_rows"]),

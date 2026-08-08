@@ -1,0 +1,2 @@
+command=bash scripts/deploy_status.sh --json
+exit_code=0

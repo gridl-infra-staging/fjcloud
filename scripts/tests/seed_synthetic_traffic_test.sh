@@ -1543,6 +1543,158 @@ EOF
         "restart-window classification must not leak shell arithmetic errors on unusable bounds"
 }
 
+# Three-outcome partition contract for visibility-after readback. A selected
+# successful write lands in exactly one bucket: certified visible (readback hit),
+# visibility query failure (readback errored, return 9 — an unknown, NOT an
+# absent), or genuine searchable miss. The current owner folds query failures
+# into the miss bucket by silently dropping them at the `if hit_count="$(...)"`
+# caller, so a transport/query outage reads as "written but never searchable".
+# Stage 2 must split the query-failure bucket into its own file-backed counter.
+test_probe_visible_after_counts_query_failures_separately() {
+    load_seed_synthetic_functions
+
+    local tmp_dir write_events_log failure_counter_path
+    local visible_count failure_count residual_absent
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "$tmp_dir"; unset PROBE_OWNER_COUNTER_DIR; unset -f probe_owner_query_exact_object_hit_count' RETURN
+    PROBE_OWNER_COUNTER_DIR="$tmp_dir"
+    write_events_log="$(probe_owner_event_log_path "write")"
+    cat > "$write_events_log" <<'EOF'
+101|A|doc-1|200
+102|A|doc-2|200
+103|A|doc-3|202
+104|A|doc-4|200
+105|A|doc-5|202
+106|A|doc-6|200
+EOF
+    # Doc-ID-sensitive readback: three genuine hits, two query failures
+    # (transport/query error, return 9), one genuine searchable miss.
+    probe_owner_query_exact_object_hit_count() {
+        case "$3" in
+            doc-1|doc-2|doc-3) printf '1' ;;
+            doc-4|doc-5) return 9 ;;
+            doc-6) printf '0' ;;
+            *) printf '0' ;;
+        esac
+    }
+
+    visible_count="$(
+        probe_owner_visible_in_search_after_count \
+            "http://synthetic-node-a.test" \
+            "tenant-A" \
+            0 \
+            0 \
+            A
+    )"
+    failure_counter_path="$(probe_owner_counter_path A visibility_query_failures)"
+    failure_count="$(probe_owner_read_numeric_or_zero "$failure_counter_path")"
+    residual_absent=$((6 - visible_count - failure_count))
+
+    assert_eq "$visible_count" "3" \
+        "visible bucket: only the 3 docs whose readback returned a hit are certified visible, excluding the 2 query failures and the 1 genuine miss"
+    assert_eq "$failure_count" "2" \
+        "query-failure bucket: the 2 readbacks that errored (return 9) must be recorded as visibility_query_failures, not folded into the absent bucket"
+    assert_eq "$residual_absent" "1" \
+        "absent bucket: after removing the visible and query-failure buckets from the 6 selected writes, only the 1 genuine searchable miss remains"
+}
+
+# Every exit path of the owner must write the query-failure counter freshly,
+# so a stale value from a prior run cannot masquerade as this run's evidence.
+# Both early returns (missing write-event log; existing log with no selected
+# tenant/doc IDs) currently exit without touching the counter, so a pre-seeded
+# 9 survives. Stage 2 must truncate the counter to 0 on every exit path.
+test_probe_visible_after_clears_visibility_query_failures_on_empty_scope() {
+    load_seed_synthetic_functions
+
+    local tmp_dir write_events_log failure_counter_path
+    local visible_count failure_count
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "$tmp_dir"; unset PROBE_OWNER_COUNTER_DIR' RETURN
+    PROBE_OWNER_COUNTER_DIR="$tmp_dir"
+    write_events_log="$(probe_owner_event_log_path "write")"
+    failure_counter_path="$(probe_owner_counter_path A visibility_query_failures)"
+
+    # Subcase 1: no write-event log at all — missing-log early return.
+    rm -f "$write_events_log"
+    printf '9' > "$failure_counter_path"
+    visible_count="$(
+        probe_owner_visible_in_search_after_count \
+            "http://synthetic-node-a.test" "tenant-A" 0 0 A
+    )"
+    failure_count="$(probe_owner_read_numeric_or_zero "$failure_counter_path")"
+    assert_eq "$visible_count" "0" \
+        "missing write-event log: visible count is a measured numeric zero"
+    assert_eq "$failure_count" "0" \
+        "missing write-event log: visibility_query_failures counter must be truncated to 0 on exit, not left holding the stale 9 from a prior run"
+
+    # Subcase 2: write log exists but selects no tenant-A doc writes —
+    # empty-scope early return.
+    cat > "$write_events_log" <<'EOF'
+201|B|doc-peer|200
+202|A|thumb-1|200
+203|A|doc-failed|500
+EOF
+    printf '9' > "$failure_counter_path"
+    visible_count="$(
+        probe_owner_visible_in_search_after_count \
+            "http://synthetic-node-a.test" "tenant-A" 0 0 A
+    )"
+    failure_count="$(probe_owner_read_numeric_or_zero "$failure_counter_path")"
+    assert_eq "$visible_count" "0" \
+        "empty selected scope: visible count is a measured numeric zero"
+    assert_eq "$failure_count" "0" \
+        "empty selected scope: visibility_query_failures counter must be overwritten to 0 on exit, proving write-on-every-exit rather than reuse of the stale 9"
+}
+
+# Fail closed when a detected query failure cannot be recorded. With no counter
+# directory resolvable (both env seams unset), probe_owner_counter_path yields an
+# empty path, so a readback that errors (return 9) has nowhere to be persisted.
+# The owner must reuse the wrapper's existing non-zero-callback authority and
+# return non-zero rather than print a plausible visible count as if the readback
+# were clean — a probe must never default to healthy on indeterminate state.
+test_probe_visible_after_fails_when_query_failures_cannot_be_recorded() {
+    load_seed_synthetic_functions
+
+    local tmp_dir probe_visible_case3_log visible_stdout status
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "$tmp_dir"; unset -f probe_owner_event_log_path probe_owner_query_exact_object_hit_count' RETURN
+
+    # Both counter-directory seams gone: the failure counter has no home.
+    unset PROBE_OWNER_COUNTER_DIR
+    unset PROBE_OUTPUT_DIR
+
+    # Supply selected document events through the event-log seam directly, since
+    # the counter directory that normally backs the log path is unresolvable.
+    # The override uses a uniquely named variable so it is not shadowed by the
+    # owner's own `local write_events_log`.
+    probe_visible_case3_log="$tmp_dir/probe_owner_write_events.log"
+    cat > "$probe_visible_case3_log" <<'EOF'
+101|A|doc-1|200
+102|A|doc-2|200
+103|A|doc-3|200
+EOF
+    probe_owner_event_log_path() {
+        if [ "$1" = "write" ]; then
+            printf '%s' "$probe_visible_case3_log"
+        fi
+    }
+    probe_owner_query_exact_object_hit_count() {
+        case "$3" in
+            doc-2) return 9 ;;
+            *) printf '1' ;;
+        esac
+    }
+
+    status=0
+    visible_stdout="$(
+        probe_owner_visible_in_search_after_count \
+            "http://synthetic-node-a.test" "tenant-A" 0 0 A
+    )" || status=$?
+
+    assert_ne "$status" "0" \
+        "unrecordable query failure: with no counter directory, a detected query failure (return 9) must fail closed with a non-zero status instead of returning the plausible visible count '$visible_stdout' as if the readback were clean"
+}
+
 test_admin_call_keeps_admin_key_off_curl_argv_and_output() {
     load_seed_synthetic_functions
 
@@ -2324,6 +2476,9 @@ main() {
             test_probe_visible_after_degenerate_window_uses_successful_write_scope
             test_probe_visible_after_positive_window_stays_bounded
             test_probe_unusable_restart_window_keeps_full_scope_on_every_counter
+            test_probe_visible_after_counts_query_failures_separately
+            test_probe_visible_after_clears_visibility_query_failures_on_empty_scope
+            test_probe_visible_after_fails_when_query_failures_cannot_be_recorded
             test_admin_call_keeps_admin_key_off_curl_argv_and_output
             test_admin_call_delivers_admin_key_header_through_shared_curl_config_decoder
             test_mock_curl_redacts_unallowlisted_node_api_key_header

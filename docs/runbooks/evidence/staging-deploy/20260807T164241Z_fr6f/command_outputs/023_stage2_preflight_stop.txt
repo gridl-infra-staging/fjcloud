@@ -1,0 +1,11 @@
+observed_at_utc=2026-08-07T17:18:14Z
+selected_bundle=docs/runbooks/evidence/staging-deploy/20260807T164241Z_fr6f
+target_sha=694daac94d8bdf8fbdaacc2497676667166c0d98
+debbie_exit_code=0
+target_sha_consistent=true
+offending_file=docs/runbooks/evidence/staging-deploy/20260807T164241Z_fr6f/command_outputs/022_mirror_ci_poll_verdict.txt
+offending_row=last_row=repo=gridl-infra-staging/fjcloud mirror_head=06ba4b38edb6b891aaa918ae964c1d42dcb5f9fe run_id=31199924808 status=completed conclusion=failure run_head_sha=06ba4b38edb6b891aaa918ae964c1d42dcb5f9fe age_seconds=315 reason=ci_non_success
+stage2_verdict=stop_red_producer_receipt
+continued_to_live_polling=false
+continued_to_aggregate_validation=false
+continued_to_landing=false

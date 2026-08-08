@@ -26,6 +26,7 @@ PROBE_WRITES_ATTEMPTED=0
 PROBE_RESTART_WINDOW_WRITES_ATTEMPTED=0
 PROBE_FAIL_FAST_DURING_WINDOW=0
 PROBE_VISIBLE_IN_SEARCH_AFTER=0
+PROBE_VISIBILITY_QUERY_FAILURES=0
 PROBE_CROSS_TENANT_LEAKS=0
 PROBE_NOISY_NEIGHBOR_VIOLATIONS=0
 PROBE_RESTART_WINDOW_START_EPOCH=0
@@ -233,8 +234,11 @@ probe_silent_drops() {
   local writes="$1"
   local fail_fast="$2"
   local visible="$3"
+  local query_failures="$4"
   local drops
-  drops=$((writes - (fail_fast + visible)))
+  # The write scope can fall back to full-run attempts, so this is a floored
+  # residual when scopes differ rather than a guaranteed identity.
+  drops=$((writes - (fail_fast + visible + query_failures)))
   if [ "$drops" -lt 0 ]; then
     echo 0
   else
@@ -323,16 +327,30 @@ probe_write_cleanup_manifest() {
   probe_cleanup_manifest_json > "$cleanup_path"
 }
 
+probe_startup_cleanup_manifest_path() {
+  if [ "$PROBE_LEGACY_OUTPUT_MODE" = "true" ]; then
+    printf '%s/cleanup_manifest.json' "$PROBE_OUTPUT_DIR"
+    return 0
+  fi
+  if [ -z "$PROBE_OUTPUT_BASE_DIR" ]; then
+    printf '%s/cleanup_manifest.json' "$PROBE_OUTPUT_DIR"
+    return 0
+  fi
+  local canonical_base
+  canonical_base="$(probe_output_base_without_suffix "$PROBE_OUTPUT_BASE_DIR")"
+  printf '%s/cleanup_manifest.json' "$canonical_base"
+}
+
 probe_record_artifacts() {
   mkdir -p "$PROBE_OUTPUT_DIR"
   local summary_path="$PROBE_OUTPUT_DIR/summary.json"
   local silent_drops
   local writes_attempted_scope
   writes_attempted_scope="$(probe_silent_drop_writes_scope)"
-  silent_drops="$(probe_silent_drops "$(probe_silent_drop_writes_scope)" "$PROBE_FAIL_FAST_DURING_WINDOW" "$PROBE_VISIBLE_IN_SEARCH_AFTER")"
+  silent_drops="$(probe_silent_drops "$writes_attempted_scope" "$PROBE_FAIL_FAST_DURING_WINDOW" "$PROBE_VISIBLE_IN_SEARCH_AFTER" "$PROBE_VISIBILITY_QUERY_FAILURES")"
 
   cat > "$summary_path" <<JSON
-{"env":"$PROBE_ENV","tenants":"$PROBE_TENANTS_CSV","duration_minutes":$PROBE_DURATION_MINUTES,"dry_run":$([ "$PROBE_DRY_RUN" = "true" ] && echo true || echo false),"assert_mode":$([ "$PROBE_ASSERT_MODE" = "true" ] && echo true || echo false),"restart_invoked":$([ "$PROBE_RESTART_INVOKED" = "true" ] && echo true || echo false),"restart_window_start_epoch":$PROBE_RESTART_WINDOW_START_EPOCH,"restart_window_end_epoch":$PROBE_RESTART_WINDOW_END_EPOCH,"writes_attempted":$writes_attempted_scope,"writes_attempted_total":$PROBE_WRITES_ATTEMPTED,"fail_fast_responses_during_window":$PROBE_FAIL_FAST_DURING_WINDOW,"visible_in_search_after":$PROBE_VISIBLE_IN_SEARCH_AFTER,"silent_drops":$silent_drops,"cross_tenant_leaks":$PROBE_CROSS_TENANT_LEAKS,"noisy_neighbor_violations":$PROBE_NOISY_NEIGHBOR_VIOLATIONS}
+{"env":"$PROBE_ENV","tenants":"$PROBE_TENANTS_CSV","duration_minutes":$PROBE_DURATION_MINUTES,"dry_run":$([ "$PROBE_DRY_RUN" = "true" ] && echo true || echo false),"assert_mode":$([ "$PROBE_ASSERT_MODE" = "true" ] && echo true || echo false),"restart_invoked":$([ "$PROBE_RESTART_INVOKED" = "true" ] && echo true || echo false),"restart_window_start_epoch":$PROBE_RESTART_WINDOW_START_EPOCH,"restart_window_end_epoch":$PROBE_RESTART_WINDOW_END_EPOCH,"writes_attempted":$writes_attempted_scope,"writes_attempted_total":$PROBE_WRITES_ATTEMPTED,"fail_fast_responses_during_window":$PROBE_FAIL_FAST_DURING_WINDOW,"visible_in_search_after":$PROBE_VISIBLE_IN_SEARCH_AFTER,"visibility_query_failures":$PROBE_VISIBILITY_QUERY_FAILURES,"silent_drops":$silent_drops,"cross_tenant_leaks":$PROBE_CROSS_TENANT_LEAKS,"noisy_neighbor_violations":$PROBE_NOISY_NEIGHBOR_VIOLATIONS}
 JSON
 
   probe_write_cleanup_manifest
@@ -346,7 +364,11 @@ probe_assertions_pass() {
     return 1
   fi
   local silent_drops
-  silent_drops="$(probe_silent_drops "$(probe_silent_drop_writes_scope)" "$PROBE_FAIL_FAST_DURING_WINDOW" "$PROBE_VISIBLE_IN_SEARCH_AFTER")"
+  silent_drops="$(probe_silent_drops "$(probe_silent_drop_writes_scope)" "$PROBE_FAIL_FAST_DURING_WINDOW" "$PROBE_VISIBLE_IN_SEARCH_AFTER" "$PROBE_VISIBILITY_QUERY_FAILURES")"
+  if [ "$PROBE_VISIBILITY_QUERY_FAILURES" -gt 0 ]; then
+    probe_log "visibility query failures recorded; refusing to certify visibility (count=${PROBE_VISIBILITY_QUERY_FAILURES})"
+    return 1
+  fi
   [ "$PROBE_CROSS_TENANT_LEAKS" -eq 0 ] || return 1
   [ "$PROBE_NOISY_NEIGHBOR_VIOLATIONS" -eq 0 ] || return 1
   [ "$silent_drops" -eq 0 ] || return 1
@@ -409,7 +431,8 @@ probe_teardown_tenant_letters() {
 }
 
 probe_manifest_created_tenants_csv() {
-  local manifest_path="$PROBE_OUTPUT_DIR/cleanup_manifest.json"
+  local manifest_path
+  manifest_path="$(probe_startup_cleanup_manifest_path)"
   if [ ! -f "$manifest_path" ]; then
     printf ''
     return 0
@@ -506,6 +529,7 @@ probe_run() {
     local total_writes_attempted=0
     local total_restart_window_writes_attempted=0
     local total_visible_in_search_after=0
+    local total_visibility_query_failures=0
     local total_fail_fast_during_window=0
     local total_cross_tenant_leaks=0
     local total_noisy_neighbor_violations=0
@@ -529,7 +553,7 @@ probe_run() {
       local mapping_path flapjack_url flapjack_uid total_writes total_searches
       local tenant_writes_count_path tenant_visible_after_count_path
       local tenant_fail_fast_count_path tenant_leak_count_path tenant_noisy_neighbor_count_path
-      local tenant_writes_attempted tenant_restart_window_writes_attempted tenant_visible_after tenant_fail_fast_during_window tenant_cross_tenant_leaks tenant_noisy_neighbor_violations
+      local tenant_writes_attempted tenant_restart_window_writes_attempted tenant_visible_after tenant_visibility_query_failures tenant_fail_fast_during_window tenant_cross_tenant_leaks tenant_noisy_neighbor_violations
       local tenant_write_offset_base
       local counter_status
       mapping_path="$(tenant_mapping_path "$letter")"
@@ -607,6 +631,13 @@ probe_run() {
         tenant_visible_after="$(probe_read_count_file "$tenant_visible_after_count_path")"
       fi
       counter_status=0
+      tenant_visibility_query_failures="$(probe_call_owner_counter_callback probe_owner_visibility_query_failure_count "$letter")" || counter_status=$?
+      if [ "$counter_status" -ne 0 ]; then
+        PROBE_RUNTIME_COUNTERS_COLLECTED="false"
+        probe_log "owner visibility-query-failure counter callback missing/invalid for tenant ${letter}; status=${counter_status}"
+        tenant_visibility_query_failures=0
+      fi
+      counter_status=0
       tenant_fail_fast_during_window="$(probe_call_owner_counter_callback probe_owner_fail_fast_during_restart_window_count "$flapjack_url" "$flapjack_uid" "$PROBE_RESTART_WINDOW_START_EPOCH" "$PROBE_RESTART_WINDOW_END_EPOCH" "$letter")" || counter_status=$?
       if [ "$counter_status" -ne 0 ]; then
         PROBE_RUNTIME_COUNTERS_COLLECTED="false"
@@ -631,6 +662,7 @@ probe_run() {
       total_writes_attempted=$((total_writes_attempted + tenant_writes_attempted))
       total_restart_window_writes_attempted=$((total_restart_window_writes_attempted + tenant_restart_window_writes_attempted))
       total_visible_in_search_after=$((total_visible_in_search_after + tenant_visible_after))
+      total_visibility_query_failures=$((total_visibility_query_failures + tenant_visibility_query_failures))
       total_fail_fast_during_window=$((total_fail_fast_during_window + tenant_fail_fast_during_window))
       total_cross_tenant_leaks=$((total_cross_tenant_leaks + tenant_cross_tenant_leaks))
       total_noisy_neighbor_violations=$((total_noisy_neighbor_violations + tenant_noisy_neighbor_violations))
@@ -646,6 +678,7 @@ probe_run() {
     PROBE_WRITES_ATTEMPTED="$total_writes_attempted"
     PROBE_RESTART_WINDOW_WRITES_ATTEMPTED="$total_restart_window_writes_attempted"
     PROBE_VISIBLE_IN_SEARCH_AFTER="$total_visible_in_search_after"
+    PROBE_VISIBILITY_QUERY_FAILURES="$total_visibility_query_failures"
     PROBE_FAIL_FAST_DURING_WINDOW="$total_fail_fast_during_window"
     PROBE_CROSS_TENANT_LEAKS="$total_cross_tenant_leaks"
     PROBE_NOISY_NEIGHBOR_VIOLATIONS="$total_noisy_neighbor_violations"
@@ -656,6 +689,7 @@ probe_run() {
     printf '%s' "$PROBE_NOISY_NEIGHBOR_VIOLATIONS" > "$PROBE_NOISY_NEIGHBOR_COUNT_PATH"
     if ! declare -F probe_owner_writes_attempted_during_restart_window_count >/dev/null 2>&1 \
       || ! declare -F probe_owner_visible_in_search_after_count >/dev/null 2>&1 \
+      || ! declare -F probe_owner_visibility_query_failure_count >/dev/null 2>&1 \
       || ! declare -F probe_owner_fail_fast_during_restart_window_count >/dev/null 2>&1 \
       || ! declare -F probe_owner_cross_tenant_leak_count >/dev/null 2>&1 \
       || ! declare -F probe_owner_noisy_neighbor_violation_count >/dev/null 2>&1; then

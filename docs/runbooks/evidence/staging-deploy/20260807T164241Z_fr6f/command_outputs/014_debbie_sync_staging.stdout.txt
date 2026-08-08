@@ -1,0 +1,45 @@
+
+debbie sync -> staging
+  project: fjcloud
+  config:  /private/tmp/fjcloud_fr6f_20260807T164241Z/.debbie.toml
+  DOWNSTREAM: ci-automated: deploy-web step in mirror ci.yml deploy-staging
+
+scrai strip: files_discovered=1175 files_modified=530 candidates_removed=2792
+
+running 1 test
+test openapi_spec_test::openapi_spec_matches_committed_artifact ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1720 filtered out; finished in 0.03s
+
+[main 06ba4b3] chore: debbie post-sync mirror update
+ 99 files changed, 7805 insertions(+), 1902 deletions(-)
+ create mode 100644 docs/runbooks/evidence/source-migration-parity/2026-08-07T043251Z/receipt.md
+ create mode 100644 infra/api/src/models/algolia_import_job_builders.rs
+ create mode 100644 infra/api/src/routes/migration/create_request.rs
+ create mode 100644 infra/api/src/routes/migration/hosted_discovery.rs
+ create mode 100644 infra/api/src/services/algolia_import/reconciliation_lifecycle_tests.rs
+ create mode 100644 infra/api/src/services/algolia_import/reconciliation_postgres_absence_tests.rs
+ create mode 100644 infra/api/src/services/algolia_import/reconciliation_postgres_scheduling_tests.rs
+ create mode 100644 infra/api/src/services/algolia_import/reconciliation_privacy_scrub_cleanup_tests.rs
+ create mode 100644 infra/api/src/services/algolia_import/submit.rs
+ create mode 100644 infra/api/tests/integration/migration_routes_test/create_contract_source_revision.rs
+ create mode 100644 infra/migrations/073_provider_neutral_import_source_connection.sql
+ create mode 100644 infra/migrations/074_algolia_import_engine_unavailable_since.sql
+ rename ops/terraform/fixtures/{safe => reject}/named_public_data_plane.tf (100%)
+ create mode 100644 web/src/lib/components/migration/MigrationSourceCatalog.svelte
+ create mode 100644 web/src/routes/console/migrate/migrate_route_owner_guards.test.ts
+ create mode 100644 web/tests/e2e-ui/full/source_migration_provider_parity.spec.ts
+ create mode 100644 web/tests/fixtures/source_migration_expected_bundle.ts
+ create mode 100644 web/tests/fixtures/source_migration_provider_parity.test.ts
+ create mode 100644 web/tests/fixtures/source_migration_provider_parity.ts
+ok Synced 9 dirs, 15 files
+   hook: executed
+   downstream: ci-automated: deploy-web step in mirror ci.yml deploy-staging
+   mirror changed: yes
+   target dirty before sync: no
+   hook left target dirty: no
+   target dirty after sync: no
+   commit: not attempted
+   push: not attempted
+
+ok fjcloud -> staging complete

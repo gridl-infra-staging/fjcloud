@@ -81,6 +81,21 @@ if grep -q "bootstrap-admin-key" "$TEST_STACK_RUN_DIR/psql_stdin.sql"; then
 fi
 SH
 	chmod +x "$fake_bin/psql"
+	cat > "$fake_bin/docker" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "${TEST_STACK_RUN_DIR:?}/docker_calls.log"
+if [ "$1" = "compose" ] && [ "$2" = "up" ] && [ "$3" = "-d" ] && [ "${4:-}" = "postgres" ]; then
+	touch "${TEST_STACK_RUN_DIR:?}/postgres_started"
+	exit 0
+fi
+if [ "$1" = "compose" ] && [ "$2" = "exec" ] && [ "$3" = "-T" ] && [ "$4" = "postgres" ]; then
+	[ -f "${TEST_STACK_RUN_DIR:?}/postgres_started" ]
+	exit $?
+fi
+exit 1
+SH
+	chmod +x "$fake_bin/docker"
 	write_stack_harness_sleeping_service "$temp_dir/flapjack-server" "flapjack"
 }
 
@@ -199,6 +214,14 @@ if [ "$1" = "compose" ] && [ "$2" = "ps" ]; then
 fi
 if [ "$1" = "compose" ] && [ "$2" = "up" ] && [ "$3" = "-d" ] && [ "$4" = "mailpit" ]; then
 	exit 0
+fi
+if [ "$1" = "compose" ] && [ "$2" = "up" ] && [ "$3" = "-d" ] && [ "$4" = "postgres" ]; then
+	touch "${TEST_STACK_RUN_DIR:?}/postgres_started"
+	exit 0
+fi
+if [ "$1" = "compose" ] && [ "$2" = "exec" ] && [ "$3" = "-T" ] && [ "$4" = "postgres" ]; then
+	[ -f "${TEST_STACK_RUN_DIR:?}/postgres_started" ]
+	exit $?
 fi
 if [ "$1" = "compose" ] && [ "$2" = "stop" ] && [ "$3" = "mailpit" ]; then
 	exit 0

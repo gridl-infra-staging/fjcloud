@@ -1,0 +1,7 @@
+command=debbie sync staging
+source_worktree=/private/tmp/fjcloud_fr6f_20260807T164241Z
+source_head=694daac94d8bdf8fbdaacc2497676667166c0d98
+source_status_porcelain=''
+started_at_utc=2026-08-07T16:47:00Z
+ended_at_utc=2026-08-07T16:56:20Z
+exit_code=0

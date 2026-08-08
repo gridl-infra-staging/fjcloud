@@ -932,6 +932,72 @@ JSON
   assert_contains "$admin_calls" 'DELETE /admin/tenants/customer-A' "startup should consume prior cleanup manifest and delete stranded tenant A before new provisioning"
 }
 
+run_non_dry_consumes_startup_cleanup_manifest_from_canonical_base_case() {
+  local out_dir
+  out_dir="$(mktemp -d)"
+  local output_file
+  output_file="$(mktemp)"
+  local canonical_base="$out_dir/probe"
+  local prior_run_dir="${canonical_base}_NONGREEN"
+
+  mkdir -p "$prior_run_dir"
+  cat > "$prior_run_dir/cleanup_manifest.json" <<JSON
+{"created_tenants_this_run":["A"],"source":"probe_manifest"}
+JSON
+  cat > "$prior_run_dir/A.mapping.json" <<JSON
+{"customer_id":"customer-A","flapjack_url":"http://node-A.test","flapjack_uid":"tenant-A"}
+JSON
+  ln -s "$prior_run_dir" "$canonical_base"
+
+  (
+    MULTI_TENANT_ISOLATION_PROBE_NO_AUTO_RUN=1 source "$REPO_ROOT/scripts/launch/multi_tenant_isolation_probe.sh" >/dev/null 2>&1
+
+    ensure_customer_and_tenant() {
+      local letter="$1"
+      local mapping_path
+      mapping_path="$(tenant_mapping_path "$letter")"
+      ENSURE_CUSTOMER_AND_TENANT_CREATED_THIS_CALL="false"
+      cat > "$mapping_path" <<JSON
+{"customer_id":"customer-${letter}","flapjack_url":"http://node-${letter}.test","flapjack_uid":"tenant-${letter}"}
+JSON
+    }
+    tenant_mapping_path() { printf '%s/%s.mapping.json' "$prior_run_dir" "$1"; }
+    node_api_key_for_url() { printf 'node-key-%s' "$1"; }
+    run_direct_write_loop() { printf '4\n' > "$5"; }
+    run_direct_search_loop() { printf '4\n' > "$5"; }
+    probe_owner_fail_fast_during_restart_window_count() { printf '0'; }
+    probe_owner_cross_tenant_leak_count() { printf '0'; }
+    probe_owner_noisy_neighbor_violation_count() { printf '0'; }
+    admin_call() {
+      local method="$1" path="$2"
+      printf '%s %s\n' "$method" "$path" >> "$out_dir/admin_calls.log"
+      if [ "$method" = "GET" ] && [ "$path" = "/admin/tenants" ]; then
+        printf '{"ok":true}\n200'
+        return 0
+      fi
+      if [ "$method" = "DELETE" ] && [ "$path" = "/admin/tenants/customer-A" ]; then
+        printf '{"ok":true}\n204'
+        return 0
+      fi
+      printf '{"ok":true}\n204'
+      return 0
+    }
+
+    PROBE_ENV="staging"
+    PROBE_TENANTS_CSV="B"
+    PROBE_DURATION_MINUTES="30"
+    PROBE_RESTART_API_ONCE="false"
+    PROBE_ASSERT_MODE="false"
+    PROBE_OUTPUT_BASE_DIR="$canonical_base"
+    PROBE_DRY_RUN="false"
+    probe_run
+  ) >"$output_file" 2>&1
+
+  local admin_calls
+  admin_calls="$(cat "$out_dir/admin_calls.log")"
+  assert_contains "$admin_calls" 'DELETE /admin/tenants/customer-A' "non-legacy startup should consume the prior-run cleanup manifest from the canonical output base before new provisioning"
+}
+
 run_non_dry_uses_visibility_callback_not_search_count_case() {
   local out_dir
   out_dir="$(mktemp -d)"
@@ -977,6 +1043,72 @@ JSON
   summary_content="$(cat "$out_dir/summary.json")"
   assert_contains "$summary_content" '"visible_in_search_after":2' "non-dry summary must use visibility callback value instead of raw search-loop attempts"
   assert_contains "$summary_content" '"silent_drops":3' "silent-drops must derive from callback-backed visible count (5 - (0 + 2) = 3)"
+}
+
+# Wrapper-level fail-closed contract for the visibility-query-failure bucket.
+# When the owner reports visibility query failures (readbacks that errored, so
+# visibility is unknown for those writes), assert mode must refuse to certify:
+# an unknown is not a pass. This pins three future outputs — a published
+# summary counter, a verbatim refusal log line, and a NONGREEN exit — while all
+# pre-existing leak, noisy-neighbor, silent-drop, and runtime-collection guards
+# stay green, so the failure is attributable solely to the new bucket and not to
+# the adjacent invalid-callback (runtime-counters-not-collected) rejection path.
+run_non_dry_visibility_query_failures_reject_assert_case() {
+  local out_dir
+  out_dir="$(mktemp -d)"
+  local output_file
+  output_file="$(mktemp)"
+  local exit_code=0
+
+  (
+    MULTI_TENANT_ISOLATION_PROBE_NO_AUTO_RUN=1 source "$REPO_ROOT/scripts/launch/multi_tenant_isolation_probe.sh" >/dev/null 2>&1
+    PROBE_OUTPUT_DIR="$out_dir"
+    ensure_customer_and_tenant() {
+      local letter="$1" mapping_path
+      mapping_path="$(tenant_mapping_path "$letter")"
+      ENSURE_CUSTOMER_AND_TENANT_CREATED_THIS_CALL="false"
+      cat > "$mapping_path" <<JSON
+{"customer_id":"customer-${letter}","flapjack_url":"http://node-${letter}.test","flapjack_uid":"tenant-${letter}"}
+JSON
+    }
+    tenant_mapping_path() { printf '%s/%s.mapping.json' "$out_dir" "$1"; }
+    node_api_key_for_url() { printf 'node-key-%s' "$1"; }
+    run_direct_write_loop() {
+      PROBE_RESTART_WINDOW_START_EPOCH=100
+      PROBE_RESTART_WINDOW_END_EPOCH=200
+      printf '7\n' > "$5"
+    }
+    run_direct_search_loop() { printf '7\n' > "$5"; }
+    # All current owner counters resolve successfully so the runtime-collection,
+    # leak, noisy-neighbor, and silent-drop guards are green:
+    #   silent_drops = 7 - (fail_fast 2 + visible 3 + query failures 2) = 0.
+    probe_owner_writes_attempted_during_restart_window_count() { printf '7'; }
+    probe_owner_visible_in_search_after_count() { printf '3'; }
+    probe_owner_fail_fast_during_restart_window_count() { printf '2'; }
+    probe_owner_cross_tenant_leak_count() { printf '0'; }
+    probe_owner_noisy_neighbor_violation_count() { printf '0'; }
+    # The new published bucket: two writes whose visibility could not be
+    # determined because their readback query errored.
+    probe_owner_visibility_query_failure_count() { printf '2'; }
+    admin_call() { printf '{"ok":true}\n200'; }
+    PROBE_ENV="staging"
+    PROBE_TENANTS_CSV="A"
+    PROBE_DURATION_MINUTES="30"
+    PROBE_RESTART_API_ONCE="true"
+    PROBE_ASSERT_MODE="true"
+    PROBE_DRY_RUN="false"
+    probe_run
+  ) >"$output_file" 2>&1 || exit_code=$?
+
+  assert_eq "$exit_code" "1" "recorded visibility query failures must fail assert mode instead of certifying an unknown as a pass"
+
+  local summary_content output_content
+  summary_content="$(cat "$out_dir/summary.json")"
+  output_content="$(cat "$output_file")"
+  assert_contains "$summary_content" '"visibility_query_failures":2' "summary must publish the visibility-query-failure bucket so downstream consumers can see the unknown count"
+  assert_contains "$summary_content" '"silent_drops":0' "silent-drops must subtract visibility query failures from the residual (7 - (2 + 3 + 2) = 0)"
+  assert_contains "$output_content" 'visibility query failures recorded; refusing to certify visibility' "assert mode must log the verbatim visibility-query-failure refusal reason"
+  assert_not_contains "$output_content" 'runtime counters were not collected' "refusal must come from the visibility-query-failure guard, not the adjacent invalid-callback runtime-collection path"
 }
 
 run_non_dry_leak_counter_rejects_loose_fulltext_case() {
@@ -1407,7 +1539,9 @@ run_probe_teardown_case
 run_non_dry_requires_all_mappings_before_peer_counters_case
 run_non_dry_fails_when_peer_query_probe_fails_case
 run_non_dry_consumes_startup_cleanup_manifest_case
+run_non_dry_consumes_startup_cleanup_manifest_from_canonical_base_case
 run_non_dry_uses_visibility_callback_not_search_count_case
+run_non_dry_visibility_query_failures_reject_assert_case
 run_non_dry_leak_counter_rejects_loose_fulltext_case
 run_non_dry_empty_restart_window_visible_count_is_zero_case
 run_non_dry_invalid_visibility_callback_rejects_assert_case

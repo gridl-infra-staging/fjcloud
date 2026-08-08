@@ -866,3 +866,51 @@ jobs:
           aws s3 cp infra/rollback_contract.json s3://fjcloud-releases-prod/prod/${GITHUB_SHA}/rollback_contract.json
       - name: Trigger API deploy
         run: bash ops/scripts/deploy.sh prod "${GITHUB_SHA}"
+
+  mirror-manifest-shards:
+    # Runs the test-reachability manifest (scripts/lib/test_reachability_manifest.sh)
+    # split eight ways, minus the suites enumerated with per-suite reasons in
+    # scripts/tests/mirror_excluded_tests.txt — those read dev-only paths the
+    # mirror's `.debbie.toml` whitelist deliberately omits, so they cannot pass
+    # here and are excluded on the record rather than silently skipped.
+    #
+    # ADVISORY, NOT A DEPLOY GATE. This job is absent from deploy-staging and
+    # deploy-prod `needs[]` on purpose. Mirror CI is post-landing by
+    # construction: scripts/git_push_with_sync.sh:45 syncs to the mirror only
+    # after the dev push already succeeded, so nothing here can ever act as a
+    # pre-push gate. It exists to report which manifest suites are red, not to
+    # block a release on that answer.
+    #
+    # There is deliberately no `if: github.repository == ...` gate. Both public
+    # mirrors run Actions for free, so the fan-out costs nothing on either and
+    # a repository filter would only make one mirror's signal disappear.
+    runs-on: ubuntu-latest
+    # Projection, not a round number, and explicitly not a measurement: the
+    # live 19-20-suite shards require three waves at the runner's concurrency
+    # cap of eight, and every suite has a 900s cap. Shards 1-6 then carry one
+    # serial-only suite after those waves, making the worst-case structural
+    # bound 3 * 900s + 900s = 60 minutes. The 75-minute job cap leaves 15
+    # minutes for checkout, apt, process cleanup, and final result reporting.
+    # The slowest known specimen, algolia_migration_parity_live_probe_test.sh
+    # (616.73s isolated, 2026-08-07), lands in shard 4, but that figure was
+    # measured on a Mac and is locality-invalid for a Linux hosted runner.
+    # Stage 4 supplies the real per-shard measurement from actual mirror runs.
+    timeout-minutes: 75
+    strategy:
+      # Load-bearing: with the default fail-fast, the first red shard cancels
+      # the other seven and destroys the per-suite signal this job exists for.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Install ripgrep
+        # Installed explicitly rather than assumed present on the hosted image:
+        # collect_evidence_test.sh, deploy_gate_test.sh and local_dev_up_test.sh
+        # invoke `rg` as a shell word, and an image change that dropped it would
+        # turn them red for a reason unrelated to the code under test. Verified
+        # 2026-08-08 as the only external dependency across all 154 sharded
+        # suites (no Python toml/tomllib imports, no gitleaks invocation).
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Run manifest shard ${{ matrix.shard }} of 8
+        run: bash scripts/run_mirror_manifest_shard.sh --shard ${{ matrix.shard }} --shards 8

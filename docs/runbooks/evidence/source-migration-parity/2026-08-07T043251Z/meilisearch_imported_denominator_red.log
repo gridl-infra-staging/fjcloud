@@ -1,0 +1,80 @@
+
+> web@0.0.1 test:e2e
+> playwright test --grep source migration provider parity — meilisearch --reporter=list
+
+(node:80695) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[2m[WebServer] [22mNo stopped containers
+[2m[WebServer] [22m Container fjcloud_aug06_9pm_1_source_parity_salvage_onto_released_engine_fjcloud_dev-typesense-1 Creating 
+[2m[WebServer] [22m Container fjcloud_aug06_9pm_1_source_parity_salvage_onto_released_engine_fjcloud_dev-meilisearch-1 Creating 
+[2m[WebServer] [22m Container fjcloud_aug06_9pm_1_source_parity_salvage_onto_released_engine_fjcloud_dev-typesense-1 Created 
+[2m[WebServer] [22m Container fjcloud_aug06_9pm_1_source_parity_salvage_onto_released_engine_fjcloud_dev-meilisearch-1 Created 
+[2m[WebServer] [22m Container fjcloud_aug06_9pm_1_source_parity_salvage_onto_released_engine_fjcloud_dev-typesense-1 Starting 
+[2m[WebServer] [22m Container fjcloud_aug06_9pm_1_source_parity_salvage_onto_released_engine_fjcloud_dev-meilisearch-1 Starting 
+[2m[WebServer] [22m Container fjcloud_aug06_9pm_1_source_parity_salvage_onto_released_engine_fjcloud_dev-typesense-1 Started 
+[2m[WebServer] [22m Container fjcloud_aug06_9pm_1_source_parity_salvage_onto_released_engine_fjcloud_dev-meilisearch-1 Started 
+[2m[WebServer] [22mcurl: (52) Empty reply from server
+[2m[WebServer] [22mcurl: (22) The requested URL returned error: 503
+[2m[WebServer] [22mNOTICE:  relation "_schema_migrations" already exists, skipping
+[2m[WebServer] [22mpsql:<repo>/infra/migrations/059_vm_inventory_reference_guard.sql:187: NOTICE:  identifier "trg_algolia_import_jobs_destination_vm_id_vm_inventory_reference_guard" will be truncated to "trg_algolia_import_jobs_destination_vm_id_vm_inventory_referenc"
+[2m[WebServer] [22m(node:54219) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m(node:54219) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+
+Running 2 tests using 1 worker
+
+(node:58014) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:58014) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:58014) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [setup:user] › tests/fixtures/auth.setup.ts:110:1 › authenticate as customer (3.1s)
+(node:60769) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:60769) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:60769) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 [chromium] › tests/e2e-ui/full/source_migration_provider_parity.spec.ts:431:2 › source migration provider parity › source migration provider parity — meilisearch — local-container create cancel source-change lifecycle (11.9s)
+
+
+  1) [chromium] › tests/e2e-ui/full/source_migration_provider_parity.spec.ts:431:2 › source migration provider parity › source migration provider parity — meilisearch — local-container create cancel source-change lifecycle 
+
+    Error: source migration provider parity meilisearch 1/2: documents imported count
+
+    [2mexpect([22m[31mlocator[39m[2m).[22mtoContainText[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator: getByTestId('migration-summary-documents')
+    Timeout: 5000ms
+    [32m- Expected substring  - 1[39m
+    [31m+ Received string     + 2[39m
+
+    [32m- [7m4[27m imported · 3 expected ·[7m [27m0 rejected[39m
+    [31m+ [7mDocuments: 3[27m imported · 3 expected ·[39m
+    [31m+ [7m					[27m0 rejected[39m
+
+    Call log:
+    [2m  - source migration provider parity meilisearch 1/2: documents imported count with timeout 5000ms[22m
+    [2m  - waiting for getByTestId('migration-summary-documents')[22m
+    [2m    9 × locator resolved to <div data-testid="migration-summary-documents" class="rounded border border-flapjack-ink/20 p-3 text-sm text-flapjack-ink">…</div>[22m
+    [2m      - unexpected value "Documents: 3 imported · 3 expected ·[22m
+    [2m					0 rejected"[22m
+
+
+      293 | 			page.getByTestId(expectation.testId),
+      294 | 			`source migration provider parity ${contract.provider} ${index + 1}/${contract.expectations.length}: ${expectation.label}`
+    > 295 | 		).toContainText(expectation.expectedText);
+          | 		  ^
+      296 | 	}
+      297 | }
+      298 |
+        at assertExactImportedValues (<repo>/web/tests/e2e-ui/full/source_migration_provider_parity.spec.ts:295:5)
+        at <repo>/web/tests/e2e-ui/full/source_migration_provider_parity.spec.ts:395:10
+        at runWithCleanup (<repo>/web/tests/e2e-ui/full/source_migration_provider_parity.spec.ts:192:3)
+        at assertLocalProviderParityLifecycle (<repo>/web/tests/e2e-ui/full/source_migration_provider_parity.spec.ts:376:2)
+        at <repo>/web/tests/e2e-ui/full/source_migration_provider_parity.spec.ts:442:3
+
+    Error Context: test-results/e2e-ui-full-source_migrati-6fa6a-cel-source-change-lifecycle-chromium/error-context.md
+
+  1 failed
+    [chromium] › tests/e2e-ui/full/source_migration_provider_parity.spec.ts:431:2 › source migration provider parity › source migration provider parity — meilisearch — local-container create cancel source-change lifecycle 
+  1 passed (1.9m)

@@ -11,6 +11,7 @@
 
 import { test, expect } from '../../fixtures/fixtures';
 import type { APIResponse, Page } from '@playwright/test';
+import { formatNumber } from '../../../src/lib/format';
 import type {
 	SourceMigrationProviderParityConnection,
 	SourceMigrationProviderParityContract,
@@ -22,6 +23,7 @@ import {
 	escapeRegex,
 	localProviderOriginForPort,
 	pinCurrentFlapjackAsSelectedMigrationBackend,
+	resolveAlgoliaCredentials,
 	sourceMigrationProviderParityFixture
 } from '../../fixtures/source_migration_provider_parity';
 
@@ -45,6 +47,25 @@ const STATUS_CANCELLED = 'Cancelled';
 const SOURCE_CHANGED_ERROR_COPY = 'The source changed while the import was running.';
 const RETAINED_JOB_TRANSITION_TIMEOUT_MS = 120_000;
 const LOCAL_PROVIDER_LIFECYCLE_TIMEOUT_MS = RETAINED_JOB_TRANSITION_TIMEOUT_MS * 3 + 60_000;
+
+// MigrationCreatePreview.svelte owns this copy for providers that do not support preview.
+const PREVIEW_UNAVAILABLE_COPY =
+	'Preview is not available for the selected source. The migration can still run, and compatibility warnings appear once the job starts.';
+// job_presentation.ts::previewSeverityLabel owns the preview-side severity vocabulary. The
+// retained job carries no severity, so severity is asserted present on the preview and
+// absent on the job — never compared field-for-field.
+const PREVIEW_SEVERITY_LABELS = ['Hard rejection', 'Warning', 'Scope gap'];
+
+// Only the fields the preview and the retained job render identically through the shared
+// MigrationCompatibilityWarnings component. code and locator are equivalent by construction;
+// severity (preview-only), message (constant fallback vs real engine text), and summary
+// (different sentence builders) are not, so they are deliberately excluded here. Keep locator
+// paired with its row's code because locator is conditional in the shared component.
+type MigrationWarningShape = {
+	warnings: MigrationWarningTuple[];
+};
+
+type MigrationWarningTuple = { code: string; locator: string | null };
 
 // Meilisearch/Typesense expose a "<Provider> host URL" identity field; Algolia exposes
 // "Algolia Application ID". Both carry their identity value in connection.hostUrl.
@@ -113,12 +134,16 @@ async function connectSource(
 	return connection;
 }
 
+async function clickStartImport(page: Page): Promise<void> {
+	await page.getByRole('button', { name: /^Start import(?: anyway)?$/ }).click();
+}
+
 async function submitImport(
 	page: Page,
-	provider: SourceMigrationProviderParityProvider
+	contract: SourceMigrationProviderParityContract
 ): Promise<void> {
 	const previewButton = page.getByRole('button', { name: 'Preview import', exact: true });
-	if (provider === 'typesense') {
+	if ('preview' in contract && !contract.preview.supported) {
 		await expect(previewButton).toHaveCount(0);
 	} else {
 		await previewButton.click();
@@ -128,15 +153,158 @@ async function submitImport(
 			.or(page.getByTestId('migration-preview-error'));
 		await expect(previewOutcome.first()).toBeVisible();
 	}
-	await page.getByRole('button', { name: /^Start import(?: anyway)?$/ }).click();
+	await clickStartImport(page);
 }
 
 async function startImport(
 	page: Page,
-	provider: SourceMigrationProviderParityProvider
+	contract: SourceMigrationProviderParityContract
 ): Promise<void> {
-	await submitImport(page, provider);
-	await expect(page.getByTestId('migration-job-detail')).toBeVisible();
+	await submitImport(page, contract);
+	await expect(page.getByTestId('migration-job-detail')).toBeVisible({
+		timeout: RETAINED_JOB_TRANSITION_TIMEOUT_MS
+	});
+}
+
+// Start after an already-completed preview step (no second preview click). Used by the
+// preview-before-start lane so the preview shape is captured exactly once.
+async function startImportAfterPreview(page: Page): Promise<void> {
+	await clickStartImport(page);
+	await expect(page.getByTestId('migration-job-detail')).toBeVisible({
+		timeout: RETAINED_JOB_TRANSITION_TIMEOUT_MS
+	});
+}
+
+// Mirrors MigrationCreatePreview.svelte's rendered count line — the component is the
+// single source of truth for the format; this pins the exact expected text. Counts are
+// single-source-index scoped, so `indexes` is always 1 here.
+function previewCountsText(counts: { indexes: number; records: number }): string {
+	return `${formatNumber(counts.indexes)} source index · ${formatNumber(counts.records)} records`;
+}
+
+// Reads the rendered compatibility-warning rows through the shared component test ids.
+// Only code and locator are captured — the two fields preview and job render identically.
+async function captureWarningShape(page: Page): Promise<MigrationWarningShape> {
+	const warnings = await page.getByTestId('migration-warning-message').evaluateAll((messages) =>
+		messages.map((message) => {
+			const row = message.parentElement;
+			const textFor = (testId: string) =>
+				row?.querySelector(`[data-testid="${testId}"]`)?.textContent?.trim() ?? null;
+			return {
+				code: textFor('migration-warning-code') ?? '',
+				locator: textFor('migration-warning-locator')
+			};
+		})
+	);
+	return { warnings };
+}
+
+function renderedLocatorCount(tuples: MigrationWarningTuple[]): number {
+	return tuples.filter((tuple) => tuple.locator !== null).length;
+}
+
+function comparableWarningTuples(
+	shape: MigrationWarningShape,
+	codePattern: RegExp
+): MigrationWarningTuple[] {
+	return shape.warnings.filter((warning) => codePattern.test(warning.code)).sort((left, right) =>
+		`${left.code}\u0000${left.locator ?? ''}`.localeCompare(
+			`${right.code}\u0000${right.locator ?? ''}`
+		)
+	);
+}
+
+// Preview-before-start: click Preview (or assert the unsupported affordance), assert the
+// exact fixture-owned source counts, prove previewing retained no import job, and return the
+// rendered preview warning shape for the post-import equivalence check.
+async function previewBeforeStart(
+	page: Page,
+	contract: SourceMigrationLocalProviderParityContract,
+	countRetainedJobs: () => Promise<number>
+): Promise<MigrationWarningShape | null> {
+	const previewButton = page.getByRole('button', { name: 'Preview import', exact: true });
+	if (!contract.preview.supported) {
+		await expect(previewButton).toHaveCount(0);
+		await expect(page.getByTestId('migration-create-preview')).toContainText(
+			PREVIEW_UNAVAILABLE_COPY
+		);
+		await expect(page.getByTestId('migration-job-detail')).toHaveCount(0);
+		return null;
+	}
+
+	const retainedJobsBeforePreview = await countRetainedJobs();
+	await previewButton.click();
+	// Exact text, not a substring: `migration-preview-counts` renders only the count line, so
+	// a substring match would accept a rendered `11 source index` for an expected `1`.
+	await expect(page.getByTestId('migration-preview-counts')).toHaveText(
+		previewCountsText(contract.preview.sourceCounts)
+	);
+	// Previewing must never create or navigate to a job; the create surface stays mounted.
+	await expect(page.getByTestId('migration-job-detail')).toHaveCount(0);
+	await expect(page.getByTestId('migration-create-review')).toBeVisible();
+	// Navigation absence alone would still pass if preview wrote a retained row while the UI
+	// stayed put, and the in-page recent-imports list is loaded once per provider selection
+	// (no poll), so it cannot change without a reload. Read the tenant-scoped retained list
+	// back instead — that is the surface a stray preview-created job would appear on.
+	expect(
+		await countRetainedJobs(),
+		`source migration provider parity ${contract.provider}: preview retained an import job`
+	).toBe(retainedJobsBeforePreview);
+
+	// Wait for the rendered warnings before reading them so the capture is not racing render.
+	await expect(page.getByTestId('migration-warning-code').first()).toBeVisible();
+	const shape = await captureWarningShape(page);
+	expect(
+		shape.warnings.length,
+		`source migration provider parity ${contract.provider}: preview rendered no compatibility warning codes`
+	).toBeGreaterThan(0);
+	// Measured over the rows the preview/job equivalence compares, not the full capture: a
+	// locator on a preview-only row cannot give the compared locator dimension any teeth.
+	expect(
+		renderedLocatorCount(comparableWarningTuples(shape, contract.warningCodePattern)),
+		`source migration provider parity ${contract.provider}: preview rendered too few warning locators among the codes compared against the retained job`
+	).toBeGreaterThanOrEqual(contract.preview.minimumWarningLocators);
+	for (const [index, warning] of shape.warnings.entries()) {
+		expect(
+			warning.code,
+			`source migration provider parity ${contract.provider} preview warning code ${index + 1}/${shape.warnings.length}`
+		).toMatch(contract.preview.warningCodePattern);
+	}
+	const severities = await page.getByTestId('migration-warning-severity').allTextContents();
+	expect(
+		severities.length,
+		`source migration provider parity ${contract.provider}: preview rendered no warning severities`
+	).toBeGreaterThan(0);
+	for (const severity of severities) {
+		expect(PREVIEW_SEVERITY_LABELS).toContain(severity.trim());
+	}
+	return shape;
+}
+
+// Field-for-field equivalence between the pre-start preview and the retained job. code and
+// locator must match exactly (not merely by count); severity is preview-only, so the job
+// must render none — that asymmetry is asserted rather than compared.
+async function assertPreviewJobWarningEquivalence(
+	page: Page,
+	contract: SourceMigrationLocalProviderParityContract,
+	preview: MigrationWarningShape
+): Promise<void> {
+	const job = await captureWarningShape(page);
+	const previewTuples = comparableWarningTuples(preview, contract.warningCodePattern);
+	// An empty-vs-empty comparison would pass for any defect, so hold the compared preview
+	// set non-empty here rather than relying on another assertion to hold the job side.
+	expect(
+		previewTuples.length,
+		`source migration provider parity ${contract.provider}: preview rendered no warning codes comparable with the retained job`
+	).toBeGreaterThan(0);
+	expect(
+		comparableWarningTuples(job, contract.warningCodePattern),
+		`source migration provider parity ${contract.provider}: preview/job warning code+locator equivalence`
+	).toEqual(previewTuples);
+	await expect(
+		page.getByTestId('migration-warning-severity'),
+		`source migration provider parity ${contract.provider}: retained job carries no warning severity`
+	).toHaveCount(0);
 }
 
 async function assertJobIdentity(
@@ -212,8 +380,41 @@ async function runWithCleanup(
 	if (runFailure) throw runFailure;
 }
 
+function annotateSourceMethod(contract: SourceMigrationProviderParityContract): void {
+	test.info().annotations.push({
+		type: 'source-method',
+		description: `${contract.provider} source proved via ${contract.method}`
+	});
+}
+
 function customerIndexUrl(apiUrl: string, name: string): string {
 	return new URL(`/indexes/${encodeURIComponent(name)}`, apiUrl).toString();
+}
+
+// Tenant-scoped retained-import readback (GET /migration/<provider>/jobs). This is the
+// surface `algolia_import_jobs` rows become observable on, so counting it before and after
+// the preview click is what proves the report-only preview path retained nothing.
+async function countRetainedImportJobs(
+	page: Page,
+	apiUrl: string,
+	provider: SourceMigrationProviderParityProvider,
+	customerToken: string
+): Promise<number> {
+	const jobsUrl = new URL(`/migration/${provider}/jobs`, apiUrl);
+	jobsUrl.searchParams.set('limit', '200');
+	const response = await page.request.get(jobsUrl.toString(), {
+		headers: { Authorization: `Bearer ${customerToken}` }
+	});
+	expect(
+		response.status(),
+		`retained import listing failed for ${provider}: ${await response.text()}`
+	).toBe(200);
+	const body = (await response.json()) as { jobs: unknown[]; nextCursor: string | null };
+	expect(
+		body.nextCursor,
+		`retained import listing for ${provider} returned another page, so the helper cannot report a total`
+	).toBeNull();
+	return body.jobs.length;
 }
 
 async function assertIndexAbsentForCustomer(
@@ -331,7 +532,7 @@ async function assertSourceChangedRefusal(
 ): Promise<void> {
 	const connection = await connectSource(page, contract, destinationName);
 	await contract.mutateSourceAfterEligibility();
-	await submitImport(page, contract.provider);
+	await submitImport(page, contract);
 	await expect(page.getByTestId('migration-start-error')).toContainText(SOURCE_CHANGED_ERROR_COPY);
 	await expect(page.getByTestId('migration-create-review')).toContainText(connection.sourceName);
 	await contract.assertNoCanaryInBrowserArtifacts(page);
@@ -351,6 +552,8 @@ type LocalProviderParityDependencies = {
 	// vm_inventory_repo.list_active(None).next(); with no active target every
 	// POST /migration/<provider>/list-indexes fails closed with backend_unavailable.
 	ensureLocalTarget: () => Promise<void>;
+	// Retained-import readback for the preview-creates-no-job proof.
+	countRetainedJobs: (customerToken: string) => Promise<number>;
 };
 
 async function assertLocalProviderParityLifecycle(
@@ -364,8 +567,12 @@ async function assertLocalProviderParityLifecycle(
 		deleteAndAssertIndexAbsent,
 		arrangeCustomer,
 		primeMigrationBackend,
-		ensureLocalTarget
+		ensureLocalTarget,
+		countRetainedJobs
 	} = dependencies;
+	// Keep the method qualifier in the test log context so no provider parity claim is
+	// recorded without naming how that provider's source was proved.
+	annotateSourceMethod(contract);
 	// Arrange the discovery backend before any provider connection: source discovery
 	// picks the first active vm_inventory row, so this local target must exist first.
 	await ensureLocalTarget();
@@ -381,9 +588,13 @@ async function assertLocalProviderParityLifecycle(
 			await contract.restoreSourceBeforeMutation();
 			await resetToMigrateSurface(page);
 
-			// Run 1 — complete import, observe exact imported values on the owner-backed job surfaces.
+			// Run 1 — preview before start, then complete the import and observe exact imported
+			// values plus preview/post-import warning equivalence on the owner-backed job surfaces.
 			const connection = await connectSource(page, contract);
-			await startImport(page, contract.provider);
+			const previewShape = await previewBeforeStart(page, contract, () =>
+				countRetainedJobs(customer.token)
+			);
+			await startImportAfterPreview(page);
 			await assertJobIdentity(page, contract, connection);
 			await assertCredentialErasure(page, contract.provider);
 			await expect(page.getByTestId('migration-job-status')).toContainText(STATUS_COMPLETED, {
@@ -394,12 +605,17 @@ async function assertLocalProviderParityLifecycle(
 			});
 			await assertExactImportedValues(page, contract);
 			await assertProviderAttributedWarningCodes(page, contract);
+			// Preview is supported only for Meilisearch; when previewed, the retained-job warning
+			// shape must equal the pre-start preview shape field-for-field.
+			if (previewShape) {
+				await assertPreviewJobWarningEquivalence(page, contract, previewShape);
+			}
 			await contract.assertNoCanaryInBrowserArtifacts(page);
 
 			// Run 2 — provider-neutral cancel terminal + acknowledgement affordance.
 			await resetToMigrateSurface(page);
 			await connectSource(page, contract, contract.destinations.cancelled);
-			await startImport(page, contract.provider);
+			await startImport(page, contract);
 			await cancelImport(page);
 			await contract.assertNoCanaryInBrowserArtifacts(page);
 			await acknowledgeCancelledImport(page);
@@ -449,6 +665,8 @@ test.describe('source migration provider parity', () => {
 					deleteAndAssertIndexAbsent(page, apiUrl, name, token),
 				primeMigrationBackend: (token) => primeMigrationBackend(page, apiUrl, testRegion, token),
 				ensureLocalTarget: () => ensureLocalSharedVmInventory(testRegion),
+				countRetainedJobs: (token) =>
+					countRetainedImportJobs(page, apiUrl, contract.provider, token),
 				arrangeCustomer: () =>
 					arrangeTrackedCustomerSession(page, { emailPrefix: 'source-migration-meilisearch' })
 			},
@@ -477,6 +695,8 @@ test.describe('source migration provider parity', () => {
 					deleteAndAssertIndexAbsent(page, apiUrl, name, token),
 				primeMigrationBackend: (token) => primeMigrationBackend(page, apiUrl, testRegion, token),
 				ensureLocalTarget: () => ensureLocalSharedVmInventory(testRegion),
+				countRetainedJobs: (token) =>
+					countRetainedImportJobs(page, apiUrl, contract.provider, token),
 				arrangeCustomer: () =>
 					arrangeTrackedCustomerSession(page, { emailPrefix: 'source-migration-typesense' })
 			},
@@ -495,6 +715,14 @@ test.describe('source migration provider parity', () => {
 			() => algoliaOriginForApplicationId('example.com/credential-capture'),
 			'Algolia app IDs must not escape the credential-bearing Algolia origin'
 		).toThrow('ALGOLIA_APP_ID must be a single DNS host label');
+		// Algolia is a live-probe row: when its credentials are absent the honest disposition
+		// is fixture-only, recorded as a skip reason. No refugee fixture is ever passed off as
+		// a live Algolia source. This is the conditional runtime-skip API, not a hardcoded skip.
+		// eslint-disable-next-line playwright/no-skipped-test -- conditional fixture-only disposition
+		test.skip(
+			resolveAlgoliaCredentials() === null,
+			'Algolia source is fixture-only: live-probe credentials (ALGOLIA_APP_ID/ALGOLIA_ADMIN_KEY) are absent, so no live Algolia source is arranged'
+		);
 		const customer = await arrangeTrackedCustomerSession(page, {
 			emailPrefix: 'source-migration-algolia'
 		});
@@ -504,6 +732,7 @@ test.describe('source migration provider parity', () => {
 		await ensureLocalSharedVmInventory(testRegion);
 		await primeMigrationBackend(page, apiUrl, testRegion, customer.token);
 		const contract = await sourceMigrationProviderParityFixture('algolia');
+		annotateSourceMethod(contract);
 		let restoreMigrationBackend: () => Promise<void>;
 		try {
 			restoreMigrationBackend = pinCurrentFlapjackAsSelectedMigrationBackend(testRegion);
@@ -516,7 +745,7 @@ test.describe('source migration provider parity', () => {
 				// Source Arrange reuses the live probe's fixture/credentials, while browser assertions stay
 				// provider-neutral: visible submit, status, credential erasure, cancel, and active ACK.
 				const connection = await connectSource(page, contract);
-				await startImport(page, contract.provider);
+				await startImport(page, contract);
 				await assertJobIdentity(page, contract, connection);
 				await assertCredentialErasure(page, 'algolia');
 				await contract.assertNoCredentialLeakInBrowserArtifacts(page);

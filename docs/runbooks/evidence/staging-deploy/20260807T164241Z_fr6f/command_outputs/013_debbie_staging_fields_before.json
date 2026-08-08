@@ -1,0 +1,13 @@
+{
+  "dev_sha": "694daac94d8bdf8fbdaacc2497676667166c0d98",
+  "staging": {
+    "name": "staging",
+    "manifest_dev_sha": "8e4c4e52e799539d7f79bca60dcb38ef532cf35f",
+    "manifest_matches_dev": false,
+    "manifest_reason": "manifest dev_sha does not match dev HEAD",
+    "checkout_clean": true,
+    "cleanliness_reason": "checkout is clean",
+    "head_matches_origin": true,
+    "pushed_reason": "target HEAD matches origin/main"
+  }
+}

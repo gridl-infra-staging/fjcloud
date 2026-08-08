@@ -34,6 +34,9 @@
 #                    a non-trivial Rust change.
 #   --gate <NAME>    Run only one gate (rust-test, rust-lint,
 #                    migration-test, web-test, check-sizes,
+#                    local-ci-contracts, ci-deploy-web-contracts,
+#                    email-customer-probe-contracts,
+#                    aws-inbox-helper-contracts, vm-autorepair-contract,
 #                    source-pollution, mirror-sync-contract,
 #                    deploy-currency-check-contract,
 #                    wave3-phase-receipt, launch-closeout, debbie-dry-run,
@@ -214,7 +217,7 @@ render_prod_drift() {
 # preserved and no gates are scheduled or executed.
 if [ "$SUMMARY_ONLY" -eq 1 ]; then
     printf '=== local-ci summary (summary-only) ===\n'
-    printf 'Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape handover-consumption web-lint secret-scan dep-audit baseline-integrity web-audit security-suite evidence-secret-hygiene index-export-clientside-contract api-client-route-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract mirror-ci-currency-probe-contract scheduled-alarm-liveness-contract usage-rollup-freshness-contract launch-evidence-freshness-contract claim-freshness-contract test-reachability-contract local-real-pipeline-contract local-schema-drift-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver script-exec-bits port-collision-diagnose compose-project\n'
+    printf 'Known gates: rust-test rust-lint migration-test web-test check-sizes local-ci-contracts ci-deploy-web-contracts email-customer-probe-contracts aws-inbox-helper-contracts vm-autorepair-contract source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape handover-consumption web-lint secret-scan dep-audit baseline-integrity web-audit security-suite evidence-secret-hygiene index-export-clientside-contract api-client-route-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract mirror-ci-currency-probe-contract scheduled-alarm-liveness-contract usage-rollup-freshness-contract launch-evidence-freshness-contract claim-freshness-contract test-reachability-contract local-real-pipeline-contract local-schema-drift-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver script-exec-bits port-collision-diagnose compose-project\n'
     render_prod_drift
     exit 0
 fi
@@ -634,80 +637,59 @@ gate_web_test() {
     npm test || return $?
 }
 
-should_skip_env_local_isolation_for_set_e_regression() {
-    local fixture_path="${LOCAL_CI_SET_E_REGRESSION_FIXTURE:-}"
-
-    if [ "${LOCAL_CI_SKIP_SET_E_REGRESSION_TEST:-0}" != "1" ]; then
-        return 1
-    fi
-    case "$fixture_path" in
-        "$REPO_ROOT"/infra/api/tests/_local_ci_set_e_regression_fixture.*.rs)
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-    [ -f "$fixture_path" ]
+gate_rust_lint() {
+    # Keep rust-lint aligned with CI's cargo formatting and clippy surface.
+    # Explicit returns are required because run_gate invokes the body in a
+    # conditional context, which disables `set -e` inside this function.
+    cd "$REPO_ROOT/infra" || return $?
+    cargo fmt --check || return $?
+    cargo clippy --workspace -- -D warnings || return $?
 }
 
-gate_rust_lint() {
-    # Mirrors rust-lint: ci_workflow_test, generate_ssm_env_test,
-    # local_ci_gate_set_e_test, support email unit seams, cargo fmt
-    # --check, cargo clippy --workspace -- -D warnings.
-    #
-    # Explicit `|| return $?` after every command — same bash 3.2 set -e
-    # pitfall already handled in gate_web_lint/gate_web_test. Without
-    # this, `cargo fmt --check` could print its diff, exit non-zero, and
-    # the gate would still record PASS because run_gate invokes the body
-    # via `"$@" || rc=$?`, which silently disables `set -e` inside the
-    # called function. Pinned by scripts/tests/local_ci_gate_set_e_test.sh.
+gate_ci_deploy_web_contracts() {
     bash "$REPO_ROOT/scripts/tests/ci_workflow_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/ci_stripe_local_mode_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/playwright_local_stack_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/local_stack_contract_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/e2e_preflight_test.sh" || return $?
-    if ! should_skip_env_local_isolation_for_set_e_regression; then
-        bash "$REPO_ROOT/scripts/tests/local_ci_env_local_isolation_test.sh" || return $?
-    fi
     bash "$REPO_ROOT/scripts/tests/ci_e2e_deployed_pages_parity_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/ci_deploy_web_contract_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/ci_lane24_deploy_contract_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/e2e_deployed_pages_parity_probe_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/integration_test_layout_test.sh" || return $?
-    # generate_ssm_env_test.sh is treated as a sub-check: non-zero exits fail
-    # rust-lint except the shared SKIP sentinel code. Keeping this branch lets
-    # the gate continue through fmt/clippy when the test explicitly reports a
-    # prereq skip on a given host.
-    local generate_ssm_env_rc=0
-    bash "$REPO_ROOT/scripts/tests/generate_ssm_env_test.sh" || generate_ssm_env_rc=$?
-    if [ "$generate_ssm_env_rc" -ne 0 ] && [ "$generate_ssm_env_rc" -ne "$SKIP_EXIT_CODE" ]; then
-        return "$generate_ssm_env_rc"
-    fi
-    # local_ci_gate_set_e_test shells back into `scripts/local-ci.sh --gate
-    # rust-lint` with an intentional rustfmt violation. Skip the nested
-    # invocation's copy of this same regression test so the proof runs once
-    # per top-level gate execution instead of recursing forever.
-    if [ "${LOCAL_CI_SKIP_SET_E_REGRESSION_TEST:-0}" != "1" ]; then
-        bash "$REPO_ROOT/scripts/tests/local_ci_gate_set_e_test.sh" || return $?
-    fi
+}
+
+gate_local_ci_contracts() {
+    bash "$REPO_ROOT/scripts/tests/local_ci_env_local_isolation_test.sh" || return $?
+    bash "$REPO_ROOT/scripts/tests/local_ci_gate_set_e_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/local_ci_node_modules_guard_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/local_ci_migration_isolated_db_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/local_ci_parallel_safety_test.sh" || return $?
+}
+
+gate_email_customer_probe_contracts() {
     bash "$REPO_ROOT/scripts/tests/validate_inbound_email_roundtrip_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/support_email_deliverability_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/customer_loop_synthetic_probe_env_gap_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/customer_metrics_authenticated_probe_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/customer_metrics_endpoint_authenticated_probe_env_gap_test.sh" || return $?
-    # aws_identity is the SSOT for the credential-pollution triage that the inbox
-    # prereq / canary / RC skip-classification depends on; test_inbox_helpers
-    # guards that integration (the 2026-07-08 false-env-gap-skip regression).
+    bash "$REPO_ROOT/scripts/tests/probe_stage2_email_coverage_test.sh" || return $?
+}
+
+gate_aws_inbox_helper_contracts() {
+    # Preserve the historical sub-check semantics: the shared SKIP sentinel is
+    # non-fatal here, while every other non-zero status fails the gate.
+    local generate_ssm_env_rc=0
+    bash "$REPO_ROOT/scripts/tests/generate_ssm_env_test.sh" || generate_ssm_env_rc=$?
+    if [ "$generate_ssm_env_rc" -ne 0 ] && [ "$generate_ssm_env_rc" -ne "$SKIP_EXIT_CODE" ]; then
+        return "$generate_ssm_env_rc"
+    fi
     bash "$REPO_ROOT/scripts/tests/aws_identity_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/test_inbox_helpers_test.sh" || return $?
-    bash "$REPO_ROOT/scripts/tests/probe_stage2_email_coverage_test.sh" || return $?
+}
+
+gate_vm_autorepair_contract() {
     bash "$REPO_ROOT/scripts/tests/validate_vm_autorepair_detection_test.sh" || return $?
-    cd "$REPO_ROOT/infra" || return $?
-    cargo fmt --check || return $?
-    cargo clippy --workspace -- -D warnings || return $?
 }
 
 assert_unique_migration_versions() {
@@ -1548,19 +1530,21 @@ schedule() {
 # `cargo check` + lint to catch most things). Use --full or
 # `--gate rust-test` to run it.
 #
-# rc-wrapper, test-reachability-contract, local-schema-drift, rust-lint,
-# web-test, and rust-test are scheduled SEPARATELY (not in this parallel
-# batch). The first three execute fixtures that mutate checkout-root
-# .env.local/.local state, and rust-lint includes an isolation guard that must not
-# overlap gates whose contract fixtures temporarily replace repo-local env/Vite
-# paths. CPU-heavy Rust gates can also starve vitest, which has tight 5s
-# per-test timeouts. CI doesn't see these interactions because each CI job runs
-# on its own runner. See the post-wait section below for the sequential
-# invocations.
+# rc-wrapper, test-reachability-contract, local-schema-drift,
+# local-ci-contracts, rust-lint, web-test, and rust-test are scheduled
+# SEPARATELY (not in this parallel batch). The first four execute fixtures that
+# mutate checkout-root .env.local/.local state. CPU-heavy Rust gates can also
+# starve vitest, which has tight 5s per-test timeouts. CI doesn't see these
+# interactions because each CI job runs on its own runner. See the post-wait
+# section below for the sequential invocations.
 schedule check-sizes
 schedule script-exec-bits
 schedule port-collision-diagnose
 schedule compose-project
+schedule ci-deploy-web-contracts
+schedule email-customer-probe-contracts
+schedule aws-inbox-helper-contracts
+schedule vm-autorepair-contract
 schedule mirror-sync-contract
 schedule deploy-currency-check-contract
 schedule ses-coverage-a1
@@ -1626,8 +1610,15 @@ if [ -z "$SINGLE_GATE" ] || [ "$SINGLE_GATE" = "local-schema-drift-contract" ]; 
     RUN_LOCAL_SCHEMA_DRIFT_SEQUENTIAL=1
 fi
 
-# Run rust-lint after the parallel batch so its checkout-isolation guard cannot
-# observe temporary fixture mutations from another gate.
+# Run local-ci self-contracts after the parallel batch because their fixtures
+# intentionally exercise checkout-local isolation and nested gate dispatch.
+RUN_LOCAL_CI_CONTRACTS_SEQUENTIAL=0
+if [ -z "$SINGLE_GATE" ] || [ "$SINGLE_GATE" = "local-ci-contracts" ]; then
+    RUN_LOCAL_CI_CONTRACTS_SEQUENTIAL=1
+fi
+
+# Keep rust-lint sequential because cargo clippy is CPU-heavy and must not
+# compete with the parallel contract gates.
 RUN_RUST_LINT_SEQUENTIAL=0
 if [ -z "$SINGLE_GATE" ] || [ "$SINGLE_GATE" = "rust-lint" ]; then
     RUN_RUST_LINT_SEQUENTIAL=1
@@ -1654,13 +1645,14 @@ fi
 if [ "${#SCHEDULED_GATES[@]}" -eq 0 ] \
     && [ "$RUN_RC_WRAPPER_SEQUENTIAL" -eq 0 ] \
     && [ "$RUN_LOCAL_SCHEMA_DRIFT_SEQUENTIAL" -eq 0 ] \
+    && [ "$RUN_LOCAL_CI_CONTRACTS_SEQUENTIAL" -eq 0 ] \
     && [ "$RUN_RUST_LINT_SEQUENTIAL" -eq 0 ] \
     && [ "$RUN_WEB_TEST_SEQUENTIAL" -eq 0 ] \
     && [ "$RUN_TEST_REACHABILITY_SEQUENTIAL" -eq 0 ] \
     && [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 0 ]; then
     if [ -n "$SINGLE_GATE" ]; then
         echo "ERROR: --gate '$SINGLE_GATE' did not match any known gate" >&2
-        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape handover-consumption web-lint secret-scan dep-audit baseline-integrity web-audit security-suite evidence-secret-hygiene index-export-clientside-contract api-client-route-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract mirror-ci-currency-probe-contract scheduled-alarm-liveness-contract usage-rollup-freshness-contract launch-evidence-freshness-contract claim-freshness-contract test-reachability-contract local-real-pipeline-contract local-schema-drift-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver script-exec-bits port-collision-diagnose compose-project" >&2
+        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes local-ci-contracts ci-deploy-web-contracts email-customer-probe-contracts aws-inbox-helper-contracts vm-autorepair-contract source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape handover-consumption web-lint secret-scan dep-audit baseline-integrity web-audit security-suite evidence-secret-hygiene index-export-clientside-contract api-client-route-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract mirror-ci-currency-probe-contract scheduled-alarm-liveness-contract usage-rollup-freshness-contract launch-evidence-freshness-contract claim-freshness-contract test-reachability-contract local-real-pipeline-contract local-schema-drift-contract local-multinode-migration-contract package-manager-consistency dirmap-merge-driver script-exec-bits port-collision-diagnose compose-project" >&2
         exit 2
     fi
     echo "ERROR: no gates scheduled" >&2
@@ -1674,6 +1666,9 @@ if [ "$RUN_RC_WRAPPER_SEQUENTIAL" -eq 1 ]; then
     total_gates=$((total_gates + 1))
 fi
 if [ "$RUN_LOCAL_SCHEMA_DRIFT_SEQUENTIAL" -eq 1 ]; then
+    total_gates=$((total_gates + 1))
+fi
+if [ "$RUN_LOCAL_CI_CONTRACTS_SEQUENTIAL" -eq 1 ]; then
     total_gates=$((total_gates + 1))
 fi
 if [ "$RUN_RUST_LINT_SEQUENTIAL" -eq 1 ]; then
@@ -1695,6 +1690,9 @@ if [ "$RUN_RC_WRAPPER_SEQUENTIAL" -eq 1 ]; then
 fi
 if [ "$RUN_LOCAL_SCHEMA_DRIFT_SEQUENTIAL" -eq 1 ]; then
     gate_label_list="${gate_label_list:+$gate_label_list }local-schema-drift-contract (sequential)"
+fi
+if [ "$RUN_LOCAL_CI_CONTRACTS_SEQUENTIAL" -eq 1 ]; then
+    gate_label_list="${gate_label_list:+$gate_label_list }local-ci-contracts (sequential)"
 fi
 if [ "$RUN_RUST_LINT_SEQUENTIAL" -eq 1 ]; then
     gate_label_list="${gate_label_list:+$gate_label_list }rust-lint (sequential)"
@@ -1721,6 +1719,10 @@ if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
             script-exec-bits) run_gate script-exec-bits gate_script_exec_bits ;;
             port-collision-diagnose) run_gate port-collision-diagnose gate_port_collision_diagnose ;;
             compose-project) run_gate compose-project gate_compose_project ;;
+            ci-deploy-web-contracts) run_gate ci-deploy-web-contracts gate_ci_deploy_web_contracts ;;
+            email-customer-probe-contracts) run_gate email-customer-probe-contracts gate_email_customer_probe_contracts ;;
+            aws-inbox-helper-contracts) run_gate aws-inbox-helper-contracts gate_aws_inbox_helper_contracts ;;
+            vm-autorepair-contract) run_gate vm-autorepair-contract gate_vm_autorepair_contract ;;
             mirror-sync-contract) run_gate mirror-sync-contract gate_mirror_sync_contract ;;
             deploy-currency-check-contract) run_gate deploy-currency-check-contract gate_deploy_currency_check_contract ;;
             ses-coverage-a1) run_gate ses-coverage-a1 gate_ses_coverage_a1 ;;
@@ -1783,9 +1785,13 @@ if [ "$RUN_LOCAL_SCHEMA_DRIFT_SEQUENTIAL" -eq 1 ]; then
     wait
 fi
 
-# Run rust-lint only after every parallel gate has drained. Its preflight
-# isolation test intentionally watches repo-local env and Vite paths while a
-# fixture runs, so concurrent checkout-mutating gates would create false reds.
+if [ "$RUN_LOCAL_CI_CONTRACTS_SEQUENTIAL" -eq 1 ]; then
+    run_gate local-ci-contracts gate_local_ci_contracts
+    wait
+fi
+
+# Run rust-lint only after every parallel gate has drained so cargo clippy does
+# not compete with the parallel contract gates.
 if [ "$RUN_RUST_LINT_SEQUENTIAL" -eq 1 ]; then
     run_gate rust-lint gate_rust_lint
     wait

@@ -13,9 +13,10 @@ API_BASE_URL="${API_BASE_URL:-${API_URL:-$DEFAULT_PLAYWRIGHT_API_BASE_URL}}"
 API_URL="${API_URL:-$API_BASE_URL}"
 API_HEALTH_URL="${API_BASE_URL%/}/health"
 LISTEN_ADDR="${LISTEN_ADDR:-127.0.0.1:${PLAYWRIGHT_API_PORT}}"
-API_START_TIMEOUT_SECONDS="${PLAYWRIGHT_API_READY_TIMEOUT_SECONDS:-180}"
+API_START_TIMEOUT_SECONDS="${PLAYWRIGHT_API_READY_TIMEOUT_SECONDS:-600}"
 FORCE_API_RESTART="${PLAYWRIGHT_FORCE_API_RESTART:-0}"
 MAILPIT_READY_TIMEOUT_SECONDS="${PLAYWRIGHT_MAILPIT_READY_TIMEOUT_SECONDS:-30}"
+POSTGRES_READY_TIMEOUT_SECONDS="${PLAYWRIGHT_POSTGRES_READY_TIMEOUT_SECONDS:-30}"
 PUBLIC_INFRASTRUCTURE_CACHE_SETTLE_SECONDS="${PLAYWRIGHT_PUBLIC_INFRASTRUCTURE_CACHE_SETTLE_SECONDS:-11}"
 WEB_PORT_RELEASE_TIMEOUT_SECONDS="${PLAYWRIGHT_WEB_PORT_RELEASE_TIMEOUT_SECONDS:-10}"
 
@@ -32,6 +33,8 @@ require_non_negative_integer_env PLAYWRIGHT_PUBLIC_INFRASTRUCTURE_CACHE_SETTLE_S
 	"$PUBLIC_INFRASTRUCTURE_CACHE_SETTLE_SECONDS"
 require_non_negative_integer_env PLAYWRIGHT_WEB_PORT_RELEASE_TIMEOUT_SECONDS \
 	"$WEB_PORT_RELEASE_TIMEOUT_SECONDS"
+require_non_negative_integer_env PLAYWRIGHT_POSTGRES_READY_TIMEOUT_SECONDS \
+	"$POSTGRES_READY_TIMEOUT_SECONDS"
 
 parse_port_from_http_url() {
 	local url="$1"
@@ -220,6 +223,47 @@ PY
 			exit 1
 			;;
 	esac
+}
+
+playwright_database_url_port() {
+	require_db_url_part "$DATABASE_URL" db_url_port
+}
+
+playwright_postgres_server_is_ready() {
+	# Server-level probe (matching postgres_server_is_ready in local-dev-up.sh):
+	# stale app-role credentials in a reused pgdata volume are a database-state
+	# problem, not a "server is still starting" one, so they must not be reported
+	# as unreadiness — this gate answers only "is the server accepting
+	# connections". Nothing on this path reconciles those credentials:
+	# local-dev-migrate.sh applies migrations and dies, and the playwright stack
+	# has no equivalent of local-dev-up.sh's ensure_postgres_volume_matches_env.
+	# A mismatched volume therefore surfaces as a migration failure.
+	(
+		cd "$REPO_ROOT"
+		docker compose exec -T postgres pg_isready -U postgres -d postgres
+	) >/dev/null 2>&1
+}
+
+ensure_playwright_postgres_ready() {
+	local db_port elapsed=0 timeout_seconds="$POSTGRES_READY_TIMEOUT_SECONDS"
+	db_port="$(playwright_database_url_port)" || {
+		echo "[playwright_local_stack] ERROR: DATABASE_URL must include a valid port before starting local Postgres." >&2
+		exit 1
+	}
+
+	(cd "$REPO_ROOT" && LOCAL_DB_PORT="$db_port" docker compose up -d postgres) 2>&1 |
+		while IFS= read -r line; do log "$line"; done
+
+	while [ "$elapsed" -lt "$timeout_seconds" ]; do
+		if playwright_postgres_server_is_ready; then
+			return
+		fi
+		sleep 1
+		elapsed=$((elapsed + 1))
+	done
+
+	echo "[playwright_local_stack] ERROR: Postgres did not become ready on DATABASE_URL port $db_port." >&2
+	exit 1
 }
 
 reconcile_playwright_bootstrap_admin_user() {
@@ -700,6 +744,7 @@ ensure_flapjack_experiments_api_ready
 
 if ! curl -fsS "$API_HEALTH_URL" >/dev/null 2>&1; then
 	require_local_database_url
+	ensure_playwright_postgres_ready
 	bash "$SCRIPT_DIR/local-dev-migrate.sh"
 	reconcile_playwright_bootstrap_admin_user
 	if [ "$REQUIRE_EMAIL_VERIFICATION" = "1" ]; then

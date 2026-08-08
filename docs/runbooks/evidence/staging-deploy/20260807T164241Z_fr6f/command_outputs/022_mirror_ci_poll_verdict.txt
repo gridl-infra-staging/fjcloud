@@ -1,0 +1,6 @@
+poll_started_at_utc=2026-08-07T16:57:46Z
+poll_ended_at_utc=2026-08-07T17:01:47Z
+elapsed_seconds=240
+initial_run_id=31160480760
+verdict=completed_non_green
+last_row=repo=gridl-infra-staging/fjcloud mirror_head=06ba4b38edb6b891aaa918ae964c1d42dcb5f9fe run_id=31199924808 status=completed conclusion=failure run_head_sha=06ba4b38edb6b891aaa918ae964c1d42dcb5f9fe age_seconds=315 reason=ci_non_success

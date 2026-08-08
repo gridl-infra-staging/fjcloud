@@ -188,10 +188,16 @@ const CHROMIUM_BLOCKED_PLAYWRIGHT_WEB_PORTS = new Set([
 // (apiPort+1, ≤9600) so the three workspace-derived ports — which all share the same
 // hash offset — never collide. 9700 + offset(0–1999) → 9700–11699, safely below 65535.
 const PLAYWRIGHT_DEFAULT_FLAPJACK_PORT_HASH_MIN = 9700;
-// Source-provider bands sit above the manual stack's database band
-// (flapjackPort + 8000, at most 19699). Provider-parity runs start all five
-// HTTP services together, so reusing the web/API bands would make a clean
-// invocation fail on its own host-port collision.
+// The manual stack's database band is the fourth span above flapjack
+// (17700–19699). scripts/lib/playwright_port_plan.sh mirrors the same fact as
+// `flapjack + (4 * PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN)`, so this must stay
+// expressed in spans rather than a second literal: a changed span has to move
+// both runtimes or neither.
+const PLAYWRIGHT_LOCAL_DB_PORT_SPANS_ABOVE_FLAPJACK = 4;
+// Source-provider bands sit above the manual stack's database band (at most
+// 19699). Provider-parity runs start all five HTTP services together, so
+// reusing the web/API bands would make a clean invocation fail on its own
+// host-port collision.
 const PLAYWRIGHT_DEFAULT_MEILISEARCH_PORT_HASH_MIN = 19700;
 const PLAYWRIGHT_DEFAULT_TYPESENSE_PORT_HASH_MIN = 21700;
 const LOOPBACK_HTTP_HOST = 'localhost';
@@ -257,6 +263,13 @@ export function resolveDefaultPlaywrightFlapjackPort(
 	}
 	const portOffset = hashStringFNV1A(normalizedWorkspacePath) % PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN;
 	return PLAYWRIGHT_DEFAULT_FLAPJACK_PORT_HASH_MIN + portOffset;
+}
+
+export function resolveDefaultPlaywrightLocalDbPort(workspacePath: string = process.cwd()): number {
+	return (
+		resolveDefaultPlaywrightFlapjackPort(workspacePath) +
+		PLAYWRIGHT_LOCAL_DB_PORT_SPANS_ABOVE_FLAPJACK * PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN
+	);
 }
 
 export function resolveDefaultPlaywrightMeilisearchPort(
@@ -571,6 +584,51 @@ function assignFirstDefinedEnvValue(
 	}
 }
 
+const INVALID_DATABASE_URL_MESSAGE =
+	'DATABASE_URL must be a valid PostgreSQL URL for local Playwright runs';
+const NON_LOOPBACK_DATABASE_URL_MESSAGE =
+	'DATABASE_URL must be a loopback PostgreSQL URL for local Playwright runs';
+
+// Same loopback set the two consumers of this value already enforce:
+// require_local_database_url in scripts/playwright_local_stack.sh and
+// requireLoopbackDatabaseUrl in web/tests/fixtures/fixtures.ts. WHATWG URL
+// reports IPv6 hosts bracketed, the shell guard's urlsplit reports them bare,
+// so accept both spellings rather than a single runtime's rendering.
+function databaseUrlHostnameIsLoopback(hostname: string): boolean {
+	return (
+		hostname === 'localhost' ||
+		hostname === '::1' ||
+		hostname === '[::1]' ||
+		/^127(?:\.\d{1,3}){3}$/.test(hostname)
+	);
+}
+
+function databaseUrlWithPort(rawUrl: string, port: number): string {
+	// `new URL` throws a bare `TypeError: Invalid URL` on malformed input, which
+	// surfaces during config load with no mention of the offending variable.
+	// Convert it to the same named error the scheme/host guard raises so every
+	// rejection path names DATABASE_URL.
+	let parsed: URL;
+	try {
+		parsed = new URL(rawUrl);
+	} catch {
+		throw new Error(INVALID_DATABASE_URL_MESSAGE);
+	}
+	if (!['postgres:', 'postgresql:'].includes(parsed.protocol) || !parsed.hostname) {
+		throw new Error(INVALID_DATABASE_URL_MESSAGE);
+	}
+	// Rewriting the port of a remote host would point the operator's database
+	// credentials at a workspace-derived port nobody configured on that host.
+	// The stack's own non-loopback refusal is skipped whenever an API is already
+	// healthy, and runFixtureSql applies no loopback check at all, so this is the
+	// only gate on the rewritten value for that path. Fail closed here instead.
+	if (!databaseUrlHostnameIsLoopback(parsed.hostname)) {
+		throw new Error(NON_LOOPBACK_DATABASE_URL_MESSAGE);
+	}
+	parsed.port = String(port);
+	return parsed.toString();
+}
+
 export function applyPlaywrightProcessEnvDefaults({
 	processEnv,
 	repoEnv,
@@ -699,6 +757,7 @@ export function resolvePlaywrightRuntime({
 	const hasExplicitBaseUrl = Boolean(processEnv.BASE_URL && processEnv.BASE_URL.trim().length > 0);
 	const processApiBaseUrl = processEnv.API_BASE_URL?.trim();
 	const processApiUrl = processEnv.API_URL?.trim();
+	const processDatabaseUrl = processEnv.DATABASE_URL?.trim();
 	const apiBaseUrlIsFileBacked =
 		Boolean(processApiBaseUrl) &&
 		(processApiBaseUrl === repoEnv.API_BASE_URL?.trim() ||
@@ -706,6 +765,10 @@ export function resolvePlaywrightRuntime({
 	const apiUrlIsFileBacked =
 		Boolean(processApiUrl) &&
 		(processApiUrl === repoEnv.API_URL?.trim() || processApiUrl === webEnv.API_URL?.trim());
+	const databaseUrlIsFileBacked =
+		Boolean(processDatabaseUrl) &&
+		(processDatabaseUrl === repoEnv.DATABASE_URL?.trim() ||
+			processDatabaseUrl === webEnv.DATABASE_URL?.trim());
 	const requiresEmailVerification =
 		!hasExplicitBaseUrl && isSoleEmailVerificationProjectSelection(argv);
 	// Thread processEnv through so the LB-2/LB-3 remote-target opt-in
@@ -760,6 +823,12 @@ export function resolvePlaywrightRuntime({
 			processEnv[PLAYWRIGHT_API_PORT_ENV]?.trim().length === 0
 		) {
 			processEnv[PLAYWRIGHT_API_PORT_ENV] = String(apiPort);
+		}
+		if (processEnv.DATABASE_URL && databaseUrlIsFileBacked) {
+			processEnv.DATABASE_URL = databaseUrlWithPort(
+				processEnv.DATABASE_URL,
+				resolveDefaultPlaywrightLocalDbPort(workspacePath)
+			);
 		}
 		// Pin the fixture process to the workspace flapjack port so seedIndex /
 		// resolveFixtureEnv provision nodes against the same instance the stack runs.

@@ -189,6 +189,9 @@ assert_job_not_contains_regex() {
   fi
 }
 
+# shellcheck source=scripts/tests/lib/mirror_manifest_workflow_contract.sh
+source "$SCRIPT_DIR/lib/mirror_manifest_workflow_contract.sh"
+
 step_block() {
   local job_name="$1"
   local step_name="$2"
@@ -712,6 +715,36 @@ assert_job_contains_regex "deploy-staging" 'aws s3 cp ops/scripts/migrate.sh s3:
 assert_job_contains_regex "deploy-staging" 'aws s3 cp ops/scripts/lib/generate_ssm_env.sh s3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/scripts/generate_ssm_env.sh' "deploy-staging uploads generate_ssm_env.sh to staging SHA path"
 assert_job_contains_regex "deploy-staging" 'aws s3 cp ops/systemd/fj-metering-agent\.service s3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/systemd/fj-metering-agent\.service' "deploy-staging uploads fj-metering-agent.service to staging SHA path"
 assert_job_contains_regex "deploy-staging" 'bash ops/scripts/deploy\.sh staging "\$\{GITHUB_SHA\}"' "deploy-staging triggers staging deploy with GitHub SHA"
+
+# mirror-manifest-shards: the manifest-suite fan-out that only the public
+# mirrors can afford to run. The nested strategy/matrix shape below is the
+# repo's first matrix job, so every level of it is pinned explicitly —
+# `fail-fast: false` most of all. Without it one red shard cancels the other
+# seven and destroys the per-suite signal the job exists to produce.
+assert_contains_regex '^\s{2}mirror-manifest-shards:\s*$' "job mirror-manifest-shards exists"
+assert_job_contains_regex "mirror-manifest-shards" '^\s{4}runs-on:\s+ubuntu-latest$' "mirror-manifest-shards runs on ubuntu-latest"
+assert_mirror_shard_timeout_covers_schedule_bound
+assert_job_contains_regex "mirror-manifest-shards" '^\s{4}strategy:$' "mirror-manifest-shards declares a strategy block"
+assert_job_contains_regex "mirror-manifest-shards" '^\s{6}fail-fast:\s+false$' "mirror-manifest-shards disables fail-fast so one red shard does not cancel the rest"
+assert_job_contains_regex "mirror-manifest-shards" '^\s{6}matrix:$' "mirror-manifest-shards nests matrix under strategy"
+assert_job_contains_regex "mirror-manifest-shards" '^\s{8}shard:\s+\[1, ?2, ?3, ?4, ?5, ?6, ?7, ?8\]$' "mirror-manifest-shards enumerates all eight shards"
+assert_job_contains_regex "mirror-manifest-shards" 'uses:\s+actions/checkout@' "mirror-manifest-shards has checkout step"
+# ripgrep is installed explicitly rather than assumed: three sharded suites
+# (collect_evidence_test.sh, deploy_gate_test.sh, local_dev_up_test.sh) invoke
+# `rg` as a shell word, and a hosted-image change that dropped it would turn
+# them red for a reason that has nothing to do with the code under test.
+assert_job_contains_regex "mirror-manifest-shards" 'sudo apt-get install -y ripgrep' "mirror-manifest-shards installs ripgrep explicitly"
+assert_job_contains_regex "mirror-manifest-shards" 'bash scripts/run_mirror_manifest_shard\.sh --shard \$\{\{ matrix\.shard \}\} --shards 8' "mirror-manifest-shards invokes the shard runner with the matrix index and a shard count matching the matrix length"
+# The job is advisory, in both dependency directions. Neither deploy job may
+# gate on it (that would make an advisory signal a release blocker, and both
+# `needs[]` lists are hand-mirrored into scripts/local-ci.sh), and the job
+# itself carries no `needs:` and no `if:` so it runs standalone on both public
+# mirrors. Anchored indents: the header comment inside the block is not
+# stripped by assert_job_not_contains_regex, so only real 4-space keys match.
+assert_job_not_contains_regex "deploy-staging" 'mirror-manifest-shards' "deploy-staging does not depend on the advisory mirror-manifest-shards job"
+assert_job_not_contains_regex "deploy-prod" 'mirror-manifest-shards' "deploy-prod does not depend on the advisory mirror-manifest-shards job"
+assert_job_not_contains_regex "mirror-manifest-shards" '^\s{4}needs:' "mirror-manifest-shards declares no job dependencies"
+assert_job_not_contains_regex "mirror-manifest-shards" '^\s{4}if:' "mirror-manifest-shards has no repository gate so it runs on both public mirrors"
 
 assert_contains_regex 'cargo fmt --check' "workflow includes cargo fmt --check"
 assert_all_uses_are_sha_pinned

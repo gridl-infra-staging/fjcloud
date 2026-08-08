@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deterministic lifecycle orchestrator for prod VM lifecycle validation modes.
+# Deterministic orchestrator for prod customer lifecycle validation on shared multi-tenant VMs.
 # shellcheck disable=SC1091
 set -euo pipefail
 

@@ -184,4 +184,8 @@ TEST_REACHABILITY_HERMETIC_TESTS=(
     "scripts/tests/vlm_judge_smoke_test.sh"
     "scripts/tests/web_dev_test.sh"
     "scripts/tests/web_form_login_contract_test.sh"
+    "scripts/tests/local_ci_gate_suite_coverage_test.sh"
+    "scripts/tests/mirror_excluded_tests_contract_test.sh"
+    "scripts/tests/mirror_manifest_shard_test.sh"
+    "scripts/tests/stripe_catalog_plan_parity_test.sh"
 )

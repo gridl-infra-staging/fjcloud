@@ -477,12 +477,35 @@ into a new or replacement fjcloud index without persisting source credentials.
 - [x] Given any preview-bound source, credential, destination, mode, or target-
       eligibility input changes, the old preview is removed and a new preview
       attempt is required before Start becomes available.
-- [x] Given real Meilisearch and Typesense local-provider sources plus the live
-      Algolia probe owner, provider parity completes create/cancel/source-change
-      lifecycle coverage, exact imported-denominator assertions, canary
-      containment, and destination absence guards through
-      `web/tests/e2e-ui/full/source_migration_provider_parity.spec.ts`. Receipt:
-      `docs/runbooks/evidence/source-migration-parity/2026-08-05-stage3/receipt.md`.
+- [x] Given real Meilisearch and Typesense `local-container` sources plus the
+      Algolia `live-probe` owner (recorded `fixture-only` and skipped when its
+      `ALGOLIA_APP_ID`/`ALGOLIA_ADMIN_KEY` credentials are absent), provider
+      parity completes create/cancel/source-change lifecycle coverage, exact
+      imported-denominator assertions, canary containment, and destination
+      absence guards through
+      `web/tests/e2e-ui/full/source_migration_provider_parity.spec.ts`. The same
+      spec proves preview-before-start on the same route with an explicit
+      provider split: the Meilisearch row (`preview.supported: true`) renders the
+      exact fixture-owned source counts, proves the preview created no retained
+      import job, and matches its pre-start preview warning shape field-for-field
+      against the retained job after it reaches the completed terminal state; the
+      Typesense row (`preview.supported: false`) proves the preview-unavailable
+      affordance; the Algolia row runs the provider-neutral lifecycle only.
+      Receipt:
+      `docs/runbooks/evidence/source-migration-parity/2026-08-07T175249Z/receipt.md`
+      (`4 passed`; Meilisearch/Typesense `local-container`, Algolia `live-probe`).
+      The parity spec and its fixtures are unchanged between that receipt's
+      pinned commit and `HEAD` (`git diff 67f8944 HEAD -- <spec> <fixtures>` is
+      empty), so the receipt's assertions still describe the code at `HEAD`.
+      Everything that did change since that commit is local-stack plumbing —
+      the workspace-local `DATABASE_URL` rewrite and Postgres startup in
+      `web/playwright.config.contract.ts` and `scripts/playwright_local_stack.sh`,
+      plus their tests — none of which the parity assertions read.
+      The at-`HEAD` re-run recorded
+      in `docs/audits/migration-preview/20260807T234746Z_three_provider_proof/SUMMARY.md`
+      is blocked before any provider row on a Docker `no space left on device`
+      container-create failure; it proves no provider and stays `unproven` until
+      a newer audit receipt closes it.
 
 ## Edge Cases
 
@@ -624,27 +647,45 @@ into a new or replacement fjcloud index without persisting source credentials.
   target request shape before the preview client admits Typesense. Evidence:
   `infra/api/src/routes/migration/preview.rs:21` and
   `infra/api/tests/integration/migration_routes_test/preview.rs:13`.
-- The public `/console/migrate` route remains unavailable by default. The
-  unmocked owner in `web/tests/e2e-ui/full/migration-recovery.spec.ts` now targets
-  a test-enabled Meilisearch preview journey, but it is not a closing proof: the
-  test runtime does not yet enable migration for the owner selection, and the
-  Meilisearch list-index request shape is not accepted by the producer route.
-- The unmocked preview owner logs preview and retained-job text rather than
-  asserting fixture-exact counts, complete warning identities, terminal-state
-  parity, or the 390px mobile contract. The grouped retained-warning detail proof
-  remains desktop-only.
+- The public `/console/migrate` route remains unavailable by default.
+  `web/tests/e2e-ui/full/migration-recovery.spec.ts` owns the unavailable-state
+  and retained-job cutover-verification boundary proofs only; it carries no
+  preview test. The unmocked preview-before-start journey is owned by
+  `web/tests/e2e-ui/full/source_migration_provider_parity.spec.ts`, whose closing
+  proof is the parity receipt cited in Automated Coverage.
+- The unmocked preview owner
+  `web/tests/e2e-ui/full/source_migration_provider_parity.spec.ts` now asserts
+  fixture-exact preview source counts (`migration-preview-counts`
+  `toHaveText`), complete warning identities through field-for-field
+  preview/retained-job equivalence, and the completed terminal state for the
+  Meilisearch `local-container` row. It does not assert the 390px mobile preview
+  contract, so mobile-narrow preview remains `unproven` unmocked. The grouped
+  retained-warning detail proof remains desktop-only. Algolia preview is not
+  exercised: the Algolia row runs the provider-neutral lifecycle only and is
+  `live-probe` or `fixture-only`, so Algolia preview-before-start stays
+  `unproven`. The three-provider preview audit
+  `docs/audits/migration-preview/20260807T234746Z_three_provider_proof/SUMMARY.md`
+  is blocked before provider-row execution on a Docker `no space left on device`
+  container-create failure; it proves no provider and must not be read as green
+  until a newer audit receipt closes it.
 
 ## Automated Coverage
 
-- Provider-parity browser owner:
+- Provider-parity and unmocked-preview browser owner:
   `web/tests/e2e-ui/full/source_migration_provider_parity.spec.ts` proves
-  Meilisearch, Typesense, and Algolia provider parity. Mutation-backed receipt:
-  `docs/runbooks/evidence/source-migration-parity/2026-08-05-stage3/receipt.md`.
-- Unmocked preview owner:
-  `web/tests/e2e-ui/full/migration-recovery.spec.ts` defines the intended direct
-  Meilisearch preview-before-start journey and its no-job-before-start check. It
-  is not yet executable or fixture-exact for the implementation gaps above, so
-  it does not currently close unmocked preview coverage.
+  Meilisearch (`local-container`), Typesense (`local-container`), and Algolia
+  (`live-probe`, or `fixture-only` and skipped when credentials are absent)
+  provider parity, and owns the unmocked preview-before-start journey:
+  Meilisearch renders fixture-exact preview counts and matches its preview
+  warning shape field-for-field against the retained job; Typesense proves the
+  preview-unavailable affordance; Algolia runs the provider-neutral lifecycle
+  without a preview attempt. Mutation-backed receipt:
+  `docs/runbooks/evidence/source-migration-parity/2026-08-07T175249Z/receipt.md`
+  (`4 passed`; the receipt's pinned parity spec and fixtures are unchanged at
+  `HEAD`). The at-`HEAD` re-run audit
+  `docs/audits/migration-preview/20260807T234746Z_three_provider_proof/SUMMARY.md`
+  is blocked before provider rows on Docker `no space left on device` and closes
+  nothing.
 - Mocked real-browser console-flow proof:
   `web/tests/e2e-ui/mocked/migration_console_flow.spec.ts` completes enabled
   Algolia, Meilisearch, and Typesense create journeys under mocked availability.

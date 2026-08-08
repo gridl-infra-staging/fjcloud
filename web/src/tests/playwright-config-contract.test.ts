@@ -26,6 +26,7 @@ import {
 	resolveDefaultPlaywrightWebPort,
 	resolveDefaultPlaywrightApiPort,
 	resolveDefaultPlaywrightFlapjackPort,
+	resolveDefaultPlaywrightLocalDbPort,
 	resolveDefaultPlaywrightMeilisearchPort,
 	resolveDefaultPlaywrightTypesensePort,
 	REMOTE_TARGET_OPT_IN_ENV,
@@ -549,6 +550,146 @@ describe('playwright config contract', () => {
 		expect(runtime.webServerEnv.API_URL).toBe(expectedApiBaseUrl);
 		expect(processEnv.API_BASE_URL).toBe(expectedApiBaseUrl);
 		expect(processEnv.API_URL).toBe(expectedApiBaseUrl);
+	});
+
+	// scripts/lib/playwright_port_plan.sh derives LOCAL_DB_PORT as
+	// `flapjack + (4 * PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN)`. Pinning the offset to a
+	// literal here rather than re-calling the resolver means a change to either
+	// runtime's band arithmetic fails this test instead of silently agreeing.
+	it('resolveDefaultPlaywrightLocalDbPort sits four spans above the flapjack band', () => {
+		const workspacePath = '/tmp/fjcloud-worktree-local-db-band';
+		const localDbPort = resolveDefaultPlaywrightLocalDbPort(workspacePath);
+
+		expect(localDbPort - resolveDefaultPlaywrightFlapjackPort(workspacePath)).toBe(8000);
+		expect(localDbPort).toBeGreaterThanOrEqual(17700);
+		expect(localDbPort).toBeLessThanOrEqual(19699);
+		// The database band must not overlap any other service the stack binds for
+		// the same workspace, or a provider-parity run collides with itself.
+		expect(
+			new Set([
+				localDbPort,
+				resolveDefaultPlaywrightWebPort(workspacePath),
+				resolveDefaultPlaywrightApiPort(workspacePath),
+				resolveDefaultPlaywrightFlapjackPort(workspacePath),
+				resolveDefaultPlaywrightMeilisearchPort(workspacePath),
+				resolveDefaultPlaywrightTypesensePort(workspacePath)
+			]).size
+		).toBe(6);
+	});
+
+	it('resolvePlaywrightRuntime rejects a malformed file-backed DATABASE_URL by name', () => {
+		const malformedDatabaseUrl = 'not-a-database-url';
+
+		expect(() =>
+			resolvePlaywrightRuntime({
+				processEnv: { DATABASE_URL: malformedDatabaseUrl },
+				repoEnv: { DATABASE_URL: malformedDatabaseUrl },
+				webEnv: {},
+				fallbackJwtSecret: 'fallback-jwt',
+				workspacePath: '/tmp/fjcloud-worktree-malformed-database-url'
+			})
+		).toThrow('DATABASE_URL must be a valid PostgreSQL URL for local Playwright runs');
+	});
+
+	it('resolvePlaywrightRuntime rejects a file-backed non-PostgreSQL DATABASE_URL by name', () => {
+		const mysqlDatabaseUrl = 'mysql://repo-user:repo-pass@127.0.0.1:3306/fjcloud';
+
+		expect(() =>
+			resolvePlaywrightRuntime({
+				processEnv: { DATABASE_URL: mysqlDatabaseUrl },
+				repoEnv: { DATABASE_URL: mysqlDatabaseUrl },
+				webEnv: {},
+				fallbackJwtSecret: 'fallback-jwt',
+				workspacePath: '/tmp/fjcloud-worktree-non-postgres-database-url'
+			})
+		).toThrow('DATABASE_URL must be a valid PostgreSQL URL for local Playwright runs');
+	});
+
+	// Rewriting only the port of a remote DATABASE_URL would hand the operator's
+	// database credentials to a workspace-derived port on a host nobody pointed
+	// them at. The stack's own non-loopback refusal is skipped when an API is
+	// already healthy, and runFixtureSql applies no loopback check, so the config
+	// has to be the gate. Goes red if the loopback guard is dropped: the rewrite
+	// would return a 17700-19699 port on db.internal.example.com instead.
+	it('resolvePlaywrightRuntime refuses to rewrite a non-loopback file-backed DATABASE_URL', () => {
+		const remoteDatabaseUrl = 'postgres://repo-user:repo-pass@db.internal.example.com:5432/fjcloud';
+		const processEnv: MutableEnv = { DATABASE_URL: remoteDatabaseUrl };
+
+		expect(() =>
+			resolvePlaywrightRuntime({
+				processEnv,
+				repoEnv: { DATABASE_URL: remoteDatabaseUrl },
+				webEnv: {},
+				fallbackJwtSecret: 'fallback-jwt',
+				workspacePath: '/tmp/fjcloud-worktree-remote-database-url'
+			})
+		).toThrow('DATABASE_URL must be a loopback PostgreSQL URL for local Playwright runs');
+		// The refusal must not leave a half-rewritten remote URL behind for a
+		// caller that swallows the throw.
+		expect(processEnv.DATABASE_URL).toBe(remoteDatabaseUrl);
+	});
+
+	it('resolvePlaywrightRuntime rewrites loopback DATABASE_URL hosts the stack guards accept', () => {
+		for (const host of ['localhost', '127.0.0.1', '127.1.2.3', '[::1]']) {
+			const workspacePath = `/tmp/fjcloud-worktree-loopback-${host.replace(/[^a-z0-9]/gi, '-')}`;
+			const databaseUrl = `postgres://repo-user:repo-pass@${host}:5432/fjcloud`;
+			const processEnv: MutableEnv = { DATABASE_URL: databaseUrl };
+
+			resolvePlaywrightRuntime({
+				processEnv,
+				repoEnv: { DATABASE_URL: databaseUrl },
+				webEnv: {},
+				fallbackJwtSecret: 'fallback-jwt',
+				workspacePath
+			});
+
+			expect(processEnv.DATABASE_URL).toBe(
+				`postgres://repo-user:repo-pass@${host}:${resolveDefaultPlaywrightLocalDbPort(workspacePath)}/fjcloud`
+			);
+		}
+	});
+
+	it('resolvePlaywrightRuntime replaces file-backed DATABASE_URL for spawned local stacks', () => {
+		const workspacePath = '/tmp/fjcloud-worktree-file-backed-database-url';
+		const expectedDatabaseUrl = `postgres://repo-user:repo-pass@127.0.0.1:${resolveDefaultPlaywrightLocalDbPort(workspacePath)}/fjcloud`;
+		const processEnv: MutableEnv = {
+			DATABASE_URL: 'postgres://repo-user:repo-pass@127.0.0.1:5432/fjcloud'
+		};
+		const repoEnv = {
+			DATABASE_URL: 'postgres://repo-user:repo-pass@127.0.0.1:5432/fjcloud'
+		};
+		const runtime = resolvePlaywrightRuntime({
+			processEnv,
+			repoEnv,
+			webEnv: {},
+			fallbackJwtSecret: 'fallback-jwt',
+			workspacePath
+		});
+
+		expect(runtime.webServerEnv.DATABASE_URL).toBe(expectedDatabaseUrl);
+		expect(processEnv.DATABASE_URL).toBe(expectedDatabaseUrl);
+	});
+
+	it('resolvePlaywrightRuntime preserves explicit process DATABASE_URL overrides', () => {
+		const processEnv: MutableEnv = {
+			DATABASE_URL: 'postgres://explicit-user:explicit-pass@127.0.0.1:15432/fjcloud'
+		};
+		const runtime = resolvePlaywrightRuntime({
+			processEnv,
+			repoEnv: {
+				DATABASE_URL: 'postgres://repo-user:repo-pass@127.0.0.1:5432/fjcloud'
+			},
+			webEnv: {},
+			fallbackJwtSecret: 'fallback-jwt',
+			workspacePath: '/tmp/fjcloud-worktree-explicit-database-url'
+		});
+
+		expect(runtime.webServerEnv.DATABASE_URL).toBe(
+			'postgres://explicit-user:explicit-pass@127.0.0.1:15432/fjcloud'
+		);
+		expect(processEnv.DATABASE_URL).toBe(
+			'postgres://explicit-user:explicit-pass@127.0.0.1:15432/fjcloud'
+		);
 	});
 
 	it('resolvePlaywrightRuntime uses default base URL and admin fallback chain without BASE_URL override', () => {

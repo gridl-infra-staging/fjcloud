@@ -147,8 +147,94 @@ base = {
 }
 
 data = copy.deepcopy(base)
+
+def configure_two_region_pointer_fixture(data):
+    for env in data["environments"]:
+        env["region_discovery"]["aws_regions"] = [
+            {"id": "eu-west-1", "aws_region": "eu-west-1"},
+            {"id": "us-east-1", "aws_region": "us-east-1"},
+        ]
+        env["pointers"][0]["aws_region"] = "us-east-1"
+
+    data["environments"][0]["pointers"][0]["subnet"]["value"] = "subnet-staging-use1"
+    data["environments"][0]["pointers"][0]["ami"]["value"] = "ami-staging-use1"
+    data["environments"][1]["pointers"][0]["subnet"]["value"] = "subnet-prod-use1"
+    data["environments"][1]["pointers"][0]["ami"]["value"] = "ami-prod-use1"
+
+    data["regions"][0]["aws_region"] = "us-east-1"
+    data["regions"][0]["ec2"]["instances"][0]["image_id"] = "ami-staging-use1"
+    data["regions"][0]["ec2"]["instances"][0]["subnet_id"] = "subnet-staging-use1"
+    data["regions"][0]["ec2"]["instances"][1]["image_id"] = "ami-prod-use1"
+    data["regions"][0]["ec2"]["instances"][1]["subnet_id"] = "subnet-prod-use1"
+
+
+def add_eu_pointer_rows(data, subnet, ami):
+    for env in data["environments"]:
+        env["pointers"].insert(
+            0,
+            {
+                "aws_region": "eu-west-1",
+                "subnet": copy.deepcopy(subnet),
+                "ami": copy.deepcopy(ami),
+            },
+        )
+
+
+def add_missing_eu_pointer_rows(data):
+    add_eu_pointer_rows(data, {"outcome": "missing", "value": None}, {"outcome": "missing", "value": None})
+
+
+def add_empty_eu_region(data):
+    data["regions"].insert(
+        0,
+        {
+            "aws_region": "eu-west-1",
+            "ec2": {"outcome": "ok", "instances": []},
+            "ssm": {"outcome": "ok", "instances": []},
+        },
+    )
+
 if scenario == "healthy":
     pass
+elif scenario == "empty_region_without_pointers":
+    configure_two_region_pointer_fixture(data)
+    add_missing_eu_pointer_rows(data)
+    add_empty_eu_region(data)
+elif scenario == "populated_region_without_pointers":
+    configure_two_region_pointer_fixture(data)
+    add_missing_eu_pointer_rows(data)
+    add_empty_eu_region(data)
+    eu_instance = copy.deepcopy(data["regions"][1]["ec2"]["instances"][0])
+    eu_instance["instance_id"] = "i-eu-managed"
+    eu_instance["subnet_id"] = "subnet-eu-unknown"
+    eu_instance["tags"]["Name"] = "fj-eu-managed"
+    data["regions"][0]["ec2"]["instances"].append(eu_instance)
+    data["regions"][0]["ssm"]["instances"].append(
+        {"instance_id": "i-eu-managed", "ping_status": "Online", "last_ping_epoch": 700}
+    )
+elif scenario == "unreadable_region_without_pointers":
+    configure_two_region_pointer_fixture(data)
+    add_missing_eu_pointer_rows(data)
+    data["regions"].insert(
+        0,
+        {
+            "aws_region": "eu-west-1",
+            "ec2": {"outcome": "failed", "instances": []},
+            "ssm": {"outcome": "ok", "instances": []},
+        },
+    )
+elif scenario == "missing_region_entry_without_pointers":
+    configure_two_region_pointer_fixture(data)
+    add_missing_eu_pointer_rows(data)
+elif scenario == "duplicate_subnet_in_missing_region_entry":
+    # eu-west-1 is advertised but absent from regions[], and both environments claim the SAME
+    # eu-west-1 subnet. The pointer gap exemption must not stop duplicate-subnet detection.
+    configure_two_region_pointer_fixture(data)
+    add_eu_pointer_rows(
+        data,
+        {"outcome": "ok", "value": "subnet-shared-euw1"},
+        {"outcome": "ok", "value": "ami-euw1"},
+    )
 elif scenario == "missing_credentials":
     data = {
         "schema_version": 1,
@@ -494,6 +580,54 @@ test_action_required_contract() {
         "FLEET_STATUS: ACTION_REQUIRED reason=zero_managed_instances"
 }
 
+test_empty_region_without_pointers_is_not_attribution_ambiguous() {
+    assert_probe_result \
+        empty_region_without_pointers \
+        0 \
+        "FLEET_STATUS: OK reason=healthy_nonempty_fleet"
+}
+
+test_empty_region_without_pointers_still_reports_no_ami_oracle_gap() {
+    local tmp evidence out err rc
+    tmp="$(mktemp -d)"; register_tmp_path "$tmp"
+    evidence="$tmp/evidence.json"
+    out="$tmp/out.txt"
+    err="$tmp/err.txt"
+    rc="$tmp/rc.txt"
+    write_evidence "$evidence" empty_region_without_pointers
+    run_probe "$evidence" "$out" "$err" "$rc"
+    assert_not_contains "$(cat "$out")" "ami_oracle_unreadable" \
+        "empty measured region omits ami oracle gap"
+}
+
+test_populated_region_without_pointers_remains_ambiguous() {
+    assert_probe_result \
+        populated_region_without_pointers \
+        1 \
+        "FLEET_STATUS: ACTION_REQUIRED reason=environment_attribution_ambiguous"
+}
+
+test_unreadable_region_without_pointers_remains_ambiguous() {
+    assert_probe_result \
+        unreadable_region_without_pointers \
+        1 \
+        "FLEET_STATUS: ACTION_REQUIRED reason=environment_attribution_ambiguous"
+}
+
+test_missing_region_entry_without_pointers_is_required_read_failed() {
+    assert_probe_result \
+        missing_region_entry_without_pointers \
+        1 \
+        "FLEET_STATUS: PROBE_ERROR reason=required_read_failed"
+}
+
+test_duplicate_subnet_in_missing_region_entry_stays_ambiguous() {
+    assert_probe_result \
+        duplicate_subnet_in_missing_region_entry \
+        1 \
+        "FLEET_STATUS: ACTION_REQUIRED reason=environment_attribution_ambiguous"
+}
+
 test_precedence_contract() {
     assert_probe_result \
         ec2_failed_with_independent_action \
@@ -659,6 +793,12 @@ test_duplicate_identity_contract
 test_missing_credentials_contract
 test_healthy_contract
 test_action_required_contract
+test_empty_region_without_pointers_is_not_attribution_ambiguous
+test_empty_region_without_pointers_still_reports_no_ami_oracle_gap
+test_populated_region_without_pointers_remains_ambiguous
+test_unreadable_region_without_pointers_remains_ambiguous
+test_missing_region_entry_without_pointers_is_required_read_failed
+test_duplicate_subnet_in_missing_region_entry_stays_ambiguous
 test_precedence_contract
 test_null_domain_values_are_classified
 test_failed_read_provenance_contract

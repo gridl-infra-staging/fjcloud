@@ -29,6 +29,13 @@ ADMIN_CLEANUP_HOOK_REGEX='^[[:space:]]*if[[:space:]]+bash[[:space:]]+scripts/can
 CUSTOMER_METRICS_PROBE_HOOK_REGEX='^[[:space:]]*bash[[:space:]]+scripts/canary/contracts/customer_metrics_endpoint_authenticated_probe\.sh[[:space:]]+--staging-only;[[:space:]]*then$'
 CUSTOMER_METRICS_PROBE_SKIP_BRANCH_REGEX='^[[:space:]]*if[[:space:]]+\[[[:space:]]*"\$metrics_probe_rc"[[:space:]]+-eq[[:space:]]+"\$SKIP_EXIT_CODE"[[:space:]]*\];[[:space:]]*then$'
 ENV_LOCAL_ISOLATION_SKIP_VAR='LOCAL_CI_SKIP_ENV_LOCAL_ISOLATION_TEST'
+RELOCATED_GATE_NAMES=(
+    local-ci-contracts
+    ci-deploy-web-contracts
+    email-customer-probe-contracts
+    aws-inbox-helper-contracts
+    vm-autorepair-contract
+)
 
 extract_function_block() {
     local function_name="$1"
@@ -82,7 +89,7 @@ test_local_ci_rust_lint_fails_on_real_fmt_violation() {
 
         local out_skip
         local skip_status=0
-        out_skip="$(LOCAL_CI_SKIP_SET_E_REGRESSION_TEST=1 LOCAL_CI_SET_E_REGRESSION_FIXTURE="$fixture_path" bash "$LOCAL_CI" --gate rust-lint 2>&1)" || skip_status=$?
+        out_skip="$(bash "$LOCAL_CI" --gate rust-lint 2>&1)" || skip_status=$?
         rm -f "$fixture_path"
         if [[ "$skip_status" -ne 1 ]]; then
             fail "local-ci.sh --gate rust-lint returned $skip_status on bash<4; expected 1 because cargo fmt violation should still fail the gate. Output tail: $(echo "$out_skip" | tail -20)"
@@ -92,9 +99,9 @@ test_local_ci_rust_lint_fails_on_real_fmt_violation() {
             && { [[ "$out_skip" == *"rust-lint           FAIL"* ]] || [[ "$out_skip" == *"rust-lint  FAIL"* ]]; } \
             && [[ "$out_skip" != *"rust-lint           SKIP"* ]] \
             && [[ "$out_skip" != *"rust-lint  SKIP"* ]]; then
-            pass "local-ci.sh --gate rust-lint treats generate_ssm_env_test.sh as a sub-check skip and still fails on real cargo fmt violations on bash<4"
+            pass "local-ci.sh --gate rust-lint propagates real cargo fmt violations on bash<4"
         else
-            fail "local-ci.sh --gate rust-lint did not keep running after generate_ssm_env_test.sh bash<4 skip. Output tail: $(echo "$out_skip" | tail -20)"
+            fail "local-ci.sh --gate rust-lint did not report the real cargo fmt failure on bash<4. Output tail: $(echo "$out_skip" | tail -20)"
         fi
         return
     fi
@@ -105,7 +112,7 @@ test_local_ci_rust_lint_fails_on_real_fmt_violation() {
 
     local out
     local status=0
-    out="$(LOCAL_CI_SKIP_SET_E_REGRESSION_TEST=1 LOCAL_CI_SET_E_REGRESSION_FIXTURE="$fixture_path" bash "$LOCAL_CI" --gate rust-lint 2>&1)" || status=$?
+    out="$(bash "$LOCAL_CI" --gate rust-lint 2>&1)" || status=$?
 
     rm -f "$fixture_path"
 
@@ -121,31 +128,31 @@ test_local_ci_rust_lint_fails_on_real_fmt_violation() {
     fi
 }
 
-test_local_ci_rust_lint_includes_generate_ssm_env_contract() {
-    local rust_lint_block
-    rust_lint_block="$(extract_function_block gate_rust_lint)"
+test_aws_inbox_helper_gate_includes_generate_ssm_env_contract() {
+    local aws_inbox_helper_block
+    aws_inbox_helper_block="$(extract_function_block gate_aws_inbox_helper_contracts)"
 
-    if block_has_regex "$rust_lint_block" "$GENERATE_SSM_HOOK_REGEX"; then
-        pass "gate_rust_lint executes generate_ssm_env_test.sh"
+    if block_has_regex "$aws_inbox_helper_block" "$GENERATE_SSM_HOOK_REGEX"; then
+        pass "gate_aws_inbox_helper_contracts executes generate_ssm_env_test.sh"
     else
-        fail "gate_rust_lint is missing generate_ssm_env_test.sh contract hook"
+        fail "gate_aws_inbox_helper_contracts is missing generate_ssm_env_test.sh contract hook"
     fi
 }
 
-test_local_ci_rust_lint_includes_set_e_regression_hook() {
-    local rust_lint_block
-    rust_lint_block="$(extract_function_block gate_rust_lint)"
+test_local_ci_contracts_gate_includes_set_e_regression_hook() {
+    local local_ci_contracts_block
+    local_ci_contracts_block="$(extract_function_block gate_local_ci_contracts)"
 
-    if block_has_regex "$rust_lint_block" "$SET_E_HOOK_REGEX"; then
-        pass "gate_rust_lint executes local_ci_gate_set_e_test.sh"
+    if block_has_regex "$local_ci_contracts_block" "$SET_E_HOOK_REGEX"; then
+        pass "gate_local_ci_contracts executes local_ci_gate_set_e_test.sh"
     else
-        fail "gate_rust_lint is missing local_ci_gate_set_e_test.sh regression hook"
+        fail "gate_local_ci_contracts is missing local_ci_gate_set_e_test.sh regression hook"
     fi
 }
 
 test_hook_detection_rejects_comment_only_mentions() {
     local comment_only_block
-    comment_only_block=$'gate_rust_lint() {\n    # scripts/tests/generate_ssm_env_test.sh is documented here only\n    bash "$REPO_ROOT/scripts/tests/ci_workflow_test.sh" || return $?\n}'
+    comment_only_block=$'gate_aws_inbox_helper_contracts() {\n    # scripts/tests/generate_ssm_env_test.sh is documented here only\n    bash "$REPO_ROOT/scripts/tests/aws_identity_test.sh" || return $?\n}'
 
     if block_has_regex "$comment_only_block" "$GENERATE_SSM_HOOK_REGEX"; then
         fail "hook detection accepted a comment-only mention; expected executable invocation requirement"
@@ -156,7 +163,7 @@ test_hook_detection_rejects_comment_only_mentions() {
 
 test_set_e_hook_detection_rejects_comment_only_mentions() {
     local comment_only_block
-    comment_only_block=$'gate_rust_lint() {\n    # scripts/tests/local_ci_gate_set_e_test.sh is documented here only\n    bash "$REPO_ROOT/scripts/tests/ci_workflow_test.sh" || return $?\n}'
+    comment_only_block=$'gate_local_ci_contracts() {\n    # scripts/tests/local_ci_gate_set_e_test.sh is documented here only\n    bash "$REPO_ROOT/scripts/tests/local_ci_parallel_safety_test.sh" || return $?\n}'
 
     if block_has_regex "$comment_only_block" "$SET_E_HOOK_REGEX"; then
         fail "set-e hook detection accepted a comment-only mention; expected executable invocation requirement"
@@ -165,20 +172,20 @@ test_set_e_hook_detection_rejects_comment_only_mentions() {
     fi
 }
 
-test_local_ci_rust_lint_includes_env_local_isolation_hook() {
-    local rust_lint_block
-    rust_lint_block="$(extract_function_block gate_rust_lint)"
+test_local_ci_contracts_gate_includes_env_local_isolation_hook() {
+    local local_ci_contracts_block
+    local_ci_contracts_block="$(extract_function_block gate_local_ci_contracts)"
 
-    if block_has_regex "$rust_lint_block" "$ENV_LOCAL_ISOLATION_HOOK_REGEX"; then
-        pass "gate_rust_lint executes local_ci_env_local_isolation_test.sh"
+    if block_has_regex "$local_ci_contracts_block" "$ENV_LOCAL_ISOLATION_HOOK_REGEX"; then
+        pass "gate_local_ci_contracts executes local_ci_env_local_isolation_test.sh"
     else
-        fail "gate_rust_lint is missing local_ci_env_local_isolation_test.sh regression hook"
+        fail "gate_local_ci_contracts is missing local_ci_env_local_isolation_test.sh regression hook"
     fi
 }
 
 test_env_local_isolation_hook_detection_rejects_comment_only_mentions() {
     local comment_only_block
-    comment_only_block=$'gate_rust_lint() {\n    # scripts/tests/local_ci_env_local_isolation_test.sh is documented here only\n    bash "$REPO_ROOT/scripts/tests/ci_workflow_test.sh" || return $?\n}'
+    comment_only_block=$'gate_local_ci_contracts() {\n    # scripts/tests/local_ci_env_local_isolation_test.sh is documented here only\n    bash "$REPO_ROOT/scripts/tests/local_ci_parallel_safety_test.sh" || return $?\n}'
 
     if block_has_regex "$comment_only_block" "$ENV_LOCAL_ISOLATION_HOOK_REGEX"; then
         fail "env-local isolation hook detection accepted a comment-only mention; expected executable invocation requirement"
@@ -187,31 +194,31 @@ test_env_local_isolation_hook_detection_rejects_comment_only_mentions() {
     fi
 }
 
-test_local_ci_rust_lint_has_no_ambient_env_local_isolation_skip() {
-    local rust_lint_block
-    rust_lint_block="$(extract_function_block gate_rust_lint)"
+test_local_ci_contracts_gate_has_no_ambient_env_local_isolation_skip() {
+    local local_ci_contracts_block
+    local_ci_contracts_block="$(extract_function_block gate_local_ci_contracts)"
 
-    if [[ "$rust_lint_block" == *"$ENV_LOCAL_ISOLATION_SKIP_VAR"* ]]; then
-        fail "gate_rust_lint contains ambient $ENV_LOCAL_ISOLATION_SKIP_VAR bypass"
+    if [[ "$local_ci_contracts_block" == *"$ENV_LOCAL_ISOLATION_SKIP_VAR"* ]]; then
+        fail "gate_local_ci_contracts contains ambient $ENV_LOCAL_ISOLATION_SKIP_VAR bypass"
     else
-        pass "gate_rust_lint has no ambient env-local isolation bypass"
+        pass "gate_local_ci_contracts has no ambient env-local isolation bypass"
     fi
 }
 
-test_local_ci_rust_lint_includes_node_modules_guard_contract() {
-    local rust_lint_block
-    rust_lint_block="$(extract_function_block gate_rust_lint)"
+test_local_ci_contracts_gate_includes_node_modules_guard_contract() {
+    local local_ci_contracts_block
+    local_ci_contracts_block="$(extract_function_block gate_local_ci_contracts)"
 
-    if block_has_regex "$rust_lint_block" "$NODE_MODULES_GUARD_HOOK_REGEX"; then
-        pass "gate_rust_lint executes local_ci_node_modules_guard_test.sh"
+    if block_has_regex "$local_ci_contracts_block" "$NODE_MODULES_GUARD_HOOK_REGEX"; then
+        pass "gate_local_ci_contracts executes local_ci_node_modules_guard_test.sh"
     else
-        fail "gate_rust_lint is missing local_ci_node_modules_guard_test.sh regression hook"
+        fail "gate_local_ci_contracts is missing local_ci_node_modules_guard_test.sh regression hook"
     fi
 }
 
 test_node_modules_guard_hook_detection_rejects_comment_only_mentions() {
     local comment_only_block
-    comment_only_block=$'gate_rust_lint() {\n    # scripts/tests/local_ci_node_modules_guard_test.sh is documented here only\n    bash "$REPO_ROOT/scripts/tests/ci_workflow_test.sh" || return $?\n}'
+    comment_only_block=$'gate_local_ci_contracts() {\n    # scripts/tests/local_ci_node_modules_guard_test.sh is documented here only\n    bash "$REPO_ROOT/scripts/tests/local_ci_parallel_safety_test.sh" || return $?\n}'
 
     if block_has_regex "$comment_only_block" "$NODE_MODULES_GUARD_HOOK_REGEX"; then
         fail "node_modules guard hook detection accepted a comment-only mention; expected executable invocation requirement"
@@ -220,20 +227,20 @@ test_node_modules_guard_hook_detection_rejects_comment_only_mentions() {
     fi
 }
 
-test_local_ci_rust_lint_includes_integration_test_layout_hook() {
-    local rust_lint_block
-    rust_lint_block="$(extract_function_block gate_rust_lint)"
+test_ci_deploy_web_gate_includes_integration_test_layout_hook() {
+    local ci_deploy_web_block
+    ci_deploy_web_block="$(extract_function_block gate_ci_deploy_web_contracts)"
 
-    if block_has_regex "$rust_lint_block" "$LAYOUT_HOOK_REGEX"; then
-        pass "gate_rust_lint executes integration_test_layout_test.sh"
+    if block_has_regex "$ci_deploy_web_block" "$LAYOUT_HOOK_REGEX"; then
+        pass "gate_ci_deploy_web_contracts executes integration_test_layout_test.sh"
     else
-        fail "gate_rust_lint is missing integration_test_layout_test.sh contract hook"
+        fail "gate_ci_deploy_web_contracts is missing integration_test_layout_test.sh contract hook"
     fi
 }
 
 test_layout_hook_detection_rejects_comment_only_mentions() {
     local comment_only_block
-    comment_only_block=$'gate_rust_lint() {\n    # scripts/tests/integration_test_layout_test.sh is documented here only\n    bash "$REPO_ROOT/scripts/tests/ci_workflow_test.sh" || return $?\n}'
+    comment_only_block=$'gate_ci_deploy_web_contracts() {\n    # scripts/tests/integration_test_layout_test.sh is documented here only\n    bash "$REPO_ROOT/scripts/tests/ci_workflow_test.sh" || return $?\n}'
 
     if block_has_regex "$comment_only_block" "$LAYOUT_HOOK_REGEX"; then
         fail "layout hook detection accepted a comment-only mention; expected executable invocation requirement"
@@ -337,6 +344,23 @@ test_secret_distinctness_gate_not_wired_by_default() {
     else
         fail "local-ci RED-path contract drifted; expected unknown-gate response without secret-distinctness in known gates list. Known gates line: $known_gates_line"
     fi
+}
+
+test_relocated_gates_are_listed_in_help_and_known_gate_rosters() {
+    local help_text summary_roster unknown_gate_roster gate_name
+    help_text="$(bash "$LOCAL_CI" --help)"
+    summary_roster="$(grep -F "    printf 'Known gates:" "$LOCAL_CI")"
+    unknown_gate_roster="$(grep -F '        echo "Known gates:' "$LOCAL_CI")"
+
+    for gate_name in "${RELOCATED_GATE_NAMES[@]}"; do
+        if [[ "$help_text" == *"$gate_name"* ]] \
+            && [[ "$summary_roster" == *"$gate_name"* ]] \
+            && [[ "$unknown_gate_roster" == *"$gate_name"* ]]; then
+            pass "$gate_name is listed in help and both known-gate rosters"
+        else
+            fail "$gate_name must be listed in help and both known-gate rosters"
+        fi
+    done
 }
 
 test_local_ci_source_pollution_gate_is_wired() {
@@ -514,21 +538,22 @@ test_local_ci_exit_trap_replaces_nested_keep_log_dir() {
 main() {
     echo "=== local_ci_gate_set_e_test ==="
     test_local_ci_rust_lint_fails_on_real_fmt_violation
-    test_local_ci_rust_lint_includes_generate_ssm_env_contract
-    test_local_ci_rust_lint_includes_set_e_regression_hook
+    test_aws_inbox_helper_gate_includes_generate_ssm_env_contract
+    test_local_ci_contracts_gate_includes_set_e_regression_hook
     test_hook_detection_rejects_comment_only_mentions
     test_set_e_hook_detection_rejects_comment_only_mentions
-    test_local_ci_rust_lint_includes_env_local_isolation_hook
+    test_local_ci_contracts_gate_includes_env_local_isolation_hook
     test_env_local_isolation_hook_detection_rejects_comment_only_mentions
-    test_local_ci_rust_lint_has_no_ambient_env_local_isolation_skip
-    test_local_ci_rust_lint_includes_node_modules_guard_contract
+    test_local_ci_contracts_gate_has_no_ambient_env_local_isolation_skip
+    test_local_ci_contracts_gate_includes_node_modules_guard_contract
     test_node_modules_guard_hook_detection_rejects_comment_only_mentions
-    test_local_ci_rust_lint_includes_integration_test_layout_hook
+    test_ci_deploy_web_gate_includes_integration_test_layout_hook
     test_layout_hook_detection_rejects_comment_only_mentions
     test_local_ci_migration_gate_uses_local_postgres_default_url
     test_local_ci_rust_test_owns_lane_local_seeded_source_flapjack
     test_local_ci_rust_test_fails_before_cargo_without_owned_source_runtime
     test_secret_distinctness_gate_not_wired_by_default
+    test_relocated_gates_are_listed_in_help_and_known_gate_rosters
     test_local_ci_source_pollution_gate_is_wired
     test_local_ci_ses_coverage_a1_runs_deployable_currency_contract
     test_ses_coverage_a1_deployable_currency_hook_rejects_comment_only_mentions

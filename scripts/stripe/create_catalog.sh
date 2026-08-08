@@ -45,13 +45,17 @@ api() { curl -sS -u "${STRIPE_SECRET_KEY}:" "$@"; }
 
 # Dimensions:
 #   dim_key | product_name                | type      | unit_amount | unit_amount_decimal | currency | interval
+# The retired dedicated-plan floor is intentionally absent:
+# infra/api/src/invoicing/line_items.rs::invoice_total_with_minimum no longer
+# reads minimum_spend_cents, infra/migrations/049_free_plan_zero_minimum_spend.sql
+# zeroed the launch value, and scripts/tests/stripe_catalog_plan_parity_test.sh
+# guards against re-adding that retired dimension.
 CATALOG=(
   "storage_rate_per_mb_month|Flapjack Hot Storage|one_time|5||usd|"
   "cold_storage_rate_per_gb_month|Flapjack Cold Storage|one_time|2||usd|"
   "object_storage_rate_per_gb_month|Flapjack Object Storage|one_time|||usd|"
   "object_storage_egress_rate_per_gb|Flapjack Object Egress|one_time|1||usd|"
   "shared_minimum_spend_cents|Flapjack Shared Minimum|recurring|500||usd|month"
-  "minimum_spend_cents|Flapjack Dedicated Minimum|recurring|1000||usd|month"
 )
 
 # Object storage = $0.024/GB-month → 2.4 cents. Use unit_amount_decimal.

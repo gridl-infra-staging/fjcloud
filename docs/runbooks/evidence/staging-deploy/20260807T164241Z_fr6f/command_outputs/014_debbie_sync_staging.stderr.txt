@@ -1,0 +1,10 @@
+   Compiling database-url v0.1.0 (/Users/stuart/repos/gridl-infra-staging/fjcloud/infra/database-url)
+   Compiling api v0.1.0 (/Users/stuart/repos/gridl-infra-staging/fjcloud/infra/api)
+   Compiling billing v0.1.0 (/Users/stuart/repos/gridl-infra-staging/fjcloud/infra/billing)
+   Compiling pricing-calculator v0.1.0 (/Users/stuart/repos/gridl-infra-staging/fjcloud/infra/pricing-calculator)
+   Compiling aggregation-job v0.1.0 (/Users/stuart/repos/gridl-infra-staging/fjcloud/infra/aggregation-job)
+   Compiling retention-job v0.1.0 (/Users/stuart/repos/gridl-infra-staging/fjcloud/infra/retention-job)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7m 09s
+     Running tests/platform.rs (target/debug/deps/platform-eeb8fec37e45ca8e)
+To github.com:gridl-infra-staging/fjcloud.git
+   75ef893..06ba4b3  main -> main

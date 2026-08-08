@@ -27,12 +27,13 @@
     ]
   },
   {
-    "InstanceId": "i-nonshared-managed",
+    "InstanceId": "i-dedicated-customer-a",
     "State": "running",
-    "LaunchTime": "2026-05-19T00:00:00Z",
+    "LaunchTime": "2026-05-19T00:04:00Z",
     "Tags": [
       {"Key": "managed-by", "Value": "fjcloud"},
-      {"Key": "customer_id", "Value": "cust-nonshared-1"},
+      {"Key": "customer_id", "Value": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"},
+      {"Key": "node_id", "Value": "node-bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"},
       {"Key": "Name", "Value": "fj-vm-customer-a.flapjack.foo"}
     ]
   }

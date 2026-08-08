@@ -20,6 +20,28 @@ import {
 } from './source_migration_expected_bundle';
 export type SourceMigrationProviderParityProvider = 'meilisearch' | 'typesense' | 'algolia';
 
+// How a provider's source claim was proven. `local-container` and `live-probe` are
+// real proofs against a live source; `fixture-only` is the honest degraded label used
+// when a live-probe owner's credentials are absent, so no live source is ever faked.
+export type SourceMigrationSourceProof = 'local-container' | 'live-probe-owner';
+export type SourceMigrationMethod = 'local-container' | 'live-probe' | 'fixture-only';
+
+// Fixture-owned preview expectations. The preview scope is the single selected source
+// index, so `indexes` is always the one connected index and `records` is that index's
+// producer-native documentCount — never an instance-wide inventory sum.
+export type SourceMigrationSourceCounts = { indexes: number; records: number };
+export type SourceMigrationPreviewExpectation = {
+	supported: boolean;
+	sourceCounts: SourceMigrationSourceCounts;
+	// Minimum number of rendered warning locators among the rows the preview/job
+	// equivalence actually compares — i.e. rows matching the contract-level
+	// `warningCodePattern`, not the full preview capture. Measuring it on the
+	// compared population is what keeps the locator half of that equivalence
+	// unable to reduce to all-null-vs-all-null.
+	minimumWarningLocators: number;
+	warningCodePattern: RegExp;
+};
+
 export type SourceMigrationProviderParityExpectation = {
 	label: string;
 	testId: string;
@@ -42,8 +64,11 @@ export type SourceMigrationLocalDestinationNames = {
 
 type SourceMigrationProviderParityBaseContract = {
 	provider: SourceMigrationProviderParityProvider;
-	sourceProof: 'local-container' | 'live-probe-owner';
+	sourceProof: SourceMigrationSourceProof;
 	sourceOwner: string;
+	// Method-qualified provider claim derived from sourceProof, so no three-provider
+	// parity claim is ever rendered without its per-row method qualifier beside it.
+	method: SourceMigrationMethod;
 	connection: SourceMigrationProviderParityConnection;
 	targetNames: readonly string[];
 	cleanupSource?: () => Promise<void>;
@@ -53,6 +78,9 @@ export type SourceMigrationLocalProviderParityContract =
 	SourceMigrationProviderParityBaseContract & {
 		provider: 'meilisearch' | 'typesense';
 		sourceProof: 'local-container';
+		// Preview-before-start expectations sourced from the imported bundle: exact
+		// source counts, plus whether the provider supports preview at all.
+		preview: SourceMigrationPreviewExpectation;
 		destinations: SourceMigrationLocalDestinationNames;
 		canaryNames: readonly string[];
 		expectations: readonly SourceMigrationProviderParityExpectation[];
@@ -93,6 +121,20 @@ export function sourceLabelWithRecordCount(sourceName: string, recordCount: numb
 	return `${sourceName} ${recordCount} records`;
 }
 
+// A connected source previews the single selected index, so preview always reports one
+// index. The instance-wide index inventory is intentionally NOT the preview scope.
+const SELECTED_SOURCE_INDEX_COUNT = 1;
+
+// Single owner of the method qualifier: local sources are local-container; a live-probe
+// owner is live-probe only when its credentials resolve, otherwise fixture-only.
+export function sourceMigrationMethod(
+	sourceProof: SourceMigrationSourceProof,
+	liveProbeCredentialsResolved: boolean
+): SourceMigrationMethod {
+	if (sourceProof === 'local-container') return 'local-container';
+	return liveProbeCredentialsResolved ? 'live-probe' : 'fixture-only';
+}
+
 // Producer-native source record count: the source's own reported document count,
 // never a re-derived length of the captured document sample. Meilisearch reports it
 // as stats `numberOfDocuments` and Typesense as collection `num_documents`; both are
@@ -107,6 +149,47 @@ export function typesenseSourceRecordCount(productCollection: JsonObject): numbe
 	return getNumber(productCollection, 'documentCount');
 }
 
+// Single owner of the Meilisearch compatibility-code shape. The engine renders its own
+// `ReportCode` variant verbatim, so both the retained-job pattern and the preview pattern
+// are built from this one source rather than restating the alternation.
+const MEILISEARCH_WARNING_CODE_SHAPE = 'Meilisearch[A-Za-z]+';
+const MEILISEARCH_WARNING_CODE_PATTERN = new RegExp(`^${MEILISEARCH_WARNING_CODE_SHAPE}$`);
+// The preview additionally reports the preview-only `ProductNotMigrated` scope gap, which
+// the retained job does not carry; the preview vocabulary is therefore a strict superset.
+const MEILISEARCH_PREVIEW_WARNING_CODE_PATTERN = new RegExp(
+	`^(${MEILISEARCH_WARNING_CODE_SHAPE}|ProductNotMigrated)$`
+);
+
+// Meilisearch supports preview; its selected-index preview reports one index and the
+// configured index's producer-native documentCount as the record total.
+export function meilisearchPreviewExpectation(bundle: JsonObject): SourceMigrationPreviewExpectation {
+	return {
+		supported: true,
+		sourceCounts: {
+			indexes: SELECTED_SOURCE_INDEX_COUNT,
+			records: meilisearchSourceRecordCount(bundle)
+		},
+		minimumWarningLocators: 1,
+		warningCodePattern: MEILISEARCH_PREVIEW_WARNING_CODE_PATTERN
+	};
+}
+
+// Typesense does not support preview, but its one-index source counts are still pinned
+// from the products collection so the unsupported-preview claim stays fixture-owned.
+export function typesensePreviewExpectation(
+	productCollection: JsonObject
+): SourceMigrationPreviewExpectation {
+	return {
+		supported: false,
+		sourceCounts: {
+			indexes: SELECTED_SOURCE_INDEX_COUNT,
+			records: typesenseSourceRecordCount(productCollection)
+		},
+		minimumWarningLocators: 0,
+		warningCodePattern: /^$/
+	};
+}
+
 type AlgoliaCredentials = { appId: string; adminKey: string; origin: string };
 
 export function algoliaOriginForApplicationId(appId: string): string {
@@ -117,7 +200,9 @@ export function algoliaOriginForApplicationId(appId: string): string {
 	return `https://${hostLabel}.algolia.net`;
 }
 
-function algoliaCredentials(): AlgoliaCredentials {
+// Non-throwing resolution so callers can distinguish a live-probe row (credentials
+// present) from a fixture-only row (credentials absent) without fabricating a source.
+export function resolveAlgoliaCredentials(): AlgoliaCredentials | null {
 	const secretPath = process.env.FJCLOUD_SECRET_FILE?.trim()
 		? path.resolve(process.env.FJCLOUD_SECRET_FILE)
 		: path.join(REPO_ROOT, '.secret/.env.secret');
@@ -127,11 +212,19 @@ function algoliaCredentials(): AlgoliaCredentials {
 	const appId = secretEnv.ALGOLIA_APP_ID?.trim() || process.env.ALGOLIA_APP_ID?.trim();
 	const adminKey = secretEnv.ALGOLIA_ADMIN_KEY?.trim() || process.env.ALGOLIA_ADMIN_KEY?.trim();
 	if (!appId || !adminKey) {
+		return null;
+	}
+	return { appId, adminKey, origin: algoliaOriginForApplicationId(appId) };
+}
+
+function algoliaCredentials(): AlgoliaCredentials {
+	const credentials = resolveAlgoliaCredentials();
+	if (!credentials) {
 		throw new Error(
 			'Algolia provider-neutral browser lifecycle requires ALGOLIA_APP_ID and ALGOLIA_ADMIN_KEY through the live-probe secret owner'
 		);
 	}
-	return { appId, adminKey, origin: algoliaOriginForApplicationId(appId) };
+	return credentials;
 }
 
 async function algoliaRequest(
@@ -248,6 +341,10 @@ async function algoliaContract(): Promise<SourceMigrationAlgoliaParityContract> 
 	return {
 		provider: 'algolia',
 		sourceProof: 'live-probe-owner',
+		// Credentials resolved above (algoliaCredentials threw otherwise), so this row is a
+		// real live-probe proof; the fixture-only method is reached by resolveAlgoliaCredentials
+		// returning null before this contract is ever built.
+		method: sourceMigrationMethod('live-probe-owner', true),
 		sourceOwner:
 			'scripts/algolia_migration_parity_live_probe.sh + docs/live-state/2026_07_25_algolia_migration_correctness.md',
 		connection: {
@@ -654,6 +751,8 @@ function meilisearchContract(): SourceMigrationLocalProviderParityContract {
 	return {
 		provider: 'meilisearch',
 		sourceProof: 'local-container',
+		method: sourceMigrationMethod('local-container', false),
+		preview: meilisearchPreviewExpectation(bundle),
 		sourceOwner:
 			'scripts/lib/local_source_providers.sh + scripts/lib/local_source_provider_evidence.py',
 		connection,
@@ -687,7 +786,7 @@ function meilisearchContract(): SourceMigrationLocalProviderParityContract {
 				expectedText: 'Applied'
 			}
 		],
-		warningCodePattern: /^Meilisearch[A-Za-z]+$/
+		warningCodePattern: MEILISEARCH_WARNING_CODE_PATTERN
 	};
 }
 
@@ -759,6 +858,8 @@ function typesenseContract(): SourceMigrationLocalProviderParityContract {
 	return {
 		provider: 'typesense',
 		sourceProof: 'local-container',
+		method: sourceMigrationMethod('local-container', false),
+		preview: typesensePreviewExpectation(productCollection),
 		sourceOwner:
 			'scripts/lib/local_source_providers.sh + scripts/lib/local_source_provider_evidence.py',
 		connection,

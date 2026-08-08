@@ -208,7 +208,10 @@ setup_workspace_runner() {
 run_browser_lane_script() {
     local workspace="$1"
     local lane="${2:-both}"
-    local lane_timeout_seconds="${3:-1}"
+    # 1s was too tight for fixtures that expect a clean exit 0: under the
+    # reachability gate's concurrency the mock lanes exceed it and the run
+    # returns 124. Timeout-behaviour cases pass "1" explicitly.
+    local lane_timeout_seconds="${3:-30}"
     local stdout_file="$workspace/stdout.txt"
     local stderr_file="$workspace/stderr.txt"
     local exit_code=0

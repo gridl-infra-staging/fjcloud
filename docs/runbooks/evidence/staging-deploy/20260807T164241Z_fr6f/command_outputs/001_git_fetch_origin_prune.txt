@@ -1,0 +1,4 @@
+command=git fetch origin --prune
+started_at_utc=2026-08-07T16:43:00Z
+ended_at_utc=2026-08-07T16:43:00Z
+exit_code=0

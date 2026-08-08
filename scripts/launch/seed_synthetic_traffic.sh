@@ -23,7 +23,7 @@
 #                                 multi-GB pumping (LAUNCH.md LB-5). Metering agent writes
 #                                 usage_records as soon as the index exists.
 #
-# Tenant shapes (approved by Stuart 2026-04-24):
+# Staging traffic profiles (legacy tenant names are identifiers, not hosting models):
 #   A — demo-shared-free       (100 MB, 10 writes/min, 1 search/min)
 #   B — demo-small-dedicated   (2 GB,  100 writes/min, 10 searches/min)
 #   C — demo-medium-dedicated  (20 GB, 1000 writes/min, 50 searches/min)
@@ -696,10 +696,15 @@ probe_owner_query_exact_object_hit_count() {
 
 probe_owner_visible_in_search_after_count() {
   local flapjack_url="$1" flapjack_uid="$2" window_start_epoch="$3" window_end_epoch="$4" tenant_letter="$5"
-  local write_events_log visible_count doc_ids doc_id hit_count include_full_scope
+  local write_events_log visible_count visibility_query_failures doc_ids doc_id hit_count include_full_scope counter_path
   write_events_log="$(probe_owner_event_log_path "write")"
   visible_count=0
+  visibility_query_failures=0
+  counter_path="$(probe_owner_counter_path "$tenant_letter" "visibility_query_failures")"
   if [ ! -f "$write_events_log" ]; then
+    if [ -n "$counter_path" ]; then
+      printf '%s' "$visibility_query_failures" > "$counter_path"
+    fi
     printf '0'
     return 0
   fi
@@ -728,25 +733,46 @@ probe_owner_visible_in_search_after_count() {
   if [ -z "$doc_ids" ]; then
     # Zero successful restart-window writes is a valid measured outcome.
     # Return a numeric zero so probe consumers keep callback-backed scope.
+    if [ -n "$counter_path" ]; then
+      printf '%s' "$visibility_query_failures" > "$counter_path"
+    fi
     printf '0'
     return 0
   fi
   while IFS= read -r doc_id; do
     [ -n "$doc_id" ] || continue
-    if hit_count="$(probe_owner_query_exact_object_hit_count "$flapjack_url" "$flapjack_uid" "$doc_id")"; then
-      case "$hit_count" in
-        ''|*[!0-9]*) ;;
-        *)
-          if [ "$hit_count" -gt 0 ]; then
-            visible_count=$((visible_count + 1))
-          fi
-          ;;
-      esac
+    if ! hit_count="$(probe_owner_query_exact_object_hit_count "$flapjack_url" "$flapjack_uid" "$doc_id")"; then
+      # A failed query is unknown visibility evidence, not document absence.
+      visibility_query_failures=$((visibility_query_failures + 1))
+      continue
     fi
+    case "$hit_count" in
+      ''|*[!0-9]*)
+        visibility_query_failures=$((visibility_query_failures + 1))
+        ;;
+      *)
+        if [ "$hit_count" -gt 0 ]; then
+          visible_count=$((visible_count + 1))
+        fi
+        ;;
+    esac
   done <<EOF
 $doc_ids
 EOF
+  if [ -z "$counter_path" ]; then
+    if [ "$visibility_query_failures" -gt 0 ]; then
+      return 3
+    fi
+  else
+    printf '%s' "$visibility_query_failures" > "$counter_path"
+  fi
   printf '%s' "$visible_count"
+}
+
+probe_owner_visibility_query_failure_count() {
+  local tenant_letter="$1" counter_path
+  counter_path="$(probe_owner_counter_path "$tenant_letter" "visibility_query_failures")"
+  probe_owner_read_numeric_or_zero "$counter_path"
 }
 
 probe_owner_cross_tenant_leak_count() {

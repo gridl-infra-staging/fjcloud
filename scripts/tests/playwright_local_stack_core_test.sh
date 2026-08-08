@@ -20,9 +20,15 @@ test_playwright_stack_applies_migrations_before_api_start() {
 	prepare_playwright_stack_harness
 	trap 'rm -rf "'"$temp_dir"'"' RETURN
 	write_stack_harness_curl "$fake_bin/curl"
+	# prepare_playwright_stack_harness already installs the postgres-aware docker
+	# stub this test asserts against; it records every call to docker_calls.log.
 	cat > "$temp_dir/scripts/local-dev-migrate.sh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
+if [ ! -f "${TEST_STACK_RUN_DIR:?}/postgres_started" ]; then
+	echo "migrations started before postgres" >&2
+	exit 1
+fi
 touch "${TEST_STACK_RUN_DIR:?}/migrations_applied"
 SH
 	chmod +x "$temp_dir/scripts/local-dev-migrate.sh"
@@ -62,10 +68,118 @@ SH
 
 	assert_eq "$exit_code" "0" \
 		"playwright stack should apply local migrations before API startup"
+	assert_contains "$(cat "$temp_dir/docker_calls.log" 2>/dev/null || true)" \
+		"compose up -d postgres" \
+		"playwright stack should start local Postgres before applying migrations"
 	assert_file_eventually_exists "$temp_dir/migrations_applied" \
 		"playwright stack should invoke the local migration script"
 	assert_not_contains "$output" "api started before migrations" \
 		"API should not start before the migration prerequisite"
+}
+
+# The readiness wait is the only thing standing between a just-created Postgres
+# container and local-dev-migrate.sh. If it ever defaulted to "ready" on an
+# indeterminate probe, migrations would fail against a database still starting
+# up, so the timeout branch needs a test that can actually go red.
+test_playwright_stack_fails_closed_when_postgres_never_becomes_ready() {
+	local temp_dir fake_bin output exit_code=0
+	prepare_playwright_stack_harness
+	trap 'rm -rf "'"$temp_dir"'"' RETURN
+	write_stack_harness_curl "$fake_bin/curl"
+	cat > "$fake_bin/docker" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "${TEST_STACK_RUN_DIR:?}/docker_calls.log"
+if [ "$1" = "compose" ] && [ "$2" = "up" ] && [ "$3" = "-d" ] && [ "$4" = "postgres" ]; then
+	exit 0
+fi
+# Compose accepts the container but the server never answers pg_isready.
+exit 1
+SH
+	chmod +x "$fake_bin/docker"
+	cat > "$temp_dir/scripts/local-dev-migrate.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+touch "${TEST_STACK_RUN_DIR:?}/migrations_applied"
+SH
+	chmod +x "$temp_dir/scripts/local-dev-migrate.sh"
+	write_exit_zero_stub "$temp_dir/scripts/api-dev.sh"
+	write_exit_zero_stub "$temp_dir/scripts/web-dev.sh"
+
+	# A non-zero budget so the wait actually polls: with 0 the loop body never
+	# runs and the test would pass even against a probe hardcoded to "ready".
+	# PLAYWRIGHT_API_READY_TIMEOUT_SECONDS is pinned so a regression that lets the
+	# stack past the Postgres gate fails in seconds instead of burning the 600s
+	# cold-build default waiting on an API this test never starts.
+	output=$(
+		run_playwright_stack_harness "$fake_bin:$PATH" \
+			PLAYWRIGHT_POSTGRES_READY_TIMEOUT_SECONDS="2" \
+			PLAYWRIGHT_API_READY_TIMEOUT_SECONDS="3" 2>&1
+	) || exit_code=$?
+
+	assert_eq "$exit_code" "1" \
+		"playwright stack should fail closed when Postgres never accepts connections"
+	assert_contains "$(cat "$temp_dir/docker_calls.log" 2>/dev/null || true)" \
+		"compose exec -T postgres pg_isready" \
+		"the readiness wait should probe the server rather than assume it is up"
+	assert_contains "$output" "Postgres did not become ready on DATABASE_URL port 5432" \
+		"the Postgres readiness failure should name the DATABASE_URL port it waited on"
+	[ ! -f "$temp_dir/migrations_applied" ] || \
+		fail "playwright stack must not apply migrations against an unready Postgres"
+}
+
+test_playwright_stack_rejects_non_integer_postgres_ready_timeout() {
+	local temp_dir fake_bin output exit_code=0
+	prepare_playwright_stack_harness
+	trap 'rm -rf "'"$temp_dir"'"' RETURN
+	write_stack_harness_curl "$fake_bin/curl"
+
+	output=$(
+		run_playwright_stack_harness "$fake_bin:$PATH" \
+			PLAYWRIGHT_POSTGRES_READY_TIMEOUT_SECONDS="soon" 2>&1
+	) || exit_code=$?
+
+	assert_eq "$exit_code" "1" \
+		"a non-integer Postgres readiness timeout should stop the stack"
+	assert_contains "$output" "PLAYWRIGHT_POSTGRES_READY_TIMEOUT_SECONDS must be a non-negative integer" \
+		"the rejection should name the offending timeout variable"
+}
+
+test_playwright_stack_uses_cold_api_default_ready_timeout() {
+	local temp_dir fake_bin output exit_code=0 seq_log
+	prepare_playwright_stack_harness
+	trap 'rm -rf "'"$temp_dir"'"' RETURN
+	write_stack_harness_curl "$fake_bin/curl"
+	write_exit_zero_stub "$temp_dir/scripts/local-dev-migrate.sh"
+	write_exit_zero_stub "$temp_dir/scripts/web-dev.sh"
+	cat > "$temp_dir/scripts/api-dev.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+touch "${TEST_STACK_RUN_DIR:?}/api_ready"
+trap 'exit 0' TERM INT
+while true; do sleep 1; done
+SH
+	chmod +x "$temp_dir/scripts/api-dev.sh"
+	cat > "$fake_bin/seq" <<'SH'
+#!/usr/bin/env bash
+if [ "$*" = "1 600" ]; then
+	printf '%s\n' "$*" >> "${TEST_STACK_RUN_DIR:?}/api_ready_seq.log"
+	printf '1\n'
+	exit 0
+fi
+exec /usr/bin/seq "$@"
+SH
+	chmod +x "$fake_bin/seq"
+
+	output="$(run_playwright_stack_harness "$fake_bin:$PATH" 2>&1)" || exit_code=$?
+	seq_log="$(cat "$temp_dir/api_ready_seq.log" 2>/dev/null || true)"
+
+	assert_eq "$exit_code" "0" \
+		"playwright stack should start with the cold API default readiness timeout"
+	assert_eq "$seq_log" "1 600" \
+		"playwright stack should give cold Rust API startup a 600 second default budget"
+	assert_not_contains "$output" "API did not become ready" \
+		"cold API timeout default should not fail when the API becomes healthy"
 }
 
 test_playwright_stack_rejects_unserved_public_infrastructure_before_web_start() {
@@ -211,6 +325,14 @@ if [ "$1" = "compose" ] && [ "$2" = "up" ] && [ "$3" = "-d" ] && [ "$4" = "mailp
 	touch "$TEST_STACK_RUN_DIR/mailpit_compose_started"
 	exit 0
 fi
+if [ "$1" = "compose" ] && [ "$2" = "up" ] && [ "$3" = "-d" ] && [ "$4" = "postgres" ]; then
+	touch "$TEST_STACK_RUN_DIR/postgres_started"
+	exit 0
+fi
+if [ "$1" = "compose" ] && [ "$2" = "exec" ] && [ "$3" = "-T" ] && [ "$4" = "postgres" ]; then
+	[ -f "$TEST_STACK_RUN_DIR/postgres_started" ]
+	exit $?
+fi
 if [ "$1" = "compose" ] && [ "$2" = "stop" ] && [ "$3" = "mailpit" ]; then
 	touch "$TEST_STACK_RUN_DIR/mailpit_compose_stopped"
 	exit 0
@@ -336,6 +458,14 @@ test_verification_required_mode_removes_api_skip_env_but_default_preserves_it() 
 set -euo pipefail
 if [ "$1" = "compose" ] && [ "$2" = "up" ] && [ "$3" = "-d" ] && [ "$4" = "mailpit" ]; then
 	exit 0
+fi
+if [ "$1" = "compose" ] && [ "$2" = "up" ] && [ "$3" = "-d" ] && [ "$4" = "postgres" ]; then
+	touch "$TEST_STACK_RUN_DIR/postgres_started"
+	exit 0
+fi
+if [ "$1" = "compose" ] && [ "$2" = "exec" ] && [ "$3" = "-T" ] && [ "$4" = "postgres" ]; then
+	[ -f "$TEST_STACK_RUN_DIR/postgres_started" ]
+	exit $?
 fi
 if [ "$1" = "compose" ] && [ "$2" = "ps" ]; then
 	exit 0
@@ -540,6 +670,12 @@ test_stack_pid_termination_cleans_children_after_web_start() {
 }
 
 test_playwright_stack_applies_migrations_before_api_start
+
+test_playwright_stack_fails_closed_when_postgres_never_becomes_ready
+
+test_playwright_stack_rejects_non_integer_postgres_ready_timeout
+
+test_playwright_stack_uses_cold_api_default_ready_timeout
 
 test_playwright_stack_rejects_unserved_public_infrastructure_before_web_start
 

@@ -118,7 +118,9 @@
 #
 # Equal staging/prod subnet pointers in one shared region make attribution
 # ambiguous and ACTION_REQUIRED. A missing/empty/ParameterNotFound subnet
-# pointer is an unreadable attribution oracle and ACTION_REQUIRED; a transport,
+# pointer is an unreadable attribution oracle and ACTION_REQUIRED when that
+# region contains a managed engine candidate. Semantic pointer absence in a
+# successfully measured region with no candidate is non-actionable; a transport,
 # authorization, command, or parse failure is PROBE_ERROR. A subnet matching
 # neither enabled environment is DRIFT. Never fall back to another region's
 # pointer. Different subnet or AMI values across regions are expected and are
@@ -129,7 +131,7 @@
 # required region and only add reads for uncovered regions; it must not fetch
 # the identical pointer twice merely to populate the new evidence document.
 #
-# adr-decision: environment_attribution => match each instance SubnetId to exactly one enabled environment's same-region /fjcloud/${env}/aws_subnet_id; equal or semantically unreadable subnet pointers are ACTION_REQUIRED, no match is DRIFT, and AMI or an invented environment tag must never choose the environment
+# adr-decision: environment_attribution => match each instance SubnetId to exactly one enabled environment's same-region /fjcloud/${env}/aws_subnet_id; equal or semantically unreadable subnet pointers are ACTION_REQUIRED where a managed candidate exists, semantic pointer absence is ignored in a successfully measured candidate-free region, no match is DRIFT, and AMI or an invented environment tag must never choose the environment
 #
 # AMI currency
 # ------------
@@ -137,13 +139,13 @@
 # same-region /fjcloud/${env}/aws_ami_id. Equal staging/prod AMI pointers are
 # valid: both environments can intentionally share the current image. One or
 # both missing, empty, or ParameterNotFound AMI pointers make the oracle
-# unreadable and ACTION_REQUIRED even if the fleet is degraded; command,
+# unreadable and ACTION_REQUIRED where a managed candidate exists; command,
 # transport, authorization, or malformed-response failures are PROBE_ERROR.
-# A readable pointer that differs from the instance ImageId is DRIFT. Pointers
-# never cross region boundaries, and all required pointers are read even in a
-# region that currently has no managed instances.
+# Semantic pointer absence in a successfully measured candidate-free region is
+# non-actionable. A readable pointer that differs from the instance ImageId is
+# DRIFT, and pointers never cross region boundaries.
 #
-# adr-decision: ami_oracle => compare ImageId only with the subnet-attributed environment's same-region /fjcloud/${env}/aws_ami_id; equal env pointers are allowed, semantic absence is ACTION_REQUIRED, failed reads are PROBE_ERROR, and readable mismatch is DRIFT
+# adr-decision: ami_oracle => compare ImageId only with the subnet-attributed environment's same-region /fjcloud/${env}/aws_ami_id; equal env pointers are allowed, semantic absence is ACTION_REQUIRED where a managed candidate exists and ignored in a successfully measured candidate-free region, failed reads are PROBE_ERROR, and readable mismatch is DRIFT
 #
 # Real data-plane evidence
 # ------------------------
@@ -318,7 +320,7 @@
 # status-mapping: zero_managed_instances => ACTION_REQUIRED when no managed instance exists across all covered regions or either required environment has no attributed managed instance
 # status-mapping: required_read_failed => PROBE_ERROR for attempted region discovery, EC2, SSM, or pointer collection that fails by command, transport, authorization, pagination, repository, or response-parse error; search failures use search_evidence_indeterminate instead
 # status-mapping: malformed_evidence => PROBE_ERROR for empty input, invalid JSON, unsupported schema, wrong types, duplicate identities, or absent required structural fields
-# status-mapping: ami_oracle_unreadable => ACTION_REQUIRED when any required same-region AMI pointer is missing, empty, or ParameterNotFound; a failed read remains required_read_failed
+# status-mapping: ami_oracle_unreadable => ACTION_REQUIRED when a required same-region AMI pointer is missing, empty, or ParameterNotFound in a region containing a managed candidate; semantic absence in a successfully measured candidate-free region is non-actionable, and a failed read remains required_read_failed
 # status-mapping: ami_mismatch => DRIFT when an attributed instance ImageId differs from its readable same-region environment AMI pointer
 # status-mapping: non_running_instance => STALE for any pending, stopping, stopped, shutting-down, terminated, unknown, or missing/null state, including all-non-running and mixed running/non-running fleets
 # status-mapping: freshness_missing_or_stale => STALE for any missing SSM row/timestamp, non-Online ping, age over 600 seconds, or future timestamp; equality at 600 seconds is fresh
@@ -459,6 +461,11 @@ def pointer_values(pointer):
     subnet_value = nullable_str(subnet, "value")
     ami_value = nullable_str(ami, "value")
     return subnet_outcome, subnet_value, ami_outcome, ami_value
+
+
+def is_managed_engine_candidate(instance):
+    tags = instance["tags"]
+    return tags.get("managed-by") == "fjcloud" and (tags.get("Name") or "").startswith("fj-")
 
 
 def validate_top(data):
@@ -603,30 +610,50 @@ def collect_region_context(data, findings):
     return region_by_name, instances_by_region, ssm_by_region, failed_ec2_regions
 
 
-def evaluate_pointers(required_regions, pointer_by_env_region, findings):
+# A subnet/AMI pointer gap is only actionable where a managed engine could actually be
+# attributed. An advertised catalogue region with no fleet has no instance to attribute, and
+# provisioning one managed engine candidate there removes this exemption. Emptiness must be a
+# measured zero: a region whose EC2 read failed is never exempt, and a region missing from
+# regions[] entirely is already reported by blocked_fleet_envs as PROBE_ERROR required_read_failed.
+def pointer_gap_is_unattributable(region_by_name, instances_by_region, failed_ec2_regions, aws_region):
+    if aws_region in failed_ec2_regions:
+        return False
+    if aws_region not in region_by_name:
+        return True
+    return not any(is_managed_engine_candidate(instance) for instance in instances_by_region.get(aws_region, []))
+
+
+def evaluate_pointers(required_regions, pointer_by_env_region, region_by_name, instances_by_region, failed_ec2_regions, findings):
     subnet_by_env_region = {}
     ami_by_env_region = {}
     failed_pointer_envs = set()
     for env_name, regions in required_regions.items():
         for aws_region in regions:
+            unattributable_pointer_gap = pointer_gap_is_unattributable(
+                region_by_name,
+                instances_by_region,
+                failed_ec2_regions,
+                aws_region,
+            )
             pointer = pointer_by_env_region.get((env_name, aws_region))
             if pointer is None:
-                add(findings, "ACTION_REQUIRED", "environment_attribution_ambiguous")
-                add(findings, "ACTION_REQUIRED", "ami_oracle_unreadable")
+                if not unattributable_pointer_gap:
+                    add(findings, "ACTION_REQUIRED", "environment_attribution_ambiguous")
+                    add(findings, "ACTION_REQUIRED", "ami_oracle_unreadable")
                 continue
             subnet_outcome, subnet_value, ami_outcome, ami_value = pointer_values(pointer)
             if subnet_outcome == "failed":
                 add(findings, "PROBE_ERROR", "required_read_failed")
                 failed_pointer_envs.add(env_name)
-            elif subnet_outcome != "ok" or not subnet_value:
+            elif (subnet_outcome != "ok" or not subnet_value) and not unattributable_pointer_gap:
                 add(findings, "ACTION_REQUIRED", "environment_attribution_ambiguous")
-            else:
+            elif subnet_outcome == "ok" and subnet_value:
                 subnet_by_env_region[(env_name, aws_region)] = subnet_value
             if ami_outcome == "failed":
                 add(findings, "PROBE_ERROR", "required_read_failed")
-            elif ami_outcome != "ok" or not ami_value:
+            elif (ami_outcome != "ok" or not ami_value) and not unattributable_pointer_gap:
                 add(findings, "ACTION_REQUIRED", "ami_oracle_unreadable")
-            else:
+            elif ami_outcome == "ok" and ami_value:
                 ami_by_env_region[(env_name, aws_region)] = ami_value
 
     for aws_region in {region for _, region in subnet_by_env_region}:
@@ -657,8 +684,7 @@ def evaluate_instances(data, instances_by_region, ssm_by_region, subnet_by_env_r
         for instance in instances:
             tags = instance["tags"]
             if (
-                tags.get("managed-by") != "fjcloud"
-                or not (tags.get("Name") or "").startswith("fj-")
+                not is_managed_engine_candidate(instance)
                 or not tags.get("customer_id")
                 or not tags.get("node_id")
             ):
@@ -703,7 +729,14 @@ def classify(data):
     validate_top(data)
     required_regions, pointer_by_env_region, failed_discovery_envs = collect_environment_context(data, findings)
     region_by_name, instances_by_region, ssm_by_region, failed_ec2_regions = collect_region_context(data, findings)
-    subnet_by_env_region, ami_by_env_region, failed_pointer_envs = evaluate_pointers(required_regions, pointer_by_env_region, findings)
+    subnet_by_env_region, ami_by_env_region, failed_pointer_envs = evaluate_pointers(
+        required_regions,
+        pointer_by_env_region,
+        region_by_name,
+        instances_by_region,
+        failed_ec2_regions,
+        findings,
+    )
     if data["credential_state"] == "missing":
         return "ACTION_REQUIRED", "missing_credentials"
 

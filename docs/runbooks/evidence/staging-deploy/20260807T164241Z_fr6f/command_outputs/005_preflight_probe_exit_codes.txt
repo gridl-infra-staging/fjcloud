@@ -1,0 +1,3 @@
+command=bash scripts/probe_mirror_ci_currency.sh
+exit_code=1
+staging_green_grep_exit=0

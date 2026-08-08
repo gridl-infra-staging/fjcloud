@@ -336,6 +336,79 @@ EOF
     report_assertion "execution failure without serial tail" 1 "$failures" "failing non-serial suite is reported on a shard with no serial suite"
 }
 
+assert_failure_marker_survives_long_tail() {
+    local fixture="$TMP_ROOT/failure_marker_fixture" output="$TMP_ROOT/failure_marker.err"
+    local failing_suite="scripts/tests/failing_with_long_tail_test.sh"
+    local serial_suite="scripts/tests/failure_marker_serial_test.sh"
+    local excluded_suite="scripts/tests/failure_marker_excluded_test.sh"
+    local rc=0 failures=0
+    mkdir -p "$fixture/scripts/lib" "$fixture/scripts/tests"
+    cat > "$fixture/scripts/lib/test_reachability_manifest.sh" <<EOF
+#!/usr/bin/env bash
+TEST_REACHABILITY_HERMETIC_TESTS=(
+    "$failing_suite"
+    "$serial_suite"
+    "$excluded_suite"
+)
+EOF
+    printf '%s # absent/from/mirror — fixture exclusion\n' "$excluded_suite" > "$fixture/scripts/tests/mirror_excluded_tests.txt"
+    printf '%s # fixture serial suite\n' "$serial_suite" > "$fixture/scripts/tests/serial_only_tests.txt"
+    cat > "$fixture/$failing_suite" <<'EOF'
+#!/usr/bin/env bash
+echo "FAIL: buried assertion that must reach the CI log" >&2
+for i in $(seq 1 40); do
+    echo "PASS: trailing success $i"
+done
+exit 1
+EOF
+    cat > "$fixture/$serial_suite" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+    chmod +x "$fixture/$failing_suite" "$fixture/$serial_suite"
+
+    FJCLOUD_MIRROR_SHARD_REPO_ROOT="$fixture" "$RUNNER_SHELL" "$RUNNER" \
+        --shard 1 --shards 1 > /dev/null 2> "$output" || rc=$?
+    [ "$rc" -ne 0 ] || failures=$((failures + 1))
+    grep -Fq "$failing_suite" "$output" || failures=$((failures + 1))
+    grep -Fq "FAIL: buried assertion that must reach the CI log" "$output" || failures=$((failures + 1))
+    report_assertion "failure marker survives long tail" 1 "$failures" "runner emits FAIL lines even when they fall outside the stderr tail"
+}
+
+assert_execution_count_summary_reaches_log() {
+    local fixture="$TMP_ROOT/execution_count_fixture" output="$TMP_ROOT/execution_count.err"
+    local suite_one="scripts/tests/execution_count_one_test.sh"
+    local suite_two="scripts/tests/execution_count_two_test.sh"
+    local excluded_suite="scripts/tests/execution_count_excluded_test.sh"
+    local rc=0 failures=0
+    mkdir -p "$fixture/scripts/lib" "$fixture/scripts/tests"
+    cat > "$fixture/scripts/lib/test_reachability_manifest.sh" <<EOF
+#!/usr/bin/env bash
+TEST_REACHABILITY_HERMETIC_TESTS=(
+    "$suite_one"
+    "$suite_two"
+    "$excluded_suite"
+)
+EOF
+    printf '%s # absent/from/mirror — fixture exclusion\n' "$excluded_suite" > "$fixture/scripts/tests/mirror_excluded_tests.txt"
+    printf '%s\n' '# no serial suites in this fixture' > "$fixture/scripts/tests/serial_only_tests.txt"
+    cat > "$fixture/$suite_one" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+    cat > "$fixture/$suite_two" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+    chmod +x "$fixture/$suite_one" "$fixture/$suite_two"
+
+    FJCLOUD_MIRROR_SHARD_REPO_ROOT="$fixture" "$RUNNER_SHELL" "$RUNNER" \
+        --shard 1 --shards 1 > /dev/null 2> "$output" || rc=$?
+    [ "$rc" -eq 0 ] || failures=$((failures + 1))
+    grep -Fq "mirror manifest shard: executed 2 suite(s) in shard 1/1" "$output" || failures=$((failures + 1))
+    report_assertion "execution count summary reaches log" 1 "$failures" "successful shard logs expose executed suite count for mirror proof"
+}
+
 assert_execution_scrubs_ambient_environment() {
     local fixture="$TMP_ROOT/hermetic_environment_fixture"
     local output="$TMP_ROOT/hermetic_environment.err"
@@ -551,6 +624,8 @@ assert_failure_modes
 assert_local_gate_protection
 assert_dropped_suite_guard
 assert_execution_reports_non_serial_failure_without_serial_tail
+assert_failure_marker_survives_long_tail
+assert_execution_count_summary_reaches_log
 assert_execution_scrubs_ambient_environment
 assert_empty_registries_are_bash_32_safe
 assert_watchdog_child_reaped

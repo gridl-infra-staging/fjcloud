@@ -15,6 +15,8 @@ pub struct RateCardRow {
     pub effective_until: Option<DateTime<Utc>>,
     pub storage_rate_per_mb_month: Decimal,
     pub region_multipliers: serde_json::Value,
+    /// Base minimum spend. Retained as a card-level value; the admin override
+    /// route no longer accepts a per-customer override of it.
     pub minimum_spend_cents: i64,
     pub shared_minimum_spend_cents: i64,
     pub cold_storage_rate_per_gb_month: Decimal,
@@ -152,6 +154,8 @@ impl RateCardRow {
             "object_storage_egress_rate_per_gb",
         )?;
 
+        // Retained deliberately: the admin route no longer emits this key, but
+        // override rows persisted before the withdrawal must still apply.
         Self::apply_integer_override(
             &mut result.minimum_spend_cents,
             overrides,
@@ -182,6 +186,8 @@ impl RateCardRow {
             effective_until: self.effective_until,
             storage_rate_per_mb_month: self.storage_rate_per_mb_month,
             region_multipliers: multipliers,
+            // Base value carries through to billing unchanged; only the admin
+            // override request surface dropped this field.
             minimum_spend_cents: self.minimum_spend_cents,
             shared_minimum_spend_cents: self.shared_minimum_spend_cents,
             cold_storage_rate_per_gb_month: self.cold_storage_rate_per_gb_month,
@@ -207,8 +213,10 @@ mod tests {
             effective_until: None,
             storage_rate_per_mb_month: dec!(0.20),
             region_multipliers: json!({}),
-            minimum_spend_cents: 500,
-            shared_minimum_spend_cents: 200,
+            // Migration 049 retired the dedicated/free minimum at zero.
+            minimum_spend_cents: 0,
+            // Migration 072 set the shared launch floor to 1500 cents.
+            shared_minimum_spend_cents: 1500,
             cold_storage_rate_per_gb_month: dec!(0.02),
             object_storage_rate_per_gb_month: dec!(0.024),
             object_storage_egress_rate_per_gb: dec!(0.01),

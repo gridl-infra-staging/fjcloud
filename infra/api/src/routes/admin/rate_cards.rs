@@ -18,13 +18,19 @@ use crate::validation::validate_non_negative_decimal;
 // DTOs
 // ---------------------------------------------------------------------------
 
+/// Customer rate override request. Every field here must reach generated
+/// invoice behavior — `minimum_spend_cents` is deliberately absent because
+/// nothing consumes a per-customer minimum spend floor (migration
+/// `049_free_plan_zero_minimum_spend.sql` removed the last consumer). The
+/// `deny_unknown_fields` attribute makes that withdrawal observable: a caller
+/// still sending the dead knob gets 422 instead of a silent drop.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SetRateOverrideRequest {
     pub storage_rate_per_mb_month: Option<String>,
     pub cold_storage_rate_per_gb_month: Option<String>,
     pub object_storage_rate_per_gb_month: Option<String>,
     pub object_storage_egress_rate_per_gb: Option<String>,
-    pub minimum_spend_cents: Option<i64>,
     pub shared_minimum_spend_cents: Option<i64>,
     pub region_multipliers: Option<serde_json::Value>,
 }
@@ -36,7 +42,6 @@ impl SetRateOverrideRequest {
             && self.cold_storage_rate_per_gb_month.is_none()
             && self.object_storage_rate_per_gb_month.is_none()
             && self.object_storage_egress_rate_per_gb.is_none()
-            && self.minimum_spend_cents.is_none()
             && self.shared_minimum_spend_cents.is_none()
             && self.region_multipliers.is_none()
     }
@@ -72,7 +77,6 @@ impl SetRateOverrideRequest {
             }
         }
 
-        insert_non_negative_integer(&mut map, "minimum_spend_cents", self.minimum_spend_cents)?;
         insert_non_negative_integer(
             &mut map,
             "shared_minimum_spend_cents",
@@ -103,6 +107,8 @@ pub struct RateCardResponse {
     pub object_storage_rate_per_gb_month: String,
     pub object_storage_egress_rate_per_gb: String,
     pub region_multipliers: HashMap<String, String>,
+    /// Retained: the rate card's base minimum spend is still reported to admins.
+    /// Only the per-customer *override* of this value was withdrawn.
     pub minimum_spend_cents: i64,
     pub shared_minimum_spend_cents: i64,
     pub has_override: bool,
@@ -142,6 +148,8 @@ fn build_rate_card_response(
         object_storage_rate_per_gb_month: effective.object_storage_rate_per_gb_month.to_string(),
         object_storage_egress_rate_per_gb: effective.object_storage_egress_rate_per_gb.to_string(),
         region_multipliers: multipliers,
+        // Base value survives; the route can no longer set an override for it,
+        // but historical override rows still apply through `with_overrides`.
         minimum_spend_cents: effective.minimum_spend_cents,
         shared_minimum_spend_cents: effective.shared_minimum_spend_cents,
         has_override,
@@ -212,6 +220,11 @@ pub async fn get_rate_card(
 /// **Auth:** `AdminAuth`.
 /// Requires at least one override field. Validates decimal and integer fields,
 /// then upserts the override row against the active rate card.
+///
+/// `SetRateOverrideRequest` is `deny_unknown_fields`, so any key outside the
+/// accepted set — notably the withdrawn `minimum_spend_cents` — is rejected at
+/// deserialization. Axum 0.7 renders that schema mismatch as 422 Unprocessable
+/// Entity before the handler runs, not as `ApiError::BadRequest`.
 pub async fn set_rate_override(
     auth: AdminAuth,
     State(state): State<AppState>,

@@ -333,10 +333,11 @@ case "$url" in
     http://synthetic-api.test/admin/tenants)
         if [ "$method" = "GET" ]; then
             if [ "${MOCK_SYNTHETIC_TENANT_LIST_SOFT_DELETED_FIRST:-0}" = "1" ]; then
-                printf '[{"id":"99999999-9999-9999-9999-999999999999","name":"demo-shared-free","email":"demo-shared-free@synthetic-seed.invalid","status":"deleted","billing_plan":"shared"},{"id":"11111111-1111-1111-1111-111111111111","name":"demo-shared-free","email":"demo-shared-free@synthetic-seed.invalid","status":"active","billing_plan":"shared"},{"id":"22222222-2222-2222-2222-222222222222","name":"demo-small-dedicated","email":"demo-small-dedicated@synthetic-seed.invalid","status":"active","billing_plan":"dedicated"},{"id":"33333333-3333-3333-3333-333333333333","name":"demo-medium-dedicated","email":"demo-medium-dedicated@synthetic-seed.invalid","status":"active","billing_plan":"dedicated"}]\n200'
+                # Mock billing_plan values must serialize through infra/api/src/models/customer.rs::BillingPlan.
+                printf '[{"id":"99999999-9999-9999-9999-999999999999","name":"demo-shared-free","email":"demo-shared-free@synthetic-seed.invalid","status":"deleted","billing_plan":"shared"},{"id":"11111111-1111-1111-1111-111111111111","name":"demo-shared-free","email":"demo-shared-free@synthetic-seed.invalid","status":"active","billing_plan":"shared"},{"id":"22222222-2222-2222-2222-222222222222","name":"demo-small-dedicated","email":"demo-small-dedicated@synthetic-seed.invalid","status":"active","billing_plan":"shared"},{"id":"33333333-3333-3333-3333-333333333333","name":"demo-medium-dedicated","email":"demo-medium-dedicated@synthetic-seed.invalid","status":"active","billing_plan":"shared"}]\n200'
                 exit 0
             fi
-            printf '[{"id":"11111111-1111-1111-1111-111111111111","name":"demo-shared-free","email":"demo-shared-free@synthetic-seed.invalid","status":"active","billing_plan":"shared"},{"id":"22222222-2222-2222-2222-222222222222","name":"demo-small-dedicated","email":"demo-small-dedicated@synthetic-seed.invalid","status":"active","billing_plan":"dedicated"},{"id":"33333333-3333-3333-3333-333333333333","name":"demo-medium-dedicated","email":"demo-medium-dedicated@synthetic-seed.invalid","status":"active","billing_plan":"dedicated"}]\n200'
+            printf '[{"id":"11111111-1111-1111-1111-111111111111","name":"demo-shared-free","email":"demo-shared-free@synthetic-seed.invalid","status":"active","billing_plan":"shared"},{"id":"22222222-2222-2222-2222-222222222222","name":"demo-small-dedicated","email":"demo-small-dedicated@synthetic-seed.invalid","status":"active","billing_plan":"shared"},{"id":"33333333-3333-3333-3333-333333333333","name":"demo-medium-dedicated","email":"demo-medium-dedicated@synthetic-seed.invalid","status":"active","billing_plan":"shared"}]\n200'
             exit 0
         fi
         tenant_name="$(synthetic_tenant_name_from_request)"
@@ -385,7 +386,7 @@ case "$url" in
             fi
             synthetic_update_status="${MOCK_SYNTHETIC_UPDATE_STATUS_CODE:-200}"
             synthetic_tenant_name="$(synthetic_tenant_name_for_id "$synthetic_tenant_id")"
-            printf '{"id":"%s","name":"%s","email":"%s@synthetic-seed.invalid","status":"active","billing_plan":"dedicated","created_at":"2026-04-24T00:00:00Z","updated_at":"2026-04-24T00:00:00Z"}\n%s' \
+            printf '{"id":"%s","name":"%s","email":"%s@synthetic-seed.invalid","status":"active","billing_plan":"shared","created_at":"2026-04-24T00:00:00Z","updated_at":"2026-04-24T00:00:00Z"}\n%s' \
                 "$synthetic_tenant_id" \
                 "$synthetic_tenant_name" \
                 "$synthetic_tenant_name" \

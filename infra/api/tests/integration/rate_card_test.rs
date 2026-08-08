@@ -26,8 +26,10 @@ fn sample_rate_card() -> RateCardRow {
         effective_until: None,
         storage_rate_per_mb_month: dec!(0.200000),
         region_multipliers: serde_json::json!({"eu-west-1": "1.3"}),
-        minimum_spend_cents: 500,
-        shared_minimum_spend_cents: 200,
+        // Migration 049 retired the dedicated/free minimum at zero.
+        minimum_spend_cents: 0,
+        // Migration 072 set the shared launch floor to 1500 cents.
+        shared_minimum_spend_cents: 1500,
         cold_storage_rate_per_gb_month: dec!(0.020000),
         object_storage_rate_per_gb_month: dec!(0.024000),
         object_storage_egress_rate_per_gb: dec!(0.010000),
@@ -74,8 +76,8 @@ async fn get_rate_card_200_base_card_no_override() {
     assert_eq!(body["cold_storage_rate_per_gb_month"], "0.020000");
     assert_eq!(body["object_storage_rate_per_gb_month"], "0.024000");
     assert_eq!(body["object_storage_egress_rate_per_gb"], "0.010000");
-    assert_eq!(body["minimum_spend_cents"], 500);
-    assert_eq!(body["shared_minimum_spend_cents"], 200);
+    assert_eq!(body["minimum_spend_cents"], 0);
+    assert_eq!(body["shared_minimum_spend_cents"], 1500);
     assert_eq!(body["has_override"], false);
     assert_eq!(body["override_fields"], serde_json::json!({}));
 
@@ -278,7 +280,7 @@ async fn set_rate_override_200_updates_existing() {
     // The upsert replaces the override entirely with the new storage override payload.
     assert_eq!(body["storage_rate_per_mb_month"], "0.05");
     // Non-overridden fields stay at base values.
-    assert_eq!(body["minimum_spend_cents"], 500);
+    assert_eq!(body["minimum_spend_cents"], 0);
 }
 
 #[tokio::test]
@@ -303,7 +305,6 @@ async fn set_rate_override_200_supports_cold_and_minimum_fields() {
                 .body(Body::from(
                     serde_json::to_string(&serde_json::json!({
                         "cold_storage_rate_per_gb_month": "0.015000",
-                        "minimum_spend_cents": 150,
                         "shared_minimum_spend_cents": 120
                     }))
                     .unwrap(),
@@ -318,13 +319,14 @@ async fn set_rate_override_200_supports_cold_and_minimum_fields() {
         serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
 
     assert_eq!(body["cold_storage_rate_per_gb_month"], "0.015000");
-    assert_eq!(body["minimum_spend_cents"], 150);
+    // `minimum_spend_cents` is no longer overridable, so the response still
+    // reports the base card value from `sample_rate_card()`.
+    assert_eq!(body["minimum_spend_cents"], 0);
     assert_eq!(body["shared_minimum_spend_cents"], 120);
     assert_eq!(
         body["override_fields"]["cold_storage_rate_per_gb_month"],
         "0.015000"
     );
-    assert_eq!(body["override_fields"]["minimum_spend_cents"], 150);
     assert_eq!(body["override_fields"]["shared_minimum_spend_cents"], 120);
 }
 
@@ -362,7 +364,7 @@ async fn set_rate_override_200_supports_shared_minimum_field_only() {
     let body: serde_json::Value =
         serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
 
-    assert_eq!(body["minimum_spend_cents"], 500);
+    assert_eq!(body["minimum_spend_cents"], 0);
     assert_eq!(body["shared_minimum_spend_cents"], 120);
     assert_eq!(body["override_fields"]["shared_minimum_spend_cents"], 120);
 }
@@ -678,7 +680,6 @@ async fn set_rate_override_audit_transactional_best_effort_persists_override_whe
         "cold_storage_rate_per_gb_month": "0.015000",
         "object_storage_rate_per_gb_month": "0.033000",
         "object_storage_egress_rate_per_gb": "0.007000",
-        "minimum_spend_cents": 321,
         "shared_minimum_spend_cents": 222,
         "region_multipliers": {
             "us-east-1": "0.75",
@@ -690,7 +691,6 @@ async fn set_rate_override_audit_transactional_best_effort_persists_override_whe
         "cold_storage_rate_per_gb_month": "0.015000",
         "object_storage_rate_per_gb_month": "0.033000",
         "object_storage_egress_rate_per_gb": "0.007000",
-        "minimum_spend_cents": 321,
         "shared_minimum_spend_cents": 222,
         "region_multipliers": {
             "us-east-1": "0.75",
@@ -717,7 +717,6 @@ async fn set_rate_override_audit_transactional_best_effort_persists_override_whe
     assert_eq!(body["cold_storage_rate_per_gb_month"], "0.015000");
     assert_eq!(body["object_storage_rate_per_gb_month"], "0.033000");
     assert_eq!(body["object_storage_egress_rate_per_gb"], "0.007000");
-    assert_eq!(body["minimum_spend_cents"], 321);
     assert_eq!(body["shared_minimum_spend_cents"], 222);
     assert_eq!(body["region_multipliers"]["us-east-1"], "0.75");
     assert_eq!(body["region_multipliers"]["eu-west-1"], "1.25");

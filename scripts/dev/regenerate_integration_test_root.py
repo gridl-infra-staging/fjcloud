@@ -46,6 +46,7 @@ ROOT_GROUPS: dict[str, tuple[str, ...]] = {
         "invoice_email_test",
         "invoices_test",
         "quota_enforcement_test",
+        "rate_override_field_consumption_test",
         "stripe_billing_test",
         "stripe_local_dispatch_test",
         "stripe_pay_invoice_test",

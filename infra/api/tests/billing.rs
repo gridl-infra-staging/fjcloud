@@ -23,6 +23,8 @@ mod invoice_email_test;
 mod invoices_test;
 #[path = "integration/quota_enforcement_test.rs"]
 mod quota_enforcement_test;
+#[path = "integration/rate_override_field_consumption_test.rs"]
+mod rate_override_field_consumption_test;
 #[path = "integration/stripe_billing_test.rs"]
 mod stripe_billing_test;
 #[path = "integration/stripe_local_dispatch_test.rs"]

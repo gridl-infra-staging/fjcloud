@@ -250,8 +250,10 @@ fn production_rate_card_row() -> RateCardRow {
         effective_until: None,
         storage_rate_per_mb_month: dec!(0.05),
         region_multipliers: json!({}),
-        minimum_spend_cents: 1000,
-        shared_minimum_spend_cents: 500,
+        // Migration 049 retired the dedicated/free minimum at zero.
+        minimum_spend_cents: 0,
+        // Migration 072 set the shared launch floor to 1500 cents.
+        shared_minimum_spend_cents: 1500,
         cold_storage_rate_per_gb_month: dec!(0.02),
         object_storage_rate_per_gb_month: dec!(0.024),
         object_storage_egress_rate_per_gb: dec!(0.01),
@@ -263,15 +265,15 @@ fn production_rate_card_row() -> RateCardRow {
 // Shared setup: seeds the active rate card and returns mock repos
 // ---------------------------------------------------------------------------
 
-struct MockRepos {
-    rate_card_repo: Arc<MockRateCardRepo>,
-    usage_repo: Arc<MockUsageRepo>,
-    cold_snapshot_repo: Arc<api::repos::InMemoryColdSnapshotRepo>,
-    storage_bucket_repo: Arc<api::repos::InMemoryStorageBucketRepo>,
+pub(crate) struct MockRepos {
+    pub(crate) rate_card_repo: Arc<MockRateCardRepo>,
+    pub(crate) usage_repo: Arc<MockUsageRepo>,
+    pub(crate) cold_snapshot_repo: Arc<api::repos::InMemoryColdSnapshotRepo>,
+    pub(crate) storage_bucket_repo: Arc<api::repos::InMemoryStorageBucketRepo>,
 }
 
 /// Creates all mock repos and seeds the production rate card as the active card.
-fn setup_repos() -> MockRepos {
+pub(crate) fn setup_repos() -> MockRepos {
     let rate_card_repo = mock_rate_card_repo();
     let usage_repo = mock_usage_repo();
     let cold_snapshot_repo = mock_cold_snapshot_repo();
@@ -305,7 +307,7 @@ impl MockRepos {
 /// Seeds one row per day in Feb 2026, each with `target_mb * BYTES_PER_MB` as
 /// `storage_bytes_avg`. After `billing::aggregation::summarize()` this yields
 /// exactly `target_mb` MB-months.
-fn seed_constant_daily_usage(
+pub(crate) fn seed_constant_daily_usage(
     usage_repo: &MockUsageRepo,
     customer_id: Uuid,
     target_mb: i64,
@@ -320,7 +322,7 @@ fn seed_constant_daily_usage(
     }
 }
 
-async fn generate_invoice(
+pub(crate) async fn generate_invoice(
     mocks: &MockRepos,
     customer_id: Uuid,
     plan: BillingPlan,
@@ -338,7 +340,7 @@ async fn generate_invoice(
     .expect("invoice generation should succeed")
 }
 
-async fn generate_invoice_with_shared_inputs(
+pub(crate) async fn generate_invoice_with_shared_inputs(
     mocks: &MockRepos,
     shared: &SharedBillingData<'_>,
     customer_id: Uuid,
@@ -446,7 +448,7 @@ fn assert_single_watermark_target(
     );
 }
 
-async fn create_bucket(
+pub(crate) async fn create_bucket(
     mocks: &MockRepos,
     customer_id: Uuid,
     name: &str,
@@ -466,7 +468,7 @@ async fn create_bucket(
     bucket.id
 }
 
-async fn increment_bucket_size(mocks: &MockRepos, bucket_id: Uuid, size_bytes: i64) {
+pub(crate) async fn increment_bucket_size(mocks: &MockRepos, bucket_id: Uuid, size_bytes: i64) {
     mocks
         .storage_bucket_repo
         .increment_size(bucket_id, size_bytes, 1)
@@ -474,7 +476,7 @@ async fn increment_bucket_size(mocks: &MockRepos, bucket_id: Uuid, size_bytes: i
         .expect("increment_size should succeed");
 }
 
-async fn increment_bucket_egress(mocks: &MockRepos, bucket_id: Uuid, egress_bytes: i64) {
+pub(crate) async fn increment_bucket_egress(mocks: &MockRepos, bucket_id: Uuid, egress_bytes: i64) {
     mocks
         .storage_bucket_repo
         .increment_egress(bucket_id, egress_bytes)
@@ -490,73 +492,58 @@ struct HotStorageCase {
     target_mb: i64,
     region: &'static str,
     billing_plan: BillingPlan,
-    minimum_spend_cents_override: Option<i64>,
 }
 
+// The regression owner for "free plans have no floor" is
+// `infra/api/src/invoicing/tests/billing_plan.rs::free_plan_usage_between_minimums_does_not_clamp`.
 const FREE_PLAN_CASES: &[HotStorageCase] = &[
-    // 68 MB * $0.05 = 340¢, pinned known-answer case for Feb 2026.
-    // Override minimum to observe the pre-clamp amount in this harness.
+    // 68 MB * $0.05 = 340¢ subtotal and Free-plan total.
     HotStorageCase {
         target_mb: 68,
         region: "us-east-1",
         billing_plan: BillingPlan::Free,
-        minimum_spend_cents_override: Some(0),
     },
-    // 100 MB * $0.05 = 500¢, below 1000¢ minimum → total = 1000
+    // 100 MB * $0.05 = 500¢ subtotal and Free-plan total.
     HotStorageCase {
         target_mb: 100,
         region: "us-east-1",
         billing_plan: BillingPlan::Free,
-        minimum_spend_cents_override: None,
     },
-    // 250 MB * $0.05 = 1250¢, above minimum → total = 1250
+    // 250 MB * $0.05 = 1250¢ subtotal and Free-plan total.
     HotStorageCase {
         target_mb: 250,
         region: "us-east-1",
         billing_plan: BillingPlan::Free,
-        minimum_spend_cents_override: None,
     },
     // 1000 MB * $0.05 = 5000¢
     HotStorageCase {
         target_mb: 1000,
         region: "us-east-1",
         billing_plan: BillingPlan::Free,
-        minimum_spend_cents_override: None,
     },
     // 5000 MB * $0.05 = 25000¢
     HotStorageCase {
         target_mb: 5000,
         region: "us-east-1",
         billing_plan: BillingPlan::Free,
-        minimum_spend_cents_override: None,
     },
     // 10000 MB * $0.05 = 50000¢
     HotStorageCase {
         target_mb: 10000,
         region: "us-east-1",
         billing_plan: BillingPlan::Free,
-        minimum_spend_cents_override: None,
     },
 ];
 
-fn billing_rate_card_for_hot_storage_case(case: &HotStorageCase) -> billing::rate_card::RateCard {
-    let base_card = production_rate_card_row();
-    let effective_card_row = if let Some(minimum_spend_cents) = case.minimum_spend_cents_override {
-        base_card
-            .with_overrides(&json!({"minimum_spend_cents": minimum_spend_cents}))
-            .expect("minimum spend override should parse")
-    } else {
-        base_card
-    };
-
-    effective_card_row
+fn billing_rate_card_for_hot_storage_case() -> billing::rate_card::RateCard {
+    production_rate_card_row()
         .to_billing_rate_card()
         .expect("production rate card should convert to billing crate format")
 }
 
 fn expected_hot_storage_totals(case: &HotStorageCase) -> (i64, i64) {
     let (period_start, period_end) = feb_2026_bounds();
-    let billing_rate_card = billing_rate_card_for_hot_storage_case(case);
+    let billing_rate_card = billing_rate_card_for_hot_storage_case();
     let usage_summary = MonthlyUsageSummary {
         customer_id: Uuid::new_v4(),
         period_start,
@@ -613,21 +600,6 @@ async fn free_plan_hot_storage_regression() {
 
         seed_constant_daily_usage(&mocks.usage_repo, customer_id, case.target_mb, case.region);
 
-        if let Some(minimum_spend_cents) = case.minimum_spend_cents_override {
-            let active_card = mocks
-                .rate_card_repo
-                .get_active()
-                .await
-                .expect("get_active should succeed")
-                .expect("active card should exist");
-            mocks.rate_card_repo.seed_override(CustomerRateOverrideRow {
-                customer_id,
-                rate_card_id: active_card.id,
-                overrides: json!({"minimum_spend_cents": minimum_spend_cents}),
-                created_at: Utc::now(),
-            });
-        }
-
         let invoice = generate_invoice(&mocks, customer_id, case.billing_plan).await;
 
         assert_invoice_invariants(&invoice);
@@ -654,21 +626,6 @@ async fn free_plan_hot_storage_mutation_proof() {
     let mocks = setup_repos();
     let customer_id = Uuid::new_v4();
     seed_constant_daily_usage(&mocks.usage_repo, customer_id, case.target_mb, case.region);
-
-    if let Some(minimum_spend_cents) = case.minimum_spend_cents_override {
-        let active_card = mocks
-            .rate_card_repo
-            .get_active()
-            .await
-            .expect("get_active should succeed")
-            .expect("active card should exist");
-        mocks.rate_card_repo.seed_override(CustomerRateOverrideRow {
-            customer_id,
-            rate_card_id: active_card.id,
-            overrides: json!({"minimum_spend_cents": minimum_spend_cents}),
-            created_at: Utc::now(),
-        });
-    }
 
     let invoice = generate_invoice(&mocks, customer_id, case.billing_plan).await;
     assert_invoice_invariants(&invoice);
@@ -709,9 +666,9 @@ async fn shared_plan_minimum_regression() {
     // Exactly one hot-storage line item.
     assert_single_line_item_by_unit(&invoice, "mb_months");
 
-    // 50 MB * $0.05 = 250¢ subtotal, below shared minimum of 500¢.
+    // 50 MB * $0.05 = 250¢ subtotal, below shared minimum of 1500¢.
     assert_eq!(invoice.subtotal_cents, 250);
-    assert_eq!(invoice.total_cents, 500);
+    assert_eq!(invoice.total_cents, 1500);
     assert!(invoice.minimum_applied);
 }
 

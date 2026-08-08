@@ -284,6 +284,7 @@ if [ "${#SHARD_SERIAL_TESTS[@]}" -gt 0 ]; then
 fi
 
 FAILURES=0
+SHARD_EXECUTED_SUITE_COUNT=$((${#SHARD_NON_SERIAL_TESTS[@]} + ${#SHARD_SERIAL_TESTS[@]}))
 report_suite_result() {
     local test_path="$1" stem rc
     stem="$(result_stem "$test_path")"
@@ -294,6 +295,9 @@ report_suite_result() {
             echo "mirror manifest shard: failing suite: $test_path (timed out, exit $rc)" >&2
         else
             echo "mirror manifest shard: failing suite: $test_path (exit $rc)" >&2
+        fi
+        if grep -E '^(FAIL|ERROR):' "$RESULTS_DIR/$stem.log" >&2; then
+            :
         fi
         tail -n 30 "$RESULTS_DIR/$stem.log" >&2 || true
     fi
@@ -315,3 +319,5 @@ if [ "$FAILURES" -ne 0 ]; then
     echo "mirror manifest shard: $FAILURES suite(s) failed in shard $SHARD_INDEX/$SHARD_COUNT" >&2
     exit 1
 fi
+
+echo "mirror manifest shard: executed $SHARD_EXECUTED_SUITE_COUNT suite(s) in shard $SHARD_INDEX/$SHARD_COUNT" >&2

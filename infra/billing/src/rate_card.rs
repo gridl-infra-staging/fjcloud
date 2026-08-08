@@ -38,7 +38,8 @@ use uuid::Uuid;
 /// - Object egress: `object_storage_egress_rate_per_gb` USD per GB.
 /// - Searches and writes are free (quota-gated, not billed).
 /// - Regional surcharges are applied via `region_multipliers` (multiplicative, not additive).
-/// - `minimum_spend_cents` and `shared_minimum_spend_cents` enforce a floor charge per cycle.
+/// - `minimum_spend_cents` is a retired dedicated/free-plan column retained for compatibility.
+/// - `shared_minimum_spend_cents` is the only invoice floor, and applies to Shared plans.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RateCard {
     pub id: Uuid,
@@ -52,9 +53,10 @@ pub struct RateCard {
     /// Per-region cost multiplier. A missing entry defaults to 1.0.
     /// Example: {"eu-west-1": 1.3} means EU traffic costs 30% more.
     pub region_multipliers: HashMap<String, Decimal>,
-    /// Floor spend per billing cycle in cents. Prevents penny-abuse.
+    /// Retired dedicated/free-plan column retained for database and parity compatibility.
+    /// Invoice calculation does not read this value.
     pub minimum_spend_cents: i64,
-    /// Floor spend per billing cycle in cents for shared-plan customers.
+    /// The only shared-plan floor read by `invoice_total_with_minimum`.
     pub shared_minimum_spend_cents: i64,
     /// USD per GB per billing period for cold (object-storage) snapshots.
     pub cold_storage_rate_per_gb_month: Decimal,
@@ -82,7 +84,7 @@ mod tests {
     /// Test helper: builds a `RateCard` with canonical rates and the given region multipliers.
     ///
     /// Rates used: $0.05/MB/month hot, $0.02/GB/month cold, $0.024/GB/month object, $0.01/GB
-    /// egress. Minimum spend 1000 cents, shared minimum 500 cents. Pass an empty vec to get a
+    /// egress. Dedicated/free minimum 0 cents, shared minimum 1500 cents. Pass an empty vec to get a
     /// card with no regional adjustments (all regions default to 1.0×).
     fn card_with_multipliers(multipliers: Vec<(&str, Decimal)>) -> RateCard {
         RateCard {
@@ -95,8 +97,10 @@ mod tests {
                 .into_iter()
                 .map(|(k, v)| (k.to_string(), v))
                 .collect(),
-            minimum_spend_cents: 1000,
-            shared_minimum_spend_cents: 500,
+            // Migration 049 retired the dedicated/free minimum at zero.
+            minimum_spend_cents: 0,
+            // Migration 072 set the shared launch floor to 1500 cents.
+            shared_minimum_spend_cents: 1500,
             cold_storage_rate_per_gb_month: dec!(0.02),
             object_storage_rate_per_gb_month: dec!(0.024),
             object_storage_egress_rate_per_gb: dec!(0.01),
@@ -147,7 +151,7 @@ mod tests {
         let parsed: RateCard = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.region_multiplier("eu-west-1"), dec!(1.3));
         assert_eq!(parsed.storage_rate_per_mb_month, dec!(0.05));
-        assert_eq!(parsed.minimum_spend_cents, 1000);
-        assert_eq!(parsed.shared_minimum_spend_cents, 500);
+        assert_eq!(parsed.minimum_spend_cents, 0);
+        assert_eq!(parsed.shared_minimum_spend_cents, 1500);
     }
 }

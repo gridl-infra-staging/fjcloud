@@ -447,8 +447,16 @@ async fn rate_override_rejects_negative_decimal() {
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
 
+/// `minimum_spend_cents` was withdrawn from `SetRateOverrideRequest`: nothing
+/// consumes a per-customer minimum spend floor, so accepting it silently
+/// dropped the caller's intent. `#[serde(deny_unknown_fields)]` now refuses it.
+/// The status is 422, not 400, because axum 0.7 renders a valid-JSON/wrong-schema
+/// body as `UNPROCESSABLE_ENTITY` before the handler runs — same contract pinned
+/// at `auth_test.rs:560-561`. A negative value is used so this stays a strictly
+/// stronger proof than the old validation test it replaces: even the value the
+/// handler used to reject with 400 never reaches the handler now.
 #[tokio::test]
-async fn rate_override_rejects_negative_minimum_spend() {
+async fn rate_override_refuses_withdrawn_minimum_spend_as_unknown_field() {
     let customer_repo = Arc::new(crate::common::MockCustomerRepo::new());
     let rate_card_repo = Arc::new(crate::common::MockRateCardRepo::new());
     let customer = customer_repo.seed("Acme", "acme@example.com");
@@ -470,9 +478,51 @@ async fn rate_override_rejects_negative_minimum_spend() {
     );
 
     let resp = app.oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
+/// Anonymous-probe guard for the same withdrawal. `deny_unknown_fields` turned the
+/// accepted key set into an observable oracle — 422 for an unknown key, 401 for a
+/// credential failure — so that verdict must stay behind admin auth. Axum's type
+/// system already forces `Json` last (it is the sole `FromRequest` extractor), so
+/// the regression this catches is `AdminAuth` being dropped from the handler or the
+/// route moving off the admin surface: with the extractor removed, this body returns
+/// 422 to an unauthenticated caller, letting anyone enumerate the override schema.
+/// Verified red by that mutation (2026-08-08).
+#[tokio::test]
+async fn rate_override_unknown_field_is_unauthorized_before_schema_check() {
+    let customer_repo = Arc::new(crate::common::MockCustomerRepo::new());
+    let rate_card_repo = Arc::new(crate::common::MockRateCardRepo::new());
+    let customer = customer_repo.seed("Acme", "acme@example.com");
+
+    rate_card_repo.seed_active_card(sample_rate_card());
+
+    let app = crate::common::test_app_full(
+        customer_repo,
+        Arc::new(crate::common::MockDeploymentRepo::new()),
+        Arc::new(crate::common::MockUsageRepo::new()),
+        rate_card_repo,
+    );
+
+    // No `x-admin-key` header: same withdrawn-field body as the test above.
+    let req = Request::builder()
+        .method("PUT")
+        .uri(format!("/admin/tenants/{}/rate-card", customer.id))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({ "minimum_spend_cents": -100 }).to_string(),
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+/// Sibling proof to `rate_override_refuses_withdrawn_minimum_spend_as_unknown_field`:
+/// `deny_unknown_fields` must not shadow the *known* knob's application-level
+/// validation. `shared_minimum_spend_cents` is still accepted by the schema, so a
+/// negative value must reach `insert_non_negative_integer` and come back 400 — not
+/// 422. If this test ever flips to 422, the live knob was withdrawn by accident.
 #[tokio::test]
 async fn rate_override_rejects_negative_shared_minimum_spend() {
     let customer_repo = Arc::new(crate::common::MockCustomerRepo::new());

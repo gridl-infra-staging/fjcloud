@@ -1183,6 +1183,37 @@ test_seed_local_does_not_contain_sigpipe_grep_idiom() {
     fi
 }
 
+test_seed_local_mocks_use_serializable_billing_plan_values() {
+    local accepted mock_plans plan
+    accepted="$(sed -n '/fn from_str/,/^    }/p' "$REPO_ROOT/infra/api/src/models/customer.rs" \
+        | sed -n 's/^[[:space:]]*"\([a-z_]*\)" => Ok(Self::.*/\1/p')"
+
+    if [ -z "$accepted" ]; then
+        fail "should extract accepted billing plans from BillingPlan::from_str"
+        return
+    fi
+
+    mock_plans="$(grep -o '"billing_plan":"[a-z_]*"' "$REPO_ROOT/scripts/tests/lib/seed_local_mocks.sh" \
+        | sed 's/^"billing_plan":"//; s/"$//' \
+        | sort -u)"
+
+    if [ -z "$mock_plans" ]; then
+        fail "should find billing_plan fields in seed_local_mocks.sh"
+        return
+    fi
+
+    while read -r plan; do
+        [ -n "$plan" ] || continue
+        if printf '%s\n' "$accepted" | grep -Fxq -- "$plan"; then
+            pass "mock billing_plan '$plan' is accepted by BillingPlan::from_str"
+        else
+            fail "mock billing_plan '$plan' is not accepted by BillingPlan::from_str"
+        fi
+    done <<EOF
+$mock_plans
+EOF
+}
+
 main() {
     echo "=== seed_local.sh tests ==="
     echo ""
@@ -1217,6 +1248,7 @@ main() {
     test_verify_seeded_indexes_handles_realistic_index_volume
     test_verify_seeded_indexes_still_dies_when_target_missing
     test_seed_local_does_not_contain_sigpipe_grep_idiom
+    test_seed_local_mocks_use_serializable_billing_plan_values
     test_seed_local_sources_contract_and_shared_db_helpers
 
     echo ""

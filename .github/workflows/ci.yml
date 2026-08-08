@@ -885,6 +885,20 @@ jobs:
     # mirrors run Actions for free, so the fan-out costs nothing on either and
     # a repository filter would only make one mirror's signal disappear.
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: fjcloud_test
+          POSTGRES_USER: griddle
+          POSTGRES_PASSWORD: griddle_local
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U griddle -d fjcloud_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     # Projection, not a round number, and explicitly not a measurement: the
     # live 19-20-suite shards require three waves at the runner's concurrency
     # cap of eight, and every suite has a 900s cap. Shards 1-6 then carry one
@@ -904,13 +918,22 @@ jobs:
         shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - name: Install ripgrep
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Install mirror shard dependencies
         # Installed explicitly rather than assumed present on the hosted image:
         # collect_evidence_test.sh, deploy_gate_test.sh and local_dev_up_test.sh
         # invoke `rg` as a shell word, and an image change that dropped it would
-        # turn them red for a reason unrelated to the code under test. Verified
-        # 2026-08-08 as the only external dependency across all 154 sharded
-        # suites (no Python toml/tomllib imports, no gitleaks invocation).
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+        # turn them red for a reason unrelated to the code under test.
+        # vlm_first_verdict_bundle_test.sh also exercises Linux PNG
+        # normalization; ubuntu-latest has neither macOS sips nor a guaranteed
+        # ImageMagick install, so the mirror job owns that dependency too.
+        # purge_dev_state_test.sh and integration_up_test.sh are database and
+        # port-ownership contracts, so the mirror job also owns psql and lsof.
+        run: sudo apt-get update && sudo apt-get install -y ripgrep imagemagick postgresql-client lsof
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --version 0.8.6 --no-default-features --features postgres
       - name: Run manifest shard ${{ matrix.shard }} of 8
+        env:
+          DATABASE_URL: postgres://griddle:griddle_local@127.0.0.1:5432/fjcloud_test
         run: bash scripts/run_mirror_manifest_shard.sh --shard ${{ matrix.shard }} --shards 8

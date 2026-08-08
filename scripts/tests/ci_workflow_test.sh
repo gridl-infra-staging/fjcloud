@@ -728,12 +728,21 @@ assert_job_contains_regex "mirror-manifest-shards" '^\s{4}strategy:$' "mirror-ma
 assert_job_contains_regex "mirror-manifest-shards" '^\s{6}fail-fast:\s+false$' "mirror-manifest-shards disables fail-fast so one red shard does not cancel the rest"
 assert_job_contains_regex "mirror-manifest-shards" '^\s{6}matrix:$' "mirror-manifest-shards nests matrix under strategy"
 assert_job_contains_regex "mirror-manifest-shards" '^\s{8}shard:\s+\[1, ?2, ?3, ?4, ?5, ?6, ?7, ?8\]$' "mirror-manifest-shards enumerates all eight shards"
+assert_job_contains_regex "mirror-manifest-shards" '^\s{4}services:$' "mirror-manifest-shards declares service dependencies"
+assert_job_contains_regex "mirror-manifest-shards" 'POSTGRES_DB:\s+fjcloud_test' "mirror-manifest-shards provides the purge-dev-state test database"
+assert_job_contains_regex "mirror-manifest-shards" 'POSTGRES_USER:\s+griddle' "mirror-manifest-shards uses the local test database user"
+assert_job_contains_regex "mirror-manifest-shards" 'POSTGRES_PASSWORD:\s+griddle_local' "mirror-manifest-shards uses the local test database password"
 assert_job_contains_regex "mirror-manifest-shards" 'uses:\s+actions/checkout@' "mirror-manifest-shards has checkout step"
+assert_job_contains_regex "mirror-manifest-shards" 'uses:\s+dtolnay/rust-toolchain@' "mirror-manifest-shards has rust toolchain setup for sqlx-cli"
 # ripgrep is installed explicitly rather than assumed: three sharded suites
 # (collect_evidence_test.sh, deploy_gate_test.sh, local_dev_up_test.sh) invoke
 # `rg` as a shell word, and a hosted-image change that dropped it would turn
 # them red for a reason that has nothing to do with the code under test.
 assert_job_contains_regex "mirror-manifest-shards" 'sudo apt-get install -y ripgrep' "mirror-manifest-shards installs ripgrep explicitly"
+assert_job_contains_regex "mirror-manifest-shards" 'sudo apt-get install -y .*imagemagick' "mirror-manifest-shards installs ImageMagick for Linux PNG normalization"
+assert_job_contains_regex "mirror-manifest-shards" 'sudo apt-get install -y .*postgresql-client' "mirror-manifest-shards installs PostgreSQL client for database-backed shell suites"
+assert_job_contains_regex "mirror-manifest-shards" 'sudo apt-get install -y .*lsof' "mirror-manifest-shards installs lsof for port-ownership contracts"
+assert_job_contains_regex "mirror-manifest-shards" 'cargo install sqlx-cli --version 0\.8\.6 --no-default-features --features postgres' "mirror-manifest-shards installs sqlx-cli for migration-backed shell suites"
 assert_job_contains_regex "mirror-manifest-shards" 'bash scripts/run_mirror_manifest_shard\.sh --shard \$\{\{ matrix\.shard \}\} --shards 8' "mirror-manifest-shards invokes the shard runner with the matrix index and a shard count matching the matrix length"
 # The job is advisory, in both dependency directions. Neither deploy job may
 # gate on it (that would make an advisory signal a release blocker, and both

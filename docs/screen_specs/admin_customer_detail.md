@@ -13,7 +13,7 @@ Inspect customer identity/status, manage lifecycle actions, impersonate safely, 
 
 ## Target Behavior
 
-The page shows customer name/email/status, the exact plan tier in the Info tab, lifecycle action buttons, form feedback, and tabs for Info, Indexes, Deployments, Usage, Invoices, Rate Card, Quotas, and Audit. Tabs lazy-mount on click and render data, unavailable states, or empty states truthfully; the Indexes tab renders the customer's DB-backed catalog rows from `/admin/tenants/[id]/indexes` with name, region, status, tier, and `entries: 0` for every resolved Stage 1 catalog row, the Invoices tab lets operators load stored Stripe drill-in fields for a selected invoice, and the Audit tab renders action, actor ID, timestamp, and non-empty metadata.
+The page shows customer name/email/status, the exact plan tier in the Info tab, lifecycle action buttons, form feedback, and tabs for Info, Indexes, Deployments, Usage, Invoices, Rate Card, Quotas, and Audit. Tabs lazy-mount on click and render data, unavailable states, or empty states truthfully; the Indexes tab renders the customer's DB-backed catalog rows from `/admin/tenants/[id]/indexes` with name, region, status, tier, and `entries: 0` for every resolved Stage 1 catalog row, the Invoices tab lets operators load stored Stripe drill-in fields for a selected invoice, and the Audit tab renders action, actor ID, timestamp, and non-empty metadata. The Rate Card tab shows only applied pricing values; minimum_spend_cents is deliberately not shown because it is the retired dedicated-plan floor and no billing computation reads it.
 
 ## Required States
 

@@ -108,13 +108,13 @@ test_roadmap_documents_delete_precondition_and_status_gaps() {
         ' "$ROADMAP_PATH"
     )"
     account_retention_block="$(
-        printf '%s\n' "$planned_section" | awk '
+        awk '
             /^- \*\*Account-retention automation implemented\.\*\*/ { in_account_data=1 }
             /^- / && in_account_data && $0 !~ /^- \*\*Account-retention automation implemented\.\*\*/ {
                 exit
             }
             in_account_data { print }
-        '
+        ' <<<"$planned_section"
     )"
 
     assert_contains "$account_retention_block" "- **Account-retention automation implemented.**" \

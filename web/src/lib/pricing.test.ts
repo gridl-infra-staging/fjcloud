@@ -20,15 +20,16 @@ describe('pricing constants', () => {
 			expect(MARKETING_PRICING).not.toHaveProperty('storage_rate_per_gb_month');
 		});
 
-		it('keeps dedicated-plan and shared-plan minimums aligned with the backend contract', () => {
-			// Free plans no longer apply a minimum-spend floor — migration
-			// 049_free_plan_zero_minimum_spend set this to 0 and the
-			// rust contract test `billing/tests/web_pricing_parity_test.rs`
-			// enforces parity between MARKETING_PRICING and the migrations.
+		it('pins retired minimum_spend_cents at 0 and shared_minimum_spend_cents as the applied paid monthly floor', () => {
+			// Migration 049_free_plan_zero_minimum_spend pinned the now-retired
+			// minimum_spend_cents field at 0; no billing computation reads it.
 			//
-			// The paid floor was raised $5 → $15 by migration
-			// 072_raise_paid_plan_minimum_to_15; rationale in
-			// decisions/2026-08-05_pricing_strategy_decision.md.
+			// Migration 072_raise_paid_plan_minimum_to_15 raised the paid/shared
+			// floor from $5 to $15. The invoice-side floor application owner,
+			// infra/api/src/invoicing/line_items.rs::invoice_total_with_minimum,
+			// reads only shared_minimum_spend_cents. See
+			// docs/reference/known_facts.md for the full floor-owner chain and
+			// decisions/2026-08-05_pricing_strategy_decision.md for rationale.
 			expect(MARKETING_PRICING.minimum_spend_cents).toBe(0);
 			expect(MARKETING_PRICING.shared_minimum_spend_cents).toBe(1500);
 		});

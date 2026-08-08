@@ -232,6 +232,8 @@ test.describe('Admin customer detail workflows', () => {
 		await expect(page.getByRole('heading', { name: 'Rate Card' })).toBeVisible();
 		// Every customer gets the active base rate card; verify it renders real content
 		await expect(page.getByText('Storage per MB / month')).toBeVisible();
+		await expect(page.getByText('Dedicated minimum')).toHaveCount(0);
+		await expect(page.getByText('Shared minimum')).toBeVisible();
 
 		const quotasHeading = page.getByRole('heading', { name: 'Index Quotas' });
 		await expect(quotasHeading).toHaveCount(0);

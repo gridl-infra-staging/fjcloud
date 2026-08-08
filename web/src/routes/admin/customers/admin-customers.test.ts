@@ -542,7 +542,7 @@ describe('Admin customer detail', () => {
 		expect(screen.getByText('0.05')).toBeInTheDocument();
 	});
 
-	it('rate_card_tab_shows_storage_rates_and_shared_minimum', async () => {
+	it('rate_card_omits_dedicated_minimum_and_preserves_shared_minimum_row', async () => {
 		const CustomerDetailPage = (await import('./[id]/+page.svelte')).default;
 
 		render(CustomerDetailPage, {
@@ -551,9 +551,11 @@ describe('Admin customer detail', () => {
 
 		await fireEvent.click(screen.getByRole('button', { name: 'Rate Card' }));
 
-		// Shared minimum displays distinctly from dedicated minimum
+		expect(screen.queryByText('Dedicated minimum')).not.toBeInTheDocument();
+
+		// Shared minimum keeps the applied shared-plan floor.
 		expect(screen.getByText('Shared minimum')).toBeInTheDocument();
-		expect(screen.getByText('$5.00')).toBeInTheDocument();
+		expect(screen.getByTestId('rate-card-shared-minimum-value')).toHaveTextContent(/^\$5\.00$/);
 
 		// Storage rate fields
 		expect(screen.getByText('Cold storage per GB / month')).toBeInTheDocument();

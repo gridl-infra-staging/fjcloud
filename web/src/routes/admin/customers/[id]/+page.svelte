@@ -502,18 +502,17 @@
 		<div class="rounded-lg border border-slate-700 bg-slate-900/50 p-5">
 			<h3 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Rate Card</h3>
 			{#if data.rateCard}
+				<!-- minimum_spend_cents is the retired dedicated-plan floor set to 0 by infra/migrations/049_free_plan_zero_minimum_spend.sql; no billing computation reads it, and infra/api/src/invoicing/line_items.rs::invoice_total_with_minimum applies shared_minimum_spend_cents. -->
 				<div class="mt-3 grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
 					<div>
 						<p class="text-slate-400">Name</p>
 						<p class="text-slate-100">{data.rateCard.name}</p>
 					</div>
 					<div>
-						<p class="text-slate-400">Dedicated minimum</p>
-						<p class="text-slate-100">{centsToDollars(data.rateCard.minimum_spend_cents)}</p>
-					</div>
-					<div>
 						<p class="text-slate-400">Shared minimum</p>
-						<p class="text-slate-100">{centsToDollars(data.rateCard.shared_minimum_spend_cents)}</p>
+						<p class="text-slate-100" data-testid="rate-card-shared-minimum-value">
+							{centsToDollars(data.rateCard.shared_minimum_spend_cents)}
+						</p>
 					</div>
 					<div>
 						<p class="text-slate-400">Storage per MB / month</p>

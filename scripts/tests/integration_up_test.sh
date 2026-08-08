@@ -291,19 +291,12 @@ test_up_check_prerequisites_reports_install_guidance() {
     tmp_dir="$(mktemp -d)"
     trap "rm -rf '$tmp_dir'" RETURN
 
+    make_command_path_without "$tmp_dir" psql cargo curl
     write_mock_script "$tmp_dir/whoami" 'echo "tester"'
-    write_mock_script "$tmp_dir/dirname" '
-path="${1:-.}"
-if [[ "$path" == */* ]]; then
-    echo "${path%/*}"
-else
-    echo "."
-fi
-'
 
     local output exit_code=0
     output=$(
-        PATH="$tmp_dir:/bin" \
+        PATH="$tmp_dir" \
         /bin/bash "$REPO_ROOT/scripts/integration-up.sh" --check-prerequisites 2>&1
     ) || exit_code=$?
 
